@@ -1,0 +1,17 @@
+bin/
+build/
+build_gcc/
+data_double_layer/
+lib/
+spectrum/
+src/distribution/
+src/others/
+calc_agyrotropy
+dissipation
+energies_pic.dat
+fileContents.txt
+parallel_potential
+parspec
+spectrum_along_fieldline
+translate
+xz_field.dat

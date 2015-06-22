@@ -1,0 +1,11 @@
+           ***** Parameters for getting distribution ***** 
+xc/de  = 2.048000e+03
+yc/de  = 1.000000e+00
+zc/de  = 1.024000e+03
+bnx    = 3.000000e+03 
+bny    = 0.000000e+00 
+bnz    = 4.000000e+01 
+nbins  = 1.000000e+01
+vmax/c = 1.0
+vmin/c = 0.0
+tp     = 1.000000e+01

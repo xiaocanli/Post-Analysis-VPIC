@@ -1,0 +1,60 @@
+!*******************************************************************************
+! Module for data analysis setup, including the initialization of MPI processes,
+! reading PIC simulation domain, setting MPI topology, setting MPI datatype,
+! setting MPI_INFO for I/O, opening and closing PIC field fields,
+! initialization and free of the PIC fields, freeing the MPI datatype, MPI_INFO,
+! and finalizing the MPI process.
+!*******************************************************************************
+module analysis_management
+    implicit none
+    private
+    public init_analysis, end_analysis
+
+    contains
+
+    !---------------------------------------------------------------------------
+    ! Initialize the analysis by reading the PIC simulation domain information,
+    ! get file paths for the field data and the outputs.
+    !---------------------------------------------------------------------------
+    subroutine init_analysis
+        use mpi_module
+        use path_info, only: get_file_paths
+        use parameters, only: it2
+        use mpi_topology, only: set_mpi_topology
+        use mpi_datatype, only: set_mpi_datatype
+        use mpi_info_object, only: fileinfo, set_mpi_info
+        use picinfo, only: read_domain, broadcast_pic_info, get_total_time_frames
+
+        implicit none
+
+        call MPI_INIT(ierr)
+        call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
+        call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
+
+        call get_file_paths
+        if (myid == master) then
+            call read_domain
+        endif
+        call broadcast_pic_info
+        call get_total_time_frames(it2)
+        call set_mpi_topology   ! MPI topology
+        call set_mpi_datatype
+        call set_mpi_info
+    end subroutine init_analysis
+
+    !---------------------------------------------------------------------------
+    ! Finalizing the analysis by release the memory, MPI data types, MPI info.
+    !---------------------------------------------------------------------------
+    subroutine end_analysis
+        use mpi_module
+        use mpi_datatype, only: filetype_ghost, filetype_nghost
+        use mpi_info_object, only: fileinfo
+        implicit none
+
+        call MPI_TYPE_FREE(filetype_ghost, ierror)
+        call MPI_TYPE_FREE(filetype_nghost, ierror)
+        call MPI_INFO_FREE(fileinfo, ierror)
+        call MPI_FINALIZE(ierr)
+    end subroutine end_analysis
+
+end module analysis_management
