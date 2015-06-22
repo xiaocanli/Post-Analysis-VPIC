@@ -36,7 +36,7 @@ module spectrum_config
         if (iargc() > 0) then
             call getarg(1, fname)
         else
-            fname = 'spectrum_config.dat'
+            fname = 'config_files/spectrum_config.dat'
         endif
         open(unit=fh, file=fname, status='old')
         temp = get_variable(fh, 'nbins', '=')   ! Number of energy bins

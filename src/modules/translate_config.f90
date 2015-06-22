@@ -40,7 +40,8 @@ module configuration_translate
 
         ! Read the configuration file
         if (myid==master) then
-            open(unit=10, file='conf.dat', form='formatted', status='old')
+            open(unit=10, file='config_files/conf.dat', &
+                 form='formatted', status='old')
             read(10, datum)
             close(10)
         endif
