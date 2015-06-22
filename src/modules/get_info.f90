@@ -14,12 +14,13 @@ module path_info
 
     subroutine get_file_paths
         implicit none
-        integer :: status1, fname_len, getcwd
+        integer :: status1, getcwd, index1
         status1 = getcwd(rootpath)
-        fname_len = len(trim(rootpath))
-        rootpath = rootpath(1:fname_len-3) ! subtract 'ana' from the path.
+        index1 = index(rootpath, '/', back=.true.)
+        rootpath = rootpath(1:index1)
         filepath = trim(rootpath)//'data/'
         outputpath = trim(rootpath)//'data1/'
+        print*, rootpath
     end subroutine get_file_paths
 end module path_info
 
