@@ -17,30 +17,6 @@ module magnetic_field
 
     contains
 
-    ! !---------------------------------------------------------------------------
-    ! ! Read the whole data of one 2D field at current time frame.
-    ! ! Input:
-    ! !   filename: the file name of the data.
-    ! !   ct: current time frame.
-    ! !   nx, nz: the sizes of the 2D field.
-    ! ! Return:
-    ! !   fdata: field data.
-    ! !---------------------------------------------------------------------------
-    ! subroutine read_whole_field(filename, ct, nx, nz, fdata)
-    !     use constants, only: fp, dp
-    !     use parameters, only: it1
-    !     implicit none
-    !     character(*), intent(in) :: filename
-    !     integer, intent(in) :: ct, nx, nz
-    !     real(fp), dimension(nx, nz), intent(out) :: fdata
-    !     integer(dp) :: pos1
-    !     open(unit=101, file=filename, access='stream',&
-    !         status='unknown', form='unformatted', action='read')
-    !     pos1 = nx * nz * sizeof(fp) * (ct-it1) + 1
-    !     read(101, pos=pos1) fdata
-    !     close(101)
-    ! end subroutine read_whole_field
-
     !---------------------------------------------------------------------------
     ! Initialize the magnetic field.
     !---------------------------------------------------------------------------

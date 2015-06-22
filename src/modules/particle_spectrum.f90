@@ -131,7 +131,7 @@ module particle_energy_spectrum
 
         call calc_energy_bins
 
-        do it = 1, nt
+        do it = 1, 1
             tindex = it * tinterval
             call set_energy_spectra_zero
             call check_existence(tindex, species, is_exist)

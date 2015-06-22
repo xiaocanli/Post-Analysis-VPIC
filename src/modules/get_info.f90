@@ -20,7 +20,6 @@ module path_info
         rootpath = rootpath(1:index1)
         filepath = trim(rootpath)//'data/'
         outputpath = trim(rootpath)//'data1/'
-        print*, rootpath
     end subroutine get_file_paths
 end module path_info
 

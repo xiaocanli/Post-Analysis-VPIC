@@ -5,19 +5,20 @@ module particle_module
     use constants, only: fp
     implicit none
     private
-    public ptl, ke, px, py, pz
-    public calc_particle_energy, calc_ptl_coord
+    public ptl, ke, px, py, pz, upara, uperp
+    public calc_particle_energy, calc_ptl_coord, calc_para_perp_velocity
 
     type particle
         real(fp) :: dx, dy, dz    ! Particle relative position in a cell [-1,1]
         integer :: icell          ! Index of cell containing the particle
-        real(fp) :: ux, uy, uz    !  Particle normalized momentum
+        real(fp) :: ux, uy, uz    ! Particle normalized momentum
         real(fp) :: q
     end type particle
 
     type(particle) :: ptl
-    real(fp) :: ke  ! Kinetic energy
-    real(fp) :: px, py, pz
+    real(fp) :: ke                ! Kinetic energy
+    real(fp) :: px, py, pz        ! Particle position
+    real(fp) :: upara, uperp      ! Parallel and perpendicular momentum
 
     contains
 
@@ -37,6 +38,7 @@ module particle_module
 
     !---------------------------------------------------------------------------
     ! Calculate the particle's coordinates. [0 - lx, -ly/2 - ly/2, -lz/2 - lz/2]
+    ! They are in electron skin length (de).
     !---------------------------------------------------------------------------
     subroutine calc_ptl_coord
         use file_header, only: v0
@@ -60,5 +62,23 @@ module particle_module
         py = v0%y0 + ((iy-1)+(ptl%dy+1)*0.5) * v0%dy
         px = v0%x0 + ((ix-1)+(ptl%dx+1)*0.5) * v0%dx
     end subroutine calc_ptl_coord
+
+    !---------------------------------------------------------------------------
+    ! Calculate the particle's parallel and perpendicular momentum to the local
+    ! magnetic field.
+    !---------------------------------------------------------------------------
+    subroutine calc_para_perp_velocity
+        use picinfo, only: domain
+        use magnetic_field, only: bx0, by0, bz0, get_magnetic_field_at_point
+        implicit none
+        real(fp) :: absB
+        real(fp) :: dx, dz
+        dx = real(domain%dx, kind=4)
+        dz = real(domain%dz, kind=4)
+        call get_magnetic_field_at_point(px, pz, dx, dz)
+        absB = sqrt(bx0**2 + by0**2 + bz0**2)
+        upara = (ptl%ux*bx0 + ptl%uy*by0 + ptl%uz*bz0) / absB
+        uperp = sqrt(ptl%ux**2 + ptl%uy**2 + ptl%uz**2 - upara**2)
+    end subroutine calc_para_perp_velocity
 
 end module particle_module
