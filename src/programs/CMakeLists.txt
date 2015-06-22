@@ -16,7 +16,7 @@ target_link_libraries(calc_agyrotropy ${MPI_Fortran_LIBRARIES} get_info
 
 add_executable(parallel_potential parallel_potential.f90)
 target_link_libraries(parallel_potential ${MPI_Fortran_LIBRARIES}
-    fieldline_tracing analysis_config)
+    fieldline_tracing electric_field analysis_config)
 
 add_executable(translate translate.f90)
 target_link_libraries(translate ${MPI_Fortran_LIBRARIES} translate_module)

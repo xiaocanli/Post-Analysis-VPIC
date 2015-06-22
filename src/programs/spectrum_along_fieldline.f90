@@ -9,7 +9,8 @@ program spectrum_along_fieldline
     use path_info, only: get_file_paths
     use picinfo, only: read_domain, broadcast_pic_info
     use fieldline_tracing, only: init_fieldline_tracing, end_fieldline_tracing, &
-            read_magnetic_fields, Cash_Karp_parameters, Dormand_Prince_parameters
+            Cash_Karp_parameters, Dormand_Prince_parameters
+    use magnetic_field, only: read_magnetic_fields
     use particle_frames, only: get_particle_frames, nt, tinterval
     use mpi_topology, only: distribute_tasks
     use spectrum_config, only: nbins 
@@ -187,6 +188,7 @@ program spectrum_along_fieldline
 
         call open_data_mpi_io(fname, MPI_MODE_WRONLY, fileinfo, fh)
 
+        ! Save spectrum with linear bins
         disp = pos1 + 2*sizeof(fp)*nbins - 1
         offset = 0 
         call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, filetype, 'native', &
@@ -203,6 +205,7 @@ program spectrum_along_fieldline
             print*, "Error in MPI_FILE_READ: ", trim(err_msg)
         endif
 
+        ! Save spectrum with logarithmic bins.
         disp = disp + sizeof(fp)*nbins*nptot
         offset = 0 
         call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, filetype, 'native', &

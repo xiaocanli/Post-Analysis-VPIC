@@ -7,65 +7,18 @@ module fieldline_tracing
 
     implicit none
     private
-    public nx, nz, gdx, gdz, lx, lz, Bx, By, Bz, a, b, c, dc
-    public read_whole_field, init_fieldline_tracing, end_fieldline_tracing, &
-           read_magnetic_fields, tracing, get_crossing_point, controller, &
-           push, grid_indices, derivs, Cash_Karp_parameters, &
-           Dormand_Prince_parameters
+    public nx, nz, gdx, gdz, lx, lz, a, b, c, dc
+    public init_fieldline_tracing, end_fieldline_tracing, tracing, &
+           get_crossing_point, controller, push, derivs, &
+           Cash_Karp_parameters, Dormand_Prince_parameters
     
     integer :: nx, nz
     real(fp) :: gdx, gdz, lx, lz    ! Grid sizes and lengths in di.
-    real(fp), allocatable, dimension(:,:) :: Bx, By, Bz
     ! Adaptive Runge-Kutta parameters.
     real(fp), dimension(0:6) :: a, c, dc
     real(fp), dimension(0:5,0:6) :: b
 
     contains
-
-    !---------------------------------------------------------------------------
-    ! Read the whole data of one 2D field at current time frame.
-    ! Input:
-    !   filename: the file name of the data.
-    !   ct: current time frame.
-    !   nx, nz: the sizes of the 2D field.
-    ! Return:
-    !   fdata: field data.
-    !---------------------------------------------------------------------------
-    subroutine read_whole_field(filename, ct, nx, nz, fdata)
-        use constants, only: fp, dp
-        use parameters, only: it1
-        implicit none
-        character(*), intent(in) :: filename
-        integer, intent(in) :: ct, nx, nz
-        real(fp), dimension(nx, nz), intent(out) :: fdata
-        integer(dp) :: pos1
-        open(unit=101, file=filename, access='stream',&
-            status='unknown', form='unformatted', action='read')
-        pos1 = nx * nz * sizeof(fp) * (ct-it1) + 1
-        read(101, pos=pos1) fdata
-        close(101)
-    end subroutine read_whole_field
-
-    !---------------------------------------------------------------------------
-    ! Initialize the magnetic field.
-    !---------------------------------------------------------------------------
-    subroutine init_magnetic_fields
-        implicit none
-        allocate(Bx(nx, nz))
-        allocate(By(nx, nz))
-        allocate(Bz(nx, nz))
-        Bx = 0.0
-        Bz = 0.0
-        Bz = 0.0
-    end subroutine init_magnetic_fields
-
-    !---------------------------------------------------------------------------
-    ! Free the magnetic field.
-    !---------------------------------------------------------------------------
-    subroutine free_magnetic_fields
-        implicit none
-        deallocate(Bx, By, Bz)
-    end subroutine free_magnetic_fields
 
     !---------------------------------------------------------------------------
     ! Set the grid information, including the grid sizes and grid lengths.
@@ -89,6 +42,7 @@ module fieldline_tracing
     ! initializing magnetic field and read magnetic field.
     !---------------------------------------------------------------------------
     subroutine init_fieldline_tracing
+        use magnetic_field, only: init_magnetic_fields, read_magnetic_fields
         implicit none
         call set_grid_info
         call init_magnetic_fields
@@ -98,31 +52,10 @@ module fieldline_tracing
     ! Finish field line tracing by freeing the magnetic field.
     !---------------------------------------------------------------------------
     subroutine end_fieldline_tracing
+        use magnetic_field, only: free_magnetic_fields
         implicit none
         call free_magnetic_fields
     end subroutine end_fieldline_tracing
-
-    !---------------------------------------------------------------------------
-    ! Read the magnetic field using the master MPI process and broadcast to
-    ! other MPI processes.
-    !---------------------------------------------------------------------------
-    subroutine read_magnetic_fields(ct)
-        use path_info, only: rootpath
-        use mpi_module
-        implicit none
-        integer, intent(in) :: ct
-        if (myid == master) then
-            call read_whole_field(trim(adjustl(rootpath))//'data/bx.gda', &
-                ct, nx, nz, Bx)
-            call read_whole_field(trim(adjustl(rootpath))//'data/by.gda', &
-                ct, nx, nz, By)
-            call read_whole_field(trim(adjustl(rootpath))//'data/bz.gda', &
-                ct, nx, nz, Bz)
-        endif
-        call MPI_BCAST(Bx, nx*nz, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        call MPI_BCAST(By, nx*nz, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        call MPI_BCAST(Bz, nx*nz, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-    end subroutine read_magnetic_fields
 
     !---------------------------------------------------------------------------
     ! Trace magnetic field line starting at one point. The length of the field
@@ -350,30 +283,6 @@ module fieldline_tracing
     end subroutine push
 
     !---------------------------------------------------------------------------
-    ! Get the 2D grid indices for one point.
-    ! Input:
-    !   x, z: the coordinates of the point.
-    !   dx, dz: the grid sizes.
-    ! Return:
-    !   ix1, iz1: grid indices for the bottom left corner.
-    !   ix2, iz2: grid indices for the top right corner.
-    !   shiftx, shifty: the offsets from the bottom left corner.
-    !---------------------------------------------------------------------------
-    subroutine grid_indices(x, z, dx, dz, ix1, iz1, ix2, iz2, shiftx, shiftz)
-        implicit none
-        real, intent(in) :: x, z, dx, dz
-        integer, intent(out) :: ix1, ix2, iz1, iz2
-        real, intent(out) :: shiftx, shiftz
-
-        ix1 = floor(x / dx)
-        iz1 = floor(z / dz)
-        ix2 = ix1 + 1
-        iz2 = iz1 + 1
-        shiftx = x/dx - ix1
-        shiftz = z/dz - iz1
-    end subroutine grid_indices
-
-    !---------------------------------------------------------------------------
     ! Get the direction of the filed line at current point.
     ! Input:
     !   x, z: the coordinates of the this point.
@@ -381,34 +290,41 @@ module fieldline_tracing
     !   deltax, deltay, deltaz: the 3 directions of the field.
     !---------------------------------------------------------------------------
     subroutine derivs(x, z, deltax, deltay, deltaz)
+        use magnetic_field, only: get_magnetic_field_at_point, bx0, by0, bz0
         use constants, only: fp
         implicit none
         real(fp), intent(in) :: x, z
         real(fp), intent(out) :: deltax, deltay, deltaz
-        real(fp) :: shiftx, shiftz, v1, v2, v3, v4
-        real(fp) :: bx0, by0, bz0, absB
-        integer :: ix1, ix2, iz1, iz2
+        real(fp) :: absB
 
-        call grid_indices(x, z, gdx, gdz, ix1, iz1, ix2, iz2, shiftx, shiftz)
-        v1 = (1.0-shiftx) * (1.0-shiftz)
-        v2 = shiftx * (1.0-shiftz)
-        v3 = shiftx * shiftz
-        v4 = (1.0-shiftx) * shiftz
+        call get_magnetic_field_at_point(x, z, gdx, gdz)
+        absB = sqrt(bx0**2 + bz0**2)
+        deltax = bx0 / absB
+        deltaz = bz0 / absB
+        deltay = by0 * sqrt(deltax**2+deltaz**2) / absB
 
-        if (ix1 >=0 .and. ix1 < nx .and. ix2 >=0 .and. ix2 < nx .and. &
-                iz1 >= 0 .and. iz1 < nz .and. iz2 >= 0 .and. iz2 < nz) then
-            bx0 = Bx(ix1,iz1)*v1 + Bx(ix1,iz2)*v2 + Bx(ix2,iz2)*v3 + Bx(ix2,iz1)*v4
-            by0 = By(ix1,iz1)*v1 + By(ix1,iz2)*v2 + By(ix2,iz2)*v3 + By(ix2,iz1)*v4
-            bz0 = Bz(ix1,iz1)*v1 + Bz(ix1,iz2)*v2 + Bz(ix2,iz2)*v3 + Bz(ix2,iz1)*v4
-            absB = sqrt(bx0**2 + bz0**2)
-            deltax = bx0 / absB
-            deltaz = bz0 / absB
-            deltay = by0 * sqrt(deltax**2+deltaz**2) / absB
-        else
-            deltax = 0.1
-            deltay = 0.1
-            deltaz = 0.1
-        endif
+        ! call grid_indices(x, z, gdx, gdz, ix1, iz1, ix2, iz2, shiftx, shiftz)
+
+        ! if (ix1 >=0 .and. ix1 < nx .and. ix2 >=0 .and. ix2 < nx .and. &
+        !         iz1 >= 0 .and. iz1 < nz .and. iz2 >= 0 .and. iz2 < nz) then
+
+        !     v1 = (1.0-shiftx) * (1.0-shiftz)
+        !     v2 = shiftx * (1.0-shiftz)
+        !     v3 = shiftx * shiftz
+        !     v4 = (1.0-shiftx) * shiftz
+
+        !     bx0 = Bx(ix1,iz1)*v1 + Bx(ix1,iz2)*v2 + Bx(ix2,iz2)*v3 + Bx(ix2,iz1)*v4
+        !     by0 = By(ix1,iz1)*v1 + By(ix1,iz2)*v2 + By(ix2,iz2)*v3 + By(ix2,iz1)*v4
+        !     bz0 = Bz(ix1,iz1)*v1 + Bz(ix1,iz2)*v2 + Bz(ix2,iz2)*v3 + Bz(ix2,iz1)*v4
+        !     absB = sqrt(bx0**2 + bz0**2)
+        !     deltax = bx0 / absB
+        !     deltaz = bz0 / absB
+        !     deltay = by0 * sqrt(deltax**2+deltaz**2) / absB
+        ! else
+        !     deltax = 0.1
+        !     deltay = 0.1
+        !     deltaz = 0.1
+        ! endif
         !if (isnan(deltax) .or. isnan(deltay) .or. isnan(deltaz)) then
         !    print*, Bx(ix1,iz1), Bx(ix1,iz2),  Bx(ix2,iz2), Bx(ix2,iz1)
         !endif

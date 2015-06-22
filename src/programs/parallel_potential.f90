@@ -10,17 +10,20 @@ program parallel_potential
     use mpi_module
     use constants, only: fp
     use fieldline_tracing, only: init_fieldline_tracing, end_fieldline_tracing, &
-            read_magnetic_fields, Cash_Karp_parameters, Dormand_Prince_parameters
+            Cash_Karp_parameters, Dormand_Prince_parameters
     use analysis_management, only: init_analysis, end_analysis
+    use magnetic_field, only: read_magnetic_fields
+    use electric_field, only: init_electric_fields, read_electric_fields, &
+            free_electric_fields
     implicit none
     real(fp), allocatable, dimension(:,:) :: phi_para
-    real(fp), allocatable, dimension(:,:) :: Ex, Ey, Ez
     integer :: nx_local, nx_offset, nx, nz
     integer :: ct
 
     call init_analysis
     call init_calculation
     call init_fieldline_tracing
+    call init_electric_fields
     !call Cash_Karp_parameters
     call Dormand_Prince_parameters
 
@@ -32,6 +35,8 @@ program parallel_potential
         call read_magnetic_fields(ct)
         call calc_phi_parallel(ct)
     enddo
+
+    call free_electric_fields
     call end_fieldline_tracing
     call end_calculation
     call end_analysis
@@ -40,7 +45,7 @@ program parallel_potential
 
     !---------------------------------------------------------------------------
     ! Initialize the calculation by setting the domain information and
-    ! initializing the electric field and parallel potential.
+    ! initializing parallel potential.
     !---------------------------------------------------------------------------
     subroutine init_calculation
         use mpi_module
@@ -53,14 +58,7 @@ program parallel_potential
         nx_local = nx / numprocs
         nx_offset = nx_local * myid
 
-        ! Allocate and initialize the fields
-        allocate(Ex(nx, nz))
-        allocate(Ey(nx, nz))
-        allocate(Ez(nx, nz))
         allocate(phi_para(nx_local, nz))
-        Ex = 0.0
-        Ey = 0.0
-        Ez = 0.0
         phi_para = 0.0
     end subroutine init_calculation
 
@@ -70,32 +68,7 @@ program parallel_potential
     subroutine end_calculation
         implicit none
         deallocate(phi_para)
-        deallocate(Ex, Ey, Ez)
     end subroutine end_calculation
-
-    !---------------------------------------------------------------------------
-    ! Read electric field at current time frame and broadcast to all MPI
-    ! processes.
-    ! Inputs:
-    !   ct: current time frame.
-    !---------------------------------------------------------------------------
-    subroutine read_electric_fields(ct)
-        use mpi_module
-        use fieldline_tracing, only: read_whole_field
-        implicit none
-        integer, intent(in) :: ct
-        if (myid == master) then
-            call read_whole_field('../data/ex.gda', ct, nx, nz, Ex)
-            call read_whole_field('../data/ey.gda', ct, nx, nz, Ey)
-            call read_whole_field('../data/ez.gda', ct, nx, nz, Ez)
-        endif
-        call MPI_BCAST(Ex, nx*nz, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        call MPI_BCAST(Ey, nx*nz, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        call MPI_BCAST(Ez, nx*nz, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-
-        call MPI_BARRIER(MPI_COMM_WORLD, ierror)
-
-    end subroutine read_electric_fields
 
     !---------------------------------------------------------------------------
     ! Calculate the parallel potential, which often appears in Jan Egedal's papers.
@@ -141,9 +114,8 @@ program parallel_potential
     !   phi_parallel: parallel potential at current point.
     !---------------------------------------------------------------------------
     subroutine tracing(x, z, htry, phi_parallel)
-        use fieldline_tracing, only: push, grid_indices, derivs, &
-                get_crossing_point, controller, Cash_Karp_parameters, &
-                Dormand_Prince_parameters, lx, lz
+        use fieldline_tracing, only: push, derivs, get_crossing_point, &
+                controller, Cash_Karp_parameters, Dormand_Prince_parameters, lx, lz
         implicit none
         real(fp), intent(inout) :: x, z, phi_parallel
         real(fp), intent(in) :: htry
@@ -212,7 +184,8 @@ program parallel_potential
     !---------------------------------------------------------------------------
     subroutine update_phi_parallel(xold, zold, kx, ky, kz, h, phi_parallel)
         use constants, only: fp
-        use fieldline_tracing, only: b, c
+        use fieldline_tracing, only: b, c, gdx, gdz
+        use electric_field, only: get_electric_field_at_point, ex0, ey0, ez0
         implicit none
         real(fp), intent(in), dimension(0:6) :: kx, ky, kz
         real(fp), intent(in) :: xold, zold, h
@@ -221,52 +194,31 @@ program parallel_potential
         real(fp) :: xtemp, ztemp
         integer :: i
 
-        call get_efield(xold, xold, exs(0), eys(0), ezs(0))
+        call get_electric_field_at_point(xold, zold, gdx, gdz)
+        exs(0) = ex0
+        eys(0) = ey0
+        ezs(0) = ez0
+
         do i = 1, 5
             xtemp = xold + h*dot_product(kx(0:i-1), b(0:i-1,i))
             ztemp = zold + h*dot_product(kz(0:i-1), b(0:i-1,i))
-            call get_efield(xtemp, ztemp, exs(i), eys(i), ezs(i))
+            call get_electric_field_at_point(xtemp, ztemp, gdx, gdz)
+            exs(i) = ex0
+            eys(i) = ey0
+            ezs(i) = ez0
         end do
         xtemp = xold + h*dot_product(kx(2:5), b(2:5,6)) + h*kx(0)*b(0,6)
         ztemp = zold + h*dot_product(kz(2:5), b(2:5,6)) + h*kz(0)*b(0,6)
-        call get_efield(xtemp, ztemp, exs(6), eys(6), ezs(6))
+        call get_electric_field_at_point(xtemp, ztemp, gdx, gdz)
+        exs(6) = ex0
+        eys(6) = ey0
+        ezs(6) = ez0
 
         phi_parallel = phi_parallel + &
             h * (sum(kx(2:6)*c(2:6)*exs(2:6)) + kx(0)*c(0)*exs(0) + &
                  sum(ky(2:6)*c(2:6)*eys(2:6)) + ky(0)*c(0)*eys(0) + &
                  sum(kz(2:6)*c(2:6)*ezs(2:6)) + kz(0)*c(0)*ezs(0)) 
     end subroutine update_phi_parallel
-
-    !---------------------------------------------------------------------------
-    ! Get electric field at one point.
-    ! Input:
-    !   x, z: the coordinates of the this point.
-    ! Return:
-    !   ex0, ey0, ez0: the electric field at this point. 
-    !---------------------------------------------------------------------------
-    subroutine get_efield(x, z, ex0, ey0, ez0)
-        use fieldline_tracing, only: gdx, gdz, nx, nz, grid_indices
-        implicit none
-        real(fp), intent(in) :: x, z
-        real(fp), intent(out) :: ex0, ey0, ez0
-        integer :: ix1, ix2, iz1, iz2
-        real(fp) :: shiftx, shiftz, v1, v2, v3, v4
-        call grid_indices(x, z, gdx, gdz, ix1, iz1, ix2, iz2, shiftx, shiftz)
-        v1 = (1.0-shiftx) * (1.0-shiftz)
-        v2 = shiftx * (1.0-shiftz)
-        v3 = shiftx * shiftz
-        v4 = (1.0-shiftx) * shiftz
-        if (ix1 >=0 .and. ix1 < nx .and. ix2 >=0 .and. ix2 < nx .and. &
-                iz1 >= 0 .and. iz1 < nz .and. iz2 >= 0 .and. iz2 < nz) then
-            ex0 = Ex(ix1,iz1)*v1 + Ex(ix1,iz2)*v2 + Ex(ix2,iz2)*v3 + Ex(ix2,iz1)*v4
-            ey0 = Ey(ix1,iz1)*v1 + Ey(ix1,iz2)*v2 + Ey(ix2,iz2)*v3 + Ey(ix2,iz1)*v4
-            ez0 = Ez(ix1,iz1)*v1 + Ez(ix1,iz2)*v2 + Ez(ix2,iz2)*v3 + Ez(ix2,iz1)*v4
-        else
-            ex0 = 0
-            ey0 = 0
-            ez0 = 0
-        endif
-    end subroutine get_efield
 
     !---------------------------------------------------------------------------
     ! Save the calculate parallel potential to a file.
