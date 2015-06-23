@@ -163,84 +163,71 @@ module velocity_distribution
         endif
     end subroutine free_vdist_1d
 
-    ! !---------------------------------------------------------------------------
-    ! ! Get particle energy spectrum from individual particle information.
-    ! ! Input:
-    ! !   species: 'e' for electron. 'h' for others.
-    ! !---------------------------------------------------------------------------
-    ! subroutine calc_energy_spectra(species)
-    !     use mpi_module
-    !     use constants, only: fp
-    !     use particle_frames, only: nt, tinterval
-    !     use spectrum_config, only: nbins, dve, dlogve, emin
-    !     implicit none
-    !     character(len=1), intent(in) :: species
-    !     character(len=100) :: fname
-    !     integer :: i, it, tindex
-    !     logical :: is_exist, dir_e
+    !---------------------------------------------------------------------------
+    ! Get particle energy spectrum from individual particle information.
+    ! Input:
+    !   ct: current time frame.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine calc_vdist_2d(ct, species)
+        use mpi_module
+        use constants, only: fp
+        use particle_frames, only: tinterval
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        integer, intent(in) :: ct
+        character(len=1), intent(in) :: species
+        character(len=100) :: fname
+        integer :: i, tindex
+        logical :: is_exist, dir_e
 
-    !     if (myid == master) then
-    !         inquire(file='./spectrum/.', exist=dir_e)
-    !         if (.not. dir_e) then
-    !             call system('mkdir spectrum')
-    !         endif
-    !     endif
+        if (myid == master) then
+            inquire(file='./spectrum/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir spectrum')
+            endif
+        endif
 
-    !     call calc_energy_bins
+        call calc_energy_bins
 
-    !     do it = 1, 1
-    !         tindex = it * tinterval
-    !         call set_energy_spectra_zero
-    !         call check_existence(tindex, species, is_exist)
-    !         if (is_exist) then
-    !             call calc_energy_spectrum_mpi(tindex, species)
-    !             ! Sum over all nodes to get the total energy spectrum
-    !             call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
-    !                 MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-    !             call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
-    !                 MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        tindex = ct * tinterval
+        call set_energy_spectra_zero
+        call check_existence(tindex, species, is_exist)
+        if (is_exist) then
+            !call calc_vdist_2d_mpi(tindex, species)
+            ! ! Sum over all nodes to get the total energy spectrum
+            ! call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
+            !         MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            ! call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
+            !         MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        endif
+    end subroutine calc_vdist_2d
 
-    !             !  Now output the distribution on the master node
-    !             if (myid==master) then
-    !                 !print *," *** Finished Creating Spectrum ***"
-    !                 write(fname, "(A,A1,A1,I0)") "spectrum/spectrum-", &
-    !                                              species, ".", it
-    !                 open(unit=10, file=trim(fname), status='unknown')
-    !                 do i=1, nbins
-    !                     write(10, "(4e12.4)") ebins_lin(i), fsum(i), &
-    !                         ebins_log(i), flogsum(i)
-    !                 enddo
-    !                 close(10)
-    !             endif
-    !         endif
-    !     enddo
-    ! end subroutine calc_energy_spectra
+    !---------------------------------------------------------------------------
+    ! Check the existence of the dataset. This is for the case that there is
+    ! time gaps in the output files.
+    ! Inputs:
+    !   tindex: the time index, indicating the time step numbers in PIC simulation.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine check_existence(tindex, species, existFlag)
+        implicit none
+        character(len=1), intent(in) :: species
+        integer, intent(in) :: tindex
+        logical, intent(out) :: existFlag
+        character(len=20) :: ctindex
+        character(len=150) :: dataset, fname
 
-!     !---------------------------------------------------------------------------
-!     ! Check the existence of the dataset. This is for the case that there is
-!     ! time gaps in the output files.
-!     ! Inputs:
-!     !   tindex: the time index, indicating the time step numbers in PIC simulation.
-!     !   species: 'e' for electron. 'h' for others.
-!     !---------------------------------------------------------------------------
-!     subroutine check_existence(tindex, species, existFlag)
-!         implicit none
-!         character(len=1), intent(in) :: species
-!         integer, intent(in) :: tindex
-!         logical, intent(out) :: existFlag
-!         character(len=20) :: ctindex
-!         character(len=150) :: dataset, fname
-
-!         write(ctindex, "(I0)") tindex
-!         dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
-!         dataset = trim(adjustl(dataset))//"/"//species//"particle."
-!         fname = trim(dataset)//trim(ctindex)//".0"
-!         inquire(file=fname, exist=existFlag)
-!         if (.not. existFlag) then
-!             print*, fname, " doesn't exist." 
-!             print*, "There is probably a gap in the output."
-!         endif
-!     end subroutine check_existence
+        write(ctindex, "(I0)") tindex
+        dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
+        dataset = trim(adjustl(dataset))//"/"//species//"particle."
+        fname = trim(dataset)//trim(ctindex)//".0"
+        inquire(file=fname, exist=existFlag)
+        if (.not. existFlag) then
+            print*, fname, " doesn't exist." 
+            print*, "There is probably a gap in the output."
+        endif
+    end subroutine check_existence
 
 !     !---------------------------------------------------------------------------
 !     ! Read particle data and calculate the energy spectrum for one time frame.

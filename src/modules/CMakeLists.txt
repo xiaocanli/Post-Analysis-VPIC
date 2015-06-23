@@ -32,7 +32,7 @@ add_library(translate_module translate_config.f90 emfields.f90
 target_link_libraries(translate_module file_header get_info)
 
 add_library(particle_spectrum particle_module.f90 spectrum_config.f90
-    particle_frames.f90 particle_spectrum.f90)
+    particle_frames.f90 particle_spectrum.f90 particle_file.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field)
 
 add_library(vdist vdist.f90 spectrum_config.f90)

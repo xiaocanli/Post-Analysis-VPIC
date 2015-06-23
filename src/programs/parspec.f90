@@ -10,6 +10,7 @@ program parspec
     use particle_energy_spectrum, only: init_energy_spectra, &
             free_energy_spectra, calc_energy_spectra
     implicit none
+    integer :: ct
     ! Initialize Message Passing
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -30,8 +31,11 @@ program parspec
     call set_spatial_range_de
 
     call init_energy_spectra
-    call calc_energy_spectra('e')
-    ! call calc_particle_spectrum('h')
+
+    do ct = 1, 1
+        call calc_energy_spectra(ct, 'e')
+        ! call calc_particle_spectrum(ct, 'h')
+    enddo
 
     call free_energy_spectra
     call MPI_FINALIZE(ierr)
