@@ -233,9 +233,9 @@ module particle_energy_spectrum
 
                     call close_particle_file
 
-                enddo ! Z
+                enddo ! X
             enddo ! Y
-        enddo ! X
+        enddo ! Z
     end subroutine calc_energy_spectrum_single
 
     !---------------------------------------------------------------------------

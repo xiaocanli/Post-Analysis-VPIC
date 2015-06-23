@@ -2,22 +2,51 @@
 ! Module for velocity distribution.
 !*******************************************************************************
 module velocity_distribution
-    use constants, only: fp
+    use constants, only: fp, dp
     use path_info, only: rootpath
     implicit none
     private
 
-    real(fp), allocatable, dimension(:, :) :: fvel_2d, fvel_xy, fvel_xz, fvel_yz
-    real(fp), allocatable, dimension(:) :: fvel_para, fvel_perp
-    real(fp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
-    real(fp), allocatable, dimension(:, :) :: fvel_xz_sum, fvel_yz_sum
-    real(fp), allocatable, dimension(:) :: fvel_para_sum, fvel_perp_sum
+    real(dp), allocatable, dimension(:, :) :: fvel_2d, fvel_xy, fvel_xz, fvel_yz
+    real(dp), allocatable, dimension(:) :: fvel_para, fvel_perp
+    real(dp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
+    real(dp), allocatable, dimension(:, :) :: fvel_xz_sum, fvel_yz_sum
+    real(dp), allocatable, dimension(:) :: fvel_para_sum, fvel_perp_sum
+    real(dp), allocatable, dimension(:) :: ubins_short, ubins_long
     ! The index of the left corner of the bin that contains the particle.
     integer :: ibin_para, ibin_perp, ibinx, ibiny, ibinz
     ! The offset from the left corner. [0, 1)
     real(fp) :: offset_para, offset_perp, offsetx, offsety, offsetz
 
     contains
+
+    !---------------------------------------------------------------------------
+    ! Initialize short (nbins_vdist) and long (2*nbins_vdist) velocity bins.
+    !---------------------------------------------------------------------------
+    subroutine init_velocity_bins
+        use spectrum_config, only: nbins_vdist, umax, du
+        implicit none
+        integer :: i
+
+        allocate(ubins_short(nbins_vdist))
+        allocate(ubins_long(nbins_vdist*2))
+
+        do i = 1, nbins_vdist
+            ubins_short(i) = (i - 0.5) * du
+        enddo
+
+        do i = 1, nbins_vdist*2
+            ubins_long(i) = (i - 0.5)*du - umax
+        enddo
+    end subroutine init_velocity_bins
+
+    !---------------------------------------------------------------------------
+    ! Free velocity bins.
+    !---------------------------------------------------------------------------
+    subroutine free_velocity_bins
+        implicit none
+        deallocate(ubins_short, ubins_long)
+    end subroutine free_velocity_bins
 
     !---------------------------------------------------------------------------
     ! Initialize 2D velocity distribution for a parallel analysis using MPI.
@@ -178,36 +207,76 @@ module velocity_distribution
         use mpi_module
         use constants, only: fp
         use particle_frames, only: tinterval
-        use spectrum_config, only: nbins_vdist
         use particle_file, only: check_existence
         implicit none
         integer, intent(in) :: ct
         character(len=1), intent(in) :: species
-        character(len=100) :: fname
-        integer :: i, tindex
-        logical :: is_exist, dir_e
-
-        if (myid == master) then
-            inquire(file='./spectrum/.', exist=dir_e)
-            if (.not. dir_e) then
-                call system('mkdir spectrum')
-            endif
-        endif
-
-        call calc_energy_bins
+        integer :: tindex
+        logical :: is_exist
 
         tindex = ct * tinterval
         call set_energy_spectra_zero
         call check_existence(tindex, species, is_exist)
         if (is_exist) then
             call calc_vdist_2d_mpi(tindex, species)
-            ! ! Sum over all nodes to get the total energy spectrum
-            ! call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
-            !         MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-            ! call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
-            !         MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            call sum_vdist_2d_over_mpi
+            call save_vdist_2d(ct, species)
         endif
     end subroutine calc_vdist_2d
+
+    !---------------------------------------------------------------------------
+    ! Sum the 2D velocity distributions over all of the MPI processes.
+    !---------------------------------------------------------------------------
+    subroutine sum_vdist_2d_over_mpi
+        use mpi_module
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        ! Sum over all MPI processes to get the total velocity distributions
+        call MPI_REDUCE(fvel_2d, fvel_2d_sum, 2*nbins_vdist**2, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(fvel_xy, fvel_xy_sum, 4*nbins_vdist**2, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(fvel_xz, fvel_xz_sum, 4*nbins_vdist**2, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(fvel_yz, fvel_yz_sum, 4*nbins_vdist**2, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    end subroutine sum_vdist_2d_over_mpi
+
+    !---------------------------------------------------------------------------
+    ! Save 2D velocity distributions to files.
+    ! Input:
+    !   ct: current time frame.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine save_vdist_2d(ct, species)
+        use mpi_module
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        integer, intent(in) :: ct
+        character(len=1), intent(in) :: species
+        character(len=100) :: fname
+        logical :: dir_e
+        
+        ! Check if the folder exist.
+        if (myid == master) then
+            inquire(file='./vdistributions/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir vdistributions')
+            endif
+        endif
+
+        ! Save the distributions to files.
+        if (myid == master) then
+            write(fname, "(A,A1,A1,I0)") "vdistributions/vdist_2d-", &
+                                         species, ".", ct
+            open(unit=10, file=trim(fname), access='stream', &
+                 status='unknown', form='unformatted', action='write')
+            write(10) nbins_vdist
+            write(10) ubins_short, ubins_long
+            write(10) fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum
+            close(10)
+        endif
+    end subroutine save_vdist_2d
 
     !---------------------------------------------------------------------------
     ! Read particle data and calculate the 2D velocity distribution for one
@@ -247,57 +316,46 @@ module velocity_distribution
         enddo
     end subroutine calc_vdist_2d_mpi
 
-!     !---------------------------------------------------------------------------
-!     ! Read particle data and calculate the energy spectrum for one time frame.
-!     ! This procedure is only use one CPU core.
-!     ! Input:
-!     !   tindex: the time index, indicating the time step numbers in PIC simulation.
-!     !   species: 'e' for electron. 'h' for others.
-!     !---------------------------------------------------------------------------
-!     subroutine calc_energy_spectrum_single(tindex, species)
-!         use file_header, only: read_boilerplate, read_particle_header, &
-!                                pheader, v0
-!         use spectrum_config, only: spatial_range, corners_mpi
-!         use picinfo, only: domain
-!         implicit none
-!         character(len=1), intent(in) :: species
-!         integer, intent(in) :: tindex
-!         character(len=50) :: ctindex, cid
-!         character(len=150) :: dataset, fname
-!         integer :: np, iptl, fh
-!         integer :: ix, iy, iz
+    !---------------------------------------------------------------------------
+    ! Read particle data and calculate the velocity distributions for one time
+    ! frame. This procedure is only use one CPU core.
+    ! Input:
+    !   tindex: the time index, indicating the time step numbers in PIC simulation.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine calc_vdist_2d_single(tindex, species)
+        use picinfo, only: domain
+        use file_header, only: pheader
+        use spectrum_config, only: corners_mpi
+        use particle_file, only: open_particle_file, check_particle_in_range, &
+                close_particle_file, fh
+        implicit none
+        character(len=1), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=50) :: cid
+        integer :: np, iptl
+        integer :: ix, iy, iz
 
-!         fh = 10
-!         write(ctindex, "(I0)") tindex
-!         dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
-!         dataset = trim(adjustl(dataset))//"/"//species//"particle."
+        ! Read particle data and update the spectra
+        do iz = corners_mpi(1,3), corners_mpi(2,3)
+            do iy = corners_mpi(1,2), corners_mpi(2,2)
+                do ix = corners_mpi(1,1), corners_mpi(2,1)
 
-!         ! Read particle data and update the spectra
-!         do iz = corners_mpi(1,3), corners_mpi(2,3)
-!             do iy = corners_mpi(1,2), corners_mpi(2,2)
-!                 do ix = corners_mpi(1,1), corners_mpi(2,1)
-!                     np = ix + iy*domain%pic_tx + iz*domain%pic_tx*domain%pic_ty
-!                     write(cid, "(I0)") np
-!                     fname = trim(dataset)//trim(ctindex)//"."//trim(cid)
-!                     open(unit=fh, file=trim(fname), status='unknown', &
-!                          form='unformatted', access='stream', action='read')
-!                     write(*, '(A,A,A,I0)') "Reading --> ", trim(fname), &
-!                         " np = ", np
+                    np = ix + iy*domain%pic_tx + iz*domain%pic_tx*domain%pic_ty
+                    write(cid, "(I0)") np
+                    call open_particle_file(tindex, species, cid)
 
-!                     call read_boilerplate(fh)
-!                     call read_particle_header(fh)
+                    ! Loop over particles
+                    do iptl = 1, pheader%dim, 1
+                        call single_particle_vdist_2d(fh)
+                    enddo
 
-!                     ! Loop over particles
-!                     do iptl = 1, pheader%dim, 1
-!                         call single_particle_energy(fh)
-!                     enddo
+                    call close_particle_file
 
-!                     close(fh)
-
-!                 enddo ! Z
-!             enddo ! Y
-!         enddo ! X
-!     end subroutine calc_energy_spectrum_single
+                enddo ! X
+            enddo ! Y
+        enddo ! Z
+    end subroutine calc_vdist_2d_single
 
     !---------------------------------------------------------------------------
     ! Read one single particle information, check if it is in the spatial range,
@@ -326,6 +384,191 @@ module velocity_distribution
         endif
 
     end subroutine single_particle_vdist_2d
+
+    !---------------------------------------------------------------------------
+    ! Calculate particle 1d velocity distribution from individual particle
+    ! information.
+    ! Input:
+    !   ct: current time frame.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine calc_vdist_1d(ct, species)
+        use mpi_module
+        use constants, only: fp
+        use particle_frames, only: tinterval
+        use particle_file, only: check_existence
+        implicit none
+        integer, intent(in) :: ct
+        character(len=1), intent(in) :: species
+        integer :: tindex
+        logical :: is_exist
+
+        tindex = ct * tinterval
+        call set_energy_spectra_zero
+        call check_existence(tindex, species, is_exist)
+        if (is_exist) then
+            call calc_vdist_1d_mpi(tindex, species)
+            call sum_vdist_1d_over_mpi
+            call save_vdist_1d(ct, species)
+        endif
+    end subroutine calc_vdist_1d
+
+    !---------------------------------------------------------------------------
+    ! Sum the 1D velocity distributions over all of the MPI processes.
+    !---------------------------------------------------------------------------
+    subroutine sum_vdist_1d_over_mpi
+        use mpi_module
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        ! Sum over all MPI processes to get the total velocity distributions
+        call MPI_REDUCE(fvel_para, fvel_para_sum, 2*nbins_vdist, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(fvel_perp, fvel_perp_sum, nbins_vdist, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    end subroutine sum_vdist_1d_over_mpi
+
+    !---------------------------------------------------------------------------
+    ! Save 1D velocity distributions to files.
+    ! Input:
+    !   ct: current time frame.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine save_vdist_1d(ct, species)
+        use mpi_module
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        integer, intent(in) :: ct
+        character(len=1), intent(in) :: species
+        character(len=100) :: fname
+        logical :: dir_e
+        
+        ! Check if the folder exist.
+        if (myid == master) then
+            inquire(file='./vdistributions/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir vdistributions')
+            endif
+        endif
+
+        ! Save the distributions to files.
+        if (myid == master) then
+            write(fname, "(A,A1,A1,I0)") "vdistributions/vdist_1d-", &
+                                         species, ".", ct
+            open(unit=10, file=trim(fname), access='stream', &
+                 status='unknown', form='unformatted', action='write')
+            write(10) nbins_vdist
+            write(10) ubins_short, ubins_long
+            write(10) fvel_para_sum, fvel_perp_sum
+            close(10)
+        endif
+    end subroutine save_vdist_1d
+
+    !---------------------------------------------------------------------------
+    ! Read particle data and calculate the 1D velocity distribution for one
+    ! time frame. This subroutine is used in parallel procedures.
+    ! Input:
+    !   tindex: the time index, indicating the time step numbers in PIC simulation.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine calc_vdist_1d_mpi(tindex, species)
+        use mpi_module
+        use picinfo, only: domain
+        use file_header, only: pheader
+        use spectrum_config, only: spatial_range
+        use particle_file, only: open_particle_file, check_particle_in_range, &
+                close_particle_file, fh
+        implicit none
+        character(len=1), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=50) :: cid
+        logical :: isrange
+        integer :: np, iptl
+
+        ! Read particle data in parallel to generate distributions
+        do np = 0, domain%nproc-numprocs, numprocs
+            write(cid, "(I0)") myid + np
+            call open_particle_file(tindex, species, cid)
+            isrange = check_particle_in_range(spatial_range)
+
+            if (isrange) then
+                ! Loop over particles
+                do iptl = 1, pheader%dim, 1
+                    call single_particle_vdist_1d(fh)
+                enddo
+            endif
+
+            call close_particle_file
+        enddo
+    end subroutine calc_vdist_1d_mpi
+
+    !---------------------------------------------------------------------------
+    ! Read particle data and calculate the velocity distributions for one time
+    ! frame. This procedure is only use one CPU core.
+    ! Input:
+    !   tindex: the time index, indicating the time step numbers in PIC simulation.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine calc_vdist_1d_single(tindex, species)
+        use picinfo, only: domain
+        use file_header, only: pheader
+        use spectrum_config, only: corners_mpi
+        use particle_file, only: open_particle_file, check_particle_in_range, &
+                close_particle_file, fh
+        implicit none
+        character(len=1), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=50) :: cid
+        integer :: np, iptl
+        integer :: ix, iy, iz
+
+        ! Read particle data and update the spectra
+        do iz = corners_mpi(1,3), corners_mpi(2,3)
+            do iy = corners_mpi(1,2), corners_mpi(2,2)
+                do ix = corners_mpi(1,1), corners_mpi(2,1)
+
+                    np = ix + iy*domain%pic_tx + iz*domain%pic_tx*domain%pic_ty
+                    write(cid, "(I0)") np
+                    call open_particle_file(tindex, species, cid)
+
+                    ! Loop over particles
+                    do iptl = 1, pheader%dim, 1
+                        call single_particle_vdist_1d(fh)
+                    enddo
+
+                    call close_particle_file
+
+                enddo ! X
+            enddo ! Y
+        enddo ! Z
+    end subroutine calc_vdist_1d_single
+
+    !---------------------------------------------------------------------------
+    ! Read one single particle information, check if it is in the spatial range,
+    ! calculate its parallel and perpendicular velocity and update the 1D
+    ! velocity distributions.
+    ! Input:
+    !   fh: file handler.
+    !---------------------------------------------------------------------------
+    subroutine single_particle_vdist_1d(fh)
+        use particle_module, only: ptl, calc_para_perp_velocity, px, py, pz, &
+                                   calc_ptl_coord
+        use spectrum_config, only: spatial_range
+        use constants, only: fp
+        implicit none
+        integer, intent(in) :: fh
+
+        read(fh) ptl
+        call calc_ptl_coord
+
+        if ((px >= spatial_range(1, 1)) .and. (px <= spatial_range(2, 1)) .and. &
+            (py >= spatial_range(1, 2)) .and. (py <= spatial_range(2, 2)) .and. &
+            (pz >= spatial_range(1, 3)) .and. (pz <= spatial_range(2, 3))) then
+
+            call calc_para_perp_velocity
+            call update_vdist_1d
+        endif
+
+    end subroutine single_particle_vdist_1d
 
     !---------------------------------------------------------------------------
     ! Calculate which bin (e.g. i-(i+1)) to put the particle in. The offset from
@@ -469,5 +712,24 @@ module velocity_distribution
         call update_vdist_para_perp
         call update_vdist_xyz
     end subroutine update_vdist_2d
+
+    !---------------------------------------------------------------------------
+    ! Update 1D particle velocity distributions.
+    !---------------------------------------------------------------------------
+    subroutine update_vdist_1d
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        call calc_bin_offset_para_perp
+        if ((ibin_para >= 1) .and. ((ibin_para + 1) <= nbins_vdist*2) .and. &
+            (ibin_perp >= 1) .and. ((ibin_perp + 1) <= nbins_vdist)) then 
+
+            fvel_para(ibin_para) = fvel_para(ibin_para) + 1.0 - offset_para
+            fvel_para(ibin_para+1) = fvel_para(ibin_para+1) + offset_para
+
+            fvel_perp(ibin_perp) = fvel_perp(ibin_perp) + 1.0 - offset_perp
+            fvel_perp(ibin_perp+1) = fvel_perp(ibin_perp+1) + offset_perp
+
+        endif
+    end subroutine update_vdist_1d
 
 end module velocity_distribution
