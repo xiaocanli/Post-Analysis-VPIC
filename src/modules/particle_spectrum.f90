@@ -9,9 +9,9 @@ module particle_energy_spectrum
     private
     public f, fsum, flog, flogsum, ebins_lin, ebins_log
     public init_energy_spectra, free_energy_spectra, calc_energy_spectra, &
-           set_energy_spectra_zero_single, calc_energy_bins, &
-           init_energy_spectra_single, free_energy_spectra_single, &
-           calc_energy_spectrum_single
+           set_energy_spectra_zero, set_energy_spectra_zero_single, &
+           calc_energy_bins, init_energy_spectra_single, &
+           free_energy_spectra_single, calc_energy_spectrum_single
     real(dp), allocatable, dimension(:) :: f, fsum, flog, flogsum
     real(dp), allocatable, dimension(:) :: ebins_lin, ebins_log
 

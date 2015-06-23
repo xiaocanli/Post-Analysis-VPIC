@@ -302,32 +302,6 @@ module fieldline_tracing
         deltax = bx0 / absB
         deltaz = bz0 / absB
         deltay = by0 * sqrt(deltax**2+deltaz**2) / absB
-
-        ! call grid_indices(x, z, gdx, gdz, ix1, iz1, ix2, iz2, shiftx, shiftz)
-
-        ! if (ix1 >=0 .and. ix1 < nx .and. ix2 >=0 .and. ix2 < nx .and. &
-        !         iz1 >= 0 .and. iz1 < nz .and. iz2 >= 0 .and. iz2 < nz) then
-
-        !     v1 = (1.0-shiftx) * (1.0-shiftz)
-        !     v2 = shiftx * (1.0-shiftz)
-        !     v3 = shiftx * shiftz
-        !     v4 = (1.0-shiftx) * shiftz
-
-        !     bx0 = Bx(ix1,iz1)*v1 + Bx(ix1,iz2)*v2 + Bx(ix2,iz2)*v3 + Bx(ix2,iz1)*v4
-        !     by0 = By(ix1,iz1)*v1 + By(ix1,iz2)*v2 + By(ix2,iz2)*v3 + By(ix2,iz1)*v4
-        !     bz0 = Bz(ix1,iz1)*v1 + Bz(ix1,iz2)*v2 + Bz(ix2,iz2)*v3 + Bz(ix2,iz1)*v4
-        !     absB = sqrt(bx0**2 + bz0**2)
-        !     deltax = bx0 / absB
-        !     deltaz = bz0 / absB
-        !     deltay = by0 * sqrt(deltax**2+deltaz**2) / absB
-        ! else
-        !     deltax = 0.1
-        !     deltay = 0.1
-        !     deltaz = 0.1
-        ! endif
-        !if (isnan(deltax) .or. isnan(deltay) .or. isnan(deltaz)) then
-        !    print*, Bx(ix1,iz1), Bx(ix1,iz2),  Bx(ix2,iz2), Bx(ix2,iz1)
-        !endif
     end subroutine derivs
 
     !---------------------------------------------------------------------------

@@ -7,6 +7,17 @@ module velocity_distribution
     implicit none
     private
 
+    public fvel_2d, fvel_xy, fvel_xz, fvel_yz, fvel_para, fvel_perp, &
+           fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum, &
+           fvel_para_sum, fvel_perp_sum, ubins_short, ubins_long
+    public init_velocity_bins, free_velocity_bins, init_vdist_2d, &
+           set_vdist_2d_zero, free_vdist_2d, init_vdist_2d_single, &
+           set_vdist_2d_zero_single, free_vdist_2d_single, init_vdist_1d, &
+           set_vdist_1d_zero, free_vdist_1d, init_vdist_1d_single, &
+           set_vdist_1d_zero_single, free_vdist_1d_single, &
+           calc_vdist_2d, calc_vdist_1d, calc_vdist_2d_single, &
+           calc_vdist_1d_single
+
     real(dp), allocatable, dimension(:, :) :: fvel_2d, fvel_xy, fvel_xz, fvel_yz
     real(dp), allocatable, dimension(:) :: fvel_para, fvel_perp
     real(dp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
@@ -111,8 +122,8 @@ module velocity_distribution
         use mpi_module
         implicit none
         call free_vdist_2d_single
-        deallocate(fvel_2d_sum)
         if (myid == master) then
+            deallocate(fvel_2d_sum)
             deallocate(fvel_xy_sum, fvel_xz_sum, fvel_yz_sum)
         endif
     end subroutine free_vdist_2d
@@ -215,7 +226,6 @@ module velocity_distribution
         logical :: is_exist
 
         tindex = ct * tinterval
-        call set_energy_spectra_zero
         call check_existence(tindex, species, is_exist)
         if (is_exist) then
             call calc_vdist_2d_mpi(tindex, species)
@@ -404,7 +414,6 @@ module velocity_distribution
         logical :: is_exist
 
         tindex = ct * tinterval
-        call set_energy_spectra_zero
         call check_existence(tindex, species, is_exist)
         if (is_exist) then
             call calc_vdist_1d_mpi(tindex, species)

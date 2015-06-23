@@ -14,6 +14,8 @@ program spectrum_along_fieldline
     use particle_frames, only: get_particle_frames, nt, tinterval
     use mpi_topology, only: distribute_tasks
     use spectrum_config, only: nbins 
+    use particle_file, only: check_both_particle_fields_exist, &
+            get_ratio_interval, ratio_interval
     implicit none
     real(fp), allocatable, dimension(:,:) :: ptl_spectrum
     integer :: ct       ! Current time frame
@@ -24,6 +26,7 @@ program spectrum_along_fieldline
     integer :: startp, endp         ! Starting and ending points.
     ! The spectra at these points.
     real(fp), allocatable, dimension(:, :) :: flog_np, flin_np
+    logical :: is_time_valid
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -38,33 +41,49 @@ program spectrum_along_fieldline
     call broadcast_pic_info
 
     ct = 10
-    call init_fieldline_tracing
-    call Dormand_Prince_parameters
-    call read_magnetic_fields(ct)
-
-    allocate(xarr(np_max))
-    allocate(zarr(np_max))
-    xarr = 0.0
-    zarr = 0.0
     if (myid == master) then
-        call trace_field_line(1.0, 60.0, nptot)
+        call get_ratio_interval
     endif
-    call end_fieldline_tracing
+    call MPI_BCAST(ratio_interval, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
 
-    call MPI_BCAST(nptot, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
-    call MPI_BCAST(xarr(1:nptot), nptot, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-    call MPI_BCAST(zarr(1:nptot), nptot, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-    call distribute_tasks(nptot, numprocs, myid, np, startp, endp)
+    is_time_valid = check_both_particle_fields_exist(ct)
 
-    nbins = 100
-    allocate(flin_np(nbins, np))
-    allocate(flog_np(nbins, np))
-    flin_np = 0.0
-    flog_np = 0.0
-    call calc_particle_energy_spectrum('e')
+    if (is_time_valid) then
+        call init_fieldline_tracing
+        call Dormand_Prince_parameters
+        call read_magnetic_fields(ct)
 
-    deallocate(xarr, zarr)
-    deallocate(flin_np, flog_np)
+        allocate(xarr(np_max))
+        allocate(zarr(np_max))
+        xarr = 0.0
+        zarr = 0.0
+        if (myid == master) then
+            call trace_field_line(1.0, 60.0, nptot)
+        endif
+        call end_fieldline_tracing
+
+        call MPI_BCAST(nptot, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(xarr(1:nptot), nptot, MPI_REAL, master, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(zarr(1:nptot), nptot, MPI_REAL, master, MPI_COMM_WORLD, ierr)
+        call distribute_tasks(nptot, numprocs, myid, np, startp, endp)
+
+        nbins = 100
+        allocate(flin_np(nbins, np))
+        allocate(flog_np(nbins, np))
+        flin_np = 0.0
+        flog_np = 0.0
+        call calc_particle_energy_spectrum('e')
+
+        deallocate(xarr, zarr)
+        deallocate(flin_np, flog_np)
+    else
+        if (myid == master) then
+            write(*, '(A,I0,A)') 'ct = ', ct, ' is invalid.'
+            write(*, '(A,I0)') 'Choose a time that is a multiple of ', ratio_interval
+        endif
+        call MPI_FINALIZE(ierr)
+        stop
+    endif
     call MPI_FINALIZE(ierr)
 
     contains
@@ -127,7 +146,7 @@ program spectrum_along_fieldline
             center = [xarr(i), 0.0, zarr(i)]
             call set_spatial_range_de
             call calc_pic_mpi_ids
-            call calc_energy_spectrum_single(tinterval, species)
+            call calc_energy_spectrum_single(ct*tinterval/ratio_interval, species)
             flin_np(:, i-startp+1) = f
             flog_np(:, i-startp+1) = flog
             call set_energy_spectra_zero_single

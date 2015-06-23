@@ -8,7 +8,8 @@ program parspec
     use particle_frames, only: get_particle_frames, nt, tinterval
     use spectrum_config, only: read_config, set_spatial_range_de
     use particle_energy_spectrum, only: init_energy_spectra, &
-            free_energy_spectra, calc_energy_spectra
+            free_energy_spectra, calc_energy_spectra, &
+            set_energy_spectra_zero
     implicit none
     integer :: ct
     ! Initialize Message Passing
@@ -34,6 +35,7 @@ program parspec
 
     do ct = 1, 1
         call calc_energy_spectra(ct, 'e')
+        call set_energy_spectra_zero
         ! call calc_particle_spectrum(ct, 'h')
     enddo
 

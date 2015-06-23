@@ -29,7 +29,9 @@ add_executable(spectrum_along_fieldline spectrum_along_fieldline.f90)
 target_link_libraries(spectrum_along_fieldline ${MPI_Fortran_LIBRARIES}
     analysis_config particle_spectrum fieldline_tracing)
 
-#add_executable(vdistribution vdistribution.f90)
+add_executable(vdistribution vdistribution.f90)
+target_link_libraries(vdistribution ${MPI_Fortran_LIBRARIES}
+    vdist)
 
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -38,4 +40,4 @@ install (TARGETS parallel_potential DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS translate DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS parspec DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS spectrum_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
-#install (TARGETS vdistribution DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS vdistribution DESTINATION ${CMAKE_INSTALL_PREFIX})

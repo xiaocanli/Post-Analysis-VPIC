@@ -4,6 +4,7 @@ build_gcc/
 data_double_layer/
 lib/
 spectrum/
+vdistributions/
 src/distribution/
 src/others/
 calc_agyrotropy
@@ -14,4 +15,5 @@ parallel_potential
 parspec
 spectrum_along_fieldline
 translate
+vdistribution
 xz_field.dat

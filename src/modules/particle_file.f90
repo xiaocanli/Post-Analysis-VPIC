@@ -8,7 +8,10 @@ module particle_file
     implicit none
     private
     public check_existence, open_particle_file, close_particle_file
-    public check_particle_in_range, fh
+    public check_particle_in_range, fh, ratio_interval, get_ratio_interval, &
+           check_both_particle_fields_exist
+    ! The ratio of the particle and field output intervals
+    integer :: ratio_interval
     integer :: fh
 
     contains
@@ -115,5 +118,49 @@ module particle_file
         implicit none
         close(fh)
     end subroutine close_particle_file
+
+    !---------------------------------------------------------------------------
+    ! To get the ratio of particle output interval and the fields_interval.
+    ! These two are different for these two. And the ratio is given in sigma.cxx
+    !---------------------------------------------------------------------------
+    subroutine get_ratio_interval
+        implicit none
+        character(len=150) :: buff
+        character(len=50) :: buff1, format1
+        integer :: len1, len2, len3
+        ratio_interval = 0
+        open(unit=40, file=trim(adjustl(rootpath))//'sigma.cxx', status='old')
+        read(40,'(A)') buff
+        do while (index(buff, 'int Hhydro_interval = ') == 0)
+            read(40,'(A)') buff
+        enddo
+        read(40, '(A)') buff
+        len1 = len(trim(buff))
+        ! "int eparticle_interval = " has 25 characters
+        len2 = index(buff, 'int') + 24
+        ! The last 10 characters are "*interval;"
+        len3 = len1 - len2 - 10
+        write(format1, "(A,I2.2,A,I1.1,A,I1.1,A)") &
+                "(A", len2, ",I", len3, ".", len3, ")'"
+        read(buff, trim(adjustl(format1))) buff1, ratio_interval
+        close(40)
+        print*, "The ratio of particle and field output intervals: ", &
+            ratio_interval
+    end subroutine get_ratio_interval
+
+    !---------------------------------------------------------------------------
+    ! Check if the time frame has both particle and fields data.
+    ! Input:
+    !   ct: current time frame for the fields output.
+    !---------------------------------------------------------------------------
+    function check_both_particle_fields_exist(ct) result(is_time_valid)
+        implicit none
+        integer, intent(in) :: ct
+        logical :: is_time_valid
+        is_time_valid = .true.
+        if (mod(ct, ratio_interval) /= 0) then
+            is_time_valid = .false.
+        endif
+    end function check_both_particle_fields_exist
 
 end module particle_file
