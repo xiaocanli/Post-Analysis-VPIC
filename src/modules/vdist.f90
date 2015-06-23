@@ -12,6 +12,10 @@ module velocity_distribution
     real(fp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
     real(fp), allocatable, dimension(:, :) :: fvel_xz_sum, fvel_yz_sum
     real(fp), allocatable, dimension(:) :: fvel_para_sum, fvel_perp_sum
+    ! The index of the left corner of the bin that contains the particle.
+    integer :: ibin_para, ibin_perp, ibinx, ibiny, ibinz
+    ! The offset from the left corner. [0, 1)
+    real(fp) :: offset_para, offset_perp, offsetx, offsety, offsetz
 
     contains
 
@@ -164,7 +168,8 @@ module velocity_distribution
     end subroutine free_vdist_1d
 
     !---------------------------------------------------------------------------
-    ! Get particle energy spectrum from individual particle information.
+    ! Calculate particle 2d velocity distribution from individual particle
+    ! information.
     ! Input:
     !   ct: current time frame.
     !   species: 'e' for electron. 'h' for others.
@@ -174,6 +179,7 @@ module velocity_distribution
         use constants, only: fp
         use particle_frames, only: tinterval
         use spectrum_config, only: nbins_vdist
+        use particle_file, only: check_existence
         implicit none
         integer, intent(in) :: ct
         character(len=1), intent(in) :: species
@@ -194,7 +200,7 @@ module velocity_distribution
         call set_energy_spectra_zero
         call check_existence(tindex, species, is_exist)
         if (is_exist) then
-            !call calc_vdist_2d_mpi(tindex, species)
+            call calc_vdist_2d_mpi(tindex, species)
             ! ! Sum over all nodes to get the total energy spectrum
             ! call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
             !         MPI_SUM, 0, MPI_COMM_WORLD, ierr)
@@ -204,102 +210,42 @@ module velocity_distribution
     end subroutine calc_vdist_2d
 
     !---------------------------------------------------------------------------
-    ! Check the existence of the dataset. This is for the case that there is
-    ! time gaps in the output files.
-    ! Inputs:
+    ! Read particle data and calculate the 2D velocity distribution for one
+    ! time frame. This subroutine is used in parallel procedures.
+    ! Input:
     !   tindex: the time index, indicating the time step numbers in PIC simulation.
     !   species: 'e' for electron. 'h' for others.
     !---------------------------------------------------------------------------
-    subroutine check_existence(tindex, species, existFlag)
+    subroutine calc_vdist_2d_mpi(tindex, species)
+        use mpi_module
+        use picinfo, only: domain
+        use file_header, only: pheader
+        use spectrum_config, only: spatial_range
+        use particle_file, only: open_particle_file, check_particle_in_range, &
+                close_particle_file, fh
         implicit none
         character(len=1), intent(in) :: species
         integer, intent(in) :: tindex
-        logical, intent(out) :: existFlag
-        character(len=20) :: ctindex
-        character(len=150) :: dataset, fname
+        character(len=50) :: cid
+        logical :: isrange
+        integer :: np, iptl
 
-        write(ctindex, "(I0)") tindex
-        dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
-        dataset = trim(adjustl(dataset))//"/"//species//"particle."
-        fname = trim(dataset)//trim(ctindex)//".0"
-        inquire(file=fname, exist=existFlag)
-        if (.not. existFlag) then
-            print*, fname, " doesn't exist." 
-            print*, "There is probably a gap in the output."
-        endif
-    end subroutine check_existence
+        ! Read particle data in parallel to generate distributions
+        do np = 0, domain%nproc-numprocs, numprocs
+            write(cid, "(I0)") myid + np
+            call open_particle_file(tindex, species, cid)
+            isrange = check_particle_in_range(spatial_range)
 
-!     !---------------------------------------------------------------------------
-!     ! Read particle data and calculate the energy spectrum for one time frame.
-!     ! This subroutine is used in parallel procedures.
-!     ! Input:
-!     !   tindex: the time index, indicating the time step numbers in PIC simulation.
-!     !   species: 'e' for electron. 'h' for others.
-!     !---------------------------------------------------------------------------
-!     subroutine calc_energy_spectrum_mpi(tindex, species)
-!         use mpi_module
-!         use file_header, only: read_boilerplate, read_particle_header, &
-!                                pheader, v0
-!         use spectrum_config, only: spatial_range
-!         use picinfo, only: domain
-!         implicit none
-!         character(len=1), intent(in) :: species
-!         integer, intent(in) :: tindex
-!         character(len=50) :: ctindex, cid
-!         character(len=150) :: dataset, fname
-!         real(fp) :: x0, y0, z0, x1, y1, z1
-!         logical :: isrange1, isrange2
-!         integer :: fh, np, iptl
+            if (isrange) then
+                ! Loop over particles
+                do iptl = 1, pheader%dim, 1
+                    call single_particle_vdist_2d(fh)
+                enddo
+            endif
 
-!         fh = 10
-!         write(ctindex, "(I0)") tindex
-!         dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
-!         dataset = trim(adjustl(dataset))//"/"//species//"particle."
-!         ! Read particle data in parallel to generate distributions
-!         do np = 0, domain%nproc-numprocs, numprocs
-!             write(cid, "(I0)") myid + np
-!             fname = trim(dataset)//trim(ctindex)//"."//trim(cid)
-!             open(unit=fh, file=trim(fname), status='unknown', &
-!                  form='unformatted', access='stream', action='read')
-!             write(*, '(A,A,A,I0,A,I0)') "Reading --> ", trim(fname), &
-!                 " Physical rank = ", myid, " np = ", np
-
-!             call read_boilerplate(fh)
-!             call read_particle_header(fh)
-
-!             ! Corners of this MPI process's domain
-!             x0 = v0%x0
-!             y0 = v0%y0
-!             z0 = v0%z0
-!             x1 = v0%x0 + domain%pic_nx * domain%dx
-!             y1 = v0%y0 + domain%pic_ny * domain%dy
-!             z1 = v0%z0 + domain%pic_nz * domain%dz
-
-!             ! Only if the corners are within the box.
-!             ! Shift one grid to cover boundary.
-!             isrange1 = x1 >= (spatial_range(1,1) - domain%dx) &
-!                  .and. x1 <= (spatial_range(2,1) + domain%dx) &
-!                  .and. y1 >= (spatial_range(1,2) - domain%dy) &
-!                  .and. y1 <= (spatial_range(2,2) + domain%dy) &
-!                  .and. z1 >= (spatial_range(1,3) - domain%dz) &
-!                  .and. z1 <= (spatial_range(2,3) + domain%dz)
-!             isrange2 = x0 >= (spatial_range(1,1) - domain%dx) &
-!                  .and. x0 <= (spatial_range(2,1) + domain%dx) &
-!                  .and. y0 >= (spatial_range(1,2) - domain%dy) &
-!                  .and. y0 <= (spatial_range(2,2) + domain%dy) &
-!                  .and. z0 >= (spatial_range(1,3) - domain%dz) &
-!                  .and. z0 <= (spatial_range(2,3) + domain%dz)
-
-!             if (isrange1 .or. isrange2) then
-!                 ! Loop over particles
-!                 do iptl = 1, pheader%dim, 1
-!                     call single_particle_energy(fh)
-!                 enddo
-!             endif
-
-!             close(fh)
-!         enddo
-!     end subroutine calc_energy_spectrum_mpi
+            call close_particle_file
+        enddo
+    end subroutine calc_vdist_2d_mpi
 
 !     !---------------------------------------------------------------------------
 !     ! Read particle data and calculate the energy spectrum for one time frame.
@@ -353,65 +299,175 @@ module velocity_distribution
 !         enddo ! X
 !     end subroutine calc_energy_spectrum_single
 
-!     !---------------------------------------------------------------------------
-!     ! Read one single particle information, check if it is in the spatial range,
-!     ! calculate its energy and put it into the flux arrays.
-!     ! Input:
-!     !   fh: file handler.
-!     !---------------------------------------------------------------------------
-!     subroutine single_particle_energy(fh)
-!         use particle_module, only: ptl, calc_particle_energy, px, py, pz, &
-!                                    calc_ptl_coord
-!         use spectrum_config, only: spatial_range
-!         use constants, only: fp
-!         implicit none
-!         integer, intent(in) :: fh
+    !---------------------------------------------------------------------------
+    ! Read one single particle information, check if it is in the spatial range,
+    ! calculate its parallel and perpendicular velocity and update the 2D
+    ! velocity distributions.
+    ! Input:
+    !   fh: file handler.
+    !---------------------------------------------------------------------------
+    subroutine single_particle_vdist_2d(fh)
+        use particle_module, only: ptl, calc_para_perp_velocity, px, py, pz, &
+                                   calc_ptl_coord
+        use spectrum_config, only: spatial_range
+        use constants, only: fp
+        implicit none
+        integer, intent(in) :: fh
 
-!         read(fh) ptl
-!         call calc_ptl_coord
+        read(fh) ptl
+        call calc_ptl_coord
 
-!         if ((px >= spatial_range(1, 1)) .and. (px <= spatial_range(2, 1)) .and. &
-!             (py >= spatial_range(1, 2)) .and. (py <= spatial_range(2, 2)) .and. &
-!             (pz >= spatial_range(1, 3)) .and. (pz <= spatial_range(2, 3))) then
+        if ((px >= spatial_range(1, 1)) .and. (px <= spatial_range(2, 1)) .and. &
+            (py >= spatial_range(1, 2)) .and. (py <= spatial_range(2, 2)) .and. &
+            (pz >= spatial_range(1, 3)) .and. (pz <= spatial_range(2, 3))) then
 
-!             call calc_particle_energy
-!             call update_energy_spectrum
-!         endif
+            call calc_para_perp_velocity
+            call update_vdist_2d
+        endif
 
-!     end subroutine single_particle_energy
+    end subroutine single_particle_vdist_2d
 
-!     !---------------------------------------------------------------------------
-!     ! Update particle energy spectrum.
-!     !---------------------------------------------------------------------------
-!     subroutine update_energy_spectrum
-!         use particle_module, only: ke
-!         use spectrum_config, only: dve, dlogve, emin, nbins
-!         implicit none
-!         real(fp) :: rbin, shift, dke
-!         integer :: ibin, ibin1
+    !---------------------------------------------------------------------------
+    ! Calculate which bin (e.g. i-(i+1)) to put the particle in. The offset from
+    ! i is also calculated.
+    ! Inputs:
+    !   u: particle velocity (actually \gamma v).
+    !   umin: the minimum velocity.
+    !   du: the velocity interval.
+    ! Outputs:
+    !   ibin: the energy bin.
+    !   offset: offset from the left corner [0, 1).
+    !---------------------------------------------------------------------------
+    subroutine calc_bin_offset(u, umin, du, ibin, offset)
+        implicit none
+        real(fp), intent(in) :: u, umin, du
+        integer, intent(out) :: ibin
+        real(fp), intent(out) :: offset
+        real(fp) :: rbin
 
-!         rbin = ke / dve
-!         ibin = int(rbin)
-!         ibin1 = ibin + 1
-        
-!         if ((ibin >= 1) .and. (ibin1 <= nbins)) then 
-!             shift = rbin - ibin
-!             f(ibin)  = f(ibin) - shift + 1
-!             f(ibin1) = f(ibin1) + shift
-!         endif
+        rbin = (u - umin) / du + 1
+        ibin = floor(rbin)
+        offset = rbin - ibin
+    end subroutine calc_bin_offset
 
-!         ! Exceptions
-!         if ( ibin .eq. 0) then
-!             ! Add lower energies to the 1st band.
-!             f(ibin1) = f(ibin1) + 1
-!         endif
-!         dke = ke * dlogve
-     
-!         ! Logarithmic scale
-!         ibin = (log10(ke)-log10(emin))/dlogve + 1
-!         if ((ibin >= 1) .and. (ibin1 <= nbins)) then 
-!             flog(ibin)  = flog(ibin) + 1.0/dke
-!         endif
-!     end subroutine update_energy_spectrum
+    !---------------------------------------------------------------------------
+    ! Calculate the bin index and the offset from the left corner for the
+    ! parallel and perpendicular direction to the local magnetic field.
+    !---------------------------------------------------------------------------
+    subroutine calc_bin_offset_para_perp
+        use particle_module, only: upara, uperp
+        use spectrum_config, only: umax, umin, du
+        implicit none
+        call calc_bin_offset(upara, -umax, du, ibin_para, offset_para)
+        call calc_bin_offset(uperp, umin, du, ibin_perp, offset_perp)
+    end subroutine calc_bin_offset_para_perp
+
+    !---------------------------------------------------------------------------
+    ! Calculate the bin index and the offset from the left corner for the
+    ! x, y and z directions.
+    !---------------------------------------------------------------------------
+    subroutine calc_bin_offset_xyz
+        use particle_module, only: ptl
+        use spectrum_config, only: umax, du
+        implicit none
+        call calc_bin_offset(ptl%ux, -umax, du, ibinx, offsetx)
+        call calc_bin_offset(ptl%uy, -umax, du, ibiny, offsety)
+        call calc_bin_offset(ptl%uz, -umax, du, ibinz, offsetz)
+    end subroutine calc_bin_offset_xyz
+
+    !---------------------------------------------------------------------------
+    ! Calculate the weight for the four corners of the box where the particle is.
+    ! Inputs:
+    !   offset1, offset2: the offsets from the bottom-left corner.
+    !   v1, v2: the weights for the bottom-left and the bottom-right corner.
+    !   v3, v4: the weights for the top-right and the top-left corner.
+    !---------------------------------------------------------------------------
+    subroutine calc_weights(offset1, offset2, v1, v2, v3, v4)
+        implicit none
+        real(fp), intent(in) :: offset1, offset2
+        real(fp), intent(out) :: v1, v2, v3, v4
+
+        v1 = (1.0 - offset1) * (1.0 - offset2)
+        v2 = offset1 * (1.0 - offset2)
+        v3 = offset1 * offset2
+        v4 = (1.0 - offset1) * offset2
+    end subroutine calc_weights
+
+    !---------------------------------------------------------------------------
+    ! Update the parallel and perpendicular 2D velocity distribution.
+    !---------------------------------------------------------------------------
+    subroutine update_vdist_para_perp
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        real(fp) :: v1, v2, v3, v4
+        call calc_bin_offset_para_perp
+        call calc_weights(offset_para, offset_perp, v1, v2, v3, v4)
+        if ((ibin_para >= 1) .and. ((ibin_para + 1) <= nbins_vdist*2) .and. &
+            (ibin_perp >= 1) .and. ((ibin_perp + 1) <= nbins_vdist)) then 
+
+            fvel_2d(ibin_para, ibin_perp) = fvel_2d(ibin_para, ibin_perp) + v1
+            fvel_2d(ibin_para+1, ibin_perp) = fvel_2d(ibin_para+1, ibin_perp) + v2
+            fvel_2d(ibin_para+1, ibin_perp+1) = fvel_2d(ibin_para+1, ibin_perp+1) + v3
+            fvel_2d(ibin_para, ibin_perp+1) = fvel_2d(ibin_para, ibin_perp+1) + v4
+
+        endif
+    end subroutine update_vdist_para_perp
+
+    !---------------------------------------------------------------------------
+    ! Update the 2D velocity direction in xy, xz and yz planes.
+    !---------------------------------------------------------------------------
+    subroutine update_vdist_xyz
+        use spectrum_config, only: nbins_vdist
+        use particle_module, only: ptl
+        implicit none
+        real(fp) :: v1, v2, v3, v4
+
+        call calc_bin_offset_xyz
+
+        ! xy
+        call calc_weights(offsetx, offsety, v1, v2, v3, v4)
+        if ((ibinx >= 1) .and. ((ibinx + 1) <= nbins_vdist*2) .and. &
+            (ibiny >= 1) .and. ((ibiny + 1) <= nbins_vdist*2)) then 
+
+            fvel_xy(ibinx, ibiny) = fvel_xy(ibinx, ibiny) + v1
+            fvel_xy(ibinx+1, ibiny) = fvel_xy(ibinx+1, ibiny) + v2
+            fvel_xy(ibinx+1, ibiny+1) = fvel_xy(ibinx+1, ibiny+1) + v3
+            fvel_xy(ibinx, ibiny+1) = fvel_xy(ibinx, ibiny+1) + v4
+
+        endif
+
+        ! xz
+        call calc_weights(offsetx, offsetz, v1, v2, v3, v4)
+        if ((ibinx >= 1) .and. ((ibinx + 1) <= nbins_vdist*2) .and. &
+            (ibinz >= 1) .and. ((ibinz + 1) <= nbins_vdist*2)) then 
+
+            fvel_xz(ibinx, ibinz) = fvel_xz(ibinx, ibinz) + v1
+            fvel_xz(ibinx+1, ibinz) = fvel_xz(ibinx+1, ibinz) + v2
+            fvel_xz(ibinx+1, ibinz+1) = fvel_xz(ibinx+1, ibinz+1) + v3
+            fvel_xz(ibinx, ibinz+1) = fvel_xz(ibinx, ibinz+1) + v4
+
+        endif
+
+        ! yz
+        call calc_weights(offsety, offsetz, v1, v2, v3, v4)
+        if ((ibiny >= 1) .and. ((ibiny + 1) <= nbins_vdist*2) .and. &
+            (ibinz >= 1) .and. ((ibinz + 1) <= nbins_vdist*2)) then 
+
+            fvel_yz(ibiny, ibinz) = fvel_yz(ibiny, ibinz) + v1
+            fvel_yz(ibiny+1, ibinz) = fvel_yz(ibiny+1, ibinz) + v2
+            fvel_yz(ibiny+1, ibinz+1) = fvel_yz(ibiny+1, ibinz+1) + v3
+            fvel_yz(ibiny, ibinz+1) = fvel_yz(ibiny, ibinz+1) + v4
+
+        endif
+    end subroutine update_vdist_xyz
+
+    !---------------------------------------------------------------------------
+    ! Update 2D particle velocity distributions.
+    !---------------------------------------------------------------------------
+    subroutine update_vdist_2d
+        implicit none
+        call update_vdist_para_perp
+        call update_vdist_xyz
+    end subroutine update_vdist_2d
 
 end module velocity_distribution
