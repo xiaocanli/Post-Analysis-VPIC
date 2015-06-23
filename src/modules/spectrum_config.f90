@@ -14,7 +14,8 @@ module spectrum_config
     public calc_velocity_interval
     integer :: nbins
     real(fp) :: emax, emin, dve, dlogve
-    real(fp) :: vmax, vmin, dvel, nbins_vdist   ! For velocity distribution.
+    real(fp) :: vmax, vmin, dvel                ! For velocity distribution.
+    integer :: nbins_vdist
     integer :: tframe                           ! Time frame. 
     real(fp), dimension(3) :: center            ! In electron skin length (de).
     real(fp), dimension(3) :: sizes             ! In number of cells.
@@ -49,7 +50,8 @@ module spectrum_config
         sizes(1) = get_variable(fh, 'xsize', '=')  ! Number of cells along x
         sizes(2) = get_variable(fh, 'ysize', '=')
         sizes(3) = get_variable(fh, 'zsize', '=')
-        nbins_vdist = get_variable(fh, 'nbins_vdist', '=')
+        temp = get_variable(fh, 'nbins_vdist', '=')
+        nbins_vdist = int(temp)
         vmax = get_variable(fh, 'vmax/c', '=')
         vmin = get_variable(fh, 'vmin/c', '=')
         temp = get_variable(fh, 'tframe', '=')

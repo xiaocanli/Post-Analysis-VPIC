@@ -3,211 +3,428 @@
 !*******************************************************************************
 module velocity_distribution
     use constants, only: fp
+    use path_info, only: rootpath
     implicit none
     private
 
     real(fp), allocatable, dimension(:, :) :: fvel_2d, fvel_xy, fvel_xz, fvel_yz
     real(fp), allocatable, dimension(:) :: fvel_para, fvel_perp
+    real(fp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
+    real(fp), allocatable, dimension(:, :) :: fvel_xz_sum, fvel_yz_sum
+    real(fp), allocatable, dimension(:) :: fvel_para_sum, fvel_perp_sum
 
     contains
 
     !---------------------------------------------------------------------------
-    ! Initialize 2D velocity distributions.
+    ! Initialize 2D velocity distribution for a parallel analysis using MPI.
     !---------------------------------------------------------------------------
     subroutine init_vdist_2d
+        use mpi_module
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        call init_vdist_2d_single
+        if (myid == master) then
+            allocate(fvel_2d_sum(nbins_vdist*2, nbins_vdist))
+            allocate(fvel_xy_sum(nbins_vdist*2, nbins_vdist*2))
+            allocate(fvel_xz_sum(nbins_vdist*2, nbins_vdist*2))
+            allocate(fvel_yz_sum(nbins_vdist*2, nbins_vdist*2))
+        endif
+        call set_vdist_2d_zero
+    end subroutine init_vdist_2d
+
+    !---------------------------------------------------------------------------
+    ! Initialize 2D velocity distributions for a single process.
+    !---------------------------------------------------------------------------
+    subroutine init_vdist_2d_single
         use spectrum_config, only: nbins_vdist
         implicit none
         allocate(fvel_2d(nbins_vdist*2, nbins_vdist))
         allocate(fvel_xy(nbins_vdist*2, nbins_vdist*2))
         allocate(fvel_xz(nbins_vdist*2, nbins_vdist*2))
         allocate(fvel_yz(nbins_vdist*2, nbins_vdist*2))
-        call set_vdist_2d_zero
-    end subroutine init_vdist_2d
+        call set_vdist_2d_zero_single
+    end subroutine init_vdist_2d_single
 
     !---------------------------------------------------------------------------
-    ! Set 2D velocity distributions to zero.
+    ! Set 2D velocity distributions to zero for a single process.
     !---------------------------------------------------------------------------
-    subroutine set_vdist_2d_zero
+    subroutine set_vdist_2d_zero_single
         implicit none
         fvel_2d = 0.0
         fvel_xy = 0.0
         fvel_xz = 0.0
         fvel_yz = 0.0
+    end subroutine set_vdist_2d_zero_single
+
+    !---------------------------------------------------------------------------
+    ! Set the 2D velocity distributions to zeros for analysis using MPI.
+    !---------------------------------------------------------------------------
+    subroutine set_vdist_2d_zero
+        use mpi_module
+        implicit none
+        call set_vdist_2d_zero_single
+        if (myid == master) then
+            fvel_2d_sum = 0.0
+            fvel_xy_sum = 0.0
+            fvel_xz_sum = 0.0
+            fvel_yz_sum = 0.0
+        endif
     end subroutine set_vdist_2d_zero
 
     !---------------------------------------------------------------------------
-    ! Free 2D velocity distribution.
+    ! Free 2D velocity distribution for a parallel analysis using MPI.
     !---------------------------------------------------------------------------
     subroutine free_vdist_2d
+        use mpi_module
         implicit none
-        deallocate(fvel_2d)
-        deallocate(fvel_xy, fvel_xz, fvel_yz)
+        call free_vdist_2d_single
+        deallocate(fvel_2d_sum)
+        if (myid == master) then
+            deallocate(fvel_xy_sum, fvel_xz_sum, fvel_yz_sum)
+        endif
     end subroutine free_vdist_2d
 
     !---------------------------------------------------------------------------
+    ! Free 2D velocity distribution a single process.
+    !---------------------------------------------------------------------------
+    subroutine free_vdist_2d_single
+        implicit none
+        deallocate(fvel_2d)
+        deallocate(fvel_xy, fvel_xz, fvel_yz)
+    end subroutine free_vdist_2d_single
+
+    !---------------------------------------------------------------------------
     ! Initialize 1D velocity distributions (parallel and perpendicular to the
-    ! local magnetic field.
+    ! local magnetic field. This is for parallel analysis using MPI
     !---------------------------------------------------------------------------
     subroutine init_vdist_1d
+        use mpi_module
         use spectrum_config, only: nbins_vdist
         implicit none
-        allocate(fvel_para(nbins_vdist*2))
-        allocate(fvel_perp(nbins_vdist))
+        call init_vdist_1d_single
+        if (myid == master) then
+            allocate(fvel_para_sum(nbins_vdist*2))
+            allocate(fvel_perp_sum(nbins_vdist))
+        endif
         call set_vdist_1d_zero
     end subroutine init_vdist_1d
 
     !---------------------------------------------------------------------------
+    ! Initialize 1D velocity distributions (parallel and perpendicular to the
+    ! local magnetic field. This is for a single process.
+    !---------------------------------------------------------------------------
+    subroutine init_vdist_1d_single
+        use spectrum_config, only: nbins_vdist
+        implicit none
+        allocate(fvel_para(nbins_vdist*2))
+        allocate(fvel_perp(nbins_vdist))
+        call set_vdist_1d_zero_single
+    end subroutine init_vdist_1d_single
+
+    !---------------------------------------------------------------------------
     ! Set 1D velocity distributions to zero.
     !---------------------------------------------------------------------------
-    subroutine set_vdist_1d_zero
+    subroutine set_vdist_1d_zero_single
         implicit none
         fvel_para = 0.0
         fvel_perp = 0.0
+    end subroutine set_vdist_1d_zero_single
+
+    !---------------------------------------------------------------------------
+    ! Set 1D velocity distributions to zero for parallel analysis using MPI
+    !---------------------------------------------------------------------------
+    subroutine set_vdist_1d_zero
+        use mpi_module
+        implicit none
+        call set_vdist_1d_zero_single
+        if (myid == master) then
+            fvel_para_sum = 0.0
+            fvel_perp_sum = 0.0
+        endif
     end subroutine set_vdist_1d_zero
+
     !---------------------------------------------------------------------------
-    ! Free 1D velocity distributions.
+    ! Free 1D velocity distributions for a single process.
     !---------------------------------------------------------------------------
-    subroutine free_vdist_1d
+    subroutine free_vdist_1d_single
         implicit none
         deallocate(fvel_para, fvel_perp)
+    end subroutine free_vdist_1d_single
+
+    !---------------------------------------------------------------------------
+    ! Free 1D velocity distributions for parallel analysis using MPI.
+    !---------------------------------------------------------------------------
+    subroutine free_vdist_1d
+        use mpi_module
+        implicit none
+        call free_vdist_1d_single
+        if (myid == master) then
+            deallocate(fvel_para_sum, fvel_perp_sum)
+        endif
     end subroutine free_vdist_1d
 
-    !---------------------------------------------------------------------------
-    ! Read particle data and calculate the energy spectrum.
-    ! Input:
-    !   tindex: the time index, indicating the time step numbers in PIC simulation.
-    !   species: 'e' for electron. 'h' for others.
-    !---------------------------------------------------------------------------
-    subroutine CalVdistribution(species)
-        use constants, only: fp
-        use picinfo, only: pTopo
-        use structures, only: h0
-        implicit none
-        character(len=1), intent(in) :: species
-        integer :: tindex, tinterval, nt
-        character(len=50) :: ctindex, dataset, fname, cid
-        integer :: ix, iy, iz, np, iptl
-        real(fp) :: Bx_avg, By_avg, Bz_avg, Bxc, Byc, Bzc
+    ! !---------------------------------------------------------------------------
+    ! ! Get particle energy spectrum from individual particle information.
+    ! ! Input:
+    ! !   species: 'e' for electron. 'h' for others.
+    ! !---------------------------------------------------------------------------
+    ! subroutine calc_energy_spectra(species)
+    !     use mpi_module
+    !     use constants, only: fp
+    !     use particle_frames, only: nt, tinterval
+    !     use spectrum_config, only: nbins, dve, dlogve, emin
+    !     implicit none
+    !     character(len=1), intent(in) :: species
+    !     character(len=100) :: fname
+    !     integer :: i, it, tindex
+    !     logical :: is_exist, dir_e
 
-        call ReadMagneticField(Bx_avg, By_avg, Bz_avg, Bxc, Byc, Bzc)
-        call get_tinfo(tinterval, nt)
-        tindex = tp * tinterval
-        write(ctindex, "(I0)") tindex
-        dataset = "particle/T."//trim(ctindex)//"/"//species//"particle."
-        ! Read particle data in parallel to generate distributions
-        do iz = iz1_pic, iz2_pic
-            do iy = iy1_pic, iy2_pic
-                do ix = ix1_pic, ix2_pic
-                    np = ix + iy*pTopo%tx + iz*pTopo%tx*pTopo%ty
-                    write(cid, "(I0)") np
-                    fname = trim(dataset)//trim(ctindex)//"."//trim(cid)
-                    open(unit=10, file=trim(fname), status='unknown', &
-                        form='unformatted', access='stream', action='read')
-                    print *,"Reading  --> ", trim(fname), "    np = ", np
-                    call ReadHeaders(10)
-                    ! Loop over particles
-                    do iptl = 1, h0%dim, 1
-                        !call GetSingleParticleEnergy(10)
-                    enddo
-                    close(10)
-                enddo ! x-loop
-            enddo ! y-loop
-        enddo ! z-loop
-    end subroutine CalVdistribution
+    !     if (myid == master) then
+    !         inquire(file='./spectrum/.', exist=dir_e)
+    !         if (.not. dir_e) then
+    !             call system('mkdir spectrum')
+    !         endif
+    !     endif
+
+    !     call calc_energy_bins
+
+    !     do it = 1, 1
+    !         tindex = it * tinterval
+    !         call set_energy_spectra_zero
+    !         call check_existence(tindex, species, is_exist)
+    !         if (is_exist) then
+    !             call calc_energy_spectrum_mpi(tindex, species)
+    !             ! Sum over all nodes to get the total energy spectrum
+    !             call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
+    !                 MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    !             call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
+    !                 MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+
+    !             !  Now output the distribution on the master node
+    !             if (myid==master) then
+    !                 !print *," *** Finished Creating Spectrum ***"
+    !                 write(fname, "(A,A1,A1,I0)") "spectrum/spectrum-", &
+    !                                              species, ".", it
+    !                 open(unit=10, file=trim(fname), status='unknown')
+    !                 do i=1, nbins
+    !                     write(10, "(4e12.4)") ebins_lin(i), fsum(i), &
+    !                         ebins_log(i), flogsum(i)
+    !                 enddo
+    !                 close(10)
+    !             endif
+    !         endif
+    !     enddo
+    ! end subroutine calc_energy_spectra
+
+!     !---------------------------------------------------------------------------
+!     ! Check the existence of the dataset. This is for the case that there is
+!     ! time gaps in the output files.
+!     ! Inputs:
+!     !   tindex: the time index, indicating the time step numbers in PIC simulation.
+!     !   species: 'e' for electron. 'h' for others.
+!     !---------------------------------------------------------------------------
+!     subroutine check_existence(tindex, species, existFlag)
+!         implicit none
+!         character(len=1), intent(in) :: species
+!         integer, intent(in) :: tindex
+!         logical, intent(out) :: existFlag
+!         character(len=20) :: ctindex
+!         character(len=150) :: dataset, fname
+
+!         write(ctindex, "(I0)") tindex
+!         dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
+!         dataset = trim(adjustl(dataset))//"/"//species//"particle."
+!         fname = trim(dataset)//trim(ctindex)//".0"
+!         inquire(file=fname, exist=existFlag)
+!         if (.not. existFlag) then
+!             print*, fname, " doesn't exist." 
+!             print*, "There is probably a gap in the output."
+!         endif
+!     end subroutine check_existence
+
+!     !---------------------------------------------------------------------------
+!     ! Read particle data and calculate the energy spectrum for one time frame.
+!     ! This subroutine is used in parallel procedures.
+!     ! Input:
+!     !   tindex: the time index, indicating the time step numbers in PIC simulation.
+!     !   species: 'e' for electron. 'h' for others.
+!     !---------------------------------------------------------------------------
+!     subroutine calc_energy_spectrum_mpi(tindex, species)
+!         use mpi_module
+!         use file_header, only: read_boilerplate, read_particle_header, &
+!                                pheader, v0
+!         use spectrum_config, only: spatial_range
+!         use picinfo, only: domain
+!         implicit none
+!         character(len=1), intent(in) :: species
+!         integer, intent(in) :: tindex
+!         character(len=50) :: ctindex, cid
+!         character(len=150) :: dataset, fname
+!         real(fp) :: x0, y0, z0, x1, y1, z1
+!         logical :: isrange1, isrange2
+!         integer :: fh, np, iptl
+
+!         fh = 10
+!         write(ctindex, "(I0)") tindex
+!         dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
+!         dataset = trim(adjustl(dataset))//"/"//species//"particle."
+!         ! Read particle data in parallel to generate distributions
+!         do np = 0, domain%nproc-numprocs, numprocs
+!             write(cid, "(I0)") myid + np
+!             fname = trim(dataset)//trim(ctindex)//"."//trim(cid)
+!             open(unit=fh, file=trim(fname), status='unknown', &
+!                  form='unformatted', access='stream', action='read')
+!             write(*, '(A,A,A,I0,A,I0)') "Reading --> ", trim(fname), &
+!                 " Physical rank = ", myid, " np = ", np
+
+!             call read_boilerplate(fh)
+!             call read_particle_header(fh)
+
+!             ! Corners of this MPI process's domain
+!             x0 = v0%x0
+!             y0 = v0%y0
+!             z0 = v0%z0
+!             x1 = v0%x0 + domain%pic_nx * domain%dx
+!             y1 = v0%y0 + domain%pic_ny * domain%dy
+!             z1 = v0%z0 + domain%pic_nz * domain%dz
+
+!             ! Only if the corners are within the box.
+!             ! Shift one grid to cover boundary.
+!             isrange1 = x1 >= (spatial_range(1,1) - domain%dx) &
+!                  .and. x1 <= (spatial_range(2,1) + domain%dx) &
+!                  .and. y1 >= (spatial_range(1,2) - domain%dy) &
+!                  .and. y1 <= (spatial_range(2,2) + domain%dy) &
+!                  .and. z1 >= (spatial_range(1,3) - domain%dz) &
+!                  .and. z1 <= (spatial_range(2,3) + domain%dz)
+!             isrange2 = x0 >= (spatial_range(1,1) - domain%dx) &
+!                  .and. x0 <= (spatial_range(2,1) + domain%dx) &
+!                  .and. y0 >= (spatial_range(1,2) - domain%dy) &
+!                  .and. y0 <= (spatial_range(2,2) + domain%dy) &
+!                  .and. z0 >= (spatial_range(1,3) - domain%dz) &
+!                  .and. z0 <= (spatial_range(2,3) + domain%dz)
+
+!             if (isrange1 .or. isrange2) then
+!                 ! Loop over particles
+!                 do iptl = 1, pheader%dim, 1
+!                     call single_particle_energy(fh)
+!                 enddo
+!             endif
+
+!             close(fh)
+!         enddo
+!     end subroutine calc_energy_spectrum_mpi
+
+!     !---------------------------------------------------------------------------
+!     ! Read particle data and calculate the energy spectrum for one time frame.
+!     ! This procedure is only use one CPU core.
+!     ! Input:
+!     !   tindex: the time index, indicating the time step numbers in PIC simulation.
+!     !   species: 'e' for electron. 'h' for others.
+!     !---------------------------------------------------------------------------
+!     subroutine calc_energy_spectrum_single(tindex, species)
+!         use file_header, only: read_boilerplate, read_particle_header, &
+!                                pheader, v0
+!         use spectrum_config, only: spatial_range, corners_mpi
+!         use picinfo, only: domain
+!         implicit none
+!         character(len=1), intent(in) :: species
+!         integer, intent(in) :: tindex
+!         character(len=50) :: ctindex, cid
+!         character(len=150) :: dataset, fname
+!         integer :: np, iptl, fh
+!         integer :: ix, iy, iz
+
+!         fh = 10
+!         write(ctindex, "(I0)") tindex
+!         dataset = trim(adjustl(rootpath))//"particle/T."//trim(ctindex)
+!         dataset = trim(adjustl(dataset))//"/"//species//"particle."
+
+!         ! Read particle data and update the spectra
+!         do iz = corners_mpi(1,3), corners_mpi(2,3)
+!             do iy = corners_mpi(1,2), corners_mpi(2,2)
+!                 do ix = corners_mpi(1,1), corners_mpi(2,1)
+!                     np = ix + iy*domain%pic_tx + iz*domain%pic_tx*domain%pic_ty
+!                     write(cid, "(I0)") np
+!                     fname = trim(dataset)//trim(ctindex)//"."//trim(cid)
+!                     open(unit=fh, file=trim(fname), status='unknown', &
+!                          form='unformatted', access='stream', action='read')
+!                     write(*, '(A,A,A,I0)') "Reading --> ", trim(fname), &
+!                         " np = ", np
+
+!                     call read_boilerplate(fh)
+!                     call read_particle_header(fh)
+
+!                     ! Loop over particles
+!                     do iptl = 1, pheader%dim, 1
+!                         call single_particle_energy(fh)
+!                     enddo
+
+!                     close(fh)
+
+!                 enddo ! Z
+!             enddo ! Y
+!         enddo ! X
+!     end subroutine calc_energy_spectrum_single
+
+!     !---------------------------------------------------------------------------
+!     ! Read one single particle information, check if it is in the spatial range,
+!     ! calculate its energy and put it into the flux arrays.
+!     ! Input:
+!     !   fh: file handler.
+!     !---------------------------------------------------------------------------
+!     subroutine single_particle_energy(fh)
+!         use particle_module, only: ptl, calc_particle_energy, px, py, pz, &
+!                                    calc_ptl_coord
+!         use spectrum_config, only: spatial_range
+!         use constants, only: fp
+!         implicit none
+!         integer, intent(in) :: fh
+
+!         read(fh) ptl
+!         call calc_ptl_coord
+
+!         if ((px >= spatial_range(1, 1)) .and. (px <= spatial_range(2, 1)) .and. &
+!             (py >= spatial_range(1, 2)) .and. (py <= spatial_range(2, 2)) .and. &
+!             (pz >= spatial_range(1, 3)) .and. (pz <= spatial_range(2, 3))) then
+
+!             call calc_particle_energy
+!             call update_energy_spectrum
+!         endif
+
+!     end subroutine single_particle_energy
+
+!     !---------------------------------------------------------------------------
+!     ! Update particle energy spectrum.
+!     !---------------------------------------------------------------------------
+!     subroutine update_energy_spectrum
+!         use particle_module, only: ke
+!         use spectrum_config, only: dve, dlogve, emin, nbins
+!         implicit none
+!         real(fp) :: rbin, shift, dke
+!         integer :: ibin, ibin1
+
+!         rbin = ke / dve
+!         ibin = int(rbin)
+!         ibin1 = ibin + 1
+        
+!         if ((ibin >= 1) .and. (ibin1 <= nbins)) then 
+!             shift = rbin - ibin
+!             f(ibin)  = f(ibin) - shift + 1
+!             f(ibin1) = f(ibin1) + shift
+!         endif
+
+!         ! Exceptions
+!         if ( ibin .eq. 0) then
+!             ! Add lower energies to the 1st band.
+!             f(ibin1) = f(ibin1) + 1
+!         endif
+!         dke = ke * dlogve
+     
+!         ! Logarithmic scale
+!         ibin = (log10(ke)-log10(emin))/dlogve + 1
+!         if ((ibin >= 1) .and. (ibin1 <= nbins)) then 
+!             flog(ibin)  = flog(ibin) + 1.0/dke
+!         endif
+!     end subroutine update_energy_spectrum
 
 end module velocity_distribution
-
-! !*******************************************************************************
-! ! To get the ratio of particle output interval and the fields_interval.
-! ! These two are different for these two. And the ratio is given in sigma.cxx
-! !*******************************************************************************
-! subroutine GetRatio_OutputInterval(ratio_interval)
-!     implicit none
-!     integer, intent(out) :: ratio_interval
-!     character(len=150) :: buff
-!     character(len=50) :: buff1, format1
-!     integer :: len1, len2, len3
-!     ratio_interval = 0
-!     open(unit=40,file='sigma.cxx', status='old')
-!     read(40,'(A)') buff
-!     do while (index(buff, 'int Hhydro_interval = ') == 0)
-!         read(40,'(A)') buff
-!     enddo
-!     read(40, '(A)') buff
-!     len1 = len(trim(buff))
-!     ! "int eparticle_interval = " has 25 characters
-!     len2 = index(buff, 'int') + 24
-!     ! The last 10 characters are "*interval;"
-!     len3 = len1 - len2 - 10
-!     write(format1, "(A,I2.2,A,I1.1,A,I1.1,A)") "(A", len2, ",I", len3, ".", len3, ")'"
-!     read(buff, trim(adjustl(format1))) buff1, ratio_interval
-!     close(40)
-!     print*, "The ratio of particle output interval and field output interval:", &
-!         ratio_interval
-! end subroutine GetRatio_OutputInterval
-
-! !*******************************************************************************
-! ! Read the B fields at current time.
-! ! 1. Bx, By, Bz at ixc, iyc, izc
-! ! 2. Bx_avg, By_avg, Bz_avg got form the average of the B fields in the whole box.
-! !*******************************************************************************
-! subroutine ReadMagneticField(Bx_avg, By_avg, Bz_avg, Bxc, Byc, Bzc)
-!     use constants, only: MyLongIntType, fp
-!     use parameters, only: ix1, iy1, iz1, ix2, iy2, iz2, ixc, iyc, izc, tp
-!     use picinfo, only: domain
-!     implicit none
-!     real(fp), intent(out) :: Bx_avg, By_avg, Bz_avg, Bxc, Byc, Bzc
-!     integer :: ratio_interval, ix, iy, iz, nx, ny, nz, npoints
-!     integer(kind=MyLongIntType) :: pos0, pos1, pos2
-!     real(fp) :: Bx, By, Bz 
-!     call GetRatio_OutputInterval(ratio_interval)
-!     nx = domain%nx
-!     ny = domain%ny
-!     nz = domain%nz
-!     open(unit=51,file='data/bx.gda', access='stream', &
-!         form='unformatted',action='read') 
-!     open(unit=52,file='data/by.gda', access='stream', &
-!         form='unformatted',action='read') 
-!     open(unit=53,file='data/bz.gda', access='stream', &
-!         form='unformatted',action='read') 
-!     ! The number is too huge. Two steps to avoid truncation.
-!     pos0 = nx * ny * nz * 4
-!     pos0 = pos0 * (ratio_interval*tp - 1)
-!     npoints = (ix2-ix1+1) * (iy2-iy1+1) * (iz2-iz1+1)
-!     Bx_avg = 0.0
-!     By_avg = 0.0
-!     Bz_avg = 0.0
-!     do iz = iz1, iz2
-!         do iy = iy1, iy2
-!             do ix = ix1, ix2
-!                 pos2 = (ix-1) + (iy-1)*nx + (iz-1)*nx*ny
-!                 pos1 = pos0 + pos2*4 + 1
-!                 read(51, pos=pos1) Bx
-!                 read(52, pos=pos1) By
-!                 read(53, pos=pos1) Bz
-!                 Bx_avg = Bx_avg + Bx
-!                 By_avg = By_avg + By
-!                 Bz_avg = Bz_avg + Bz
-!             enddo
-!         enddo
-!     enddo
-!     Bx_avg = Bx_avg / npoints
-!     By_avg = By_avg / npoints
-!     Bz_avg = Bz_avg / npoints
-
-!     ! Magnetic field at the center of the box.
-!     pos2 = (ixc-1) + (iyc-1)*nx + (izc-1)*nx*ny
-!     pos1 = pos0 + pos2*4 + 1
-!     read(51, pos=pos1) Bxc
-!     read(52, pos=pos1) Byc
-!     read(53, pos=pos1) Bzc
-
-!     close(51)
-!     close(52)
-!     close(53)
-
-!     print *, "---------------------------------------------------"
-!     print *, "The B field at the center:       ", Bxc, Byc, Bzc
-!     print *, "The averaged B field in the box: ", Bx_avg, By_avg, Bz_avg
-!     print *, "---------------------------------------------------" 
-! end subroutine ReadMagneticField
