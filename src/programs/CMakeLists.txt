@@ -27,7 +27,7 @@ target_link_libraries(parspec ${MPI_Fortran_LIBRARIES} particle_spectrum
 
 add_executable(spectrum_along_fieldline spectrum_along_fieldline.f90)
 target_link_libraries(spectrum_along_fieldline ${MPI_Fortran_LIBRARIES}
-    analysis_config particle_spectrum fieldline_tracing)
+    analysis_config particle_spectrum fieldline_tracing particle_fieldline)
 
 add_executable(vdistribution vdistribution.f90)
 target_link_libraries(vdistribution ${MPI_Fortran_LIBRARIES}
