@@ -12,7 +12,7 @@ program calc_agyrotropy
     use particle_info, only: species, ibtag, get_ptl_mass_charge
     use parameters, only: it1, it2
     use analysis_management, only: init_analysis, end_analysis
-    use mpi_io_module, only: save_field
+    use mpi_io_fields, only: save_field
     implicit none
     real(fp), allocatable, dimension(:, :, :) :: Nxx, Nxy, Nxz, Nyy, Nyz, Nzz
     real(fp), allocatable, dimension(:, :, :) :: bxn, byn, bzn

@@ -58,7 +58,7 @@ module previous_post_velocities
         use constants, only: fp
         use parameters, only: it1
         use picinfo, only: domain, nt   ! Total number of output time frames.
-        use mpi_datatype, only: filetype_ghost, subsizes_ghost
+        use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
         use mpi_io_module, only: read_data_mpi_io
         use pic_fields, only: ux, uy, uz
         implicit none
@@ -153,7 +153,7 @@ module current_densities
     use jdote_module, only: jdote, calc_jdote, save_jdote_total
     use mpi_topology, only: htg
     use picinfo, only: domain
-    use mpi_io_module, only: save_field
+    use mpi_io_fields, only: save_field
     implicit none
     private
     public jx1, jy1, jz1, jx2, jy2, jz2, jagyx, jagyy, jagyz, &
@@ -234,7 +234,7 @@ module current_densities
         use parameters, only: ncurrents
         use saving_flags, only: save_jtot, save_jagy, save_jperp1, &
                                 save_jperp2, save_jagy
-        use mpi_io_module, only: save_field
+        use mpi_io_fields, only: save_field
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3,ncurrents) :: javg
@@ -929,8 +929,8 @@ module current_densities
     subroutine save_current_density(qname, jx, jy, jz, ct)
         use mpi_module
         use constants, only: fp
-        use mpi_datatype, only: subsizes_ghost
-        use mpi_io_module, only: save_field
+        use mpi_datatype_fields, only: subsizes_ghost
+        use mpi_io_fields, only: save_field
         implicit none
         character(*), intent(in) :: qname
         integer, intent(in) :: ct
@@ -956,7 +956,7 @@ module current_densities
     subroutine calc_averaged_currents(jx, jy, jz, javg)
         use mpi_module
         use constants, only: fp
-        use mpi_datatype, only: subsizes_ghost
+        use mpi_datatype_fields, only: subsizes_ghost
         use statistics, only: get_average_and_total
         implicit none
         real(fp), dimension(:, :, :), intent(in) :: jx, jy, jz

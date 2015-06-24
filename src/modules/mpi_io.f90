@@ -1,7 +1,7 @@
 !*******************************************************************************
 ! MPI data type for parallel I/O.
 !*******************************************************************************
-module mpi_datatype_test
+module mpi_datatype_module
     use mpi_module
     implicit none
     private
@@ -26,13 +26,13 @@ module mpi_datatype_test
         call MPI_TYPE_COMMIT(datatype, ierror)
     end subroutine set_mpi_datatype
 
-end module mpi_datatype_test
+end module mpi_datatype_module
 
 
 !*******************************************************************************
 ! Set MPI_INFO for parallel I/O.
 !*******************************************************************************
-module  mpi_info_module_test
+module  mpi_info_module
     use mpi_module
     implicit none
     private
@@ -62,14 +62,14 @@ module  mpi_info_module_test
         call MPI_INFO_SET(fileinfo, "panfs_concurrent_write", "1", ierror)
     end subroutine set_mpi_info
 
-end module  mpi_info_module_test
+end module  mpi_info_module
 
 
 !*******************************************************************************
 ! This contains one subroutine to open field data file using MPI I/O, one
 ! subroutine to read data using MPI I/O.
 !*******************************************************************************
-module mpi_io_module_test
+module mpi_io_module
     use mpi_module
     implicit none
     private
@@ -173,4 +173,4 @@ module mpi_io_module_test
         endif
     end subroutine write_data_mpi_io
 
-end module mpi_io_module_test
+end module mpi_io_module

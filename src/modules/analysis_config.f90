@@ -21,8 +21,8 @@ module analysis_management
         use path_info, only: get_file_paths
         use parameters, only: it2
         use mpi_topology, only: set_mpi_topology
-        use mpi_datatype, only: set_mpi_datatype
-        use mpi_info_object, only: fileinfo, set_mpi_info
+        use mpi_datatype_fields, only: set_mpi_datatype_fields
+        use mpi_info_module, only: fileinfo, set_mpi_info
         use picinfo, only: read_domain, broadcast_pic_info, get_total_time_frames
 
         implicit none
@@ -38,7 +38,7 @@ module analysis_management
         call broadcast_pic_info
         call get_total_time_frames(it2)
         call set_mpi_topology   ! MPI topology
-        call set_mpi_datatype
+        call set_mpi_datatype_fields
         call set_mpi_info
     end subroutine init_analysis
 
@@ -47,8 +47,8 @@ module analysis_management
     !---------------------------------------------------------------------------
     subroutine end_analysis
         use mpi_module
-        use mpi_datatype, only: filetype_ghost, filetype_nghost
-        use mpi_info_object, only: fileinfo
+        use mpi_datatype_fields, only: filetype_ghost, filetype_nghost
+        use mpi_info_module, only: fileinfo
         implicit none
 
         call MPI_TYPE_FREE(filetype_ghost, ierror)

@@ -229,7 +229,7 @@ program parallel_potential
         use mpi_module
         use parameters, only: it1
         use mpi_io_module, only: open_data_mpi_io
-        use mpi_info_object, only: fileinfo
+        use mpi_info_module, only: fileinfo
         use path_info, only: rootpath
         implicit none
         integer, intent(in) :: ct

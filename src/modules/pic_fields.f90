@@ -10,9 +10,9 @@ module pic_fields
     use picinfo, only: domain
     use mpi_topology, only: htg
     use mpi_io_module, only: open_data_mpi_io, read_data_mpi_io
-    use mpi_datatype, only: filetype_ghost, subsizes_ghost
+    use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
     use path_info, only: filepath
-    use mpi_info_object, only: fileinfo
+    use mpi_info_module, only: fileinfo
     implicit none
     private
     public init_pic_fields, open_pic_fields, read_pic_fields, &

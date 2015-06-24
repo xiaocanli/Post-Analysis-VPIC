@@ -139,7 +139,7 @@ module para_perp_pressure
     subroutine save_para_perp_pressure(ct, is_subtract_bulkflow)
         use mpi_module
         use constants, only: fp, delta
-        use mpi_io_module, only: save_field
+        use mpi_io_fields, only: save_field
         implicit none
         integer, intent(in) :: ct
         logical, intent(in) :: is_subtract_bulkflow

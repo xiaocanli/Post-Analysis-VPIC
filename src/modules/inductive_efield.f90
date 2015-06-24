@@ -78,7 +78,7 @@ module inductive_electric_field
     !---------------------------------------------------------------------------
     subroutine open_velocity_field(species)
         use path_info, only: filepath
-        use mpi_info_object, only: fileinfo
+        use mpi_info_module, only: fileinfo
         use mpi_io_module, only: open_data_mpi_io
         implicit none
         character(*), intent(in) :: species
@@ -119,7 +119,7 @@ module inductive_electric_field
         use parameters, only: it1
         use pic_fields, only: ux, uy, uz, bx, by, bz
         use picinfo, only: domain, mime
-        use mpi_datatype, only: filetype_ghost, subsizes_ghost
+        use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
         use mpi_io_module, only: read_data_mpi_io
         implicit none
         integer, intent(in) :: ct

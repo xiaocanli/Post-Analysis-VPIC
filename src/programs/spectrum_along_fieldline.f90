@@ -161,7 +161,7 @@ program spectrum_along_fieldline
     subroutine write_particle_spectrum(species)
         use mpi_module
         use mpi_io_module, only: open_data_mpi_io
-        use mpi_info_object, only: fileinfo
+        use mpi_info_module, only: fileinfo
         use particle_energy_spectrum, only: ebins_lin, ebins_log
         implicit none
         character(len=1), intent(in) :: species
