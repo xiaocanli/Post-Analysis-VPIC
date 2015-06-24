@@ -7,7 +7,7 @@ add_library(get_info STATIC get_info.f90 global.f90)
 add_library(statistics STATIC statistics.f90)
 
 add_library(analysis_config STATIC analysis_config.f90 mpi_setup.f90
-    mpi_io_dissipation.f90 particle_info.f90)
+    mpi_io_fields.f90 particle_info.f90)
 target_link_libraries(analysis_config get_info)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
@@ -38,3 +38,5 @@ target_link_libraries(particle_spectrum file_header magnetic_field)
 add_library(vdist vdist.f90 particle_module.f90 spectrum_config.f90
     particle_frames.f90 particle_file.f90)
 target_link_libraries(vdist file_header get_info magnetic_field)
+
+add_library(mpi_io mpi_io.f90 global.f90)
