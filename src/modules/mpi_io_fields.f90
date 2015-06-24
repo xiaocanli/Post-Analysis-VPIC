@@ -28,7 +28,7 @@ module mpi_datatype_fields
     !   filetype_ghost, filetype_nghost: the file types of the created array.
     !---------------------------------------------------------------------------
     subroutine set_mpi_datatype_fields
-        use mpi_datatype_module, only: datatype, set_mpi_datatype
+        use mpi_datatype_module, only: set_mpi_datatype
         implicit none
 
         sizes_ghost(1) = domain%nx
@@ -41,8 +41,8 @@ module mpi_datatype_fields
         starts_ghost(2) = htg%start_y
         starts_ghost(3) = htg%start_z
 
-        call set_mpi_datatype(sizes_ghost, subsizes_ghost, starts_ghost)
-        filetype_ghost = datatype
+        filetype_ghost = set_mpi_datatype(sizes_ghost, &
+                subsizes_ghost, starts_ghost)
 
         sizes_nghost = sizes_ghost
         subsizes_nghost(1) = ht%nx
@@ -52,8 +52,8 @@ module mpi_datatype_fields
         starts_nghost(2) = ht%start_y
         starts_nghost(3) = ht%start_z
 
-        call set_mpi_datatype(sizes_nghost, subsizes_nghost, starts_nghost)
-        filetype_nghost = datatype
+        filetype_nghost = set_mpi_datatype(sizes_nghost, &
+                subsizes_nghost, starts_nghost)
 
     end subroutine set_mpi_datatype_fields
 

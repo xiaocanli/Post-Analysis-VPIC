@@ -117,14 +117,15 @@ program translate
     subroutine end_analysis
         use mpi_module
         use topology, only: free_start_stop_cells
-        use mpi_io_translate, only: filetype, fileinfo
+        use mpi_io_translate, only: datatype
+        use mpi_info_module, only: fileinfo
         use emfields, only: free_emfields
         use particle_fields, only: free_particle_fields
         implicit none
         call free_particle_fields
         call free_emfields
         call free_start_stop_cells
-        call MPI_TYPE_FREE(filetype, ierror)
+        call MPI_TYPE_FREE(datatype, ierror)
         call MPI_INFO_FREE(fileinfo, ierror)
         call MPI_FINALIZE(ierr)
     end subroutine end_analysis

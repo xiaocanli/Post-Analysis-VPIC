@@ -5,18 +5,17 @@ module mpi_datatype_module
     use mpi_module
     implicit none
     private
-    public datatype, set_mpi_datatype
-
-    integer :: datatype
+    public set_mpi_datatype
 
     contains
 
     !---------------------------------------------------------------------------
     ! Create a MPI data type and commit it.    
     !---------------------------------------------------------------------------
-    subroutine set_mpi_datatype(sizes, subsizes, starts)
+    function set_mpi_datatype(sizes, subsizes, starts) result(datatype)
         implicit none
         integer, dimension(:), intent(in) :: sizes, subsizes, starts
+        integer :: datatype
         integer :: sz
 
         sz = size(sizes)
@@ -24,7 +23,7 @@ module mpi_datatype_module
         call MPI_TYPE_CREATE_SUBARRAY(sz, sizes, subsizes, starts, &
                 MPI_ORDER_FORTRAN, MPI_REAL, datatype, ierror)
         call MPI_TYPE_COMMIT(datatype, ierror)
-    end subroutine set_mpi_datatype
+    end function set_mpi_datatype
 
 end module mpi_datatype_module
 
@@ -37,6 +36,7 @@ module  mpi_info_module
     implicit none
     private
     public fileinfo, set_mpi_info
+
     integer :: fileinfo     ! MPI_INFO object
 
     contains

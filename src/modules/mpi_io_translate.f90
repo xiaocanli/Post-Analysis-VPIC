@@ -1,22 +1,24 @@
 !*******************************************************************************
-! Module for mpi_io. It includes the routine to set the MPI filetype and
+! Module for mpi_io. It includes the routine to set the MPI datatype and
 ! MPI_INFO.
 !*******************************************************************************
 module mpi_io_translate
     implicit none
     private
-    public fileinfo, filetype, set_mpi_io, write_data
-    integer :: fileinfo, filetype
+    public datatype, set_mpi_io, write_data
+    integer :: datatype
 
     contains
 
     !---------------------------------------------------------------------------
-    ! Set MPI filetype and MPI_INFO.
+    ! Set MPI datatype and MPI_INFO.
     !---------------------------------------------------------------------------
     subroutine set_mpi_io
         use mpi_module
         use topology, only: ht
         use picinfo, only: domain
+        use mpi_datatype_module, only: set_mpi_datatype
+        use mpi_info_module, only: set_mpi_info
         implicit none
         integer :: sizes(3), subsizes(3), starts(3)
 
@@ -35,26 +37,22 @@ module mpi_io_translate
         starts(2) = ht%iy*ht%ny
         starts(3) = ht%iz*ht%nz
 
-        call MPI_TYPE_CREATE_SUBARRAY(3, sizes, subsizes, starts, &
-                MPI_ORDER_FORTRAN, MPI_REAL4, filetype, ierror)
-        call MPI_TYPE_COMMIT(filetype, ierror)
-        call MPI_INFO_CREATE(fileinfo, ierror)
-
-        call MPI_INFO_SET(fileinfo, "romio_cb_write", "enable", ierror)
-        call MPI_INFO_SET(fileinfo, "romio_ds_write", "disable", ierror)
+        datatype = set_mpi_datatype(sizes, subsizes, starts)
+        call set_mpi_info
     end subroutine set_mpi_io
 
     !---------------------------------------------------------------------------
     ! Write data to file using MPI I/O.
     !---------------------------------------------------------------------------
-    subroutine write_data(fname, data, tindex, output_record)
+    subroutine write_data(fname, fdata, tindex, output_record)
+        use mpi_module
         use constants, only: fp, dp
         use topology, only: ht
+        use mpi_info_module, only: fileinfo
         use configuration_translate, only: output_format
-        use mpi_module
         implicit none
         integer, intent(in) :: tindex, output_record
-        real(fp), intent(in), dimension(:,:,:) :: data
+        real(fp), intent(in), dimension(:,:,:) :: fdata
         character(*), intent(in) :: fname
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         character(len=150) :: cfname
@@ -80,7 +78,7 @@ module mpi_io_translate
             print *, "Error in MPI_FILE_OPEN:", trim(err_msg)
         endif
 
-        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL4, filetype, &
+        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL4, datatype, &
                               'native', MPI_INFO_NULL, ierror)
         if (ierror /= 0 ) then
             call MPI_Error_string(ierror, err_msg, err_length, ierror2)
@@ -89,7 +87,7 @@ module mpi_io_translate
 
         if (myid==master) print *, "writing data to file ", trim(cfname)
 
-        call MPI_FILE_WRITE_AT_ALL(fh, offset, data, ht%nx*ht%ny*ht%nz, &
+        call MPI_FILE_WRITE_AT_ALL(fh, offset, fdata, ht%nx*ht%ny*ht%nz, &
                                    MPI_REAL4, status, ierror)
 
         if (ierror /= 0 ) then
