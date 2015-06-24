@@ -72,12 +72,14 @@ module mpi_io_translate
            write(cfname, "(I0)") tindex
            cfname = trim(fname) // '_' // trim(cfname) // '.gda'
         endif
+
         call MPI_FILE_OPEN(MPI_COMM_WORLD, cfname, &
                           MPI_MODE_RDWR+MPI_MODE_CREATE, fileinfo, fh, ierror)
         if (ierror /= 0 ) then
             call MPI_Error_string(ierror, err_msg, err_length,ierror2)
             print *, "Error in MPI_FILE_OPEN:", trim(err_msg)
         endif
+
         call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL4, filetype, &
                               'native', MPI_INFO_NULL, ierror)
         if (ierror /= 0 ) then
