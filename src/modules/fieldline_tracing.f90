@@ -7,13 +7,18 @@ module fieldline_tracing
 
     implicit none
     private
-    public nx, nz, gdx, gdz, lx, lz, a, b, c, dc
+    public nx, nz, gdx, gdz, lx, lz, a, b, c, dc, xarr, zarr, npoints
     public init_fieldline_tracing, end_fieldline_tracing, tracing, &
            get_crossing_point, controller, push, derivs, &
-           Cash_Karp_parameters, Dormand_Prince_parameters
+           Cash_Karp_parameters, Dormand_Prince_parameters, &
+           init_fieldline_points, free_fieldline_points, trace_field_line
     
     integer :: nx, nz
     real(fp) :: gdx, gdz, lx, lz    ! Grid sizes and lengths in di.
+    real(fp), allocatable, dimension(:) :: xarr, zarr
+    ! Maximum number of points along one field line.
+    integer, parameter :: np_max = 1E3
+    integer :: npoints   ! The actual number of points along one filed line.
     ! Adaptive Runge-Kutta parameters.
     real(fp), dimension(0:6) :: a, c, dc
     real(fp), dimension(0:5,0:6) :: b
@@ -42,11 +47,30 @@ module fieldline_tracing
     ! initializing magnetic field and read magnetic field.
     !---------------------------------------------------------------------------
     subroutine init_fieldline_tracing
-        use magnetic_field, only: init_magnetic_fields, read_magnetic_fields
+        use magnetic_field, only: init_magnetic_fields
         implicit none
         call set_grid_info
         call init_magnetic_fields
     end subroutine init_fieldline_tracing
+
+    !---------------------------------------------------------------------------
+    ! Initialize the array of the points along a filed line.
+    !---------------------------------------------------------------------------
+    subroutine init_fieldline_points
+        implicit none
+        allocate(xarr(np_max))
+        allocate(zarr(np_max))
+        xarr = 0.0
+        zarr = 0.0
+    end subroutine init_fieldline_points
+
+    !---------------------------------------------------------------------------
+    ! Free the array of the points along a field line.
+    !---------------------------------------------------------------------------
+    subroutine free_fieldline_points
+        implicit none
+        deallocate(xarr, zarr)
+    end subroutine free_fieldline_points
 
     !---------------------------------------------------------------------------
     ! Finish field line tracing by freeing the magnetic field.
@@ -62,25 +86,18 @@ module fieldline_tracing
     ! line is used as the variable, so Bx/dx = By/dy = Bz/dz = B/ds.
     ! Inputs:
     !   htry: the first-try step size.
-    ! Inputs & Outputs:
-    !   x, z: the coordinates of current point.
-    ! Outputs:
-    !   np: total number of points along the field line.
-    !   xarr, zarr: the arrays of coordinates along the field line.
+    !   x0, z0: the coordinates of current point.
     ! References:
     !   Press, William H. Numerical recipes 3rd edition: The art of scientific
     !   computing. Cambridge university press, 2007. Chapter 17.2.
     !---------------------------------------------------------------------------
-    subroutine tracing(x, z, htry, np, xarr, zarr)
+    subroutine tracing(x0, z0, htry)
         use constants, only: fp
         implicit none
-        real(fp), intent(inout) :: x, z
-        real(fp), intent(in) :: htry
-        integer, intent(out) :: np
-        real(fp), dimension(:), intent(out) :: xarr, zarr
+        real(fp), intent(in) :: x0, z0, htry
         real(fp), dimension(0:6) :: kx, ky, kz
         real(fp) :: arc_length, xout, zout, xold, zold
-        real(fp) :: xcross, zcross
+        real(fp) :: x, z, xcross, zcross
         real(fp) :: dxds, dyds, dzds, dxdsnew, dydsnew, dzdsnew
         real(fp) :: h, hnext, errold
         logical :: is_accept
@@ -89,10 +106,12 @@ module fieldline_tracing
         h = htry
         errold = 1.0e-4
         is_accept = .false.
-        np = 1
+        npoints = 1
 
-        xarr(np) = x
-        zarr(np) = z
+        x = x0
+        z = z0
+        xarr(npoints) = x
+        zarr(npoints) = z
 
         call derivs(x, z, dxds, dyds, dzds)
         do while (x > 0 .and. x < lx .and. z > 0 .and. z < lz .and. &
@@ -110,9 +129,9 @@ module fieldline_tracing
                 dyds = dydsnew
                 dzds = dzdsnew
                 h = hnext
-                np = np + 1
-                xarr(np) = x
-                zarr(np) = z
+                npoints = npoints + 1
+                xarr(npoints) = x
+                zarr(npoints) = z
             endif
         enddo ! while loop
 
@@ -126,11 +145,42 @@ module fieldline_tracing
             arc_length = arc_length + h
             call push(dxds, dyds, dzds, x, z, h, kx, ky, kz, &
                       xout, zout, dxdsnew, dydsnew, dzdsnew)
-            np = np + 1
-            xarr(np) = x
-            zarr(np) = z
+            npoints = npoints + 1
+            xarr(npoints) = x
+            zarr(npoints) = z
         endif
     end subroutine tracing
+
+    !---------------------------------------------------------------------------
+    ! Trace magnetic field line starting at one point. Record the total number
+    ! of points along the field line.
+    ! Inputs:
+    !   x0, z0: the coordinates of the starting point.
+    !---------------------------------------------------------------------------
+    subroutine trace_field_line(x0, z0)
+        use constants, only: fp
+        use picinfo, only: domain, mime
+        implicit none
+        real(fp), intent(in) :: x0, z0
+        real(fp) :: htry
+        htry = gdx
+        call tracing(x0, z0, htry)
+        xarr = xarr * sqrt(mime)    ! di -> de
+        zarr = zarr * sqrt(mime)
+    end subroutine trace_field_line
+
+    !---------------------------------------------------------------------------
+    ! Save the coordinates of the points along a filed line.
+    !---------------------------------------------------------------------------
+    subroutine save_fieldline_points
+        implicit none
+        integer :: i
+        open(unit=20, file='xz_field.dat', status='unknown')
+        do i = 1, npoints
+            write(20, '(2e12.4)') xarr(i), zarr(i)
+        enddo
+        close(20)
+    end subroutine save_fieldline_points
 
     !---------------------------------------------------------------------------
     ! Get the boundary crossing point.

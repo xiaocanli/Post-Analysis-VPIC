@@ -6,118 +6,96 @@
 program spectrum_along_fieldline
     use mpi_module
     use constants, only: fp
-    use path_info, only: get_file_paths
-    use picinfo, only: read_domain, broadcast_pic_info
-    use fieldline_tracing, only: init_fieldline_tracing, end_fieldline_tracing, &
-            Cash_Karp_parameters, Dormand_Prince_parameters
+    use fieldline_tracing, only: init_fieldline_tracing, &
+            end_fieldline_tracing, Dormand_Prince_parameters, &
+            init_fieldline_points, free_fieldline_points, npoints, &
+            trace_field_line
+    use particle_frames, only: nt, tinterval
     use magnetic_field, only: read_magnetic_fields
-    use particle_frames, only: get_particle_frames, nt, tinterval
     use mpi_topology, only: distribute_tasks
     use spectrum_config, only: nbins 
-    use particle_file, only: check_both_particle_fields_exist, &
-            get_ratio_interval, ratio_interval
+    use particle_file, only: ratio_interval
     implicit none
-    real(fp), allocatable, dimension(:,:) :: ptl_spectrum
     integer :: ct       ! Current time frame
-    real(fp), allocatable, dimension(:) :: xarr, zarr
-    integer, parameter :: np_max = 1E3
     integer :: nptot    ! The actual number of points along the field line.
     integer :: np       ! Number of points for current MPI process.
-    integer :: startp, endp         ! Starting and ending points.
+    integer :: startp, endp  ! Starting and ending points.
     ! The spectra at these points.
     real(fp), allocatable, dimension(:, :) :: flog_np, flin_np
-    logical :: is_time_valid
-
-    call MPI_INIT(ierr)
-    call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
-    call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
-
-    call get_file_paths
-    if (myid==master) then
-        call read_domain
-        call get_particle_frames
-    endif
-    call MPI_BCAST(tinterval, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
-    call broadcast_pic_info
 
     ct = 10
-    if (myid == master) then
-        call get_ratio_interval
-    endif
-    call MPI_BCAST(ratio_interval, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
+    call init_analysis
 
-    is_time_valid = check_both_particle_fields_exist(ct)
+    call init_fieldline_tracing
+    call init_fieldline_points
+    call Dormand_Prince_parameters
+    call read_magnetic_fields(ct)
 
-    if (is_time_valid) then
-        call init_fieldline_tracing
-        call Dormand_Prince_parameters
-        call read_magnetic_fields(ct)
+    ! Set the tasks for each MPI process.
+    call trace_field_line(1.0, 60.0)  ! Recored npoints at the same time.
+    nptot = npoints
+    call distribute_tasks(nptot, numprocs, myid, np, startp, endp)
 
-        allocate(xarr(np_max))
-        allocate(zarr(np_max))
-        xarr = 0.0
-        zarr = 0.0
-        if (myid == master) then
-            call trace_field_line(1.0, 60.0, nptot)
-        endif
-        call end_fieldline_tracing
+    nbins = 100
+    allocate(flin_np(nbins, np))
+    allocate(flog_np(nbins, np))
+    flin_np = 0.0
+    flog_np = 0.0
+    call calc_particle_energy_spectrum('e')
 
-        call MPI_BCAST(nptot, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
-        call MPI_BCAST(xarr(1:nptot), nptot, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        call MPI_BCAST(zarr(1:nptot), nptot, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        call distribute_tasks(nptot, numprocs, myid, np, startp, endp)
-
-        nbins = 100
-        allocate(flin_np(nbins, np))
-        allocate(flog_np(nbins, np))
-        flin_np = 0.0
-        flog_np = 0.0
-        call calc_particle_energy_spectrum('e')
-
-        deallocate(xarr, zarr)
-        deallocate(flin_np, flog_np)
-    else
-        if (myid == master) then
-            write(*, '(A,I0,A)') 'ct = ', ct, ' is invalid.'
-            write(*, '(A,I0)') 'Choose a time that is a multiple of ', ratio_interval
-        endif
-        call MPI_FINALIZE(ierr)
-        stop
-    endif
+    deallocate(flin_np, flog_np)
+    call free_fieldline_points
+    call end_fieldline_tracing
     call MPI_FINALIZE(ierr)
 
     contains
 
     !---------------------------------------------------------------------------
-    ! Trace magnetic field line starting at one point. Record the total number
-    ! of points along the field line.
-    ! Inputs:
-    !   x0, z0: the coordinates of the starting point.
-    ! Output:
-    !   npoints: total number of points along the field line.
+    ! Initialize this analysis
     !---------------------------------------------------------------------------
-    subroutine trace_field_line(x0, z0, npoints)
-        use constants, only: fp
-        use picinfo, only: domain, mime
-        use fieldline_tracing, only: tracing, gdx
+    subroutine init_analysis
+        use path_info, only: get_file_paths
+        use picinfo, only: read_domain, broadcast_pic_info
+        use particle_file, only: check_both_particle_fields_exist, &
+                get_ratio_interval, ratio_interval
+        use particle_frames, only: get_particle_frames
         implicit none
-        real(fp), intent(in) :: x0, z0
-        integer, intent(out) :: npoints
-        real(fp) :: htry, x, z
-        integer :: i
-        htry = gdx
-        x = x0
-        z = z0
-        npoints = 0
-        call tracing(x, z, htry, npoints, xarr, zarr)
-        xarr = xarr * sqrt(mime)    ! di -> de
-        zarr = zarr * sqrt(mime)
-        open(unit=20, file='xz_field.dat', status='unknown')
-        do i = 1, npoints
-            write(20, '(2e12.4)') xarr(i), zarr(i)
-        enddo
-        close(20)
-    end subroutine trace_field_line
+        logical :: is_time_valid
+
+        call MPI_INIT(ierr)
+        call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
+        call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
+
+        call get_file_paths
+
+        ! Get the ratio of the particle output and field output.
+        if (myid == master) then
+            call get_ratio_interval
+        endif
+        call MPI_BCAST(ratio_interval, 1, MPI_INTEGER, &
+                master, MPI_COMM_WORLD, ierr)
+
+        ! Check whether the time frame is valid for both fields and particles.
+        is_time_valid = check_both_particle_fields_exist(ct)
+        if (.not. is_time_valid) then
+            if (myid == master) then
+                write(*, '(A,I0,A)') 'ct = ', ct, ' is invalid.'
+                write(*, '(A,I0)') 'Choose a time that is a multiple of ', &
+                        ratio_interval
+            endif
+            call MPI_FINALIZE(ierr)
+            stop
+        endif
+
+        ! The PIC simulation information.
+        if (myid==master) then
+            call read_domain
+            call get_particle_frames
+        endif
+        call MPI_BCAST(tinterval, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
+        call broadcast_pic_info
+
+    end subroutine init_analysis
 
     !---------------------------------------------------------------------------
     ! Calculate the particle energy spectrum along a line.
@@ -131,6 +109,7 @@ program spectrum_along_fieldline
         use particle_energy_spectrum, only: init_energy_spectra_single, &
                 free_energy_spectra_single, calc_energy_spectrum_single, &
                 calc_energy_bins, set_energy_spectra_zero_single, f, flog
+        use fieldline_tracing, only: xarr, zarr
         implicit none
         character(len=1), intent(in) :: species
         integer :: i
