@@ -44,6 +44,12 @@ module jdote_module
         integer, intent(in) :: ct
         real(fp), dimension(ncurrents+1), intent(in) :: jdote_tot
         integer :: pos1, output_record
+        logical :: dir_e
+
+        inquire(file='./data/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir ./data')
+        endif
 
         print*, "Saving j.E", ct
         if (inductive == 0) then

@@ -176,6 +176,13 @@ module para_perp_pressure
         real(fp) :: ppara_avg, pperp_avg, tot
         character(len=100) :: fname
         integer :: current_pos, output_record
+        logical :: dir_e
+
+        inquire(file='./data/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir ./data')
+        endif
+
         call get_average_and_total(ppara, ppara_avg, tot)
         call get_average_and_total(pperp, pperp_avg, tot)
         if (myid == master) then

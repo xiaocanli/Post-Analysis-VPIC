@@ -79,7 +79,7 @@ program spectrum_along_fieldline
     !---------------------------------------------------------------------------
     subroutine write_particle_spectrum(species)
         use mpi_module
-        use mpi_io_module, only: open_data_mpi_io
+        use mpi_io_module, only: open_data_mpi_io, write_data_mpi_io
         use mpi_info_module, only: fileinfo
         use particle_energy_spectrum, only: ebins_lin, ebins_log
         use particle_fieldline, only: nptot, np, startp

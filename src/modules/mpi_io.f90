@@ -75,6 +75,16 @@ module mpi_io_module
     private
     public open_data_mpi_io, read_data_mpi_io, write_data_mpi_io
 
+    interface read_data_mpi_io
+        module procedure &
+            read_data_mpi_io_real_3d, read_data_mpi_io_real_2d
+    end interface read_data_mpi_io
+
+    interface write_data_mpi_io
+        module procedure &
+            write_data_mpi_io_real_3d, write_data_mpi_io_real_2d
+    end interface write_data_mpi_io
+
     contains
 
     !---------------------------------------------------------------------------
@@ -100,8 +110,27 @@ module mpi_io_module
     end subroutine open_data_mpi_io
 
     !---------------------------------------------------------------------------
-    ! Read data from files using MPI/IO.
-    ! Input:
+    ! Set view for the file to read.
+    ! Inputs:
+    !   fh: file handler.
+    !   datatype: MPI data type.
+    !   disp: displacement form the beginning of the file (in bytes).
+    !---------------------------------------------------------------------------
+    subroutine set_file_view_real(fh, datatype, disp)
+        implicit none
+        integer, intent(in) :: fh, datatype
+        integer(kind=MPI_OFFSET_KIND), intent(in) :: disp
+        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, datatype, 'native', &
+            MPI_INFO_NULL, ierror)
+        if (ierror /= 0) then
+            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
+            print*, "Error in MPI_FILE_SET_VIEW: ", trim(err_msg)
+        endif
+    end subroutine set_file_view_real
+
+    !---------------------------------------------------------------------------
+    ! Read data from files using MPI/IO for 3D data.
+    ! Inputs:
     !   fh: file handler.
     !   datatype: MPI data type.
     !   subsizes: the sub-sizes of the data in current MPI process.
@@ -110,37 +139,45 @@ module mpi_io_module
     ! Output:
     !   rdata: the data read from the file.
     !---------------------------------------------------------------------------
-    subroutine read_data_mpi_io(fh, datatype, subsizes, disp, offset, rdata)
+    subroutine read_data_mpi_io_real_3d(fh, datatype, subsizes, disp, offset, rdata)
         use constants, only: fp
         implicit none
         integer, intent(in) :: fh, datatype
         integer, dimension(3), intent(in) :: subsizes
         integer(kind=MPI_OFFSET_KIND), intent(in) :: disp, offset
         real(fp), dimension(:, :, :), intent(out) :: rdata
-        !integer :: datatype1
 
-        !call MPI_TYPE_CREATE_SUBARRAY(3, sizes_ghost, subsizes_ghost, starts_ghost, &
-        !    MPI_ORDER_FORTRAN, MPI_REAL, datatype1, ierror)
-        !call MPI_TYPE_COMMIT(datatype1, ierror)
-        !
-        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, datatype, 'native', &
-            MPI_INFO_NULL, ierror)
-        if (ierror /= 0) then
-            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
-            print*, "Error in MPI_FILE_SET_VIEW: ", trim(err_msg)
-        endif
-
+        call set_file_view_real(fh, datatype, disp)
         call MPI_FILE_READ_AT_ALL(fh, offset, rdata, &
-            subsizes(1)*subsizes(2)*subsizes(3), MPI_REAL, status, ierror)
+            product(subsizes), MPI_REAL, status, ierror)
         if (ierror /= 0) then
             call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
             print*, "Error in MPI_FILE_READ: ", trim(err_msg)
         endif
-        !call MPI_TYPE_FREE(datatype1, ierror)
-    end subroutine read_data_mpi_io
+    end subroutine read_data_mpi_io_real_3d
 
     !---------------------------------------------------------------------------
-    ! Write data to files using MPI/IO.
+    ! Read data from files using MPI/IO for 2D data.
+    !---------------------------------------------------------------------------
+    subroutine read_data_mpi_io_real_2d(fh, datatype, subsizes, disp, offset, rdata)
+        use constants, only: fp
+        implicit none
+        integer, intent(in) :: fh, datatype
+        integer, dimension(2), intent(in) :: subsizes
+        integer(kind=MPI_OFFSET_KIND), intent(in) :: disp, offset
+        real(fp), dimension(:, :), intent(out) :: rdata
+
+        call set_file_view_real(fh, datatype, disp)
+        call MPI_FILE_READ_AT_ALL(fh, offset, rdata, &
+            product(subsizes), MPI_REAL, status, ierror)
+        if (ierror /= 0) then
+            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
+            print*, "Error in MPI_FILE_READ: ", trim(err_msg)
+        endif
+    end subroutine read_data_mpi_io_real_2d
+
+    !---------------------------------------------------------------------------
+    ! Write data to files using MPI/IO for 3D data.
     ! Input:
     !   fh: file handler.
     !   datatype: MPI data type.
@@ -150,27 +187,43 @@ module mpi_io_module
     ! Output:
     !   wdata: the data to write to file.
     !---------------------------------------------------------------------------
-    subroutine write_data_mpi_io(fh, datatype, subsizes, disp, offset, wdata)
+    subroutine write_data_mpi_io_real_3d(fh, datatype, subsizes, disp, offset, wdata)
         use constants, only: fp
         implicit none
         integer, intent(in) :: fh, datatype
         integer, dimension(3), intent(in) :: subsizes
         integer(kind=MPI_OFFSET_KIND), intent(in) :: disp, offset
         real(fp), dimension(:,:,:), intent(in) :: wdata
-        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, datatype, 'native', &
-            MPI_INFO_NULL, ierror)
-        if (ierror /= 0) then
-            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
-            print*, "Error in MPI_FILE_SET_VIEW: ", trim(err_msg)
-        endif
+
+        call set_file_view_real(fh, datatype, disp)
 
         call MPI_FILE_WRITE_AT_ALL(fh, offset, wdata, &
-                                   subsizes(1)*subsizes(2)*subsizes(3), &
-                                   MPI_REAL, status, ierror)
+                product(subsizes), MPI_REAL, status, ierror)
         if (ierror /= 0) then
             call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
             print*, "Error in MPI_FILE_READ: ", trim(err_msg)
         endif
-    end subroutine write_data_mpi_io
+    end subroutine write_data_mpi_io_real_3d
+
+    !---------------------------------------------------------------------------
+    ! Write data to files using MPI/IO for 2D data.
+    !---------------------------------------------------------------------------
+    subroutine write_data_mpi_io_real_2d(fh, datatype, subsizes, disp, offset, wdata)
+        use constants, only: fp
+        implicit none
+        integer, intent(in) :: fh, datatype
+        integer, dimension(2), intent(in) :: subsizes
+        integer(kind=MPI_OFFSET_KIND), intent(in) :: disp, offset
+        real(fp), dimension(:,:), intent(in) :: wdata
+
+        call set_file_view_real(fh, datatype, disp)
+
+        call MPI_FILE_WRITE_AT_ALL(fh, offset, wdata, &
+                product(subsizes), MPI_REAL, status, ierror)
+        if (ierror /= 0) then
+            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
+            print*, "Error in MPI_FILE_READ: ", trim(err_msg)
+        endif
+    end subroutine write_data_mpi_io_real_2d
 
 end module mpi_io_module

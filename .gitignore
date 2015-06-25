@@ -1,6 +1,7 @@
 bin/
 build/
 build_gcc/
+data/
 data_double_layer/
 lib/
 spectrum/
