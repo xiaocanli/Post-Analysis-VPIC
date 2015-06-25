@@ -18,30 +18,40 @@ module pic_fields
     public init_pic_fields, open_pic_fields, read_pic_fields, &
            free_pic_fields, close_pic_fields_file
     public init_magnetic_fields, init_electric_fields, init_current_densities, &
-           init_pressure_tensor, init_velocity_fields, init_number_density
+           init_pressure_tensor, init_velocity_fields, init_number_density, &
+           init_fraction_eband
     public open_magnetic_field_files, open_electric_field_files, &
            open_current_density_files, open_pressure_tensor_files, &
-           open_velocity_field_files, open_number_density_file
+           open_velocity_field_files, open_number_density_file, &
+           open_fraction_eband_file
     public read_mangeitc_fields, read_electric_fields, read_current_desities, &
-           read_pressure_tensor, read_velocity_fields, read_number_density
+           read_pressure_tensor, read_velocity_fields, read_number_density, &
+           read_fraction_eband
     public close_magnetic_field_files, close_electric_field_files, &
            close_current_density_files, close_pressure_tensor_files, &
-           close_velocity_field_files, close_number_density_file
+           close_velocity_field_files, close_number_density_file, &
+           close_fraction_eband_file
     public free_magnetic_fields, free_electric_fields, free_current_densities, &
-           free_pressure_tensor, free_velocity_fieds, free_number_density
+           free_pressure_tensor, free_velocity_fieds, free_number_density, &
+           free_fraction_eband
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
     public ux, uy, uz, num_rho           ! Bulk flow velocity and number density
     public jx, jy, jz                    ! Current density for single fluid
-    public fields_fh                     ! Fields file handlers.
+    ! File handlers
+    public bfields_fh, efields_fh, pre_fh, ufields_fh, jfields_fh, nrho_fh
+    public eband_fh
 
     real(fp), allocatable, dimension(:,:,:) :: bx, by, bz, ex, ey, ez, absB
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
     real(fp), allocatable, dimension(:,:,:) :: ux, uy, uz, num_rho
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz
-    integer, parameter :: npicfields = 20
-    integer, dimension(npicfields) :: fields_fh
+    real(fp), allocatable, dimension(:,:,:) :: eb
+    integer, dimension(4) :: bfields_fh
+    integer, dimension(3) :: efields_fh, ufields_fh, jfields_fh
+    integer, dimension(6) :: pre_fh
+    integer :: nrho_fh, eband_fh
 
     contains
 
@@ -122,6 +132,16 @@ module pic_fields
     end subroutine init_number_density
 
     !---------------------------------------------------------------------------
+    ! Initialize the fraction of particle in one energy band.
+    !---------------------------------------------------------------------------
+    subroutine init_fraction_eband(nx, ny, nz)
+        implicit none
+        integer, intent(in) :: nx, ny, nz
+        allocate(eb(nx,ny,nz))
+        eb = 0.0
+    end subroutine init_fraction_eband
+
+    !---------------------------------------------------------------------------
     ! Initialization of the fields arrays from PIC simulation outputs.
     !---------------------------------------------------------------------------
     subroutine init_pic_fields
@@ -148,13 +168,13 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
         offset = 0 
-        call read_data_mpi_io(fields_fh(1), filetype_ghost, &
+        call read_data_mpi_io(bfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, bx)
-        call read_data_mpi_io(fields_fh(2), filetype_ghost, &
+        call read_data_mpi_io(bfields_fh(2), filetype_ghost, &
             subsizes_ghost, disp, offset, by)
-        call read_data_mpi_io(fields_fh(3), filetype_ghost, &
+        call read_data_mpi_io(bfields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, bz)
-        call read_data_mpi_io(fields_fh(10), filetype_ghost, &
+        call read_data_mpi_io(bfields_fh(4), filetype_ghost, &
             subsizes_ghost, disp, offset, absB)
     end subroutine read_mangeitc_fields
     
@@ -167,11 +187,11 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
         offset = 0 
-        call read_data_mpi_io(fields_fh(4), filetype_ghost, &
+        call read_data_mpi_io(efields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, ex)
-        call read_data_mpi_io(fields_fh(5), filetype_ghost, &
+        call read_data_mpi_io(efields_fh(2), filetype_ghost, &
             subsizes_ghost, disp, offset, ey)
-        call read_data_mpi_io(fields_fh(6), filetype_ghost, &
+        call read_data_mpi_io(efields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, ez)
     end subroutine read_electric_fields
 
@@ -184,11 +204,11 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
         offset = 0 
-        call read_data_mpi_io(fields_fh(7), filetype_ghost, &
+        call read_data_mpi_io(jfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, jx)
-        call read_data_mpi_io(fields_fh(8), filetype_ghost, &
+        call read_data_mpi_io(jfields_fh(2), filetype_ghost, &
             subsizes_ghost, disp, offset, jy)
-        call read_data_mpi_io(fields_fh(9), filetype_ghost, &
+        call read_data_mpi_io(jfields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, jz)
     end subroutine read_current_desities
 
@@ -201,17 +221,17 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
         offset = 0 
-        call read_data_mpi_io(fields_fh(11), filetype_ghost, &
+        call read_data_mpi_io(pre_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, pxx)
-        call read_data_mpi_io(fields_fh(12), filetype_ghost, &
+        call read_data_mpi_io(pre_fh(2), filetype_ghost, &
             subsizes_ghost, disp, offset, pxy)
-        call read_data_mpi_io(fields_fh(13), filetype_ghost, &
+        call read_data_mpi_io(pre_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, pxz)
-        call read_data_mpi_io(fields_fh(14), filetype_ghost, &
+        call read_data_mpi_io(pre_fh(4), filetype_ghost, &
             subsizes_ghost, disp, offset, pyy)
-        call read_data_mpi_io(fields_fh(15), filetype_ghost, &
+        call read_data_mpi_io(pre_fh(5), filetype_ghost, &
             subsizes_ghost, disp, offset, pyz)
-        call read_data_mpi_io(fields_fh(16), filetype_ghost, &
+        call read_data_mpi_io(pre_fh(6), filetype_ghost, &
             subsizes_ghost, disp, offset, pzz)
     end subroutine read_pressure_tensor
 
@@ -224,11 +244,11 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
         offset = 0 
-        call read_data_mpi_io(fields_fh(17), filetype_ghost, &
+        call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, ux)
-        call read_data_mpi_io(fields_fh(18), filetype_ghost, &
+        call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
             subsizes_ghost, disp, offset, uy)
-        call read_data_mpi_io(fields_fh(19), filetype_ghost, &
+        call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, uz)
     end subroutine read_velocity_fields
 
@@ -241,9 +261,22 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
         offset = 0 
-        call read_data_mpi_io(fields_fh(20), filetype_ghost, &
+        call read_data_mpi_io(nrho_fh, filetype_ghost, &
             subsizes_ghost, disp, offset, num_rho)
     end subroutine read_number_density
+
+    !---------------------------------------------------------------------------
+    ! Read the fraction of particles in each energy band.
+    !---------------------------------------------------------------------------
+    subroutine read_fraction_eband(ct)
+        implicit none
+        integer, intent(in) :: ct
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        offset = 0 
+        call read_data_mpi_io(eband_fh, filetype_ghost, &
+            subsizes_ghost, disp, offset, eb)
+    end subroutine read_fraction_eband
 
     !---------------------------------------------------------------------------
     ! Read PIC simulation fields.
@@ -267,14 +300,15 @@ module pic_fields
     subroutine open_magnetic_field_files
         implicit none
         character(len=100) :: fname
+        bfields_fh = 0
         fname = trim(adjustl(filepath))//'bx.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(1))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(1))
         fname = trim(adjustl(filepath))//'by.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(2))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(2))
         fname = trim(adjustl(filepath))//'bz.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(3))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
         fname = trim(adjustl(filepath))//'absB.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(10))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
     end subroutine open_magnetic_field_files
 
     !---------------------------------------------------------------------------
@@ -283,12 +317,13 @@ module pic_fields
     subroutine open_electric_field_files
         implicit none
         character(len=100) :: fname
+        efields_fh = 0
         fname = trim(adjustl(filepath))//'ex.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(4))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(1))
         fname = trim(adjustl(filepath))//'ey.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(5))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(2))
         fname = trim(adjustl(filepath))//'ez.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(6))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
     end subroutine open_electric_field_files
 
     !---------------------------------------------------------------------------
@@ -297,12 +332,13 @@ module pic_fields
     subroutine open_current_density_files
         implicit none
         character(len=100) :: fname
+        jfields_fh = 0
         fname = trim(adjustl(filepath))//'jx.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(7))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(1))
         fname = trim(adjustl(filepath))//'jy.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(8))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(2))
         fname = trim(adjustl(filepath))//'jz.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(9))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(3))
     end subroutine open_current_density_files
 
     !---------------------------------------------------------------------------
@@ -312,18 +348,19 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
+        pre_fh = 0
         fname = trim(adjustl(filepath))//'p'//species//'-xx.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(11))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(1))
         fname = trim(adjustl(filepath))//'p'//species//'-xy.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(12))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(2))
         fname = trim(adjustl(filepath))//'p'//species//'-xz.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(13))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(3))
         fname = trim(adjustl(filepath))//'p'//species//'-yy.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(14))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(4))
         fname = trim(adjustl(filepath))//'p'//species//'-yz.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(15))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(5))
         fname = trim(adjustl(filepath))//'p'//species//'-zz.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(16))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(6))
     end subroutine open_pressure_tensor_files
 
     !---------------------------------------------------------------------------
@@ -333,12 +370,13 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
+        ufields_fh = 0
         fname = trim(adjustl(filepath))//'u'//species//'x.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(17))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
         fname = trim(adjustl(filepath))//'u'//species//'y.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(18))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
         fname = trim(adjustl(filepath))//'u'//species//'z.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(19))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
     end subroutine open_velocity_field_files
 
     !---------------------------------------------------------------------------
@@ -348,9 +386,25 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
+        nrho_fh = 0
         fname = trim(adjustl(filepath))//'n'//species//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fields_fh(20))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
     end subroutine open_number_density_file
+
+    !---------------------------------------------------------------------------
+    ! Open the file of the fraction of particle in one energy band.
+    !---------------------------------------------------------------------------
+    subroutine open_fraction_eband_file(species, iband)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: iband
+        character(len=100) :: fname
+        character(len=2) :: tag_band
+        nrho_fh = 0
+        write(tag_band, '(I2.2)') iband
+        fname = trim(adjustl(filepath))//species//'EB'//tag_band//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, eband_fh)
+    end subroutine open_fraction_eband_file
 
     !---------------------------------------------------------------------------
     ! Open PIC fields file collectively using MPI procedures.
@@ -359,7 +413,6 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
 
-        fields_fh = 0
         call open_magnetic_field_files
         call open_electric_field_files
         call open_current_density_files
@@ -417,6 +470,14 @@ module pic_fields
     end subroutine free_number_density
 
     !---------------------------------------------------------------------------
+    ! Free the fraction of particle for each energy band.
+    !---------------------------------------------------------------------------
+    subroutine free_fraction_eband
+        implicit none
+        deallocate(eb)
+    end subroutine free_fraction_eband
+
+    !---------------------------------------------------------------------------
     ! Free the memory used by the PIC fields.
     !---------------------------------------------------------------------------
     subroutine free_pic_fields
@@ -434,10 +495,10 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_magnetic_field_files
         implicit none
-        call MPI_FILE_CLOSE(fields_fh(1), ierror)
-        call MPI_FILE_CLOSE(fields_fh(2), ierror)
-        call MPI_FILE_CLOSE(fields_fh(3), ierror)
-        call MPI_FILE_CLOSE(fields_fh(10), ierror)
+        call MPI_FILE_CLOSE(bfields_fh(1), ierror)
+        call MPI_FILE_CLOSE(bfields_fh(2), ierror)
+        call MPI_FILE_CLOSE(bfields_fh(3), ierror)
+        call MPI_FILE_CLOSE(bfields_fh(4), ierror)
     end subroutine close_magnetic_field_files
 
     !---------------------------------------------------------------------------
@@ -445,9 +506,9 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_electric_field_files
         implicit none
-        call MPI_FILE_CLOSE(fields_fh(4), ierror)
-        call MPI_FILE_CLOSE(fields_fh(5), ierror)
-        call MPI_FILE_CLOSE(fields_fh(6), ierror)
+        call MPI_FILE_CLOSE(efields_fh(1), ierror)
+        call MPI_FILE_CLOSE(efields_fh(2), ierror)
+        call MPI_FILE_CLOSE(efields_fh(3), ierror)
     end subroutine close_electric_field_files
 
     !---------------------------------------------------------------------------
@@ -455,9 +516,9 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_current_density_files
         implicit none
-        call MPI_FILE_CLOSE(fields_fh(7), ierror)
-        call MPI_FILE_CLOSE(fields_fh(8), ierror)
-        call MPI_FILE_CLOSE(fields_fh(9), ierror)
+        call MPI_FILE_CLOSE(jfields_fh(1), ierror)
+        call MPI_FILE_CLOSE(jfields_fh(2), ierror)
+        call MPI_FILE_CLOSE(jfields_fh(3), ierror)
     end subroutine close_current_density_files
 
     !---------------------------------------------------------------------------
@@ -466,8 +527,8 @@ module pic_fields
     subroutine close_pressure_tensor_files
         implicit none
         integer :: i
-        do i = 11, 16
-            call MPI_FILE_CLOSE(fields_fh(i), ierror)
+        do i = 1, 6
+            call MPI_FILE_CLOSE(pre_fh(i), ierror)
         end do
     end subroutine close_pressure_tensor_files
 
@@ -476,9 +537,9 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_velocity_field_files
         implicit none
-        call MPI_FILE_CLOSE(fields_fh(17), ierror)
-        call MPI_FILE_CLOSE(fields_fh(18), ierror)
-        call MPI_FILE_CLOSE(fields_fh(19), ierror)
+        call MPI_FILE_CLOSE(ufields_fh(1), ierror)
+        call MPI_FILE_CLOSE(ufields_fh(2), ierror)
+        call MPI_FILE_CLOSE(ufields_fh(3), ierror)
     end subroutine close_velocity_field_files
 
     !---------------------------------------------------------------------------
@@ -486,8 +547,16 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_number_density_file
         implicit none
-        call MPI_FILE_CLOSE(fields_fh(20), ierror)
+        call MPI_FILE_CLOSE(nrho_fh, ierror)
     end subroutine close_number_density_file
+
+    !---------------------------------------------------------------------------
+    ! Close the file of the fraction of particles in one energy band.
+    !---------------------------------------------------------------------------
+    subroutine close_fraction_eband_file
+        implicit none
+        call MPI_FILE_CLOSE(eband_fh, ierror)
+    end subroutine close_fraction_eband_file
 
     !---------------------------------------------------------------------------
     ! Close PIC fields file collectively using MPI procedures.

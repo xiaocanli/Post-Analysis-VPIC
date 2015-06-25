@@ -125,12 +125,13 @@ program calc_agyrotropy
     ! Open PIC fields file collectively using MPI procedures.
     !---------------------------------------------------------------------------
     subroutine open_pic_fields(species)
-        use pic_fields, only: fields_fh, open_magnetic_field_files, &
-                              open_pressure_tensor_files
+        use pic_fields, only: bfields_fh, pre_fh, open_magnetic_field_files, &
+                open_pressure_tensor_files
         implicit none
         character(*), intent(in) :: species
 
-        fields_fh = 0
+        bfields_fh = 0
+        pre_fh = 0
         call open_magnetic_field_files
         call open_pressure_tensor_files(species)
     end subroutine open_pic_fields
