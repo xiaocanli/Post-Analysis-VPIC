@@ -3,6 +3,7 @@ build/
 build_gcc/
 data/
 data_double_layer/
+data_vdist_2d/
 lib/
 spectrum/
 vdistributions/
@@ -16,5 +17,6 @@ parallel_potential
 parspec
 spectrum_along_fieldline
 translate
+vdist_2d_along_fieldline
 vdistribution
 xz_field.dat
