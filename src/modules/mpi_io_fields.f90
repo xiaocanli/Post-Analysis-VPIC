@@ -82,7 +82,7 @@ module mpi_io_fields
     subroutine save_field(fdata, varname, ct)
         use constants, only: fp
         use picinfo, only: domain
-        use parameters, only: it1
+        use parameters, only: tp1
         use path_info, only: outputpath
         use particle_info, only: species, ibtag
         use mpi_datatype_fields, only: filetype_nghost, subsizes_nghost
@@ -114,7 +114,7 @@ module mpi_io_fields
         !         izh > subsizes_ghost(3)
         data_nghost = fdata(ixl:ixh,iyl:iyh,izl:izh)
 
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
 
         fname = trim(adjustl(outputpath))//varname//ibtag//'_'//species//'.gda'

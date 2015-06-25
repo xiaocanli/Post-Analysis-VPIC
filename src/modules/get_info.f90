@@ -256,16 +256,16 @@ module picinfo
     !   Using the size of the post-processed field data and the dimensions of
     !   the PIC simulation (nx, ny, nz). Then, nt = filesize / (nx*ny*nz)
     ! Inputs:
-    !   it2: the maximum time frame defined by the user. It may be different
+    !   tp2: the maximum time frame defined by the user. It may be different
     !       from the total number of time frames of the PIC simulation.
     ! Updates:
     !   nt: the total time frames.
     !---------------------------------------------------------------------------
-    subroutine get_total_time_frames(it2)
+    subroutine get_total_time_frames(tp2)
         use mpi_module
         use path_info, only: filepath
         implicit none
-        integer, intent(inout) :: it2
+        integer, intent(inout) :: tp2
         integer(kind=8) :: filesize
         if (myid == master) then
             inquire(file=trim(adjustl(filepath))//'bx.gda', size=filesize)
@@ -274,7 +274,7 @@ module picinfo
         endif
         call MPI_BCAST(nt, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
         ! Check if the last frame is larger than nt
-        if (it2 > nt) it2 = nt
+        if (tp2 > nt) tp2 = nt
     end subroutine get_total_time_frames
 
 end module picinfo

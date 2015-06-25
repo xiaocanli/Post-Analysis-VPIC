@@ -35,13 +35,13 @@ module jdote_module
     !   ct: current time frame.
     !   jdtote_tot: the total jdote summed over the simulation box.
     !---------------------------------------------------------------------------
-    subroutine save_jdote_total(ct, jdote_tot)
+    subroutine save_jdote_total(ct, ncurrents, jdote_tot)
         use constants, only: fp
-        use parameters, only: ncurrents, it1
+        use parameters, only: tp1
         use parameters, only: inductive
         use particle_info, only: species, ibtag
         implicit none
-        integer, intent(in) :: ct
+        integer, intent(in) :: ct, ncurrents
         real(fp), dimension(ncurrents+1), intent(in) :: jdote_tot
         integer :: pos1, output_record
         logical :: dir_e
@@ -61,7 +61,7 @@ module jdote_module
                 file='data/jdote_in'//ibtag//'_'//species//'.gda',access='stream',&
                 status='unknown',form='unformatted',action='write')     
         endif
-        output_record = ct - it1 + 1
+        output_record = ct - tp1 + 1
         pos1 = (output_record-1)*sizeof(fp)*(ncurrents+1) + 1
         write(41, pos=pos1) jdote_tot(1:13), jdote_tot(15), jdote_tot(14)
         close(41)

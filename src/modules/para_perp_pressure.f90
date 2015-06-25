@@ -169,7 +169,7 @@ module para_perp_pressure
         use constants, only: fp
         use particle_info, only: ibtag, species
         use statistics, only: get_average_and_total
-        use parameters, only: it1
+        use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
         logical, intent(in) :: is_subtract_bulkflow
@@ -193,7 +193,7 @@ module para_perp_pressure
             endif
             open(unit=51, file=trim(adjustl(fname)), access='stream',&
                  status='unknown', form='unformatted', action='write')
-            output_record = ct - it1 + 1
+            output_record = ct - tp1 + 1
             current_pos = 2 * sizeof(fp) * (output_record-1) + 1
             write(51, pos=current_pos) ppara_avg, pperp_avg
             !PRINT*, input_record, 'Averaged pressure for ', & 

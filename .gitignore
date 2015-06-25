@@ -23,3 +23,5 @@ vdist_1d_along_fieldline
 vdist_2d_along_fieldline
 vdistribution
 xz_field.dat
+
+src/programs/bulk_flow_energy.f90

@@ -10,7 +10,7 @@ program calc_agyrotropy
     use constants, only: fp
     use pic_fields, only: bx, by, bz, absB, pxx, pxy, pxz, pyy, pyz, pzz
     use particle_info, only: species, ibtag, get_ptl_mass_charge
-    use parameters, only: it1, it2
+    use parameters, only: tp1, tp2
     use analysis_management, only: init_analysis, end_analysis
     use mpi_io_fields, only: save_field
     implicit none
@@ -32,9 +32,9 @@ program calc_agyrotropy
         print*, 'Calculating agyrotropy for ', species
     endif
 
-    do input_record = it1, 10
+    do input_record = tp1, 10
         if (myid==master) print*, input_record
-        output_record = input_record - it1 + 1
+        output_record = input_record - tp1 + 1
         call read_pic_fields(input_record)
 
         bxn = bx / absB

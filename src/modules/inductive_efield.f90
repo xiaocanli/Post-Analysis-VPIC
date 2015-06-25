@@ -111,12 +111,12 @@ module inductive_electric_field
     !---------------------------------------------------------------------------
     ! Calculate the inductive electric field -v*B.
     ! Input:
-    !   ct: current time point. It is from it1 to it2.
+    !   ct: current time point. It is from tp1 to tp2.
     !   species: particle species. 'e' for electron. 'i' for ion.
     !---------------------------------------------------------------------------
     subroutine calc_indective_e(ct, species)
         use mpi_module
-        use parameters, only: it1
+        use parameters, only: tp1
         use pic_fields, only: ux, uy, uz, bx, by, bz
         use picinfo, only: domain, mime
         use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
@@ -126,7 +126,7 @@ module inductive_electric_field
         character(*), intent(in) :: species
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
 
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
             disp, offset, utotx)

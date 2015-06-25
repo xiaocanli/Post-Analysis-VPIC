@@ -6,7 +6,7 @@
 module pic_fields
     use mpi_module
     use constants, only: fp
-    use parameters, only: it1
+    use parameters, only: tp1
     use picinfo, only: domain
     use mpi_topology, only: htg
     use mpi_io_module, only: open_data_mpi_io, read_data_mpi_io
@@ -167,7 +167,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(bfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, bx)
@@ -186,7 +186,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(efields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, ex)
@@ -203,7 +203,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(jfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, jx)
@@ -220,7 +220,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(pre_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, pxx)
@@ -243,7 +243,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, ux)
@@ -260,7 +260,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(nrho_fh, filetype_ghost, &
             subsizes_ghost, disp, offset, num_rho)
@@ -273,7 +273,7 @@ module pic_fields
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(eband_fh, filetype_ghost, &
             subsizes_ghost, disp, offset, eb)

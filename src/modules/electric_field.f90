@@ -49,7 +49,7 @@ module electric_field
         use mpi_module
         use constants, only: fp, dp
         use path_info, only: rootpath
-        use parameters, only: it1
+        use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
         character(len=150) :: filename
@@ -62,7 +62,7 @@ module electric_field
             filename = trim(adjustl(rootpath))//'data/ex.gda'
             open(unit=fh, file=trim(filename), access='stream',&
                 status='unknown', form='unformatted', action='read')
-            pos1 = nx * nz * sizeof(fp) * (ct-it1) + 1
+            pos1 = nx * nz * sizeof(fp) * (ct-tp1) + 1
             read(fh, pos=pos1) Ex
             close(fh)
 

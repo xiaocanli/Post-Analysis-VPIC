@@ -37,7 +37,7 @@ program dissipation
     !---------------------------------------------------------------------------
     subroutine energy_conversion_from_current
         use mpi_module
-        use parameters, only: icurrent, it1, it2, inductive
+        use parameters, only: tp1, tp2, inductive
         use particle_info, only: ibtag, species
         use pic_fields, only: open_pic_fields, read_pic_fields, &
                 close_pic_fields_file
@@ -62,27 +62,25 @@ program dissipation
             call init_inductive_electric_field
         endif
 
-        if (icurrent == 1) then
-            ! Calculate electric current due to all kinds of terms.
-            ! And calculate energy conversion due to j.E.
-            call init_current_densities
-            call init_pre_post_velocities
-            call init_jdote
-            do input_record = it1, it2
-                if (myid==master) print*, input_record
-                output_record = input_record - it1 + 1
-                call read_pic_fields(input_record)
-                if (inductive == 1) then
-                    call calc_indective_e(input_record, species)
-                endif
-                call read_pre_post_velocities(input_record, ufields_fh)
-                call calc_energy_conversion(input_record)
-                call set_current_densities_to_zero
-            enddo
-            call free_jdote
-            call free_pre_post_velocities
-            call free_current_densities
-        endif
+        ! Calculate electric current due to all kinds of terms.
+        ! And calculate energy conversion due to j.E.
+        call init_current_densities
+        call init_pre_post_velocities
+        call init_jdote
+        do input_record = tp1, tp2
+            if (myid==master) print*, input_record
+            output_record = input_record - tp1 + 1
+            call read_pic_fields(input_record)
+            if (inductive == 1) then
+                call calc_indective_e(input_record, species)
+            endif
+            call read_pre_post_velocities(input_record, ufields_fh)
+            call calc_energy_conversion(input_record)
+            call set_current_densities_to_zero
+        enddo
+        call free_jdote
+        call free_pre_post_velocities
+        call free_current_densities
 
         if (inductive == 1) then
             call free_inductive_electric_field

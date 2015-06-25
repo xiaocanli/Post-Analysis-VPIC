@@ -12,7 +12,7 @@ program particle_number_eband
             free_fraction_eband, close_fraction_eband_file, &
             read_fraction_eband, eb
     use statistics, only: get_average_and_total
-    use parameters, only: it1, it2
+    use parameters, only: tp1, tp2
     implicit none
     character(len=150) :: fname
     integer, parameter :: nbands = 5
@@ -26,19 +26,19 @@ program particle_number_eband
     call init_fraction_eband(htg%nx, htg%ny, htg%nz)
 
     if (myid == master) then
-        allocate(rho_band_sum(it2-it1+1, nbands))
+        allocate(rho_band_sum(tp2-tp1+1, nbands))
         rho_band_sum = 0.0
     endif
 
     do iband = 1, nbands
         if (myid == master) print*, 'Energy band: ', iband
         call open_fraction_eband_file(species, iband)
-        do ct = it1, it2
+        do ct = tp1, tp2
             call read_fraction_eband(ct)
             call get_average_and_total(eb, rho_band_avg, rho_band_tot)
             rho_band_avg = rho_band_avg / (domain%dx*domain%dy*domain%dx)
             if (myid == master) then
-                rho_band_sum(ct-it1+1, iband) = rho_band_avg
+                rho_band_sum(ct-tp1+1, iband) = rho_band_avg
             endif
         end do
         call close_fraction_eband_file
@@ -48,9 +48,9 @@ program particle_number_eband
     if (myid == master) then
         open(unit=62, file='data/rho_eband_'//species//'.dat', &
             action="write", status="replace")
-        do ct = it1, it2
+        do ct = tp1, tp2
             do iband = 1, nbands
-                write(62, '(F14.6)', advance="no") rho_band_sum(ct-it1+1, iband)
+                write(62, '(F14.6)', advance="no") rho_band_sum(ct-tp1+1, iband)
             enddo
             write(62, *)
         enddo

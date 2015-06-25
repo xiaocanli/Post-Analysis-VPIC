@@ -19,7 +19,7 @@ module analysis_management
     subroutine init_analysis
         use mpi_module
         use path_info, only: get_file_paths
-        use parameters, only: it2
+        use parameters, only: tp2
         use mpi_topology, only: set_mpi_topology
         use mpi_datatype_fields, only: set_mpi_datatype_fields
         use mpi_info_module, only: fileinfo, set_mpi_info
@@ -36,7 +36,7 @@ module analysis_management
             call read_domain
         endif
         call broadcast_pic_info
-        call get_total_time_frames(it2)
+        call get_total_time_frames(tp2)
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info

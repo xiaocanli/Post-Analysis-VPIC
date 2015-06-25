@@ -227,7 +227,7 @@ program parallel_potential
     !---------------------------------------------------------------------------
     subroutine save_phi_parallel(ct)
         use mpi_module
-        use parameters, only: it1
+        use parameters, only: tp1
         use mpi_io_module, only: open_data_mpi_io
         use mpi_info_module, only: fileinfo
         use path_info, only: rootpath
@@ -260,7 +260,7 @@ program parallel_potential
         call open_data_mpi_io('../data1/phi_para.gda', &
                               MPI_MODE_RDWR+MPI_MODE_CREATE, fileinfo, fh)
 
-        disp = nx * nz * sizeof(MPI_REAL) * (ct-it1)
+        disp = nx * nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, filetype, 'native', &
             MPI_INFO_NULL, ierror)

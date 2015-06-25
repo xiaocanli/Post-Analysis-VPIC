@@ -56,7 +56,7 @@ module previous_post_velocities
     subroutine read_pre_post_velocities(ct, fh)
         use mpi_module
         use constants, only: fp
-        use parameters, only: it1
+        use parameters, only: tp1
         use picinfo, only: domain, nt   ! Total number of output time frames.
         use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
         use mpi_io_module, only: read_data_mpi_io
@@ -66,8 +66,8 @@ module previous_post_velocities
         integer, dimension(3), intent(in) :: fh
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         offset = 0 
-        if ((ct >= it1) .and. (ct < nt)) then
-            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-it1+1)
+        if ((ct >= tp1) .and. (ct < nt)) then
+            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1+1)
             call read_data_mpi_io(fh(1), filetype_ghost, subsizes_ghost, &
                 disp, offset, udx2)
             call read_data_mpi_io(fh(2), filetype_ghost, subsizes_ghost, &
@@ -81,8 +81,8 @@ module previous_post_velocities
             udz2 = uz
         endif
 
-        if ((ct <= nt) .and. (ct > it1)) then
-            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-it1-1)
+        if ((ct <= nt) .and. (ct > tp1)) then
+            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1-1)
             call read_data_mpi_io(fh(1), filetype_ghost, subsizes_ghost, &
                 disp, offset, udx1)
             call read_data_mpi_io(fh(2), filetype_ghost, subsizes_ghost, &
@@ -90,7 +90,7 @@ module previous_post_velocities
             call read_data_mpi_io(fh(3), filetype_ghost, subsizes_ghost, &
                 disp, offset, udz1)
         else
-            ! ct = it1, The first time frame.
+            ! ct = tp1, The first time frame.
             udx1 = ux
             udy1 = uy
             udz1 = uz
@@ -165,6 +165,7 @@ module current_densities
     real(fp), allocatable, dimension(:,:,:) :: jagyx, jagyy, jagyz
     real(fp), allocatable, dimension(:,:,:) :: jperpx1, jperpy1, jperpz1
     real(fp), allocatable, dimension(:,:,:) :: jperpx2, jperpy2, jperpz2
+    integer, parameter :: ncurrents = 14
 
     contains
 
@@ -231,13 +232,12 @@ module current_densities
     subroutine calc_current_densities(ct)
         use mpi_module
         use constants, only: fp
-        use parameters, only: ncurrents
         use saving_flags, only: save_jtot, save_jagy, save_jperp1, &
                                 save_jperp2, save_jagy
         use mpi_io_fields, only: save_field
         implicit none
         integer, intent(in) :: ct
-        real(fp), dimension(3,ncurrents) :: javg
+        real(fp), dimension(3, ncurrents) :: javg
         real(fp), dimension(ncurrents+1) :: jdote_tot
         ! Current due to agyrotropic pressure.
         call calc_agyrotropy_current
@@ -296,7 +296,7 @@ module current_densities
 
         if (myid == master) then
             call save_averaged_current(ct, javg)
-            call save_jdote_total(ct, jdote_tot)
+            call save_jdote_total(ct, ncurrents, jdote_tot)
         endif
     end subroutine calc_current_densities
 
@@ -975,16 +975,16 @@ module current_densities
     !---------------------------------------------------------------------------
     subroutine save_averaged_current(ct, javg)
         use constants, only: fp
-        use parameters, only: ncurrents, it1
+        use parameters, only: tp1
         use particle_info, only: species, ibtag
         implicit none
         integer, intent(in) :: ct
-        real(fp), dimension(3,ncurrents), intent(in) :: javg
+        real(fp), dimension(3, ncurrents), intent(in) :: javg
         integer :: pos1, output_record
         open(unit=61,&
             file='data/current'//ibtag//'_'//species//'.gda',access='stream',&
             status='unknown',form='unformatted',action='write')
-        output_record = ct - it1 + 1
+        output_record = ct - tp1 + 1
         pos1 = (output_record-1)*sizeof(fp)*3*ncurrents + 1
         write(61, pos=pos1) javg
         close(61)

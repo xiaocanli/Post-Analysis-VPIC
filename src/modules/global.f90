@@ -33,22 +33,9 @@ end module mpi_module
 module parameters
     implicit none
     private
-    public icurrent, is_ebands, nbands, nvarEb, ncurrents, &
-        fileIDEB, it1, it2, nVel, fileIDVel, inductive
-    ! Flag of whether calculating current and jdote.
-    integer, parameter :: icurrent = 1
-    ! Flag of whether the calculation is done for different energy band.
-    integer, parameter :: is_ebands = 0
+    public nbands, tp1, tp2, inductive
     integer, parameter :: nbands = 6      ! Total energy bands
-    integer, parameter :: nvarEB = 10     ! Energy band dependent quantities.
-    integer, parameter :: nVel = 3        ! 3 components of velocities.
-    !integer, parameter :: nvarPost = 3    ! Variables needed from latter time.
-    integer, parameter :: ncurrents = 14  ! Total kinds of currents to calculate.
-    ! File handlers
-    integer, dimension(nvarEB) :: fileIDEB
-    integer, dimension(nVel) :: fileIDVel
-    !integer, dimension(nvarPost) :: fileIDpost
-    integer :: it1 = 1, it2 = 10 ! Starting and ending time output.
+    integer :: tp1 = 1, tp2 = 10 ! Starting and ending time output.
     integer :: inductive = 0
 end module parameters
 
