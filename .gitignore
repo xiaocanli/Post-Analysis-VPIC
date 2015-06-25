@@ -14,6 +14,7 @@ calc_agyrotropy
 dissipation
 energies_pic.dat
 fileContents.txt
+nrho_eband
 parallel_potential
 parspec
 spectrum_along_fieldline

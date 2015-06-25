@@ -40,7 +40,7 @@ module statistics
             allocate(tot_array(numprocs))
             tot_array = 0.0
         endif
-        tot_local = sum(fdata(ixl:ixh,iyl:iyh,izl:izh))
+        tot_local = sum(fdata(ixl:ixh, iyl:iyh, izl:izh))
         call MPI_BARRIER(MPI_COMM_WORLD, ierror)
         call MPI_GATHER(tot_local, 1, MPI_REAL, tot_array, 1, MPI_REAL, &
             master, MPI_COMM_WORLD, ierror)
@@ -51,8 +51,6 @@ module statistics
         else
             avg = 0.1; tot = 1.0 ! Some random number except rank master.
         endif
-        !call MPI_BCAST(tot, 1, MPI_REAL, master, MPI_COMM_WORLD, ierr)
-        !call MPI_BCAST(avg, 1, MPI_REAL, master, MPI_COMM_WORLD, ierr)
     end subroutine get_average_and_total
 
     !---------------------------------------------------------------------------

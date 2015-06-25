@@ -12,12 +12,13 @@ program dissipation
     implicit none
     integer :: ct
 
+    call init_analysis
+
     species = 'e'
     ibtag = '00'
     ct = 1
-
     call get_ptl_mass_charge(species)
-    call init_analysis
+
     call init_pic_fields
     call init_para_perp_pressure
 

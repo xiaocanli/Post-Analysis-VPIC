@@ -39,6 +39,7 @@ module pic_fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
     public ux, uy, uz, num_rho           ! Bulk flow velocity and number density
     public jx, jy, jz                    ! Current density for single fluid
+    public eb
     ! File handlers
     public bfields_fh, efields_fh, pre_fh, ufields_fh, jfields_fh, nrho_fh
     public eband_fh
@@ -400,7 +401,7 @@ module pic_fields
         integer, intent(in) :: iband
         character(len=100) :: fname
         character(len=2) :: tag_band
-        nrho_fh = 0
+        eband_fh = 0
         write(tag_band, '(I2.2)') iband
         fname = trim(adjustl(filepath))//species//'EB'//tag_band//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, eband_fh)

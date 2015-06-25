@@ -40,6 +40,10 @@ target_link_libraries(vdist_1d_along_fieldline ${MPI_Fortran_LIBRARIES}
 add_executable(vdistribution vdistribution.f90)
 target_link_libraries(vdistribution ${MPI_Fortran_LIBRARIES} vdist)
 
+add_executable(nrho_eband particle_number_eband.f90)
+target_link_libraries(nrho_eband ${MPI_Fortran_LIBRARIES} analysis_config
+    fields)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -50,3 +54,4 @@ install (TARGETS spectrum_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdistribution DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_2d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_1d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS nrho_eband DESTINATION ${CMAKE_INSTALL_PREFIX})

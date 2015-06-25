@@ -48,7 +48,7 @@ module parameters
     integer, dimension(nvarEB) :: fileIDEB
     integer, dimension(nVel) :: fileIDVel
     !integer, dimension(nvarPost) :: fileIDpost
-    integer :: it1 = 1, it2 = 1 ! Starting and ending time output.
+    integer :: it1 = 1, it2 = 10 ! Starting and ending time output.
     integer :: inductive = 0
 end module parameters
 
