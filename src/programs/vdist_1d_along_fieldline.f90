@@ -1,9 +1,9 @@
 !*******************************************************************************
-! This module is to calculate 2D velocity distribution along a field line. We
-! trace one field line first starting at one point. The particle 2D velocity
+! This module is to calculate 1D velocity distribution along a field line. We
+! trace one field line first starting at one point. The particle 1D velocity
 ! distributions at each point along the field line is then calculated.
 !*******************************************************************************
-program vdist_2d_along_fieldline
+program vdist_1d_along_fieldline
     use mpi_module
     use constants, only: fp
     use particle_frames, only: nt
@@ -13,8 +13,7 @@ program vdist_2d_along_fieldline
     implicit none
     integer :: ct       ! Current time frame
     ! The spectra at these points.
-    real(fp), allocatable, dimension(:, :, :) :: vdist_2d  ! Para and perp to B.
-    real(fp), allocatable, dimension(:, :, :) :: vdist_xy, vdist_xz, vdist_yz
+    real(fp), allocatable, dimension(:, :) :: vdist_para, vdist_perp
     real(fp) :: x0, z0
 
     ct = 10
@@ -24,35 +23,31 @@ program vdist_2d_along_fieldline
     call get_fieldline_points(x0, z0)
 
     nbins_vdist = 100
-    allocate(vdist_2d(2*nbins_vdist, nbins_vdist, np))
-    allocate(vdist_xy(2*nbins_vdist, 2*nbins_vdist, np))
-    allocate(vdist_xz(2*nbins_vdist, 2*nbins_vdist, np))
-    allocate(vdist_yz(2*nbins_vdist, 2*nbins_vdist, np))
-    vdist_2d = 0.0
-    vdist_xy = 0.0
-    vdist_xz = 0.0
-    vdist_yz = 0.0
+    allocate(vdist_para(2*nbins_vdist, np))
+    allocate(vdist_perp(nbins_vdist, np))
+    vdist_para = 0.0
+    vdist_perp = 0.0
 
-    call calc_vdist_2d_fieldline('e')
+    call calc_vdist_1d_fieldline('e')
 
-    deallocate(vdist_2d, vdist_xy, vdist_xz, vdist_yz)
+    deallocate(vdist_para, vdist_perp)
     call end_analysis
 
     contains
 
     !---------------------------------------------------------------------------
-    ! Calculate the 2D velocity distributions along a line.
+    ! Calculate the velocity distributions along a line.
     ! Input:
     !   species: 'e' for electron; 'i' for ion.
     !---------------------------------------------------------------------------
-    subroutine calc_vdist_2d_fieldline(species)
+    subroutine calc_vdist_1d_fieldline(species)
         use spectrum_config, only: umax, umin, center, sizes
         use spectrum_config, only: read_config, set_spatial_range_de, &
                 calc_velocity_interval, calc_pic_mpi_ids
-        use velocity_distribution, only: fvel_2d, fvel_xy, fvel_xz, fvel_yz, & 
-                init_vdist_2d_single, free_vdist_2d_single, &
-                calc_vdist_2d_single, init_velocity_bins, free_velocity_bins, &
-                set_vdist_2d_zero_single
+        use velocity_distribution, only: fvel_para, fvel_perp, &
+                init_vdist_1d_single, free_vdist_1d_single, &
+                calc_vdist_1d_single, init_velocity_bins, free_velocity_bins, &
+                set_vdist_1d_zero_single
         use fieldline_tracing, only: xarr, zarr
         use particle_frames, only: tinterval
         use particle_file, only: ratio_interval
@@ -64,7 +59,7 @@ program vdist_2d_along_fieldline
         umax = 2.0
         umin = 0.0
         call calc_velocity_interval
-        call init_vdist_2d_single
+        call init_vdist_1d_single
         call init_velocity_bins
 
         sizes = [5.0, 1.0, 5.0]
@@ -72,21 +67,19 @@ program vdist_2d_along_fieldline
             center = [xarr(i), 0.0, zarr(i)]
             call set_spatial_range_de
             call calc_pic_mpi_ids
-            call calc_vdist_2d_single(ct*tinterval/ratio_interval, species)
-            vdist_2d(:, :, i-startp+1) = fvel_2d
-            vdist_xy(:, :, i-startp+1) = fvel_xy
-            vdist_xz(:, :, i-startp+1) = fvel_xz
-            vdist_yz(:, :, i-startp+1) = fvel_yz
-            call set_vdist_2d_zero_single
+            call calc_vdist_1d_single(ct*tinterval/ratio_interval, species)
+            vdist_para(:, i-startp+1) = fvel_para
+            vdist_perp(:, i-startp+1) = fvel_perp
+            call set_vdist_1d_zero_single
         end do
 
         if (myid == master) then
             call check_folder_exist
         endif
-        call write_vdist_2d(species)
+        call write_vdist_1d(species)
         call free_velocity_bins
-        call free_vdist_2d_single
-    end subroutine calc_vdist_2d_fieldline
+        call free_vdist_1d_single
+    end subroutine calc_vdist_1d_fieldline
 
     !---------------------------------------------------------------------------
     ! Check if the folder for the data exist. If not, make one.
@@ -95,16 +88,16 @@ program vdist_2d_along_fieldline
         implicit none
         logical :: dir_e
         dir_e = .false.
-        inquire(file='./data_vdist_2d/.', exist=dir_e)
+        inquire(file='./data_vdist_1d/.', exist=dir_e)
         if (.not. dir_e) then
-            call system('mkdir ./data_vdist_2d')
+            call system('mkdir ./data_vdist_1d')
         endif
     end subroutine check_folder_exist
 
     !---------------------------------------------------------------------------
     ! Write the spectra data to file.
     !---------------------------------------------------------------------------
-    subroutine write_vdist_2d(species)
+    subroutine write_vdist_1d(species)
         use mpi_module
         use mpi_io_module, only: open_data_mpi_io, write_data_mpi_io
         use mpi_datatype_module, only: set_mpi_datatype
@@ -114,35 +107,30 @@ program vdist_2d_along_fieldline
         use spectrum_config, only: nbins_vdist
         implicit none
         character(len=1), intent(in) :: species
-        integer, dimension(3) :: sizes_short, sizes_long
-        integer, dimension(3) :: subsizes_short, subsizes_long
-        integer, dimension(3) :: starts
+        integer, dimension(2) :: sizes_short, sizes_long
+        integer, dimension(2) :: subsizes_short, subsizes_long
+        integer, dimension(2) :: starts
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         character(len=150) :: fname
         integer :: datatype_short, datatype_long, fh
         integer :: pos1, nbins
 
         nbins = nbins_vdist
-        sizes_short(1) = 2 * nbins
-        sizes_short(2) = nbins
-        sizes_short(3) = nptot
+        sizes_short(1) = nbins
+        sizes_short(2) = nptot
         sizes_long(1) = 2 * nbins
-        sizes_long(2) = 2 * nbins
-        sizes_long(3) = nptot
-        subsizes_short(1) = 2 * nbins
-        subsizes_short(2) = nbins
-        subsizes_short(3) = np
+        sizes_long(2) = nptot
+        subsizes_short(1) = nbins
+        subsizes_short(2) = np
         subsizes_long(1) = 2 * nbins
-        subsizes_long(2) = 2 * nbins
-        subsizes_long(3) = np
+        subsizes_long(2) = np
         starts(1) = 0
-        starts(2) = 0
-        starts(3) = startp
+        starts(2) = startp
 
         datatype_short = set_mpi_datatype(sizes_short, subsizes_short, starts)
         datatype_long = set_mpi_datatype(sizes_long, subsizes_long, starts)
 
-        fname = './data_vdist_2d/vdist_2d_fieldline_'//species//'.gda'
+        fname = './data_vdist_1d/vdist_1d_fieldline_'//species//'.gda'
 
         ! Save nbins
         if (myid == master) then
@@ -158,28 +146,20 @@ program vdist_2d_along_fieldline
 
         call open_data_mpi_io(fname, MPI_MODE_WRONLY, fileinfo, fh)
 
-        ! Save 2D velocity distribution para and perp to local field.
+        ! Save 1D velocity distribution parallel to local field.
         disp = pos1 + 3*sizeof(fp)*nbins - 1
         offset = 0 
+        call write_data_mpi_io(fh, datatype_long, &
+                subsizes_long, disp, offset, vdist_para)
+
+        ! Save 1D velocity distribution perpendicular to local field.
+        disp = disp + sizeof(fp)*nbins*nptot*2
         call write_data_mpi_io(fh, datatype_short, &
-                subsizes_short, disp, offset, vdist_2d)
-
-        ! Save 2D velocity distributions in xy, xz, yz plane.
-        disp = disp + sizeof(fp)*nbins*nbins*nptot*2
-        call write_data_mpi_io(fh, datatype_long, &
-                subsizes_long, disp, offset, vdist_xy)
-
-        disp = disp + sizeof(fp)*nbins*nbins*nptot*4
-        call write_data_mpi_io(fh, datatype_long, &
-                subsizes_long, disp, offset, vdist_xz)
-
-        disp = disp + sizeof(fp)*nbins*nbins*nptot*4
-        call write_data_mpi_io(fh, datatype_long, &
-                subsizes_long, disp, offset, vdist_yz)
+                subsizes_short, disp, offset, vdist_perp)
 
         call MPI_FILE_CLOSE(fh, ierror)
         call MPI_TYPE_FREE(datatype_short, ierror)
         call MPI_TYPE_FREE(datatype_long, ierror)
-    end subroutine write_vdist_2d
+    end subroutine write_vdist_1d
 
-end program vdist_2d_along_fieldline
+end program vdist_1d_along_fieldline
