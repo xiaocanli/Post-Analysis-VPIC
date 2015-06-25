@@ -70,9 +70,27 @@ program spectrum_along_fieldline
             flog_np(:, i-startp+1) = flog
             call set_energy_spectra_zero_single
         end do
+
+        ! Save the spectrum to file.
+        if (myid == master) then
+            call check_folder_exist
+        endif
         call write_particle_spectrum(species)
         call free_energy_spectra_single
     end subroutine calc_particle_energy_spectrum
+
+    !---------------------------------------------------------------------------
+    ! Check if the folder for the data exist. If not, make one.
+    !---------------------------------------------------------------------------
+    subroutine check_folder_exist
+        implicit none
+        logical :: dir_e
+        dir_e = .false.
+        inquire(file='./data_double_layer/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir ./data_double_layer')
+        endif
+    end subroutine check_folder_exist
 
     !---------------------------------------------------------------------------
     ! Write the spectra data to file.
@@ -80,6 +98,7 @@ program spectrum_along_fieldline
     subroutine write_particle_spectrum(species)
         use mpi_module
         use mpi_io_module, only: open_data_mpi_io, write_data_mpi_io
+        use mpi_datatype_module, only: set_mpi_datatype
         use mpi_info_module, only: fileinfo
         use particle_energy_spectrum, only: ebins_lin, ebins_log
         use particle_fieldline, only: nptot, np, startp
@@ -88,9 +107,8 @@ program spectrum_along_fieldline
         integer, dimension(2) :: sizes, subsizes, starts
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         character(len=150) :: fname
-        integer :: filetype, fh
+        integer :: datatype, fh
         integer :: pos1
-        logical :: dir_e
 
         sizes(1) = nbins
         sizes(2) = nptot
@@ -99,17 +117,7 @@ program spectrum_along_fieldline
         starts(1) = 0
         starts(2) = startp
 
-        call MPI_TYPE_CREATE_SUBARRAY(2, sizes, subsizes, starts, &
-            MPI_ORDER_FORTRAN, MPI_REAL, filetype, ierror)
-        call MPI_TYPE_COMMIT(filetype, ierror)
-
-        if (myid == master) then
-            dir_e = .false.
-            inquire(file='./data_double_layer/.', exist=dir_e)
-            if (.not. dir_e) then
-                call system('mkdir ./data_double_layer')
-            endif
-        endif
+        datatype = set_mpi_datatype(sizes, subsizes, starts)
 
         fname = './data_double_layer/spect_fieldline_'//species//'.gda'
 
@@ -130,39 +138,15 @@ program spectrum_along_fieldline
         ! Save spectrum with linear bins
         disp = pos1 + 2*sizeof(fp)*nbins - 1
         offset = 0 
-        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, filetype, 'native', &
-            MPI_INFO_NULL, ierror)
-        if (ierror /= 0) then
-            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
-            print*, "Error in MPI_FILE_SET_VIEW: ", trim(err_msg)
-        endif
-
-        call MPI_FILE_WRITE_AT_ALL(fh, offset, flin_np, &
-            subsizes(1)*subsizes(2), MPI_REAL, status, ierror)
-        if (ierror /= 0) then
-            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
-            print*, "Error in MPI_FILE_READ: ", trim(err_msg)
-        endif
+        call write_data_mpi_io(fh, datatype, subsizes, disp, offset, flin_np)
 
         ! Save spectrum with logarithmic bins.
         disp = disp + sizeof(fp)*nbins*nptot
         offset = 0 
-        call MPI_FILE_SET_VIEW(fh, disp, MPI_REAL, filetype, 'native', &
-            MPI_INFO_NULL, ierror)
-        if (ierror /= 0) then
-            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
-            print*, "Error in MPI_FILE_SET_VIEW: ", trim(err_msg)
-        endif
-
-        call MPI_FILE_WRITE_AT_ALL(fh, offset, flog_np, &
-            subsizes(1)*subsizes(2), MPI_REAL, status, ierror)
-        if (ierror /= 0) then
-            call MPI_ERROR_STRING(ierror, err_msg, err_length, ierror2)
-            print*, "Error in MPI_FILE_READ: ", trim(err_msg)
-        endif
+        call write_data_mpi_io(fh, datatype, subsizes, disp, offset, flin_np)
 
         call MPI_FILE_CLOSE(fh, ierror)
-        call MPI_TYPE_FREE(filetype, ierror)
+        call MPI_TYPE_FREE(datatype, ierror)
     end subroutine write_particle_spectrum
 
 end program spectrum_along_fieldline
