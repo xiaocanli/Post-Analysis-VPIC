@@ -58,3 +58,5 @@ target_link_libraries(vdist file_header get_info magnetic_field
 add_library(particle_fieldline particle_fieldline.f90 particle_file.f90
     particle_frames.f90 mpi_setup.f90)
 target_link_libraries(particle_fieldline get_info fieldline_tracing)
+
+add_library(compression compression.f90)
