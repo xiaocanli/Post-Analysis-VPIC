@@ -25,22 +25,3 @@ module mpi_module
     integer :: status(MPI_STATUS_SIZE)
     character(len=256) :: err_msg
 end module mpi_module
-
-
-!*******************************************************************************
-! Flags for whether save one kind of calculated field. 0 for not. 1 for yes.
-!*******************************************************************************
-module saving_flags
-    implicit none
-    private
-    public save_jcpara, save_jcperp, save_jmag, save_jgrad, save_jdiagm, &
-        save_jpolar, save_jexb, save_jpara, save_jperp, save_jperp1, save_jperp2, &
-        save_jqnupara, save_jqnuperp, save_jagy, save_jtot, &
-        save_pre
-    integer, parameter :: save_jcpara=0, save_jcperp=0, save_jmag=0
-    integer, parameter :: save_jgrad=0, save_jdiagm=0, save_jpolar=0
-    integer, parameter :: save_jexb=0, save_jpara=0, save_jperp=0
-    integer, parameter :: save_jperp1=0, save_jperp2=0, save_jqnupara=0
-    integer, parameter :: save_jqnuperp=0, save_jagy=0, save_jtot=0
-    integer, parameter :: save_pre=0
-end module saving_flags
