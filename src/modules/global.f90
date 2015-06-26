@@ -28,17 +28,6 @@ end module mpi_module
 
 
 !*******************************************************************************
-! Module of the variables that may need to be changed for different run.
-!*******************************************************************************
-module parameters
-    implicit none
-    private
-    public tp1, tp2, inductive
-    integer :: tp1 = 1, tp2 = 10 ! Starting and ending time output.
-    integer :: inductive = 0
-end module parameters
-
-!*******************************************************************************
 ! Flags for whether save one kind of calculated field. 0 for not. 1 for yes.
 !*******************************************************************************
 module saving_flags

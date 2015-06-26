@@ -8,15 +8,17 @@ add_library(statistics STATIC statistics.f90)
 
 add_library(mpi_io mpi_io.f90 global.f90)
 
+add_library(parameters parameters.f90 global.f90)
+
 add_library(analysis_config STATIC analysis_config.f90 mpi_setup.f90
     mpi_io_fields.f90 particle_info.f90)
-target_link_libraries(analysis_config get_info mpi_io)
+target_link_libraries(analysis_config get_info mpi_io parameters)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
-target_link_libraries(magnetic_field get_info)
+target_link_libraries(magnetic_field get_info parameters)
 
 add_library(electric_field STATIC electric_field.f90 global.f90)
-target_link_libraries(electric_field get_info)
+target_link_libraries(electric_field get_info parameters)
 
 add_library(fieldline_tracing STATIC fieldline_tracing.f90 global.f90)
 target_link_libraries(fieldline_tracing magnetic_field)

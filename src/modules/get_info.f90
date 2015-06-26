@@ -33,9 +33,9 @@ module picinfo
     implicit none
     save
     private
-    public picdomain, mime, domain, nt, read_domain, broadcast_pic_info, &
-           get_total_time_frames, get_variable, write_pic_info, &
-           get_energy_band_number, nbands
+    public picdomain, broadcast_pic_info, get_total_time_frames, get_variable, &
+           write_pic_info, get_energy_band_number
+    public nbands, mime, domain, nt, read_domain
     ! Information of simulation domain. All values are in simulation units.
     ! Length is in de. Time is in 1/wpe unless clarified.
     type picdomain
@@ -54,9 +54,9 @@ module picinfo
 
     type(picdomain) :: domain
 
-    real(fp) :: mime   ! Mass ratio
-    integer :: nt      ! Total number of time frames for field output.
-    integer :: nbands  ! Total number of energy bands
+    real(fp) :: mime     ! Mass ratio
+    integer :: nt        ! Total number of time frames for field output.
+    integer :: nbands    ! Total number of energy bands.
 
     contains
 
@@ -291,7 +291,7 @@ module picinfo
         fh = 40
         open(unit=fh, file=trim(adjustl(rootpath))//'sigma.cxx', status='old')
         read(fh, '(A)') buff
-        do while (index(buff, 'global->nex = ') == 0)
+        do while (index(buff, 'global->nex') == 0)
             read(fh, '(A)') buff
         enddo
         index1 = index(buff, '=')

@@ -10,6 +10,7 @@ program vdistribution
     use velocity_distribution, only: init_velocity_bins, free_velocity_bins, &
            init_vdist_2d, set_vdist_2d_zero, free_vdist_2d, init_vdist_1d, &
            set_vdist_1d_zero, free_vdist_1d, calc_vdist_2d, calc_vdist_1d
+    use parameters, only: get_start_end_time_points, get_inductive_flag
     implicit none
     integer :: ct
     ! Initialize Message Passing
@@ -28,6 +29,8 @@ program vdistribution
         call read_domain
     endif
     call broadcast_pic_info
+    call get_start_end_time_points
+    call get_inductive_flag
     call read_config
     call set_spatial_range_de
 

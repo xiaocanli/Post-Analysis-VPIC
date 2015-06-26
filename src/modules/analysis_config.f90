@@ -19,12 +19,12 @@ module analysis_management
     subroutine init_analysis
         use mpi_module
         use path_info, only: get_file_paths
-        use parameters, only: tp2
         use mpi_topology, only: set_mpi_topology
         use mpi_datatype_fields, only: set_mpi_datatype_fields
         use mpi_info_module, only: fileinfo, set_mpi_info
         use picinfo, only: read_domain, broadcast_pic_info, &
                 get_total_time_frames, get_energy_band_number
+        use parameters, only: get_start_end_time_points, get_inductive_flag, tp2
 
         implicit none
 
@@ -37,8 +37,11 @@ module analysis_management
             call read_domain
         endif
         call broadcast_pic_info
+        call get_start_end_time_points
+        call get_inductive_flag
         call get_total_time_frames(tp2)
         call get_energy_band_number
+        call get_start_end_time_points
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info
