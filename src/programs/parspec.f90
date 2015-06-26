@@ -6,7 +6,7 @@ program parspec
     use path_info, only: get_file_paths
     use picinfo, only: read_domain, broadcast_pic_info
     use particle_frames, only: get_particle_frames, nt, tinterval
-    use spectrum_config, only: read_config, set_spatial_range_de
+    use spectrum_config, only: read_spectrum_config, set_spatial_range_de
     use particle_energy_spectrum, only: init_energy_spectra, &
             free_energy_spectra, calc_energy_spectra, &
             set_energy_spectra_zero
@@ -31,7 +31,7 @@ program parspec
     call broadcast_pic_info
     call get_start_end_time_points
     call get_inductive_flag
-    call read_config
+    call read_spectrum_config
     call set_spatial_range_de
 
     call init_energy_spectra

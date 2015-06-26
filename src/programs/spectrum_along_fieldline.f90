@@ -41,7 +41,7 @@ program spectrum_along_fieldline
     !---------------------------------------------------------------------------
     subroutine calc_particle_energy_spectrum(species)
         use spectrum_config, only: emax, emin, center, sizes
-        use spectrum_config, only: read_config, set_spatial_range_de, &
+        use spectrum_config, only: set_spatial_range_de, &
                 calc_energy_interval, calc_pic_mpi_ids
         use particle_energy_spectrum, only: init_energy_spectra_single, &
                 free_energy_spectra_single, calc_energy_spectrum_single, &

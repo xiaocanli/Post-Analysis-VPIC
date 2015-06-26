@@ -8,7 +8,7 @@ module spectrum_config
     implicit none
     private
     public nbins, emax, emin, dve, dlogve, spatial_range, center, sizes
-    public read_config, set_spatial_range_de, calc_pic_mpi_ids, &
+    public read_spectrum_config, set_spatial_range_de, calc_pic_mpi_ids, &
            calc_energy_interval
     public corners_mpi, umax, umin, du, nbins_vdist, tframe
     public calc_velocity_interval
@@ -27,8 +27,8 @@ module spectrum_config
     !---------------------------------------------------------------------------
     ! Read the setup information from file.
     !---------------------------------------------------------------------------
-    subroutine read_config
-        use picinfo, only: get_variable
+    subroutine read_spectrum_config
+        use read_config, only: get_variable
         implicit none
         integer :: fh
         real(fp) :: temp
@@ -59,7 +59,7 @@ module spectrum_config
         close(fh)
 
         call calc_energy_interval
-    end subroutine read_config
+    end subroutine read_spectrum_config
 
     !---------------------------------------------------------------------------
     ! Calculate the energy interval for each energy bin.

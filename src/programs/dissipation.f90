@@ -9,6 +9,7 @@ program dissipation
     use analysis_management, only: init_analysis, end_analysis
     use pic_fields, only: open_pic_fields, init_pic_fields, &
                           free_pic_fields, close_pic_fields_file
+    use saving_flags, only: get_saving_flags
     implicit none
     integer :: ct
 
@@ -21,6 +22,7 @@ program dissipation
 
     call init_pic_fields
     call init_para_perp_pressure
+    call get_saving_flags
 
     call open_pic_fields(species)
     call energy_conversion_from_current

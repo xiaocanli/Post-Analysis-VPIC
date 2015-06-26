@@ -6,7 +6,7 @@ program vdistribution
     use path_info, only: get_file_paths
     use picinfo, only: read_domain, broadcast_pic_info
     use particle_frames, only: get_particle_frames, nt, tinterval
-    use spectrum_config, only: read_config, set_spatial_range_de
+    use spectrum_config, only: read_spectrum_config, set_spatial_range_de
     use velocity_distribution, only: init_velocity_bins, free_velocity_bins, &
            init_vdist_2d, set_vdist_2d_zero, free_vdist_2d, init_vdist_1d, &
            set_vdist_1d_zero, free_vdist_1d, calc_vdist_2d, calc_vdist_1d
@@ -31,7 +31,7 @@ program vdistribution
     call broadcast_pic_info
     call get_start_end_time_points
     call get_inductive_flag
-    call read_config
+    call read_spectrum_config
     call set_spatial_range_de
 
     call init_velocity_bins

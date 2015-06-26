@@ -13,27 +13,6 @@ module parameters
 
     contains
 
-    !---------------------------------------------------------------------------
-    ! Function to the value of one variable with name var_name.
-    ! Inputs:
-    !   fh: file handler.
-    !   var_name: the variable name.
-    !   delimiter: the delimiter. The value of the variable is after the delimiter.
-    ! Returns:
-    !   var_value: the variable value.
-    !---------------------------------------------------------------------------
-    function get_variable(fh, var_name, delimiter) result(var_value)
-        use constants, only: fp
-        implicit none
-        integer, intent(in) :: fh
-        character(*), intent(in) :: var_name, delimiter
-        real(fp) :: var_value
-        character(len=150) :: single_line
-        do while (index(single_line, var_name) == 0)
-            read(10, '(A)') single_line
-        enddo
-        read(single_line(index(single_line, delimiter)+1:), *) var_value
-    end function
 
     !---------------------------------------------------------------------------
     ! Read starting and ending time points from the configuration file.
@@ -41,6 +20,7 @@ module parameters
     subroutine get_start_end_time_points
         use mpi_module
         use constants, only: fp
+        use read_config, only: get_variable
         implicit none
         integer :: fh
         real(fp) :: temp
@@ -69,6 +49,7 @@ module parameters
     subroutine get_inductive_flag
         use mpi_module
         use constants, only: fp
+        use read_config, only: get_variable
         implicit none
         integer :: fh
         real(fp) :: temp

@@ -47,7 +47,7 @@ program vdist_2d_along_fieldline
     !---------------------------------------------------------------------------
     subroutine calc_vdist_2d_fieldline(species)
         use spectrum_config, only: umax, umin, center, sizes
-        use spectrum_config, only: read_config, set_spatial_range_de, &
+        use spectrum_config, only: set_spatial_range_de, &
                 calc_velocity_interval, calc_pic_mpi_ids
         use velocity_distribution, only: fvel_2d, fvel_xy, fvel_xz, fvel_yz, & 
                 init_vdist_2d_single, free_vdist_2d_single, &

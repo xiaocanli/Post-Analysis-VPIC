@@ -8,7 +8,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Create an executable files.
 add_executable(dissipation dissipation.f90)
 target_link_libraries(dissipation ${MPI_Fortran_LIBRARIES} get_info
-    analysis_config fields jdote statistics)
+    analysis_config fields jdote statistics saving_flags)
 
 add_executable(calc_agyrotropy calc_agyrotropy.f90)
 target_link_libraries(calc_agyrotropy ${MPI_Fortran_LIBRARIES} get_info

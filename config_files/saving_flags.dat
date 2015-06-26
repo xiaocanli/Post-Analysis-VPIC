@@ -1,0 +1,18 @@
+***** Saving flags for whether to save the 2D/3D field data *****
+
+save_jcpara    = 0
+save_jcperp    = 0
+save_jmag      = 0
+save_jgrad     = 0
+save_jdiagm    = 0
+save_jpolar    = 0
+save_jexb      = 0
+save_jpara     = 0
+save_jperp     = 0
+save_jperp1    = 0
+save_jperp2    = 0
+save_jqnupara  = 0
+save_jqnuperp  = 0
+save_jagy      = 0
+save_jtot      = 0
+save_pre       = 0

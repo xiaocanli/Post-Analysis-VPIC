@@ -30,10 +30,11 @@ end module path_info
 module picinfo
     use constants, only: dp, fp
     use path_info, only: rootpath
+    use read_config, only: get_variable
     implicit none
     save
     private
-    public picdomain, broadcast_pic_info, get_total_time_frames, get_variable, &
+    public picdomain, broadcast_pic_info, get_total_time_frames, &
            write_pic_info, get_energy_band_number
     public nbands, mime, domain, nt, read_domain
     ! Information of simulation domain. All values are in simulation units.
@@ -59,28 +60,6 @@ module picinfo
     integer :: nbands    ! Total number of energy bands.
 
     contains
-
-    !---------------------------------------------------------------------------
-    ! Function to the value of one variable with name var_name.
-    ! Inputs:
-    !   fh: file handler.
-    !   var_name: the variable name.
-    !   delimiter: the delimiter. The value of the variable is after the delimiter.
-    ! Returns:
-    !   var_value: the variable value.
-    !---------------------------------------------------------------------------
-    function get_variable(fh, var_name, delimiter) result(var_value)
-        use constants, only: fp
-        implicit none
-        integer, intent(in) :: fh
-        character(*), intent(in) :: var_name, delimiter
-        real(fp) :: var_value
-        character(len=150) :: single_line
-        do while (index(single_line, var_name) == 0)
-            read(10, '(A)') single_line
-        enddo
-        read(single_line(index(single_line, delimiter)+1:), *) var_value
-    end function
 
     !---------------------------------------------------------------------------
     ! Get the fields output time interval from the initialization file sigma.cxx.

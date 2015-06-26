@@ -36,7 +36,6 @@ module read_config
     ! Get the variable as an integer.
     !---------------------------------------------------------------------------
     function get_variable_int(fh, var_name, delimiter) result(var_value_int)
-        implicit none
         use constants, only: fp
         implicit none
         integer, intent(in) :: fh
@@ -48,4 +47,4 @@ module read_config
         var_value_int = int(var_value)
     end function get_variable_int
 
-module read_config
+end module read_config
