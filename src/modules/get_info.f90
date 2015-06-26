@@ -34,7 +34,8 @@ module picinfo
     save
     private
     public picdomain, mime, domain, nt, read_domain, broadcast_pic_info, &
-           get_total_time_frames, get_variable, write_pic_info
+           get_total_time_frames, get_variable, write_pic_info, &
+           get_energy_band_number, nbands
     ! Information of simulation domain. All values are in simulation units.
     ! Length is in de. Time is in 1/wpe unless clarified.
     type picdomain
@@ -53,8 +54,9 @@ module picinfo
 
     type(picdomain) :: domain
 
-    real(fp) :: mime ! Mass ratio
-    integer :: nt    ! Total number of time frames for field output.
+    real(fp) :: mime   ! Mass ratio
+    integer :: nt      ! Total number of time frames for field output.
+    integer :: nbands  ! Total number of energy bands
 
     contains
 
@@ -77,7 +79,7 @@ module picinfo
         do while (index(single_line, var_name) == 0)
             read(10, '(A)') single_line
         enddo
-        read(single_line(index(single_line, '=')+1:), *) var_value
+        read(single_line(index(single_line, delimiter)+1:), *) var_value
     end function
 
     !---------------------------------------------------------------------------
@@ -276,5 +278,26 @@ module picinfo
         ! Check if the last frame is larger than nt
         if (tp2 > nt) tp2 = nt
     end subroutine get_total_time_frames
+
+    !---------------------------------------------------------------------------
+    ! Get the total number of energy band.
+    !---------------------------------------------------------------------------
+    subroutine get_energy_band_number
+        use constants, only: fp
+        implicit none
+        integer :: fh, index1, index2
+        character(len=150) :: buff
+
+        fh = 40
+        open(unit=fh, file=trim(adjustl(rootpath))//'sigma.cxx', status='old')
+        read(fh, '(A)') buff
+        do while (index(buff, 'global->nex = ') == 0)
+            read(fh, '(A)') buff
+        enddo
+        index1 = index(buff, '=')
+        index2 = index(buff, ';')
+        read(buff(index1+1:index2-1), *) nbands
+        close(fh)
+    end subroutine get_energy_band_number
 
 end module picinfo

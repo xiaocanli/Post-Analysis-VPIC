@@ -6,7 +6,7 @@
 module particle_fields
     use constants, only: fp
     use path_info, only: rootpath
-    use parameters_translate, only: nbands
+    use picinfo, only: nbands
     implicit none
     private
     public init_particle_fields, free_particle_fields, read_particle_fields, &

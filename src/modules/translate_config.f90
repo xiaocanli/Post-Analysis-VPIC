@@ -1,13 +1,4 @@
 !*******************************************************************************
-! Module of user defined parameters.
-!*******************************************************************************
-module parameters_translate
-    implicit none
-    private
-    public nbands
-    integer, parameter :: nbands = 3
-end module parameters_translate
-
 !*******************************************************************************
 ! Module of the configuration setup for this analysis.
 ! httx: number of domains in x (converter)

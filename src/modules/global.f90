@@ -33,8 +33,7 @@ end module mpi_module
 module parameters
     implicit none
     private
-    public nbands, tp1, tp2, inductive
-    integer, parameter :: nbands = 6      ! Total energy bands
+    public tp1, tp2, inductive
     integer :: tp1 = 1, tp2 = 10 ! Starting and ending time output.
     integer :: inductive = 0
 end module parameters

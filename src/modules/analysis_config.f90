@@ -23,7 +23,8 @@ module analysis_management
         use mpi_topology, only: set_mpi_topology
         use mpi_datatype_fields, only: set_mpi_datatype_fields
         use mpi_info_module, only: fileinfo, set_mpi_info
-        use picinfo, only: read_domain, broadcast_pic_info, get_total_time_frames
+        use picinfo, only: read_domain, broadcast_pic_info, &
+                get_total_time_frames, get_energy_band_number
 
         implicit none
 
@@ -37,6 +38,7 @@ module analysis_management
         endif
         call broadcast_pic_info
         call get_total_time_frames(tp2)
+        call get_energy_band_number
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info
