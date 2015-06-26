@@ -10,6 +10,7 @@ spectrum/
 vdistributions/
 src/distribution/
 src/others/
+bulk_flow_energy
 calc_agyrotropy
 dissipation
 energies_pic.dat
@@ -23,5 +24,3 @@ vdist_1d_along_fieldline
 vdist_2d_along_fieldline
 vdistribution
 xz_field.dat
-
-src/programs/bulk_flow_energy.f90

@@ -32,7 +32,7 @@ module pic_fields
            close_velocity_field_files, close_number_density_file, &
            close_fraction_eband_file
     public free_magnetic_fields, free_electric_fields, free_current_densities, &
-           free_pressure_tensor, free_velocity_fieds, free_number_density, &
+           free_pressure_tensor, free_velocity_fields, free_number_density, &
            free_fraction_eband
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
@@ -457,10 +457,10 @@ module pic_fields
     !---------------------------------------------------------------------------
     ! Free velocity fields.
     !---------------------------------------------------------------------------
-    subroutine free_velocity_fieds
+    subroutine free_velocity_fields
         implicit none
         deallocate(ux, uy, uz)
-    end subroutine free_velocity_fieds
+    end subroutine free_velocity_fields
 
     !---------------------------------------------------------------------------
     ! Free number density.
@@ -487,7 +487,7 @@ module pic_fields
         call free_electric_fields
         call free_current_densities
         call free_pressure_tensor
-        call free_velocity_fieds
+        call free_velocity_fields
         call free_number_density
     end subroutine free_pic_fields
 

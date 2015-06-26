@@ -43,7 +43,7 @@ module statistics
         tot_local = sum(fdata(ixl:ixh, iyl:iyh, izl:izh))
         call MPI_BARRIER(MPI_COMM_WORLD, ierror)
         call MPI_GATHER(tot_local, 1, MPI_REAL, tot_array, 1, MPI_REAL, &
-            master, MPI_COMM_WORLD, ierror)
+                master, MPI_COMM_WORLD, ierror)
         if (myid == master) then
             tot = sum(tot_array) * domain%dx * domain%dy * domain%dz
             avg = tot / (domain%nx*domain%ny*domain%nz)
@@ -69,7 +69,7 @@ module statistics
         implicit none
         real(fp), intent(in) :: minValue, maxValue
         integer, intent(in) :: nbins
-        real(fp), dimension(htg%nx,htg%ny,htg%nz), intent(in) :: dataSet
+        real(fp), dimension(:, :, :), intent(in) :: dataSet
         real(fp), intent(out), dimension(nbins+2) :: distData
         integer :: ix, iy, iz, ibin
         integer :: ix_start, iy_start, iz_start, ix_stop, iy_stop, iz_stop

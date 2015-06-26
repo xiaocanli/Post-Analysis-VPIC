@@ -44,6 +44,10 @@ add_executable(nrho_eband particle_number_eband.f90)
 target_link_libraries(nrho_eband ${MPI_Fortran_LIBRARIES} analysis_config
     fields)
 
+add_executable(bulk_flow_energy bulk_flow_energy.f90)
+target_link_libraries(bulk_flow_energy ${MPI_Fortran_LIBRARIES}
+    analysis_config fields)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -55,3 +59,4 @@ install (TARGETS vdistribution DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_2d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_1d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS nrho_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS bulk_flow_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
