@@ -113,7 +113,7 @@ module current_densities
     use pic_fields, only: bx, by, bz, ex, ey, ez, pxx, pxy, pxz, pyy, &
                           pyz, pzz, ux, uy, uz, num_rho, absB, jx, jy, jz
     use para_perp_pressure, only: ppara, pperp
-    use neighbors_module, only: adjoint_points
+    use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
     use jdote_module, only: jdote, calc_jdote, save_jdote_total
     use mpi_topology, only: htg
     use picinfo, only: domain
@@ -275,37 +275,29 @@ module current_densities
         implicit none
         real(fp) :: bx1, by1, bz1, btot1, ib2
         real(fp) :: divpx, divpy, divpz
-        real(dp) :: idxh, idyh, idzh
         integer :: nx, ny, nz, ix, iy, iz
-        integer :: ix1, ix2, iy1, iy2, iz1, iz2
 
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
-        idxh = domain%idxh
-        idyh = domain%idyh
-        idzh = domain%idzh
 
         do iz = 1, nz
-            call adjoint_points(nz, iz, iz1, iz2)
             do iy = 1, ny
-                call adjoint_points(ny, iy, iy1, iy2)
                 do ix = 1, nx
-                    call adjoint_points(nx, ix, ix1, ix2)
                     bx1 = bx(ix, iy, iz)
                     by1 = by(ix, iy, iz)
                     bz1 = bz(ix, iy, iz)
                     btot1 = absB(ix, iy, iz)
                     ib2 = 1.0/(btot1*btot1)
-                    divpx = (pxx(ix2,iy,iz)-pxx(ix1,iy,iz))*idxh + &
-                            (pxy(ix,iy2,iz)-pxy(ix,iy1,iz))*idyh + &
-                            (pxz(ix,iy,iz2)-pxz(ix,iy,iz1))*idzh
-                    divpy = (pxy(ix2,iy,iz)-pxy(ix1,iy,iz))*idxh + &
-                            (pyy(ix,iy2,iz)-pyy(ix,iy1,iz))*idyh + &
-                            (pyz(ix,iy,iz2)-pyz(ix,iy,iz1))*idzh
-                    divpz = (pxz(ix2,iy,iz)-pxz(ix1,iy,iz))*idxh + &
-                            (pyz(ix,iy2,iz)-pyz(ix,iy1,iz))*idyh + &
-                            (pzz(ix,iy,iz2)-pzz(ix,iy,iz1))*idzh
+                    divpx = (pxx(ixh(ix),iy,iz)-pxx(ixl(ix),iy,iz))*idx(ix) + &
+                            (pxy(ix,iyh(iy),iz)-pxy(ix,iyl(iy),iz))*idy(iy) + &
+                            (pxz(ix,iy,izh(iz))-pxz(ix,iy,izl(iz)))*idz(iz)
+                    divpy = (pxy(ixh(ix),iy,iz)-pxy(ixl(ix),iy,iz))*idx(ix) + &
+                            (pyy(ix,iyh(iy),iz)-pyy(ix,iyl(iy),iz))*idy(iy) + &
+                            (pyz(ix,iy,izh(iz))-pyz(ix,iy,izl(iz)))*idz(iz)
+                    divpz = (pxz(ixh(ix),iy,iz)-pxz(ixl(ix),iy,iz))*idx(ix) + &
+                            (pyz(ix,iyh(iy),iz)-pyz(ix,iyl(iy),iz))*idy(iy) + &
+                            (pzz(ix,iy,izh(iz))-pzz(ix,iy,izl(iz)))*idz(iz)
                     jagyx(ix,iy,iz) = -(divpy*bz1-divpz*by1)*ib2
                     jagyy(ix,iy,iz) = -(divpz*bx1-divpx*bz1)*ib2
                     jagyz(ix,iy,iz) = -(divpx*by1-divpy*bx1)*ib2
@@ -333,48 +325,40 @@ module current_densities
         real(fp), intent(out) :: jcpara_dote, jcperp_dote
         real(fp), dimension(3), intent(out) :: jcpara_avg, jcperp_avg
         real(fp) :: bx1, by1, bz1, btot1, ib3, ib4
-        real(dp) :: idxh, idyh, idzh
         integer :: nx, ny, nz, ix, iy, iz
-        integer :: ix1, ix2, iy1, iy2, iz1, iz2
         real(fp) :: curx, cury, curz
 
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
-        idxh = domain%idxh
-        idyh = domain%idyh
-        idzh = domain%idzh
 
         do iz = 1, nz
-            call adjoint_points(nz, iz, iz1, iz2)
             do iy = 1, ny
-                call adjoint_points(ny, iy, iy1, iy2)
                 do ix = 1, nx
-                    call adjoint_points(nx, ix, ix1, ix2)
                     bx1 = bx(ix, iy, iz)
                     by1 = by(ix, iy, iz)
                     bz1 = bz(ix, iy, iz)
                     btot1 = absB(ix, iy, iz)
                     ib3 = 1.0/(btot1*btot1*btot1)
                     ib4 = ib3 / btot1
-                    curx = (bx(ix2,iy,iz)/absB(ix2,iy,iz) - &
-                            bx(ix1,iy,iz)/absB(ix1,iy,iz))*bx1*idxh + &
-                           (bx(ix,iy2,iz)/absB(ix,iy2,iz) - &
-                            bx(ix,iy1,iz)/absB(ix,iy1,iz))*by1*idyh + &
-                           (bx(ix,iy,iz2)/absB(ix,iy,iz2) - &
-                            bx(ix,iy,iz1)/absB(ix,iy,iz1))*bz1*idzh
-                    cury = (by(ix2,iy,iz)/absB(ix2,iy,iz) - &
-                            by(ix1,iy,iz)/absB(ix1,iy,iz))*bx1*idxh + &
-                           (by(ix,iy2,iz)/absB(ix,iy2,iz) - &
-                            by(ix,iy1,iz)/absB(ix,iy1,iz))*by1*idyh + &
-                           (by(ix,iy,iz2)/absB(ix,iy,iz2) - &
-                            by(ix,iy,iz1)/absB(ix,iy,iz1))*bz1*idzh
-                    curz = (bz(ix2,iy,iz)/absB(ix2,iy,iz) - &
-                            bz(ix1,iy,iz)/absB(ix1,iy,iz))*bx1*idxh + &
-                           (bz(ix,iy2,iz)/absB(ix,iy2,iz) - &
-                            bz(ix,iy1,iz)/absB(ix,iy1,iz))*by1*idyh + &
-                           (bz(ix,iy,iz2)/absB(ix,iy,iz2) - &
-                            bz(ix,iy,iz1)/absB(ix,iy,iz1))*bz1*idzh
+                    curx = (bx(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz) - &
+                            bx(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz))*bx1*idx(ix) + &
+                           (bx(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz) - &
+                            bx(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz))*by1*idy(iy) + &
+                           (bx(ix,iy,izh(iz))/absB(ix,iy,izh(iz)) - &
+                            bx(ix,iy,izl(iz))/absB(ix,iy,izl(iz)))*bz1*idz(iz)
+                    cury = (by(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz) - &
+                            by(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz))*bx1*idx(ix) + &
+                           (by(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz) - &
+                            by(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz))*by1*idy(iy) + &
+                           (by(ix,iy,izh(iz))/absB(ix,iy,izh(iz)) - &
+                            by(ix,iy,izl(iz))/absB(ix,iy,izl(iz)))*bz1*idz(iz)
+                    curz = (bz(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz) - &
+                            bz(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz))*bx1*idx(ix) + &
+                           (bz(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz) - &
+                            bz(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz))*by1*idy(iy) + &
+                           (bz(ix,iy,izh(iz))/absB(ix,iy,izh(iz)) - &
+                            bz(ix,iy,izl(iz))/absB(ix,iy,izl(iz)))*bz1*idz(iz)
                     ! Current due to curvature drift
                     jx1(ix,iy,iz) = -(cury*bz1-curz*by1)*ppara(ix,iy,iz)*ib3
                     jy1(ix,iy,iz) = -(curz*bx1-curx*bz1)*ppara(ix,iy,iz)*ib3
@@ -384,24 +368,6 @@ module current_densities
                     jx2(ix,iy,iz) = (cury*bz1-curz*by1)*pperp(ix,iy,iz)*ib3
                     jy2(ix,iy,iz) = (curz*bx1-curx*bz1)*pperp(ix,iy,iz)*ib3
                     jz2(ix,iy,iz) = (curx*by1-cury*bx1)*pperp(ix,iy,iz)*ib3
-                    !curx = (bx(ix2,iy,iz) - bx(ix1,iy,iz))*bx1*idxh + &
-                    !       (bx(ix,iy2,iz) - bx(ix,iy1,iz))*by1*idyh + &
-                    !       (bx(ix,iy,iz2) - bx(ix,iy,iz1))*bz1*idzh
-                    !cury = (by(ix2,iy,iz) - by(ix1,iy,iz))*bx1*idxh + &
-                    !       (by(ix,iy2,iz) - by(ix,iy1,iz))*by1*idyh + &
-                    !       (by(ix,iy,iz2) - by(ix,iy,iz1))*bz1*idzh
-                    !curz = (bz(ix2,iy,iz) - bz(ix1,iy,iz))*bx1*idxh + &
-                    !       (bz(ix,iy2,iz) - bz(ix,iy1,iz))*by1*idyh + &
-                    !       (bz(ix,iy,iz2) - bz(ix,iy,iz1))*bz1*idzh
-                    !! Current due to curvature drift
-                    !jx1(ix,iy,iz) = -(cury*bz1-curz*by1)*ppara(ix,iy,iz)*ib4
-                    !jy1(ix,iy,iz) = -(curz*bx1-curx*bz1)*ppara(ix,iy,iz)*ib4
-                    !jz1(ix,iy,iz) = -(curx*by1-cury*bx1)*ppara(ix,iy,iz)*ib4
-                    !! Similar as above, but with perpendicular pressure.
-                    !! This term is due to particle gyromotion.
-                    !jx2(ix,iy,iz) = (cury*bz1-curz*by1)*pperp(ix,iy,iz)*ib4
-                    !jy2(ix,iy,iz) = (curz*bx1-curx*bz1)*pperp(ix,iy,iz)*ib4
-                    !jz2(ix,iy,iz) = (curx*by1-cury*bx1)*pperp(ix,iy,iz)*ib4
                 enddo
             enddo
         enddo
@@ -452,64 +418,35 @@ module current_densities
         real(fp), intent(out) :: jmag_dote
         real(fp) :: bx1, by1, bz1, btot1, ib2
         real(fp) :: pperpx, pperpy, pperpz, tmp
-        real(dp) :: idxh, idyh, idzh
         integer :: nx, ny, nz, ix, iy, iz
-        integer :: ix1, ix2, iy1, iy2, iz1, iz2
 
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
-        idxh = domain%idxh
-        idyh = domain%idyh
-        idzh = domain%idzh
+        ! idxh = domain%idxh
+        ! idyh = domain%idyh
+        ! idzh = domain%idzh
 
         do iz = 1, nz
-            call adjoint_points(nz, iz, iz1, iz2)
             do iy = 1, ny
-                call adjoint_points(ny, iy, iy1, iy2)
                 do ix = 1, nx
-                    call adjoint_points(nx, ix, ix1, ix2)
                     bx1 = bx(ix, iy, iz)
                     by1 = by(ix, iy, iz)
                     bz1 = bz(ix, iy, iz)
                     btot1 = absB(ix, iy, iz)
                     ib2 = 1.0/(btot1*btot1)
-        !            pperpx = (pperp(ix,iy2,iz)*bz(ix,iy2,iz) - &
-        !                      pperp(ix,iy1,iz)*bz(ix,iy1,iz))*idyh*ib2 - &
-        !                     (pperp(ix,iy,iz2)*by(ix,iy,iz2) - &
-        !                      pperp(ix,iy,iz1)*by(ix,iy,iz1))*idzh*ib2 + &
-        !                     (1.0/absB(ix,iy2,iz)**2-1.0/absB(ix,iy1,iz)**2)* &
-        !                     idyh*pperp(ix,iy,iz)*bz1 - &
-        !                     (1.0/absB(ix,iy,iz2)**2-1.0/absB(ix,iy,iz1)**2)* &
-        !                     idzh*pperp(ix,iy,iz)*by1
-        !            pperpy = (pperp(ix,iy,iz2)*bx(ix,iy,iz2) - &
-        !                      pperp(ix,iy,iz1)*bx(ix,iy,iz1))*idzh*ib2 - &
-        !                     (pperp(ix2,iy,iz)*bz(ix2,iy,iz) - &
-        !                      pperp(ix1,iy,iz)*bz(ix1,iy,iz))*idxh*ib2 + &
-        !                     (1.0/absB(ix,iy,iz2)**2-1.0/absB(ix,iy,iz1)**2)* &
-        !                     idzh*pperp(ix,iy,iz)*bx1 - &
-        !                     (1.0/absB(ix2,iy,iz)**2-1.0/absB(ix1,iy,iz)**2)* &
-        !                     idxh*pperp(ix,iy,iz)*bz1
-        !            pperpz = (pperp(ix2,iy,iz)*by(ix2,iy,iz) - &
-        !                      pperp(ix1,iy,iz)*by(ix1,iy,iz))*idxh*ib2 - &
-        !                     (pperp(ix,iy2,iz)*bx(ix,iy2,iz) - &
-        !                      pperp(ix,iy1,iz)*bx(ix,iy1,iz))*idyh*ib2 + &
-        !                     (1.0/absB(ix2,iy,iz)**2-1.0/absB(ix1,iy,iz1)**2)* &
-        !                     idxh*pperp(ix,iy,iz)*by1 - &
-        !                     (1.0/absB(ix,iy2,iz)**2-1.0/absB(ix,iy1,iz)**2)* &
-        !                     idyh*pperp(ix,iy,iz)*bx1
-                    pperpx = (pperp(ix,iy2,iz)*bz(ix,iy2,iz)/absB(ix,iy2,iz)**2 - &
-                              pperp(ix,iy1,iz)*bz(ix,iy1,iz)/absB(ix,iy1,iz)**2)*idyh -&
-                             (pperp(ix,iy,iz2)*by(ix,iy,iz2)/absB(ix,iy,iz2)**2 - &
-                              pperp(ix,iy,iz1)*by(ix,iy,iz1)/absB(ix,iy,iz1)**2)*idzh
-                    pperpy = (pperp(ix,iy,iz2)*bx(ix,iy,iz2)/absB(ix,iy,iz2)**2 - &
-                              pperp(ix,iy,iz1)*bx(ix,iy,iz1)/absB(ix,iy,iz1)**2)*idzh -&
-                             (pperp(ix2,iy,iz)*bz(ix2,iy,iz)/absB(ix2,iy,iz)**2 - &
-                              pperp(ix1,iy,iz)*bz(ix1,iy,iz)/absB(ix1,iy,iz)**2)*idxh
-                    pperpz = (pperp(ix2,iy,iz)*by(ix2,iy,iz)/absB(ix2,iy,iz)**2 - &
-                              pperp(ix1,iy,iz)*by(ix1,iy,iz)/absB(ix1,iy,iz)**2)*idxh -&
-                             (pperp(ix,iy2,iz)*bx(ix,iy2,iz)/absB(ix,iy2,iz)**2 - &
-                              pperp(ix,iy1,iz)*bx(ix,iy1,iz)/absB(ix,iy1,iz)**2)*idyh
+                    pperpx = (pperp(ix,iyh(iy),iz)*bz(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz)**2 - &
+                              pperp(ix,iyl(iy),iz)*bz(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz)**2)*idy(iy) -&
+                             (pperp(ix,iy,izh(iz))*by(ix,iy,izh(iz))/absB(ix,iy,izh(iz))**2 - &
+                              pperp(ix,iy,izl(iz))*by(ix,iy,izl(iz))/absB(ix,iy,izl(iz))**2)*idz(iz)
+                    pperpy = (pperp(ix,iy,izh(iz))*bx(ix,iy,izh(iz))/absB(ix,iy,izh(iz))**2 - &
+                              pperp(ix,iy,izl(iz))*bx(ix,iy,izl(iz))/absB(ix,iy,izl(iz))**2)*idz(iz) -&
+                             (pperp(ixh(ix),iy,iz)*bz(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz)**2 - &
+                              pperp(ixl(ix),iy,iz)*bz(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz)**2)*idx(ix)
+                    pperpz = (pperp(ixh(ix),iy,iz)*by(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz)**2 - &
+                              pperp(ixl(ix),iy,iz)*by(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz)**2)*idx(ix) -&
+                             (pperp(ix,iyh(iy),iz)*bx(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz)**2 - &
+                              pperp(ix,iyl(iy),iz)*bx(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz)**2)*idy(iy)
                     tmp = (pperpx*bx1 + pperpy*by1 + pperpz*bz1) * ib2
                     jx1(ix,iy,iz) = -(pperpx-tmp*bx1)
                     jy1(ix,iy,iz) = -(pperpy-tmp*by1)
@@ -546,37 +483,23 @@ module current_densities
         real(fp), intent(out) :: jgrad_dote
         real(fp) :: bx1, by1, bz1, btot1, ib3
         real(fp) :: dbx, dby, dbz
-        real(dp) :: idxh, idyh, idzh
         integer :: nx, ny, nz, ix, iy, iz
-        integer :: ix1, ix2, iy1, iy2, iz1, iz2
 
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
-        idxh = domain%idxh
-        idyh = domain%idyh
-        idzh = domain%idzh
 
         do iz = 1, nz
-            call adjoint_points(nz, iz, iz1, iz2)
             do iy = 1, ny
-                call adjoint_points(ny, iy, iy1, iy2)
                 do ix = 1, nx
-                    call adjoint_points(nx, ix, ix1, ix2)
                     bx1 = bx(ix, iy, iz)
                     by1 = by(ix, iy, iz)
                     bz1 = bz(ix, iy, iz)
                     btot1 = absB(ix, iy, iz)
                     ib3 = 1.0 / btot1**3
-                    !dbx = (1.0/absB(ix2,iy,iz)-1.0/absB(ix1,iy,iz))*idxh
-                    !dby = (1.0/absB(ix,iy2,iz)-1.0/absB(ix,iy1,iz))*idyh
-                    !dbz = (1.0/absB(ix,iy,iz2)-1.0/absB(ix,iy,iz1))*idzh
-                    !jx1(ix,iy,iz) = (dby*bz1-dbz*by1)*pperp(ix,iy,iz)/btot1
-                    !jy1(ix,iy,iz) = (dbz*bx1-dbx*bz1)*pperp(ix,iy,iz)/btot1
-                    !jz1(ix,iy,iz) = (dbx*by1-dby*bx1)*pperp(ix,iy,iz)/btot1
-                    dbx = (absB(ix2,iy,iz)-absB(ix1,iy,iz))*idxh
-                    dby = (absB(ix,iy2,iz)-absB(ix,iy1,iz))*idyh
-                    dbz = (absB(ix,iy,iz2)-absB(ix,iy,iz1))*idzh
+                    dbx = (absB(ixh(ix),iy,iz)-absB(ixl(ix),iy,iz))*idx(ix)
+                    dby = (absB(ix,iyh(iy),iz)-absB(ix,iyl(iy),iz))*idy(iy)
+                    dbz = (absB(ix,iy,izh(iz))-absB(ix,iy,izl(iz)))*idz(iz)
                     jx1(ix,iy,iz) = -(dby*bz1-dbz*by1)*pperp(ix,iy,iz) * ib3
                     jy1(ix,iy,iz) = -(dbz*bx1-dbx*bz1)*pperp(ix,iy,iz) * ib3
                     jz1(ix,iy,iz) = -(dbx*by1-dby*bx1)*pperp(ix,iy,iz) * ib3
@@ -612,31 +535,23 @@ module current_densities
         real(fp), intent(out) :: jdiagm_dote
         real(fp) :: bx1, by1, bz1, btot1, ib2
         real(fp) :: dpdx, dpdy, dpdz
-        real(dp) :: idxh, idyh, idzh
         integer :: nx, ny, nz, ix, iy, iz
-        integer :: ix1, ix2, iy1, iy2, iz1, iz2
 
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
-        idxh = domain%idxh
-        idyh = domain%idyh
-        idzh = domain%idzh
 
         do iz = 1, nz
-            call adjoint_points(nz, iz, iz1, iz2)
             do iy = 1, ny
-                call adjoint_points(ny, iy, iy1, iy2)
                 do ix = 1, nx
-                    call adjoint_points(nx, ix, ix1, ix2)
                     bx1 = bx(ix, iy, iz)
                     by1 = by(ix, iy, iz)
                     bz1 = bz(ix, iy, iz)
                     btot1 = absB(ix, iy, iz)
                     ib2 = 1.0/(btot1*btot1)
-                    dpdx = (pperp(ix2,iy,iz)-pperp(ix1,iy,iz))*idxh
-                    dpdy = (pperp(ix,iy2,iz)-pperp(ix,iy1,iz))*idyh
-                    dpdz = (pperp(ix,iy,iz2)-pperp(ix,iy,iz1))*idzh
+                    dpdx = (pperp(ixh(ix),iy,iz)-pperp(ixl(ix),iy,iz))*idx(ix)
+                    dpdy = (pperp(ix,iyh(iy),iz)-pperp(ix,iyl(iy),iz))*idy(iy)
+                    dpdz = (pperp(ix,iy,izh(iz))-pperp(ix,iy,izl(iz)))*idz(iz)
                     jx1(ix,iy,iz) = -(dpdy*bz1-dpdz*by1)*ib2
                     jy1(ix,iy,iz) = -(dpdz*bx1-dpdx*bz1)*ib2
                     jz1(ix,iy,iz) = -(dpdx*by1-dpdy*bx1)*ib2
@@ -674,49 +589,49 @@ module current_densities
     subroutine calc_polarization_drift_current(ct, jpolar_avg, jpolar_dote)
         use previous_post_velocities, only: udx1, udy1, udz1, udx2, udy2, udz2
         use saving_flags, only: save_jpolar
+        use parameters, only: tp1, tp2
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3), intent(out) :: jpolar_avg
         real(fp), intent(out) :: jpolar_dote
         real(fp) :: bx1, by1, bz1, btot1, ib2
         real(fp) :: duxdt, duydt, duzdt
-        real(dp) :: idxh, idyh, idzh, idt
+        real(fp) :: idt
         integer :: nx, ny, nz, ix, iy, iz
-        integer :: ix1, ix2, iy1, iy2, iz1, iz2
 
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
-        idxh = domain%idxh
-        idyh = domain%idyh
-        idzh = domain%idzh
-        idt = domain%idt
+        if (ct > tp1 .and. ct < tp2) then
+            ! Two output steps.
+            idt = domain%idt * 0.5
+        else
+            ! The first and the last time step.
+            idt = domain%idt
+        endif
 
         do iz = 1, nz
-            call adjoint_points(nz, iz, iz1, iz2)
             do iy = 1, ny
-                call adjoint_points(ny, iy, iy1, iy2)
                 do ix = 1, nx
-                    call adjoint_points(nx, ix, ix1, ix2)
                     bx1 = bx(ix, iy, iz)
                     by1 = by(ix, iy, iz)
                     bz1 = bz(ix, iy, iz)
                     btot1 = absB(ix, iy, iz)
                     ib2 = 1.0/(btot1*btot1)
 
-                    duxdt = (udx2(ix,iy,iz)-udx1(ix,iy,iz)) * idt*0.5
-                    duydt = (udy2(ix,iy,iz)-udy1(ix,iy,iz)) * idt*0.5
-                    duzdt = (udz2(ix,iy,iz)-udz1(ix,iy,iz)) * idt*0.5
+                    duxdt = (udx2(ix,iy,iz)-udx1(ix,iy,iz)) * idt
+                    duydt = (udy2(ix,iy,iz)-udy1(ix,iy,iz)) * idt
+                    duzdt = (udz2(ix,iy,iz)-udz1(ix,iy,iz)) * idt
 
-                    duxdt = (ux(ix2,iy,iz)-ux(ix1,iy,iz))*ux(ix,iy,iz)*idxh + &
-                            (ux(ix,iy2,iz)-ux(ix,iy1,iz))*uy(ix,iy,iz)*idyh + &
-                            (ux(ix,iy,iz2)-ux(ix,iy,iz1))*uz(ix,iy,iz)*idzh + duxdt
-                    duydt = (uy(ix2,iy,iz)-uy(ix1,iy,iz))*ux(ix,iy,iz)*idxh + &
-                            (uy(ix,iy2,iz)-uy(ix,iy1,iz))*uy(ix,iy,iz)*idyh + &
-                            (uy(ix,iy,iz2)-uy(ix,iy,iz1))*uz(ix,iy,iz)*idzh + duydt
-                    duzdt = (uz(ix2,iy,iz)-uz(ix1,iy,iz))*ux(ix,iy,iz)*idxh + &
-                            (uz(ix,iy2,iz)-uz(ix,iy1,iz))*uy(ix,iy,iz)*idyh + &
-                            (uz(ix,iy,iz2)-uz(ix,iy,iz1))*uz(ix,iy,iz)*idzh + duzdt
+                    duxdt = (ux(ixh(ix),iy,iz)-ux(ixl(ix),iy,iz))*ux(ix,iy,iz)*idx(ix) + &
+                            (ux(ix,iyh(iy),iz)-ux(ix,iyl(iy),iz))*uy(ix,iy,iz)*idy(iy) + &
+                            (ux(ix,iy,izh(iz))-ux(ix,iy,izl(iz)))*uz(ix,iy,iz)*idz(iz) + duxdt
+                    duydt = (uy(ixh(ix),iy,iz)-uy(ixl(ix),iy,iz))*ux(ix,iy,iz)*idx(ix) + &
+                            (uy(ix,iyh(iy),iz)-uy(ix,iyl(iy),iz))*uy(ix,iy,iz)*idy(iy) + &
+                            (uy(ix,iy,izh(iz))-uy(ix,iy,izl(iz)))*uz(ix,iy,iz)*idz(iz) + duydt
+                    duzdt = (uz(ixh(ix),iy,iz)-uz(ixl(ix),iy,iz))*ux(ix,iy,iz)*idx(ix) + &
+                            (uz(ix,iyh(iy),iz)-uz(ix,iyl(iy),iz))*uy(ix,iy,iz)*idy(iy) + &
+                            (uz(ix,iy,izh(iz))-uz(ix,iy,izl(iz)))*uz(ix,iy,iz)*idz(iz) + duzdt
                     jx1(ix,iy,iz) = -(duydt*bz1-duzdt*by1)*num_rho(ix,iy,iz)*ib2
                     jy1(ix,iy,iz) = -(duzdt*bx1-duxdt*bz1)*num_rho(ix,iy,iz)*ib2
                     jz1(ix,iy,iz) = -(duxdt*by1-duydt*bx1)*num_rho(ix,iy,iz)*ib2

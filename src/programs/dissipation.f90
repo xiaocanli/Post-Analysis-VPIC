@@ -10,6 +10,7 @@ program dissipation
     use pic_fields, only: open_pic_fields, init_pic_fields, &
                           free_pic_fields, close_pic_fields_file
     use saving_flags, only: get_saving_flags
+    use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
     implicit none
     integer :: ct
 
@@ -25,8 +26,13 @@ program dissipation
     call get_saving_flags
 
     call open_pic_fields(species)
+
+    call init_neighbors
+    call get_neighbors
+
     call energy_conversion_from_current
 
+    call free_neighbors
     call free_para_perp_pressure
     call free_pic_fields
     call close_pic_fields_file

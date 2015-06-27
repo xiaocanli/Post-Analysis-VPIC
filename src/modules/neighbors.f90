@@ -9,7 +9,7 @@ module neighbors_module
     implicit none
     private
     public ixl, ixh, iyl, iyh, izl, izh, idx, idy, idz
-    public adjoint_points
+    public init_neighbors, free_neighbors, get_neighbors
 
     ! The indices of the neighbors.
     integer, allocatable, dimension(:) :: ixl, ixh, iyl, iyh, izl, izh
@@ -18,33 +18,33 @@ module neighbors_module
 
     contains
 
-    !---------------------------------------------------------------------------
-    ! Decide the two adjoint points.
-    ! Input:
-    !   ntot: total number of points in this dimension.
-    !   cindex: index of current point.
-    ! Output:
-    !   index1: index of left/bottom point. 
-    !   index2: index of the right/top point.
-    !---------------------------------------------------------------------------
-    subroutine adjoint_points(ntot, cindex, index1, index2)
-        implicit none
-        integer, intent(in) :: ntot, cindex
-        integer, intent(out) :: index1, index2
-        if (ntot == 1) then
-            index1 = 1
-            index2 = 1
-        else if (cindex == 1) then
-            index1 = 1
-            index2 = 2
-        else if (cindex == ntot) then
-            index1 = ntot-1
-            index2 = ntot
-        else
-            index1 = cindex - 1
-            index2 = cindex + 1
-        endif
-    end subroutine adjoint_points
+    ! !---------------------------------------------------------------------------
+    ! ! Decide the two adjoint points.
+    ! ! Input:
+    ! !   ntot: total number of points in this dimension.
+    ! !   cindex: index of current point.
+    ! ! Output:
+    ! !   index1: index of left/bottom point. 
+    ! !   index2: index of the right/top point.
+    ! !---------------------------------------------------------------------------
+    ! subroutine adjoint_points(ntot, cindex, index1, index2)
+    !     implicit none
+    !     integer, intent(in) :: ntot, cindex
+    !     integer, intent(out) :: index1, index2
+    !     if (ntot == 1) then
+    !         index1 = 1
+    !         index2 = 1
+    !     else if (cindex == 1) then
+    !         index1 = 1
+    !         index2 = 2
+    !     else if (cindex == ntot) then
+    !         index1 = ntot-1
+    !         index2 = ntot
+    !     else
+    !         index1 = cindex - 1
+    !         index2 = cindex + 1
+    !     endif
+    ! end subroutine adjoint_points
 
     !---------------------------------------------------------------------------
     ! Initialize the indices of the neighbors and the inverse of the distance

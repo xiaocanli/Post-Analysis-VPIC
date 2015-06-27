@@ -177,10 +177,12 @@ module para_perp_pressure
         character(len=100) :: fname
         integer :: current_pos, output_record
         logical :: dir_e
-
-        inquire(file='./data/.', exist=dir_e)
-        if (.not. dir_e) then
-            call system('mkdir ./data')
+    
+        if (myid == master) then
+            inquire(file='./data/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir ./data')
+            endif
         endif
 
         call get_average_and_total(ppara, ppara_avg, tot)
