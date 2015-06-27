@@ -34,7 +34,8 @@ add_library(fields STATIC pic_fields.f90 inductive_efield.f90
     para_perp_pressure.f90)
 target_link_libraries(fields statistics get_info)
     
-add_library(jdote STATIC current_densities.f90 jdote_module.f90 global.f90)
+add_library(jdote STATIC current_densities.f90 jdote_module.f90
+    adjoint_points.f90 global.f90)
 
 add_library(file_header STATIC file_header.f90)
 
