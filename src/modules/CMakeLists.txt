@@ -59,4 +59,6 @@ add_library(particle_fieldline particle_fieldline.f90 particle_file.f90
     particle_frames.f90 mpi_setup.f90)
 target_link_libraries(particle_fieldline get_info fieldline_tracing)
 
+add_library(pressure_tensor pressure_tensor.f90)
+
 add_library(compression compression.f90)
