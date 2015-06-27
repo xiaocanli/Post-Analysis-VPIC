@@ -113,7 +113,7 @@ module current_densities
     use pic_fields, only: bx, by, bz, ex, ey, ez, pxx, pxy, pxz, pyy, &
                           pyz, pzz, ux, uy, uz, num_rho, absB, jx, jy, jz
     use para_perp_pressure, only: ppara, pperp
-    use adjoint_points_module, only: adjoint_points
+    use neighbors_module, only: adjoint_points
     use jdote_module, only: jdote, calc_jdote, save_jdote_total
     use mpi_topology, only: htg
     use picinfo, only: domain

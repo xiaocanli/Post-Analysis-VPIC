@@ -2,7 +2,7 @@
 ! Module including the indices of the two adjoint points for finite difference
 ! method.
 !*******************************************************************************
-module adjoint_points_module
+module neighbors_module
     use constants, only: fp, dp
     use mpi_topology, only: htg
     use picinfo, only: domain
@@ -144,4 +144,4 @@ module adjoint_points_module
         enddo
     end subroutine get_neighbors
 
-end module adjoint_points_module
+end module neighbors_module
