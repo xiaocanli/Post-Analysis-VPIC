@@ -16,7 +16,7 @@ program dissipation
 
     call init_analysis
 
-    species = 'e'
+    species = 'i'
     ibtag = '00'
     ct = 1
     call get_ptl_mass_charge(species)
@@ -50,10 +50,8 @@ program dissipation
         use pic_fields, only: open_pic_fields, read_pic_fields, &
                 close_pic_fields_file
         use pic_fields, only: ufields_fh
-        use inductive_electric_field, only: open_velocity_field, &
-                close_velocity_field, calc_indective_e, &
-                init_inductive_electric_field, init_single_fluid_velocity, &
-                free_inductive_electric_field, free_single_fluid_velocity
+        use inductive_electric_field, only: calc_inductive_e, &
+                init_inductive, free_inductive
         use previous_post_velocities, only: init_pre_post_velocities, &
                 read_pre_post_velocities, free_pre_post_velocities
         use current_densities, only: init_current_densities, &
@@ -65,9 +63,7 @@ program dissipation
         integer :: input_record, output_record
 
         if (inductive == 1) then
-            call open_velocity_field(species)
-            call init_single_fluid_velocity
-            call init_inductive_electric_field
+            call init_inductive(species)
         endif
 
         ! Calculate electric current due to all kinds of terms.
@@ -80,7 +76,7 @@ program dissipation
             output_record = input_record - tp1 + 1
             call read_pic_fields(input_record)
             if (inductive == 1) then
-                call calc_indective_e(input_record, species)
+                call calc_inductive_e(input_record, species)
             endif
             call read_pre_post_velocities(input_record, ufields_fh)
             call calc_energy_conversion(input_record)
@@ -91,9 +87,7 @@ program dissipation
         call free_current_densities
 
         if (inductive == 1) then
-            call free_inductive_electric_field
-            call free_single_fluid_velocity
-            call close_velocity_field
+            call free_inductive(species)
         endif
     end subroutine energy_conversion_from_current
 
