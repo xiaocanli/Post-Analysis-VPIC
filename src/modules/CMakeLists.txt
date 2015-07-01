@@ -30,9 +30,15 @@ target_link_libraries(electric_field get_info parameters)
 add_library(fieldline_tracing STATIC fieldline_tracing.f90 global.f90)
 target_link_libraries(fieldline_tracing magnetic_field)
 
-add_library(fields STATIC pic_fields.f90 inductive_efield.f90
-    para_perp_pressure.f90)
-target_link_libraries(fields statistics get_info saving_flags)
+add_library(pic_fields pic_fields.f90 global.f90)
+target_link_libraries(pic_fields get_info saving_flags)
+
+add_library(usingle usingle.f90 global.f90)
+target_link_libraries(usingle get_info pic_fields)
+
+add_library(fields STATIC inductive_efield.f90 para_perp_pressure.f90)
+target_link_libraries(fields statistics get_info saving_flags pic_fields
+    usingle)
     
 add_library(jdote STATIC current_densities.f90 jdote_module.f90
     neighbors.f90 global.f90)
@@ -62,8 +68,5 @@ target_link_libraries(particle_fieldline get_info fieldline_tracing)
 
 add_library(pressure_tensor pressure_tensor.f90 neighbors.f90 global.f90)
 target_link_libraries(pressure_tensor get_info)
-
-add_library(usingle usingle.f90 global.f90)
-target_link_libraries(usingle get_info fields)
 
 add_library(compression compression.f90 global.f90)
