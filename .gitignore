@@ -10,6 +10,7 @@ spectrum/
 vdistributions/
 src/distribution/
 src/others/
+python/*.pyc
 bulk_flow_energy
 calc_agyrotropy
 dissipation

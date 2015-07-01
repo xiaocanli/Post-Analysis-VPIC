@@ -237,4 +237,4 @@ def get_variable_value(variable_name, current_line, content):
     return (variable_value, line_number)
 
 if __name__ == "__main__":
-    pic_info = get_pic_info('..')
+    pic_info = get_pic_info('../..')
