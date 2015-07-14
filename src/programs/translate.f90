@@ -80,7 +80,8 @@ program translate
     subroutine init_analysis
         use mpi_module
         use path_info, only: get_file_paths
-        use picinfo, only: read_domain, broadcast_pic_info, write_pic_info
+        use picinfo, only: read_domain, broadcast_pic_info, write_pic_info, &
+                get_energy_band_number
         use configuration_translate, only: read_configuration
         use topology, only: set_topology, set_start_stop_cells
         use time_info, only: get_nout, adjust_tindex_start, set_output_record
@@ -96,9 +97,10 @@ program translate
         call get_file_paths
         if (myid == master) then
             call read_domain
-            !call write_pic_info
+            call write_pic_info
         endif
         call broadcast_pic_info
+        call get_energy_band_number
         call read_configuration
         call set_topology
         call set_start_stop_cells
