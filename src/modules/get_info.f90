@@ -194,8 +194,8 @@ module picinfo
              access='stream', status='replace', form='unformatted', action='write')
         write(17) domain%nx, domain%ny, domain%nz
         write(17) real(domain%lx_de, kind=4)
-        write(17) real(domain%lx_de, kind=4)
-        write(17) real(domain%lx_de, kind=4)
+        write(17) real(domain%ly_de, kind=4)
+        write(17) real(domain%lz_de, kind=4)
         close(17)
     end subroutine write_pic_info
 
