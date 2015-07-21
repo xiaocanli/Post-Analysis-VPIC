@@ -9,7 +9,9 @@ module pressure_tensor
     use pic_fields, only: pxx, pyy, pzz, pxy, pxz, pyz
     implicit none
     private
-    public pscalar
+    public pscalar, init_scalar_pressure, init_div_ptensor, init_grad_pscalar, &
+           free_scalar_pressure, free_div_ptensor, free_grad_pscalar, &
+           calc_scalar_pressure, calc_grad_pscalar, calc_div_ptensor
 
     real(fp), allocatable, dimension(:, :, :) :: pscalar
     ! Divergence of the pressure tensor.
