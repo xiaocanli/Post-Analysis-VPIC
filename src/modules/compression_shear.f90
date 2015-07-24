@@ -6,6 +6,9 @@ module compression_shear
     use mpi_topology, only: htg
     implicit none
     private
+    public pdiv_u, pshear, udot_div_ptensor, div_u, bbsigma
+    public init_compression_shear, free_compression_shear, &
+           calc_compression
 
     real(fp), allocatable, dimension(:, :, :) :: pdiv_u, pshear
     real(fp), allocatable, dimension(:, :, :) :: udot_div_ptensor
@@ -210,6 +213,17 @@ module compression_shear
         udot_div_ptensor = ux * divp_x + uy * divp_y + uz * divp_z
     end subroutine calc_udot_div_ptensor
 
+
+    !---------------------------------------------------------------------------
+    ! Calculate the compressional and shear heating terms.
+    !---------------------------------------------------------------------------
+    subroutine calc_compression_shear
+        implicit none
+        call calc_compression
+        call calc_shear
+        call calc_udot_div_ptensor
+    end subroutine calc_compression_shear
+
     !---------------------------------------------------------------------------
     ! Save div_u.
     ! Input:
@@ -321,5 +335,144 @@ module compression_shear
 
         call save_field(udot_div_ptensor, 'udot_div_ptensor', ct)
     end subroutine save_udot_div_ptensor
+
+    !---------------------------------------------------------------------------
+    ! Save compressional and shear heating terms.
+    ! Input:
+    !   ct: current time frame.
+    !---------------------------------------------------------------------------
+    subroutine save_compression_shear(ct)
+        implicit none
+        integer, intent(in) :: ct
+        call save_compression(ct)
+        call save_shear(ct)
+        call save_udot_div_ptensor(ct)
+    end subroutine save_compression_shear
+
+    !---------------------------------------------------------------------------
+    ! Save the total of the compressional terms.
+    ! Input:
+    !   ct: current time frame.
+    !---------------------------------------------------------------------------
+    subroutine save_tot_compression(ct)
+        use mpi_module
+        use constants, only: fp
+        use particle_info, only: ibtag, species
+        use statistics, only: get_average_and_total
+        use parameters, only: tp1
+        implicit none
+        integer, intent(in) :: ct
+        real(fp) :: div_u_tot, pdiv_u_tot, avg
+        character(len=100) :: fname
+        integer :: current_pos, output_record
+        logical :: dir_e
+    
+        if (myid == master) then
+            inquire(file='./data/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir ./data')
+            endif
+        endif
+
+        call get_average_and_total(div_u, avg, div_u_tot)
+        call get_average_and_total(pdiv_u, avg, pdiv_u_tot)
+        if (myid == master) then
+            fname = 'data/compression'//ibtag//'_'//species//'.gda'
+            open(unit=51, file=trim(adjustl(fname)), access='stream',&
+                 status='unknown', form='unformatted', action='write')
+            output_record = ct - tp1 + 1
+            current_pos = 2 * sizeof(fp) * (output_record-1) + 1
+            write(51, pos=current_pos) div_u_tot, pdiv_u_tot
+            close(51)
+        endif
+    end subroutine save_tot_compression
+
+    !---------------------------------------------------------------------------
+    ! Save the total of the shear terms.
+    ! Input:
+    !   ct: current time frame.
+    !---------------------------------------------------------------------------
+    subroutine save_tot_shear(ct)
+        use mpi_module
+        use constants, only: fp
+        use particle_info, only: ibtag, species
+        use statistics, only: get_average_and_total
+        use parameters, only: tp1
+        implicit none
+        integer, intent(in) :: ct
+        real(fp) :: bbsigma_tot, pshear_tot, avg
+        character(len=100) :: fname
+        integer :: current_pos, output_record
+        logical :: dir_e
+    
+        if (myid == master) then
+            inquire(file='./data/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir ./data')
+            endif
+        endif
+
+        call get_average_and_total(bbsigma, avg, bbsigma_tot)
+        call get_average_and_total(pshear, avg, pshear_tot)
+        if (myid == master) then
+            fname = 'data/shear'//ibtag//'_'//species//'.gda'
+            open(unit=51, file=trim(adjustl(fname)), access='stream',&
+                 status='unknown', form='unformatted', action='write')
+            output_record = ct - tp1 + 1
+            current_pos = 2 * sizeof(fp) * (output_record-1) + 1
+            write(51, pos=current_pos) bbsigma_tot, pshear_tot
+            close(51)
+        endif
+    end subroutine save_tot_shear
+
+    !---------------------------------------------------------------------------
+    ! Save the total of udot_div_ptensor.
+    ! Input:
+    !   ct: current time frame.
+    !---------------------------------------------------------------------------
+    subroutine save_tot_udot_div_ptensor(ct)
+        use mpi_module
+        use constants, only: fp
+        use particle_info, only: ibtag, species
+        use statistics, only: get_average_and_total
+        use parameters, only: tp1
+        implicit none
+        integer, intent(in) :: ct
+        real(fp) :: udot_div_ptensor_tot, avg
+        character(len=100) :: fname
+        integer :: current_pos, output_record
+        logical :: dir_e
+    
+        if (myid == master) then
+            inquire(file='./data/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir ./data')
+            endif
+        endif
+
+        call get_average_and_total(udot_div_ptensor, avg, udot_div_ptensor_tot)
+        if (myid == master) then
+            fname = 'data/shear'//ibtag//'_'//species//'.gda'
+            open(unit=51, file=trim(adjustl(fname)), access='stream',&
+                 status='unknown', form='unformatted', action='write')
+            output_record = ct - tp1 + 1
+            current_pos = sizeof(fp) * (output_record-1) + 1
+            write(51, pos=current_pos) udot_div_ptensor_tot
+            close(51)
+        endif
+    end subroutine save_tot_udot_div_ptensor
+
+    !---------------------------------------------------------------------------
+    ! Save the total of the compressional and shear heating terms.
+    ! Input:
+    !   ct: current time frame.
+    !---------------------------------------------------------------------------
+    subroutine save_tot_compression_shear(ct)
+        implicit none
+        integer, intent(in) :: ct
+        call save_tot_compression(ct)
+        call save_tot_shear(ct)
+        call save_tot_udot_div_ptensor(ct)
+    end subroutine save_tot_compression_shear
 
 end module compression_shear
