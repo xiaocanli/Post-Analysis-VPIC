@@ -48,6 +48,10 @@ add_executable(bulk_flow_energy bulk_flow_energy.f90)
 target_link_libraries(bulk_flow_energy ${MPI_Fortran_LIBRARIES}
     analysis_config fields)
 
+add_executable(compression compression.f90)
+target_link_libraries(compression ${MPI_Fortran_LIBRARIES} analysis_config
+    fields compression_shear)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -60,3 +64,4 @@ install (TARGETS vdist_2d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_1d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS nrho_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS bulk_flow_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS compression DESTINATION ${CMAKE_INSTALL_PREFIX})
