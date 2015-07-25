@@ -8,7 +8,8 @@ module compression_shear
     private
     public pdiv_u, pshear, udot_div_ptensor, div_u, bbsigma
     public init_compression_shear, free_compression_shear, &
-           calc_compression
+           calc_compression_shear, save_compression_shear, &
+           save_tot_compression_shear
 
     real(fp), allocatable, dimension(:, :, :) :: pdiv_u, pshear
     real(fp), allocatable, dimension(:, :, :) :: udot_div_ptensor
@@ -109,7 +110,7 @@ module compression_shear
 
         do iy = 1, ny
             div_u(:, iy, :) = div_u(:, iy, :) + &
-                (uy(:, iyh(iy), :) - ux(:, iyl(iy), :)) * idy(iy)
+                (uy(:, iyh(iy), :) - uy(:, iyl(iy), :)) * idy(iy)
         enddo
 
         do iz = 1, nz
@@ -125,7 +126,7 @@ module compression_shear
         use pressure_tensor, only: pscalar
         implicit none
 
-        pdiv_u = pscalar * div_u
+        pdiv_u = - pscalar * div_u
     end subroutine calc_pdiv_u
 
     !---------------------------------------------------------------------------
@@ -156,7 +157,7 @@ module compression_shear
                  do ix = 1, nx
                     sigma_xx = (ux(ixh(ix), iy, iz) - ux(ixl(ix), iy, iz)) * &
                                idx(ix) - div_u(ix, iy, iz) / 3.0
-                    sigma_yy = (uy(ix, iyh(iy), iz) - ux(ix, iyl(iy), iz)) * &
+                    sigma_yy = (uy(ix, iyh(iy), iz) - uy(ix, iyl(iy), iz)) * &
                                idy(iy) - div_u(ix, iy, iz) / 3.0
                     sigma_zz = (uz(ix, iy, izh(iz)) - uz(ix, iy, izl(iz))) * &
                                idz(iz) - div_u(ix, iy, iz) / 3.0
@@ -177,11 +178,13 @@ module compression_shear
                     bzc = bz(ix, iy, iz)
                     bbsigma(ix, iy, iz) = bxc**2 * sigma_xx + &
                         byc**2 * sigma_yy + bzc**2 * sigma_zz + &
-                        bxc * byc * sigma_xy + bxc * bzc * sigma_xz + &
-                        byc * bzc * sigma_yz
+                        2.0 * bxc * byc * sigma_xy + &
+                        2.0 * bxc * bzc * sigma_xz + &
+                        2.0 * byc * bzc * sigma_yz
                  enddo
             enddo
         enddo
+        bbsigma = bbsigma / absB**2
     end subroutine calc_bbsigma
 
     !---------------------------------------------------------------------------
@@ -191,7 +194,7 @@ module compression_shear
     subroutine calc_pshear
         use para_perp_pressure, only: ppara, pperp
         implicit none
-        pshear = (ppara - pperp) * bbsigma
+        pshear = (pperp - ppara) * bbsigma
     end subroutine calc_pshear
 
     !---------------------------------------------------------------------------
