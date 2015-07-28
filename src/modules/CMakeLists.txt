@@ -67,7 +67,7 @@ add_library(particle_fieldline particle_fieldline.f90 particle_file.f90
 target_link_libraries(particle_fieldline get_info fieldline_tracing)
 
 add_library(pressure_tensor pressure_tensor.f90 neighbors.f90 global.f90)
-target_link_libraries(pressure_tensor get_info)
+target_link_libraries(pressure_tensor get_info fields)
 
 add_library(compression_shear compression_shear.f90 global.f90
     para_perp_pressure.f90)
