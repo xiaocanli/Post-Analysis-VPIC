@@ -127,7 +127,14 @@ module particle_fields
 
         tindex = tindex0
         !! Index 0 does not have proper current, so use index 1 if it exists
-        !if (tindex == 0) tindex = 1
+        if (tindex == 0) then
+            write(fname, "(A,I0,A1,A1,A6,I0,A1,I0)") &
+                trim(adjustl(rootpath))//"hydro/T.", 1, "/", species, &
+                "hydro.", 1, ".", pic_mpi_id
+            is_exist = .false.
+            inquire(file=trim(fname), exist=is_exist)
+            if (is_exist) tindex = 1
+        endif
         write(fname, "(A,I0,A1,A1,A6,I0,A1,I0)") &
             trim(adjustl(rootpath))//"hydro/T.", tindex, "/", species, &
             "hydro.", tindex, ".", pic_mpi_id
