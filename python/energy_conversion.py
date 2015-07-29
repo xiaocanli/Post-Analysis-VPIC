@@ -170,11 +170,11 @@ def read_jdote_data(species):
     Args:
         species: particle species. 'e' for electron, 'h' for ion.
     """
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
     ntf = pic_info.ntf
     dt_fields = pic_info.dt_fields
     dtf_wpe = dt_fields * pic_info.dtwpe / pic_info.dtwci
-    fname = "data/jdote00_" + species + ".gda"
+    fname = "../data/jdote00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -258,7 +258,7 @@ def plot_jdotes_evolution(species):
         species: particle species. 'e' for electron, 'h' for ion.
     """
     jdote = read_jdote_data(species)
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
 #    jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote + \
 #            jdote.jmag_dote + jdote.jpolar_dote + \
 #            jdote.jagy_dote + jdote.jqnupara_dote
@@ -334,13 +334,23 @@ def plot_jdotes_evolution(species):
     #ax1.legend(loc=1, prop={'size':16}, ncol=2,
     #        shadow=True, fancybox=True)
 
-    ax1.text(690, 2, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20)
-    ax1.text(690, 5, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20)
-    ax1.text(550, 5, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20)
-    ax1.text(550, -6, r'$dK_e/dt$', color='k', fontsize=20)
-    ax1.text(690, -6, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m', fontsize=20)
+    ax1.text(0.6, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.8, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.8, 0.6, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.6, 0.1, r'$dK_e/dt$', color='k', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.8, 0.1, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
+            fontsize=20, horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
 
-    td = 320
+    td = 100
     print 'The fraction of perpendicular heating (model): ', \
             jdote_tot_drifts_int[td]/(kene[td]-kene[0])
     print 'The fraction of perpendicular heating (simulation): ', \
@@ -356,7 +366,7 @@ def plot_jpara_perp_dote():
 
     """
     jdote = read_jdote_data('e')
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
 
     tfields = pic_info.tfields
     tenergy = pic_info.tenergy
@@ -426,14 +436,83 @@ def plot_jpara_perp_dote():
     ax2.text(10, 8, r'$(i)$', color='black', fontsize=24,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0))
 
-    fig.savefig('jpp_dote.eps')
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig.savefig('../img/jpp_dote.eps')
 
     plt.show()
 
+
+def plot_bulk_energy(pic_info, species):
+    """Plot energy time evolution.
+
+    Plot time evolution of magnetic, electric, electron and ion kinetic
+    energies. 
+    """
+    tenergy = pic_info.tenergy
+    kene_e = pic_info.kene_e
+    kene_i = pic_info.kene_i
+    tfields = pic_info.tfields
+
+    # enorm = ene_bx[0]
+
+    fname = '../data/bulk_internal_energy_' + species + '.dat'
+    f = open(fname, 'r')
+    content = np.genfromtxt(f)
+    ux2 = content[:, 0]
+    uy2 = content[:, 1]
+    uz2 = content[:, 2]
+    pxx = content[:, 3]
+    pyy = content[:, 4]
+    pzz = content[:, 5]
+    f.close()
+
+    ratio_ene = (ux2 + uy2 + uz2) / (pxx + pyy + pzz)
+    fig = plt.figure(figsize=[7, 7])
+    w1, h1 = 0.8, 0.25
+    xs, ys = 0.15, 0.96 - h1
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p1, = ax1.plot(tfields, ux2, linewidth=2, color='r', label=r'$x$')
+    p2, = ax1.plot(tfields, uy2, linewidth=2, color='g', label=r'$y$')
+    p3, = ax1.plot(tfields, uz2, linewidth=2, color='b', label=r'$z$')
+    ax1.set_ylabel(r'Bulk', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=16)
+    ax1.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+
+    ys -= h1 + 0.05
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    p4, = ax2.plot(tfields, pxx, linewidth=2, color='r', label=r'$x$')
+    p5, = ax2.plot(tfields, pyy, linewidth=2, color='g', label=r'$y$')
+    p6, = ax2.plot(tfields, pzz, linewidth=2, color='b', label=r'$z$')
+    ax2.legend(loc=4, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax2.set_ylabel(r'Internal', fontdict=font, fontsize=20)
+    ax2.tick_params(axis='x', labelbottom='off')
+    ax2.tick_params(labelsize=16)
+
+    ys -= h1 + 0.05
+    ax3 = fig.add_axes([xs, ys, w1, h1])
+    p7, = ax3.plot(tfields, ratio_ene, linewidth=2, color='k')
+    ax3.legend(loc=4, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax3.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax3.set_ylabel(r'Bulk/Internal', fontdict=font, fontsize=20)
+    ax3.tick_params(labelsize=16)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fname = '../img/bulk_internal_ene_' + species + '.eps'
+    fig.savefig(fname)
+    plt.show()
+
+
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
     jdote = read_jdote_data('e')
-    #plot_energy_evolution(pic_info)
-    #plot_particle_energy_gain()
-    #plot_jdotes_evolution('i')
+    # plot_energy_evolution(pic_info)
+    # plot_particle_energy_gain()
+    # plot_jdotes_evolution('e')
     plot_jpara_perp_dote()
+    # plot_bulk_energy(pic_info, 'i')

@@ -1,6 +1,7 @@
 """
 Analysis procedures for 2D contour plots.
 """
+import os
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -136,9 +137,9 @@ def plot_jy(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
-    x, z, jy = read_2d_fields(pic_info, "../data/jy.gda", **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../data/Ay.gda", **kwargs) 
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
+    x, z, jy = read_2d_fields(pic_info, "../../data/jy.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     nx, = x.shape
     nz, = z.shape
     width = 0.75
@@ -151,7 +152,7 @@ def plot_jy(pic_info, species, current_time):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
-    #p1.set_cmap(plt.cm.seismic)
+    p1.set_cmap(plt.cm.seismic)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
@@ -165,11 +166,16 @@ def plot_jy(pic_info, species, current_time):
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=24)
 
-    fname = 'img_jy2/jy_' + species + '_' + str(current_time).zfill(3) + '.jpg'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    if not os.path.isdir('../img/img_jy2/'):
+        os.makedirs('../img/img_jy2/')
+    fname = '../img/img_jy2/jy_' + species + '_' + \
+            str(current_time).zfill(3) + '.jpg'
     fig.savefig(fname, dpi=200)
 
-    #plt.show()
-    plt.close()
+    plt.show()
+    # plt.close()
 
 def plot_number_density(pic_info, species, current_time):
     """Plot plasma beta and number density.
@@ -207,7 +213,11 @@ def plot_number_density(pic_info, species, current_time):
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=32)
 
-    fname = 'img_num_rho/num_rho_' + species + '_' + \
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    if not os.path.isdir('../img/img_num_rho/'):
+        os.makedirs('../img/img_num_rho/')
+    fname = '../img/img_num_rho/num_rho_' + species + '_' + \
             str(current_time).zfill(3) + '.jpg'
     fig.savefig(fname)
 
@@ -221,24 +231,24 @@ def plot_anistropy(pic_info, species):
         pic_info: namedtuple for the PIC simulation information.
         species: 'e' for electrons, 'i' for ions.
     """
-    kwargs = {"current_time":100, "xl":0, "xr":200, "zb":10, "zt":20}
-    fname = '../data/p' + species + '-xx.gda'
+    kwargs = {"current_time":37, "xl":0, "xr":200, "zb":-20, "zt":20}
+    fname = '../../data/p' + species + '-xx.gda'
     x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../data/p' + species + '-yy.gda'
+    fname = '../../data/p' + species + '-yy.gda'
     x, z, pyy = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../data/p' + species + '-zz.gda'
+    fname = '../../data/p' + species + '-zz.gda'
     x, z, pzz = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../data/p' + species + '-xy.gda'
+    fname = '../../data/p' + species + '-xy.gda'
     x, z, pxy = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../data/p' + species + '-xz.gda'
+    fname = '../../data/p' + species + '-xz.gda'
     x, z, pxz = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../data/p' + species + '-yz.gda'
+    fname = '../../data/p' + species + '-yz.gda'
     x, z, pyz = read_2d_fields(pic_info, fname, **kwargs) 
-    x, z, bx = read_2d_fields(pic_info, "../data/bx.gda", **kwargs) 
-    x, z, by = read_2d_fields(pic_info, "../data/by.gda", **kwargs) 
-    x, z, bz = read_2d_fields(pic_info, "../data/bz.gda", **kwargs) 
-    x, z, absB = read_2d_fields(pic_info, "../data/absB.gda", **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../data/Ay.gda", **kwargs) 
+    x, z, bx = read_2d_fields(pic_info, "../../data/bx.gda", **kwargs) 
+    x, z, by = read_2d_fields(pic_info, "../../data/by.gda", **kwargs) 
+    x, z, bz = read_2d_fields(pic_info, "../../data/bz.gda", **kwargs) 
+    x, z, absB = read_2d_fields(pic_info, "../../data/absB.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + \
             pxy*bx*by*2.0 + pxz*bx*bz*2.0 + pyz*by*bz*2.0
     ppara /= absB * absB
@@ -269,13 +279,13 @@ def plot_beta_rho(pic_info):
     Args:
         pic_info: namedtuple for the PIC simulation information.
     """
-    kwargs = {"current_time":40, "xl":0, "xr":200, "zb":-10, "zt":10}
-    x, z, pexx = read_2d_fields(pic_info, "../data/pe-xx.gda", **kwargs) 
-    x, z, peyy = read_2d_fields(pic_info, "../data/pe-yy.gda", **kwargs) 
-    x, z, pezz = read_2d_fields(pic_info, "../data/pe-zz.gda", **kwargs) 
-    x, z, absB = read_2d_fields(pic_info, "../data/absB.gda", **kwargs) 
-    x, z, eEB05 = read_2d_fields(pic_info, "../data/eEB05.gda", **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../data/Ay.gda", **kwargs) 
+    kwargs = {"current_time":37, "xl":0, "xr":200, "zb":-20, "zt":20}
+    x, z, pexx = read_2d_fields(pic_info, "../../data/pe-xx.gda", **kwargs) 
+    x, z, peyy = read_2d_fields(pic_info, "../../data/pe-yy.gda", **kwargs) 
+    x, z, pezz = read_2d_fields(pic_info, "../../data/pe-zz.gda", **kwargs) 
+    x, z, absB = read_2d_fields(pic_info, "../../data/absB.gda", **kwargs) 
+    x, z, eEB05 = read_2d_fields(pic_info, "../../data/eEB05.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     nx, = x.shape
     nz, = z.shape
     beta_e = (pexx+peyy+pezz)*2/(3*absB**2)
@@ -303,7 +313,9 @@ def plot_beta_rho(pic_info):
     ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax2.set_title(r'$n_{acc}/n_e$', fontsize=24)
     cbar2.set_ticks(np.arange(0.2, 1.0, 0.2))
-    fig.savefig('beta_e_ne_2.eps')
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig.savefig('../img/beta_e_ne_2.eps')
     plt.show()
 
 def plot_jdote_2d(pic_info):
@@ -374,14 +386,14 @@ def plot_phi_parallel(pic_info):
     Args:
         pic_info: namedtuple for the PIC simulation information.
     """
-    kwargs = {"current_time":20, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time":37, "xl":0, "xr":200, "zb":-50, "zt":50}
     x, z, phi_para = read_2d_fields(pic_info, 
             "../../data1/phi_para.gda", **kwargs) 
     #x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
 
     #phi_para_new = phi_para
-    #phi_para_new = signal.medfilt2d(phi_para, kernel_size=(9,9))
-    phi_para_new = signal.wiener(phi_para, mysize=5)
+    phi_para_new = signal.medfilt2d(phi_para, kernel_size=(9,9))
+    #phi_para_new = signal.wiener(phi_para, mysize=5)
     #ng = 9
     #kernel = np.ones((ng,ng)) / float(ng*ng)
     #phi_para_new = signal.convolve2d(phi_para, kernel)
@@ -473,7 +485,11 @@ def plot_Ey(pic_info, species, current_time):
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=24)
 
-    fname = 'img_ey/ey_' + str(current_time).zfill(3) + '.jpg'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    if not os.path.isdir('../img/img_ey/'):
+        os.makedirs('../img/img_ey/')
+    fname = '../img/img_ey/ey_' + str(current_time).zfill(3) + '.jpg'
     fig.savefig(fname, dpi=200)
 
     #plt.show()
@@ -518,7 +534,11 @@ def plot_jy_Ey(pic_info, species, current_time):
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=24)
 
-    fname = 'img_jy_ey/jy_ey' + '_' + str(current_time).zfill(3) + '.jpg'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    if not os.path.isdir('../img/img_jy_ey/'):
+        os.makedirs('../img/img_jy_ey/')
+    fname = '../img/img_jy_ey/jy_ey' + '_' + str(current_time).zfill(3) + '.jpg'
     fig.savefig(fname, dpi=200)
 
     #plt.show()
@@ -527,19 +547,19 @@ def plot_jy_Ey(pic_info, species, current_time):
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    #plot_beta_rho(pic_info)
-    #plot_jdote_2d(pic_info)
-    #plot_anistropy(pic_info, 'i')
-    plot_phi_parallel(pic_info)
-    #maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
-    #nmaps = len(maps) + 1
-    #print nmaps
+    # plot_beta_rho(pic_info)
+    # plot_jdote_2d(pic_info)
+    # plot_anistropy(pic_info, 'e')
+    # plot_phi_parallel(pic_info)
+    # maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
+    # nmaps = len(maps) + 1
+    # print nmaps
     # for i in range(pic_info.ntf):
     #     # plot_number_density(pic_info, 'e', i)
     #     # plot_jy(pic_info, 'e', i)
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
-    # plot_jy(pic_info, 'e', 40)
+    # plot_jy(pic_info, 'e', 12)
     # plot_Ey(pic_info, 'e', 40)
     # plot_jy_Ey(pic_info, 'e', 40)
     # for i in range(pic_info.ntf):
