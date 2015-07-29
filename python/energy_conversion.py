@@ -72,6 +72,11 @@ def plot_energy_evolution(pic_info):
             kene_e[0]/enorm, kene_i[0]/enorm
     print 'The ratio of the final kene_e and kene_i to the initial ebx: ',\
             kene_e[-1]/enorm, kene_i[-1]/enorm
+    init_ene = pic_info.ene_electric[0] + pic_info.ene_magnetic[0] + \
+               kene_e[0] + kene_i[0]
+    final_ene = pic_info.ene_electric[-1] + pic_info.ene_magnetic[-1] + \
+               kene_e[-1] + kene_i[-1]
+    print 'Energy conservation: ', final_ene / init_ene
     plt.show()
 
 def plot_particle_energy_gain():
@@ -446,7 +451,7 @@ def plot_jpara_perp_dote():
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     jdote = read_jdote_data('e')
-    # plot_energy_evolution(pic_info)
+    plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
     # plot_jdotes_evolution('e')
     # plot_jpara_perp_dote()
