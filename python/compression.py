@@ -407,7 +407,11 @@ def bulk_energy(pic_info, species, current_time):
 
 
 def compression_time(pic_info, species):
-    """
+    """The time evolution of compression related terms.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
     """
     ntf = pic_info.ntf
     tfields = pic_info.tfields
@@ -554,6 +558,59 @@ def compression_time(pic_info, species):
     fig.savefig(fname)
     plt.show()
 
+
+def density_ratio(pic_info, current_time):
+    """Electron and ion density ratio.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        current_time: current time frame.
+    """
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-15, "zt":15}
+    fname = "../../data/ne.gda"
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = "../../data/ni.gda"
+    x, z, ni = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.7
+    xs = 0.12
+    ys = 0.9 - height
+    fig = plt.figure(figsize=[10,4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":0.5, "vmax":1.5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, ne/ni,
+            ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.seismic)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    cbar1.ax.set_ylabel(r'$n_e/n_i$',
+            fontdict=font, fontsize=24)
+    cbar1.ax.tick_params(labelsize=24)
+    
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    plt.show()
+    # dir = '../img/img_density_ratio/'
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # if not os.path.isdir(dir):
+    #     os.makedirs(dir)
+    # fname = 'density_ratio' + str(current_time).zfill(3) + '.jpg'
+    # fname = dir + fname
+    # fig.savefig(fname)
+    # plt.close()
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
@@ -564,4 +621,5 @@ if __name__ == "__main__":
     # bulk_energy(pic_info, 'e', 12)
     # for ct in range(pic_info.ntf):
     #     bulk_energy(pic_info, 'i', ct)
-    compression_time(pic_info, 'i')
+    # compression_time(pic_info, 'i')
+    density_ratio(pic_info, 40)
