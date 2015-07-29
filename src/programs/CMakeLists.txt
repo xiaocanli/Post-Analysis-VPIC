@@ -44,8 +44,8 @@ add_executable(nrho_eband particle_number_eband.f90)
 target_link_libraries(nrho_eband ${MPI_Fortran_LIBRARIES} analysis_config
     fields)
 
-add_executable(bulk_flow_energy bulk_flow_energy.f90)
-target_link_libraries(bulk_flow_energy ${MPI_Fortran_LIBRARIES}
+add_executable(bulk_internal_energy bulk_internal_energy.f90)
+target_link_libraries(bulk_internal_energy ${MPI_Fortran_LIBRARIES}
     analysis_config fields)
 
 add_executable(compression compression.f90)
@@ -63,5 +63,5 @@ install (TARGETS vdistribution DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_2d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS vdist_1d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS nrho_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
-install (TARGETS bulk_flow_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS bulk_internal_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS compression DESTINATION ${CMAKE_INSTALL_PREFIX})
