@@ -17,6 +17,7 @@ import os.path
 import struct
 import collections
 import pic_information
+import color_maps as cm
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
@@ -152,7 +153,7 @@ def plot_jy(pic_info, species, current_time):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
-    p1.set_cmap(plt.cm.seismic)
+    p1.set_cmap(plt.cm.get_cmap('idl05'))
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
@@ -559,7 +560,7 @@ if __name__ == "__main__":
     #     # plot_jy(pic_info, 'e', i)
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
-    # plot_jy(pic_info, 'e', 12)
+    plot_jy(pic_info, 'e', 12)
     # plot_Ey(pic_info, 'e', 40)
     # plot_jy_Ey(pic_info, 'e', 40)
     # for i in range(pic_info.ntf):
