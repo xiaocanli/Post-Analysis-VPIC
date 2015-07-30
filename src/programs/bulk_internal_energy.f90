@@ -41,6 +41,7 @@ program bulk_flow_energy
         implicit none
         real(fp), allocatable, dimension(:, :) :: bulk_energy, internal_energy
         real(fp) :: bene_tot, bene_avg, iene_tot, iene_avg
+        logical :: dir_e
         integer :: ct
 
         if (myid == master) then
@@ -93,6 +94,12 @@ program bulk_flow_energy
         call free_number_density
         call free_velocity_fields
         call free_pressure_tensor
+
+        dir_e = .false.
+        inquire(file='./data/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir ./data')
+        endif
 
         if (myid == master) then
             open(unit=62, file='data/bulk_internal_energy_'//species//'.dat', &
