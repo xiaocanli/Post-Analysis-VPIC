@@ -38,7 +38,7 @@ def bulk_energy(pic_info, species, current_time):
         species: 'e' for electrons, 'i' for ions.
         current_time: current time frame.
     """
-    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-15, "zt":15}
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
     fname = "../../data/u" + species + "x.gda"
     x, z, ux = read_2d_fields(pic_info, fname, **kwargs) 
     fname = "../../data/u" + species + "y.gda"
@@ -62,14 +62,19 @@ def bulk_energy(pic_info, species, current_time):
 
     internal_ene = (pxx + pyy + pzz) * 0.5
     bulk_ene = 0.5 * ptl_mass * nrho * (ux**2 + uy**2 + uz**2)
+    # gama = 1.0 / np.sqrt(1.0 - (ux**2 + uy**2 + uz**2))
+    # gama = np.sqrt(1.0 + ux**2 + uy**2 + uz**2)
+    # bulk_ene2 = (gama - 1) * ptl_mass * nrho
+
+    # print np.sum(bulk_ene), np.sum(bulk_ene2)
 
     nx, = x.shape
     nz, = z.shape
     width = 0.75
-    height = 0.7
+    height = 0.23
     xs = 0.12
-    ys = 0.9 - height
-    fig = plt.figure(figsize=[10,4])
+    ys = 0.93 - height
+    fig = plt.figure(figsize=[10,6])
     ax1 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep":1, "zstep":1, "is_log":True, "vmin":0.1, "vmax":10.0}
     xstep = kwargs_plot["xstep"]
@@ -78,17 +83,58 @@ def bulk_energy(pic_info, species, current_time):
             ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.seismic)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+            colors='white', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
-    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
-    ax1.tick_params(labelsize=24)
-    cbar1.ax.set_ylabel(r'$K/u$',
-            fontdict=font, fontsize=24)
-    cbar1.ax.tick_params(labelsize=24)
+    # ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=20)
+    cbar1.ax.set_ylabel(r'$K/u$', fontdict=font, fontsize=24)
+    cbar1.ax.tick_params(labelsize=20)
     
     t_wci = current_time*pic_info.dt_fields
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=24)
+
+    ys -= height + 0.05
+    ax2 = fig.add_axes([xs, ys, width, height])
+    if species == 'e':
+        vmax = 0.2
+    else:
+        vmax = 0.8
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":0, "vmax": vmax}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p2, cbar2 = plot_2d_contour(x, z, bulk_ene,
+            ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.nipy_spectral)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='white', linewidths=0.5)
+    ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax2.tick_params(axis='x', labelbottom='off')
+    ax2.tick_params(labelsize=20)
+    cbar2.ax.set_ylabel(r'$K$', fontdict=font, fontsize=24)
+    if species == 'e':
+        cbar2.set_ticks(np.arange(0, 0.2, 0.04))
+    else:
+        cbar2.set_ticks(np.arange(0, 0.9, 0.2))
+    cbar2.ax.tick_params(labelsize=20)
+    
+    ys -= height + 0.05
+    ax3 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":0, "vmax": 0.8}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p3, cbar3 = plot_2d_contour(x, z, internal_ene,
+            ax3, fig, **kwargs_plot)
+    p3.set_cmap(plt.cm.nipy_spectral)
+    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='white', linewidths=0.5)
+    ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax3.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax3.tick_params(labelsize=20)
+    cbar3.ax.set_ylabel(r'$u$', fontdict=font, fontsize=24)
+    cbar3.set_ticks(np.arange(0, 0.9, 0.2))
+    cbar3.ax.tick_params(labelsize=20)
 
     plt.show()
     # if not os.path.isdir('../img/'):
@@ -188,15 +234,9 @@ def bulk_energy_change_rate(pic_info, species, current_time):
 def plot_bulk_energy(pic_info, species):
     """Plot energy time evolution.
 
-    Plot time evolution of magnetic, electric, electron and ion kinetic
-    energies. 
+    Plot time evolution of bulk and internal energies. 
     """
-    tenergy = pic_info.tenergy
-    kene_e = pic_info.kene_e
-    kene_i = pic_info.kene_i
     tfields = pic_info.tfields
-
-    # enorm = ene_bx[0]
 
     fname = '../data/bulk_internal_energy_' + species + '.dat'
     f = open(fname, 'r')
@@ -250,11 +290,58 @@ def plot_bulk_energy(pic_info, species):
     plt.show()
 
 
+def check_energy(pic_info, species):
+    """
+    Check if the sum of bulk and internal energies is the same as the
+    particle energy.
+
+    """
+    tenergy = pic_info.tenergy
+    if species == 'e':
+        kene = pic_info.kene_e
+        label1 = r'$K_e$'
+    else:
+        kene = pic_info.kene_i
+        label1 = r'$K_i$'
+    tfields = pic_info.tfields
+
+    # enorm = ene_bx[0]
+
+    fname = '../data/bulk_internal_energy_' + species + '.dat'
+    f = open(fname, 'r')
+    content = np.genfromtxt(f)
+    ux2 = content[:, 0]
+    uy2 = content[:, 1]
+    uz2 = content[:, 2]
+    pxx = content[:, 3]
+    pyy = content[:, 4]
+    pzz = content[:, 5]
+    f.close()
+
+    ene_tot = ux2 + uy2 + uz2 + pxx + pyy + pzz
+    fig = plt.figure(figsize=[7, 5])
+    w1, h1 = 0.8, 0.8
+    xs, ys = 0.15, 0.96 - h1
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p1, = ax1.plot(tenergy, kene, linewidth=2, color='r',
+            label=label1)
+    p2, = ax1.plot(tfields, ene_tot, linewidth=2, color='b',
+            label='Internal + Bulk')
+    ax1.set_ylabel(r'Energy', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=16)
+    ax1.legend(loc=4, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+
+    plt.show()
+
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    # bulk_energy(pic_info, 'e', 12)
+    bulk_energy(pic_info, 'i', 12)
     # bulk_energy_change_rate(pic_info, 'e', 17)
     # for ct in range(pic_info.ntf):
     #     bulk_energy(pic_info, 'i', ct)
-    plot_bulk_energy(pic_info, 'i')
+    # plot_bulk_energy(pic_info, 'i')
+    # check_energy(pic_info, 'e')
