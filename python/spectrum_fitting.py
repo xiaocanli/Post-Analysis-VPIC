@@ -5,11 +5,13 @@ import numpy as np
 import math
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib import rc
 from scipy.optimize import curve_fit
 import os.path
 import pic_information
 import fitting_funcs
 
+rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
