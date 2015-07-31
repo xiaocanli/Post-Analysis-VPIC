@@ -95,13 +95,13 @@ program bulk_flow_energy
         call free_velocity_fields
         call free_pressure_tensor
 
-        dir_e = .false.
-        inquire(file='./data/.', exist=dir_e)
-        if (.not. dir_e) then
-            call system('mkdir ./data')
-        endif
-
         if (myid == master) then
+            dir_e = .false.
+            inquire(file='./data/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir ./data')
+            endif
+
             open(unit=62, file='data/bulk_internal_energy_'//species//'.dat', &
                 action="write", status="replace")
             do ct = tp1, tp2
