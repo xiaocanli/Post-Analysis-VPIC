@@ -51,7 +51,7 @@ def plot_energy_evolution(pic_info):
             color='r', label=r'$\Delta K_e$')
     p4, = ax.plot(tenergy, 100*ene_electric/enorm, linewidth=2, 
             color='m', label='$100E^2$')
-    ax.set_xlim([0, 50])
+    ax.set_xlim([0, 1190])
     ax.set_ylim([0, 1.05])
 
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
@@ -175,11 +175,11 @@ def read_jdote_data(species):
     Args:
         species: particle species. 'e' for electron, 'h' for ion.
     """
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
     ntf = pic_info.ntf
     dt_fields = pic_info.dt_fields
     dtf_wpe = dt_fields * pic_info.dtwpe / pic_info.dtwci
-    fname = "data/jdote00_" + species + ".gda"
+    fname = "../data/jdote00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -263,7 +263,7 @@ def plot_jdotes_evolution(species):
         species: particle species. 'e' for electron, 'h' for ion.
     """
     jdote = read_jdote_data(species)
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
 #    jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote + \
 #            jdote.jmag_dote + jdote.jpolar_dote + \
 #            jdote.jagy_dote + jdote.jqnupara_dote
@@ -339,13 +339,23 @@ def plot_jdotes_evolution(species):
     #ax1.legend(loc=1, prop={'size':16}, ncol=2,
     #        shadow=True, fancybox=True)
 
-    ax1.text(690, 2, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20)
-    ax1.text(690, 5, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20)
-    ax1.text(550, 5, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20)
-    ax1.text(550, -6, r'$dK_e/dt$', color='k', fontsize=20)
-    ax1.text(690, -6, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m', fontsize=20)
+    ax1.text(0.6, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.8, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.8, 0.6, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.6, 0.1, r'$dK_e/dt$', color='k', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.8, 0.1, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
+            fontsize=20, horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
 
-    td = 320
+    td = 100
     print 'The fraction of perpendicular heating (model): ', \
             jdote_tot_drifts_int[td]/(kene[td]-kene[0])
     print 'The fraction of perpendicular heating (simulation): ', \
@@ -361,7 +371,7 @@ def plot_jpara_perp_dote():
 
     """
     jdote = read_jdote_data('e')
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
 
     tfields = pic_info.tfields
     tenergy = pic_info.tenergy
@@ -431,14 +441,17 @@ def plot_jpara_perp_dote():
     ax2.text(10, 8, r'$(i)$', color='black', fontsize=24,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0))
 
-    fig.savefig('jpp_dote.eps')
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig.savefig('../img/jpp_dote.eps')
 
     plt.show()
 
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
-    # jdote = read_jdote_data('e')
+    jdote = read_jdote_data('e')
     plot_energy_evolution(pic_info)
-    #plot_particle_energy_gain()
-    #plot_jdotes_evolution('i')
+    # plot_particle_energy_gain()
+    # plot_jdotes_evolution('e')
     # plot_jpara_perp_dote()

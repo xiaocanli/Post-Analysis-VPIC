@@ -5,14 +5,16 @@ data/
 data_double_layer/
 data_vdist_1d/
 data_vdist_2d/
+img/
 lib/
 spectrum/
 vdistributions/
 src/distribution/
 src/others/
 python/*.pyc
-bulk_flow_energy
+bulk_internal_energy
 calc_agyrotropy
+compression
 dissipation
 energies_pic.dat
 fileContents.txt

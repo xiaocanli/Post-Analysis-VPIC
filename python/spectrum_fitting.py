@@ -233,16 +233,18 @@ def fit_powerlaw_whole(ene, f, species):
     return (fpower, estart, eend, popt, nportion, eportion)
 
 
-def plot_spectrum(it, species, pic_info, ax):
+def plot_spectrum(it, species, pic_info, ax, is_power, is_thermal):
     """Plotting the energy spectrum.
     Args:
         it: the time point index.
         species: particle species. 'e' for electron, 'h' for ion.
         pic_info: namedtuple for the PIC simulation information.
         ax: axes object.
+        is_power: whether to plot power-law spectrum fitting.
+        is_thermal: whether to plot the thermal core.
     """
     # Get particle spectra energy bins and flux
-    fname = "../spectrum-" + species + "." + str(it).zfill(len(str(it)))
+    fname = "../spectrum/spectrum-" + species + "." + str(it).zfill(len(str(it)))
     nx = pic_info.nx
     ny = pic_info.ny
     nz = pic_info.nz
@@ -255,26 +257,30 @@ def plot_spectrum(it, species, pic_info, ax):
         return
     ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
     # The whole the energy spectrum.
-    p1 = ax.loglog(ene_log_norm, flog, linewidth=2)
+    p1, = ax.loglog(ene_log_norm, flog, linewidth=2)
 
+    color = p1.get_color()
     # Fit the thermal core and plot thermal distribution.
     fthermal = fit_thermal_core(ene_log, flog)
     fnonthermal = flog - fthermal
-    p2, = ax.loglog(ene_log_norm, fthermal, linewidth=2,
-                    color='k', linestyle='--', label='Thermal')
-    # Fit the high energy part as a power-law distribution.
-    fpower_whole, estart, eend, popt, nportion, \
-        eportion = fit_powerlaw_whole(ene_log, flog, species)
-    plot_powerlaw_whole(ene_log_norm, fpower_whole, estart, eend, popt)
+    if is_thermal:
+        p2, = ax.loglog(ene_log_norm, fthermal, linewidth=2,
+                        color='k', linestyle='--', label='Thermal')
+    if is_power:
+        # Fit the high energy part as a power-law distribution.
+        fpower_whole, estart, eend, popt, nportion, \
+            eportion = fit_powerlaw_whole(ene_log, flog, species)
+        plot_powerlaw_whole(ene_log_norm, fpower_whole, estart,
+                            eend, popt, color)
     if (species == 'e'):
-        ax.set_xlim([np.min(ene_log_norm), 2E2])
-        ax.set_ylim([1E-5, 1E2])
+        ax.set_xlim([5E-2, 2E2])
+        ax.set_ylim([1E-3, 2E2])
     else:
         ax.set_xlim([np.min(ene_log_norm), 1E3])
         ax.set_ylim([1E-5, 1E4])
 
 
-def plot_powerlaw_whole(ene, fpower_whole, es, ee, popt):
+def plot_powerlaw_whole(ene, fpower_whole, es, ee, popt, color):
     """Plot power-law fitted spectrum for the overall spectrum.
 
     Args:
@@ -283,14 +289,17 @@ def plot_powerlaw_whole(ene, fpower_whole, es, ee, popt):
         fpower_whole: the fitted power-law spectrum.
         es, ee: the starting and ending energy bin index for fitting.
         popt: the fitting parameters.
+        color: color to plot the line.
 
     """
     powerIndex = "{%0.2f}" % popt[0]
-    pname = '$\sim E^' + powerIndex + '$'
+    # powerIndex = str(-1)
+    pname = '$\sim E^{' + powerIndex + '}$'
     shift = 40
     p1, = plt.loglog(ene[es-shift:ee+shift+1],
-                     fpower_whole[es-shift:ee+shift+1]*2, linewidth=2,
-                     linestyle='--', color='r', label=pname)
+                     fpower_whole[es-shift:ee+shift+1]*4, linewidth=2,
+                     linestyle='--', color=color, label=pname)
+    plt.text(30, 8, pname, color=color, rotation=-0, fontsize=20)
 
 
 def get_normalized_energy(species, ene_bins, pic_info):
@@ -337,6 +346,48 @@ def get_energy_distribution(fname, fnorm):
     return (ene_lin, flin, ene_log, flog)
 
 
+def plot_spectrum_series(ntp, species, pic_info):
+    """Plot a servies of eneryg spectra.
+
+    Args:
+        ntp: total number of time frames.
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: namedtuple for the PIC simulation information.
+    """
+    fig, ax = plt.subplots(figsize=[7, 5])
+    for current_time in range(1, ntp-1, 2):
+        plot_spectrum(current_time, species, pic_info, ax, False, False)
+    plot_spectrum(ntp, species, pic_info, ax, True, False)
+
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
+    eth = gama - 1.0
+    fname = "../spectrum/spectrum-" + species + "." + str(1).zfill(len(str(1)))
+    nx = pic_info.nx
+    ny = pic_info.ny
+    nz = pic_info.nz
+    nppc = pic_info.nppc
+    fnorm = nx * ny * nz * nppc
+    ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
+    ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
+
+    f_intial = fitting_funcs.func_maxwellian(ene_log, fnorm, 1.5/eth)
+    nacc_ene, eacc_ene = accumulated_particle_info(ene_log, f_intial)
+    p41, = ax.loglog(ene_log_norm, f_intial/nacc_ene[-1], linewidth=2, 
+            color='k', linestyle='--', label=r'Initial')
+    ax.set_xlabel('$E/E_{th}$', fontdict=font)
+    ax.set_ylabel('$f(E)/N_0$', fontdict=font)
+    ax.tick_params(labelsize=20)
+    plt.tight_layout()
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig.savefig('../img/spect_time.eps')
+    plt.show()
+
+
 def read_spectrum_data(fname):
     """Read particle energy spectrum data.
 
@@ -359,14 +410,7 @@ def read_spectrum_data(fname):
         return data
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('..')
+    pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
     vthe = pic_info.ntp
-    fig, ax = plt.subplots(figsize=[7, 5])
-    for current_time in range(0, ntp+1, 8):
-        plot_spectrum(current_time, 'h', pic_info, ax)
-    ax.set_xlabel('$E/E_{th}$', fontdict=font)
-    ax.set_ylabel('$f(E)/N_0$', fontdict=font)
-    ax.tick_params(labelsize=20)
-    plt.tight_layout()
-    plt.show()
+    plot_spectrum_series(ntp, 'e', pic_info)
