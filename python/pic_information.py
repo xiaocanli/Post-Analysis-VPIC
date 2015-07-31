@@ -188,6 +188,7 @@ def read_pic_info(base_directory):
     ny = int(ny)
     nz = int(nz)
     nppc, current_line = get_variable_value('nppc', current_line, content)
+    b0, current_line = get_variable_value('b0', current_line, content)
     dtwpe, current_line = get_variable_value('dt*wpe', current_line, content)
     dtwce, current_line = get_variable_value('dt*wce', current_line, content)
     dtwci, current_line = get_variable_value('dt*wci', current_line, content)
@@ -209,11 +210,11 @@ def read_pic_info(base_directory):
 
     pic_information = collections.namedtuple('pic_info',
             ['mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz',
-                'dx_di', 'dy_di', 'dz_di', 'x_di', 'y_di', 'z_di', 'nppc',
+                'dx_di', 'dy_di', 'dz_di', 'x_di', 'y_di', 'z_di', 'nppc', 'b0',
                 'dtwpe', 'dtwce', 'dtwci', 'energy_interval', 'vthi', 'vthe'])
     pic_info = pic_information(mime=mime, lx_di=lx, ly_di=ly, lz_di=lz,
             nx=nx, ny=ny, nz=nz, dx_di=dxdi, dy_di=dydi, dz_di=dzdi, 
-            x_di=x, y_di=y, z_di=z, nppc=nppc, dtwpe=dtwpe, dtwce=dtwce,
+            x_di=x, y_di=y, z_di=z, nppc=nppc, b0=b0, dtwpe=dtwpe, dtwce=dtwce,
             dtwci=dtwci, energy_interval=energy_interval, vthi=vthi, vthe=vthe)
     return pic_info
 
