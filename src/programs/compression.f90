@@ -11,8 +11,8 @@ program compression
     ibtag = '00'
     species = 'e'
     call commit_analysis
-    ! species = 'i'
-    ! call commit_analysis
+    species = 'i'
+    call commit_analysis
 
     call end_analysis
 
@@ -55,7 +55,7 @@ program compression
         call init_scalar_pressure
         call init_div_ptensor
         call init_compression_shear
-        do input_record = tp1, 20
+        do input_record = tp1, tp2
             if (myid==master) print*, input_record
             output_record = input_record - tp1 + 1
             call read_pic_fields(input_record)
