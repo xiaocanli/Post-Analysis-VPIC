@@ -51,7 +51,7 @@ def plot_energy_evolution(pic_info):
             color='r', label=r'$\Delta K_e$')
     p4, = ax.plot(tenergy, 100*ene_electric/enorm, linewidth=2, 
             color='m', label='$100E^2$')
-    ax.set_xlim([0, 1190])
+    ax.set_xlim([0, 50])
     ax.set_ylim([0, 1.05])
 
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
@@ -72,6 +72,11 @@ def plot_energy_evolution(pic_info):
             kene_e[0]/enorm, kene_i[0]/enorm
     print 'The ratio of the final kene_e and kene_i to the initial ebx: ',\
             kene_e[-1]/enorm, kene_i[-1]/enorm
+    init_ene = pic_info.ene_electric[0] + pic_info.ene_magnetic[0] + \
+               kene_e[0] + kene_i[0]
+    final_ene = pic_info.ene_electric[-1] + pic_info.ene_magnetic[-1] + \
+               kene_e[-1] + kene_i[-1]
+    print 'Energy conservation: ', final_ene / init_ene
     plt.show()
 
 def plot_particle_energy_gain():
@@ -431,9 +436,9 @@ def plot_jpara_perp_dote():
     plt.show()
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('..')
-    jdote = read_jdote_data('e')
-    #plot_energy_evolution(pic_info)
+    pic_info = pic_information.get_pic_info('../../')
+    # jdote = read_jdote_data('e')
+    plot_energy_evolution(pic_info)
     #plot_particle_energy_gain()
     #plot_jdotes_evolution('i')
-    plot_jpara_perp_dote()
+    # plot_jpara_perp_dote()
