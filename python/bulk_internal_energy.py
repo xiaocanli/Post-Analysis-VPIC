@@ -279,8 +279,6 @@ def plot_bulk_energy(pic_info, species):
     ys -= h1 + 0.05
     ax3 = fig.add_axes([xs, ys, w1, h1])
     p7, = ax3.plot(tfields, ratio_ene, linewidth=2, color='k')
-    ax3.legend(loc=4, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
     ax3.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax3.set_ylabel(r'Bulk/Internal', fontdict=font, fontsize=20)
     ax3.tick_params(labelsize=16)
@@ -341,9 +339,9 @@ def check_energy(pic_info, species):
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    bulk_energy(pic_info, 'i', 12)
+    # bulk_energy(pic_info, 'i', 12)
     # bulk_energy_change_rate(pic_info, 'e', 17)
     # for ct in range(pic_info.ntf):
     #     bulk_energy(pic_info, 'i', ct)
-    # plot_bulk_energy(pic_info, 'i')
+    plot_bulk_energy(pic_info, 'e')
     # check_energy(pic_info, 'e')
