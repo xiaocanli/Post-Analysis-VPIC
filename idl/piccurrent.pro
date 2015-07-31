@@ -220,7 +220,7 @@ end
 pro ReadPICInfo
     common picinfo
     header = strarr(1)
-    fname = '../info'
+    fname = '../../info'
     openr, lun, fname, /get_lun
     i = 1
     while (i le 6) do begin
@@ -1033,7 +1033,7 @@ pro FieldsImage, dir, qname, it, icumulation, icolor, $
     islimits, ifieldline, isLog, lims, im1, isSaveFigure, $
     zLength, isBuffer, isClose
     common picinfo
-    fname = '../' + dir + '/' + qname + '.gda'
+    fname = '../../' + dir + '/' + qname + '.gda'
     openr, lun1, fname, /get_lun
     data = fltarr(nx, nz)
 
