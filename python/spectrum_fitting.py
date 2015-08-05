@@ -10,6 +10,7 @@ from scipy.optimize import curve_fit
 import os.path
 import pic_information
 import fitting_funcs
+import palettable
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -251,7 +252,11 @@ def plot_spectrum(it, species, pic_info, ax, is_power, is_thermal):
     ny = pic_info.ny
     nz = pic_info.nz
     nppc = pic_info.nppc
-    fnorm = nx * ny * nz * nppc
+    if species == 'e':
+        ptl_mass = 1.0
+    else:
+        ptl_mass = pic_info.mime
+    fnorm = nx * ny * nz * nppc * ptl_mass
     if (os.path.isfile(fname)):
         ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
     else:
@@ -276,10 +281,10 @@ def plot_spectrum(it, species, pic_info, ax, is_power, is_thermal):
                             eend, popt, color)
     if (species == 'e'):
         ax.set_xlim([5E-2, 2E2])
-        ax.set_ylim([1E-3, 2E2])
+        ax.set_ylim([1E-5, 2E2])
     else:
         ax.set_xlim([np.min(ene_log_norm), 1E3])
-        ax.set_ylim([1E-5, 1E4])
+        ax.set_ylim([1E-5, 2E2])
 
 
 def plot_powerlaw_whole(ene, fpower_whole, es, ee, popt, color):
@@ -434,6 +439,42 @@ def plot_spectrum_bulk(ntp, species, pic_info):
     plt.show()
 
 
+def plot_spectrum_bulk(ntp, species, pic_info):
+    """Plot a series of energy spectra at bulk energy decay time.
+
+    Args:
+        ntp: total number of time frames.
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: namedtuple for the PIC simulation information.
+    """
+    fig, ax = plt.subplots(figsize=[7, 5])
+    # ax.set_color_cycle(palettable.colorbrewer.qualitative.Accent_6.mpl_colors)
+    # colors = palettable.colorbrewer.qualitative.Accent_6.mpl_colors
+    colors = ['b', 'g', 'r', 'c', 'm', 'y']
+    ax.set_color_cycle(colors)
+    dtp = int(pic_info.dt_particles) + 1
+    i = 0
+    for ct in range(2, 8):
+        plot_spectrum(ct, species, pic_info, ax, False, False)
+        tname = str(dtp * ct) + '$\Omega_{ci}^{-1}$'
+        ys = 0.6 - 0.1*i
+        ax.text(0.05, ys, tname, color=colors[i], fontsize=20,
+                horizontalalignment='left', verticalalignment='center',
+                transform = ax.transAxes)
+        i += 1
+
+
+    ax.set_xlabel('$E/E_{th}$', fontdict=font)
+    ax.set_ylabel('$f(E)$', fontdict=font)
+    ax.tick_params(labelsize=20)
+    plt.tight_layout()
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fname = 'spect_time_bulk_' + species + '.eps'
+    fig.savefig('../img/' + fname)
+    plt.show()
+
+
 def read_spectrum_data(fname):
     """Read particle energy spectrum data.
 
@@ -458,5 +499,6 @@ def read_spectrum_data(fname):
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    vthe = pic_info.ntp
-    plot_spectrum_series(ntp, 'h', pic_info)
+    vthe = pic_info.vthe
+    # plot_spectrum_series(ntp, 'e', pic_info)
+    plot_spectrum_bulk(ntp, 'e', pic_info)
