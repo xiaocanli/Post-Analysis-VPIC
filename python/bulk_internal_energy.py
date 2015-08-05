@@ -138,16 +138,16 @@ def bulk_energy(pic_info, species, current_time):
     cbar3.set_ticks(np.arange(0, 0.9, 0.2))
     cbar3.ax.tick_params(labelsize=20)
 
-    plt.show()
-    # if not os.path.isdir('../img/'):
-    #     os.makedirs('../img/')
-    # if not os.path.isdir('../img/img_bulk_internal/'):
-    #     os.makedirs('../img/img_bulk_internal/')
-    # dir = '../img/img_bulk_internal/'
-    # fname = 'bulk_internal' + str(current_time).zfill(3) + '_' + species + '.jpg'
-    # fname = dir + fname
-    # fig.savefig(fname)
-    # plt.close()
+    # plt.show()
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    if not os.path.isdir('../img/img_bulk_internal/'):
+        os.makedirs('../img/img_bulk_internal/')
+    dir = '../img/img_bulk_internal/'
+    fname = 'bulk_internal' + str(current_time).zfill(3) + '_' + species + '.jpg'
+    fname = dir + fname
+    fig.savefig(fname, dpi=400)
+    plt.close()
 
 
 def bulk_energy_change_rate(pic_info, species, current_time):
@@ -336,12 +336,149 @@ def check_energy(pic_info, species):
     plt.show()
 
 
+def set_energy_density_bins(nbins):
+    """Set logarithmic energy and number density bins.
+
+    Args:
+        nbins: number of bins.
+    """
+    emin = 1.0E-10
+    emax = 1.0
+    nmin = 0.01
+    nmax = 10.0
+    emin_log = math.log10(emin)
+    emax_log = math.log10(emax)
+    nmin_log = math.log10(nmin)
+    nmax_log = math.log10(nmax)
+    de_log = (emax_log - emin_log) / (nbins - 1)
+    dn_log = (nmax_log - nmin_log) / (nbins - 1)
+    ebins = np.zeros(nbins)
+    nrho_bins = np.zeros(nbins)
+    for i in range(nbins):
+        ebins[i] = emin * 10**(de_log*i)
+        nrho_bins[i] = nmin * 10**(dn_log*i)
+    return (ebins, nrho_bins)
+
+
+def bulk_energy_distribution(pic_info, species):
+    """Get the distribution of bulk flow energy.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+    """
+    if species == 'e':
+        ptl_mass = 1.0
+    else:
+        ptl_mass = pic_info.mime
+
+    nbins = 100
+    ebins, nrho_bins = set_energy_density_bins(nbins)
+
+    ntf = pic_info.ntf
+    ehist = np.zeros((ntf, nbins-1))
+    erho_hist = np.zeros((ntf, nbins-1))
+    nhist = np.zeros((ntf, nbins-1))
+    for ct in range(ntf):
+        kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+        fname = "../../data/u" + species + "x.gda"
+        x, z, ux = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = "../../data/u" + species + "y.gda"
+        x, z, uy = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = "../../data/u" + species + "z.gda"
+        x, z, uz = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = "../../data/n" + species + ".gda"
+        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+        bene = 0.5 * ptl_mass * (ux*ux + uy*uy + uz*uz)
+        bene_density = 0.5 * ptl_mass * nrho * (ux*ux + uy*uy + uz*uz)
+        ehist[ct, :], bin_edges = np.histogram(bene, bins=ebins, density=True)
+        erho_hist[ct, :], bin_edges = np.histogram(bene_density,
+                bins=ebins, density=True)
+        nhist[ct, :], bin_edges = np.histogram(nrho, bins=nrho_bins, density=True)
+    f = open('../data/bulk_energy.dat', 'w')
+    np.savetxt(f, ehist)
+    f.close()
+    f = open('../data/bulk_energy_density.dat', 'w')
+    np.savetxt(f, erho_hist)
+    f.close()
+    f = open('../data/number_density.dat', 'w')
+    np.savetxt(f, nhist)
+    f.close()
+
+def plot_bulk_energy_distribution(pic_info, species):
+    """Get the distribution of bulk flow energy.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+    """
+    nbins = 100
+    ebins, nrho_bins = set_energy_density_bins(nbins)
+
+    ntf = pic_info.ntf
+    ehist = np.zeros((ntf, nbins-1))
+    erho_hist = np.zeros((ntf, nbins-1))
+    nhist = np.zeros((ntf, nbins-1))
+    f = open('../data/bulk_energy.dat', 'r')
+    ehist = np.genfromtxt(f)
+    f.close()
+    f = open('../data/bulk_energy_density.dat', 'r')
+    erho_hist = np.genfromtxt(f)
+    f.close()
+    f = open('../data/number_density.dat', 'r')
+    nhist = np.genfromtxt(f)
+    f.close()
+    tfields = pic_info.tfields
+    fig = plt.figure(figsize=[7, 5])
+    ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
+    tmin = np.min(tfields)
+    tmax = np.max(tfields)
+    emin = np.min(ebins)
+    emax = np.max(ebins)
+    # for ct in range(5, 10):
+    #     p1 = ax.loglog(ebins[1:], erho_hist[ct, :], linewidth=2)
+    # # p1 = ax.imshow(np.log10(erho_hist.transpose()), cmap=plt.cm.jet,
+    # #         extent=[tmin, tmax, emin, emax],
+    # #         aspect='auto', origin='lower',
+    # #         interpolation='spline16')
+    # ax.tick_params(labelsize=20)
+    # plt.show()
+
+    fig = plt.figure(figsize=[7, 5])
+    ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
+    ax.loglog(ebins[1:], ehist[12, :], color='black', linewidth=2)
+    ax.set_xlabel(r'$E_b$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(E_b)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+
+    fig = plt.figure(figsize=[7, 5])
+    ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
+    ax.loglog(ebins[1:], erho_hist[12, :], color='black', linewidth=2)
+    ax.set_xlabel(r'$E_b$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(E_b)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+
+    fig = plt.figure(figsize=[7, 5])
+    ax1 = fig.add_axes([0.18, 0.15, 0.78, 0.8])
+    ax1.loglog(nrho_bins[1:], nhist[12, :], color='black', linewidth=2)
+    fname = r'$n_' + species + '$'
+    ax1.set_xlabel(fname, fontdict=font, fontsize=24)
+    fname = r'$f(n_' + species + ')$'
+    ax1.set_ylabel(fname, fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=20)
+
+    plt.show()
+
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
     # bulk_energy(pic_info, 'i', 12)
     # bulk_energy_change_rate(pic_info, 'e', 17)
-    # for ct in range(pic_info.ntf):
-    #     bulk_energy(pic_info, 'i', ct)
-    plot_bulk_energy(pic_info, 'e')
+    for ct in range(pic_info.ntf):
+        bulk_energy(pic_info, 'e', ct)
+    for ct in range(pic_info.ntf):
+        bulk_energy(pic_info, 'i', ct)
+    # plot_bulk_energy(pic_info, 'i')
     # check_energy(pic_info, 'e')
+    # plot_bulk_energy_distribution(pic_info, 'i')
