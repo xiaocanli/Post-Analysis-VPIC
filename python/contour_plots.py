@@ -282,7 +282,7 @@ def plot_beta_rho(pic_info):
     Args:
         pic_info: namedtuple for the PIC simulation information.
     """
-    kwargs = {"current_time":37, "xl":0, "xr":200, "zb":-20, "zt":20}
+    kwargs = {"current_time":50, "xl":0, "xr":200, "zb":-10, "zt":10}
     x, z, pexx = read_2d_fields(pic_info, "../../data/pe-xx.gda", **kwargs) 
     x, z, peyy = read_2d_fields(pic_info, "../../data/pe-yy.gda", **kwargs) 
     x, z, pezz = read_2d_fields(pic_info, "../../data/pe-zz.gda", **kwargs) 
