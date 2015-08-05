@@ -349,7 +349,7 @@ def get_energy_distribution(fname, fnorm):
 
 
 def plot_spectrum_series(ntp, species, pic_info):
-    """Plot a servies of eneryg spectra.
+    """Plot a series of energy spectra.
 
     Args:
         ntp: total number of time frames.
@@ -367,7 +367,51 @@ def plot_spectrum_series(ntp, species, pic_info):
         vth = pic_info.vthi
     gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
     eth = gama - 1.0
-    fname = "../spectrum/spectrum-" + species + "." + str(1).zfill(len(str(1)))
+    fname = "../spectrum/whole/spectrum-" + species + \
+            "." + str(1).zfill(len(str(1)))
+    nx = pic_info.nx
+    ny = pic_info.ny
+    nz = pic_info.nz
+    nppc = pic_info.nppc
+    fnorm = nx * ny * nz * nppc
+    ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
+    ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
+
+    f_intial = fitting_funcs.func_maxwellian(ene_log, fnorm, 1.5/eth)
+    nacc_ene, eacc_ene = accumulated_particle_info(ene_log, f_intial)
+    p41, = ax.loglog(ene_log_norm, f_intial/nacc_ene[-1], linewidth=2, 
+            color='k', linestyle='--', label=r'Initial')
+    ax.set_xlabel('$E/E_{th}$', fontdict=font)
+    ax.set_ylabel('$f(E)/N_0$', fontdict=font)
+    ax.tick_params(labelsize=20)
+    plt.tight_layout()
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig.savefig('../img/spect_time.eps')
+    plt.show()
+
+
+def plot_spectrum_bulk(ntp, species, pic_info):
+    """Plot a series of energy spectra at bulk energy decay time.
+
+    Args:
+        ntp: total number of time frames.
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: namedtuple for the PIC simulation information.
+    """
+    fig, ax = plt.subplots(figsize=[7, 5])
+    for current_time in range(1, ntp-1, 2):
+        plot_spectrum(current_time, species, pic_info, ax, False, False)
+    plot_spectrum(ntp, species, pic_info, ax, True, False)
+
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
+    eth = gama - 1.0
+    fname = "../spectrum/whole/spectrum-" + species + \
+            "." + str(1).zfill(len(str(1)))
     nx = pic_info.nx
     ny = pic_info.ny
     nz = pic_info.nz
@@ -415,4 +459,4 @@ if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
     vthe = pic_info.ntp
-    plot_spectrum_series(ntp, 'e', pic_info)
+    plot_spectrum_series(ntp, 'h', pic_info)
