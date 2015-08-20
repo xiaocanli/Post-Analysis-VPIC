@@ -132,13 +132,32 @@ def get_fields_frames(base_directory):
     return ntf
 
 def get_output_intervals(dtwci, base_directory):
-    """Get output intervals from sigma.cxx.
+    """
+    Get output intervals from the main configuration file for current PIC
+    simulation.
     
     Args:
         dtwci: the time step in 1/wci.
         base_directory: the base directory for different runs.
     """
-    fname = base_directory + '/sigma.cxx'
+    # Get the file name of the main configuration file.
+    fname = base_directory + '/Makefile'
+    try:
+        f = open(fname, 'r')
+    except IOError:
+        print 'cannot open ', fname
+    else:
+        content = f.readlines()
+        f.close()
+        nlines = len(content)
+        current_line = 0
+        while not 'vpic' in content[current_line]: current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split(".op")
+        word_splits = line_splits[1].split(" ")
+
+    filename = word_splits[1]
+    fname = base_directory + '/' + filename[:-1]
     try:
         f = open(fname, 'r')
     except IOError:
