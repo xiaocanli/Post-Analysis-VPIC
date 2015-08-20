@@ -62,6 +62,27 @@ module picinfo
     contains
 
     !---------------------------------------------------------------------------
+    ! Private function to get the main configuration file name for current PIC
+    ! simulation from the Makefile of VPIC code.
+    !---------------------------------------------------------------------------
+    function get_main_fname() result(fname)
+        implicit none
+        character(len=20) :: fname
+        character(len=150) :: buff
+        integer :: fh, index1
+        fh = 40
+        ! Get the main configuration file for current PIC simulation.
+        open(unit=fh, file=trim(adjustl(rootpath))//'Makefile', status='old')
+        read(fh, '(A)') buff
+        do while (index(buff, 'vpic') == 0)
+            read(fh, '(A)') buff
+        enddo
+        index1 = index(buff, 'op')
+        fname = trim(buff(index1+3:))
+        close(fh)
+    end function get_main_fname
+
+    !---------------------------------------------------------------------------
     ! Get the fields output time interval from the initialization file sigma.cxx.
     ! The interval is defined as "int interval = ...", for example,
     ! int interval = int(2.5/(wci*dt)); 
@@ -76,15 +97,8 @@ module picinfo
         character(len=150) :: buff
         character(len=20) :: fname
         fh = 40
-        ! Get the main configuration file for current PIC simulation.
-        open(unit=fh, file=trim(adjustl(rootpath))//'Makefile', status='old')
-        read(fh, '(A)') buff
-        do while (index(buff, 'vpic') == 0)
-            read(fh, '(A)') buff
-        enddo
-        index1 = index(buff, 'op')
-        fname = trim(buff(index1+3:))
-        close(fh)
+
+        fname = get_main_fname()
 
         open(unit=fh, file=trim(adjustl(rootpath))//trim(adjustl(fname)), status='old')
         read(fh, '(A)') buff
@@ -153,7 +167,7 @@ module picinfo
             domain%lx_de, ',', domain%ly_de, ',', domain%lz_de
         write(*, "(A,I0,A,I0,A,I0)") " nx, ny, nz = ", &
             domain%nx, ',', domain%ny, ',', domain%nz
-        write(*, "(A,F9.6,A,F9.6,A,F9.6)") " dx, dy, dz (de) = ", &
+        write(*, "(A,F14.6,A,F14.6,A,F14.6)") " dx, dy, dz (de) = ", &
             domain%dx, ',', domain%dy, ',', domain%dz
         write(*, "(A,E14.6)") " dtwpe = ", domain%dtwpe
         write(*, "(A,E14.6)") " dtwce = ", domain%dtwce
@@ -176,10 +190,39 @@ module picinfo
         use constants, only: dp
         implicit none
         real(dp) :: tx, ty, tz
-        open(unit=20, file=trim(adjustl(rootpath))//"info.bin", &
-             access='stream', status='unknown', form='unformatted', action='read')
-        read(20) tx, ty, tz
-        close(20)
+        integer :: file_size, fh, index1, index2
+        logical :: ex
+        character(len=150) :: fname, buff
+        ex = .false.
+        fname = trim(adjustl(rootpath))//"info.bin"
+        inquire(file=fname, exist=ex, size=file_size)
+        fh = 20
+        if (ex .and. file_size .ne. 0) then
+            open(unit=fh, file=trim(adjustl(rootpath))//"info.bin", &
+                 access='stream', status='unknown', form='unformatted', action='read')
+            read(fh) tx, ty, tz
+            close(fh)
+        else
+            fname = get_main_fname()
+            open(unit=fh, file=trim(adjustl(rootpath))//trim(adjustl(fname)), status='old')
+            read(fh, '(A)') buff
+            do while (index(buff, 'double topology_x = ') == 0)
+                read(fh, '(A)') buff
+            enddo
+            index1 = index(buff, '=')
+            index2 = index(buff, ';')
+            print*, buff
+            read(buff(index1+1:index2-1), *) tx
+            read(fh, '(A)') buff
+            index1 = index(buff, '=')
+            index2 = index(buff, ';')
+            read(buff(index1+1:index2-1), *) ty
+            read(fh, '(A)') buff
+            index1 = index(buff, '=')
+            index2 = index(buff, ';')
+            read(buff(index1+1:index2-1), *) tz
+            close(fh)
+        endif
         ! Convert to integers
         domain%pic_tx = floor(tx + 0.5)
         domain%pic_ty = floor(ty + 0.5)
@@ -277,9 +320,11 @@ module picinfo
         implicit none
         integer :: fh, index1, index2
         character(len=150) :: buff
+        character(len=20) :: fname
 
         fh = 40
-        open(unit=fh, file=trim(adjustl(rootpath))//'sigma.cxx', status='old')
+        fname = get_main_fname()
+        open(unit=fh, file=trim(adjustl(rootpath))//trim(adjustl(fname)), status='old')
         read(fh, '(A)') buff
         do while (index(buff, 'global->nex') == 0)
             read(fh, '(A)') buff
