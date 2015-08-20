@@ -74,8 +74,19 @@ module picinfo
         real(fp) :: dtf_wci ! The interval in 1/wci
         integer :: fh, index1, index2
         character(len=150) :: buff
+        character(len=20) :: fname
         fh = 40
-        open(unit=fh, file=trim(adjustl(rootpath))//'sigma.cxx', status='old')
+        ! Get the main configuration file for current PIC simulation.
+        open(unit=fh, file=trim(adjustl(rootpath))//'Makefile', status='old')
+        read(fh, '(A)') buff
+        do while (index(buff, 'vpic') == 0)
+            read(fh, '(A)') buff
+        enddo
+        index1 = index(buff, 'op')
+        fname = trim(buff(index1+3:))
+        close(fh)
+
+        open(unit=fh, file=trim(adjustl(rootpath))//trim(adjustl(fname)), status='old')
         read(fh, '(A)') buff
         do while (index(buff, 'int interval = ') == 0)
             read(fh, '(A)') buff
