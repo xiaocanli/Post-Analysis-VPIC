@@ -4,17 +4,22 @@
 program dissipation
     use mpi_module
     use particle_info, only: species, ibtag, get_ptl_mass_charge
+    use analysis_management, only: init_analysis, end_analysis
     implicit none
     integer :: ct
 
     ibtag = '00'
     ct = 1
 
+    call init_analysis
+
     species = 'e'
     call commit_analysis
 
     species = 'i'
     call commit_analysis
+
+    call end_analysis
 
     contains
 
@@ -30,9 +35,7 @@ program dissipation
         use saving_flags, only: get_saving_flags
         use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
         use compression_shear, only: init_div_u, free_div_u
-        use analysis_management, only: init_analysis, end_analysis
         implicit none
-        call init_analysis
 
         call get_ptl_mass_charge(species)
         call init_pic_fields
@@ -52,8 +55,6 @@ program dissipation
         call free_pic_fields
         call close_pic_fields_file
         call free_div_u
-
-        call end_analysis
     end subroutine commit_analysis
 
     !---------------------------------------------------------------------------
