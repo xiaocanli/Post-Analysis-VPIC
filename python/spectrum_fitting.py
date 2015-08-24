@@ -496,9 +496,83 @@ def read_spectrum_data(fname):
         f.close()
         return data
 
+def maximum_energy(ntp, species, pic_info):
+    """Plot a series of energy spectra.
+
+    Args:
+        ntp: total number of time frames.
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: namedtuple for the PIC simulation information.
+    Return:
+        max_ene: the maximum energy at each time step.
+    """
+    max_ene = np.zeros(ntp)
+    for ct in range(1, ntp, 1):
+        # Get particle spectra energy bins and flux
+        fname = "../spectrum/spectrum-" + species + "." + str(ct).zfill(len(str(ct)))
+        nx = pic_info.nx
+        ny = pic_info.ny
+        nz = pic_info.nz
+        nppc = pic_info.nppc
+        if species == 'e':
+            ptl_mass = 1.0
+        else:
+            ptl_mass = pic_info.mime
+        fnorm = nx * ny * nz * nppc * ptl_mass
+        if (os.path.isfile(fname)):
+            ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
+        else:
+            print "ERROR: the spectrum data file doesn't exist."
+            return
+        ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
+        max_ene[ct] = ene_log[np.max(np.nonzero(flog))]
+
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
+    eth = gama - 1.0
+
+    return max_ene/eth
+
+
+def plot_maximum_energy(ntp, pic_info):
+    """Plot a series of energy spectra.
+
+    Args:
+        ntp: total number of time frames.
+        pic_info: namedtuple for the PIC simulation information.
+    """
+    max_ene_e = maximum_energy(ntp, 'e', pic_info)
+    max_ene_i = maximum_energy(ntp, 'h', pic_info)
+
+    fig = plt.figure(figsize=[7, 5])
+    width = 0.69
+    height = 0.8
+    xs = 0.16
+    ys = 0.95 - height
+    ax = fig.add_axes([xs, ys, width, height])
+    tparticles = pic_info.tparticles
+    p1 = ax.plot(tparticles, max_ene_e, color='r', linewidth=2)
+    ax.set_xlabel('$t\Omega_{ci}$', fontdict=font)
+    ax.set_ylabel('$E_{maxe}/E_{the}$', fontdict=font, color='r')
+    for tl in ax.get_yticklabels():
+        tl.set_color('r')
+    ax.tick_params(labelsize=20)
+    ax1 = ax.twinx()
+    p2 = ax1.plot(tparticles, max_ene_i, color='b', linewidth=2)
+    ax1.tick_params(labelsize=20)
+    ax1.set_ylabel('$E_{maxi}/E_{thi}$', fontdict=font, color='b')
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+    plt.show()
+
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
     vthe = pic_info.vthe
     # plot_spectrum_series(ntp, 'e', pic_info)
-    plot_spectrum_bulk(ntp, 'e', pic_info)
+    # plot_spectrum_bulk(ntp, 'e', pic_info)
+    plot_maximum_energy(ntp, pic_info)
