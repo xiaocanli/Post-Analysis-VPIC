@@ -33,6 +33,15 @@ module compression_shear
     end subroutine init_compression_shear
 
     !---------------------------------------------------------------------------
+    ! Initialize div_u.
+    !---------------------------------------------------------------------------
+    subroutine init_div_u
+        implicit none
+        allocate(div_u(htg%nx, htg%ny, htg%nz))
+        div_u = 0.0
+    end subroutine init_div_u
+
+    !---------------------------------------------------------------------------
     ! Initialize div_u, pdiv_u. 
     !---------------------------------------------------------------------------
     subroutine init_compression
@@ -88,6 +97,14 @@ module compression_shear
         call free_udot_div_ptensor
         call free_div_udot_ptensor
     end subroutine free_compression_shear
+
+    !---------------------------------------------------------------------------
+    ! Free div_u.
+    !---------------------------------------------------------------------------
+    subroutine free_div_u
+        implicit none
+        deallocate(div_u)
+    end subroutine free_div_u
 
     !---------------------------------------------------------------------------
     ! Free div_u, pdiv_u.
