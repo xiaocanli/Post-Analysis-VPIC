@@ -35,6 +35,9 @@ module parameters
             temp = get_variable(fh, 'tp2', '=')
             tp2 = int(temp)
             close(fh)
+            write(*, "(A,I0,A,I0)") &
+                " Starting and ending time point for this analysis: ", &
+                tp1, ', ', tp2
         endif
 
         call MPI_BCAST(tp1, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
