@@ -592,6 +592,7 @@ module current_densities
     subroutine calc_polarization_drift_current(ct, jpolar_avg, jpolar_dote)
         use previous_post_velocities, only: udx1, udy1, udz1, udx2, udy2, udz2
         use saving_flags, only: save_jpolar
+        use particle_info, only: ptl_mass
         use parameters, only: tp1, tp2
         implicit none
         integer, intent(in) :: ct
@@ -641,6 +642,11 @@ module current_densities
                 enddo
             enddo
         enddo
+
+        jx1 = jx1 * ptl_mass
+        jy1 = jy1 * ptl_mass
+        jz1 = jz1 * ptl_mass
+
         jperpx1 = jperpx1 + jx1
         jperpy1 = jperpy1 + jy1
         jperpz1 = jperpz1 + jz1

@@ -11,6 +11,7 @@ program dissipation
                           free_pic_fields, close_pic_fields_file
     use saving_flags, only: get_saving_flags
     use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
+    use compression_shear, only: init_div_u, free_div_u
     implicit none
     integer :: ct
 
@@ -23,6 +24,7 @@ program dissipation
 
     call init_pic_fields
     call init_para_perp_pressure
+    call init_div_u  ! For compression related current density.
     call get_saving_flags
 
     call open_pic_fields(species)
@@ -36,6 +38,7 @@ program dissipation
     call free_para_perp_pressure
     call free_pic_fields
     call close_pic_fields_file
+    call free_div_u
     call end_analysis
 
     contains
