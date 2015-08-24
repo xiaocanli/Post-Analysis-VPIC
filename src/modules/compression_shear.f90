@@ -11,7 +11,8 @@ module compression_shear
            calc_compression_shear, save_compression_shear, &
            save_tot_compression_shear, init_div_udot_ptensor, &
            free_div_udot_ptensor, calc_div_udot_ptensor, &
-           save_div_udot_ptensor, save_tot_div_udot_ptensor
+           save_div_udot_ptensor, save_tot_div_udot_ptensor, &
+           init_div_u, free_div_u, calc_div_u
 
     real(fp), allocatable, dimension(:, :, :) :: pdiv_u, pshear
     real(fp), allocatable, dimension(:, :, :) :: udot_div_ptensor
