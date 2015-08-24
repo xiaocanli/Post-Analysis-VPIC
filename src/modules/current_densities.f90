@@ -252,7 +252,7 @@ module current_densities
         call calc_qnu_current(ct, javg(:,12), javg(:,13), jdote_tot(12), jdote_tot(13))
 
         ! Current due to the compressibility.
-        call calc_compression_current(ct, javg(:,15), jdote_tot(15))
+        call calc_compression_current(ct, javg(:,15), jdote_tot(16))
 
         ! Current due to agyrotropic pressure.
         call calc_jdote(jagyx, jagyy, jagyz, jdote_tot(14))
