@@ -42,6 +42,7 @@ target_link_libraries(fields statistics get_info saving_flags pic_fields
     
 add_library(jdote STATIC current_densities.f90 jdote_module.f90
     neighbors.f90 global.f90)
+target_link_libraries(jdote compression_shear)
 
 add_library(file_header STATIC file_header.f90)
 

@@ -129,7 +129,7 @@ module current_densities
     real(fp), allocatable, dimension(:,:,:) :: jagyx, jagyy, jagyz
     real(fp), allocatable, dimension(:,:,:) :: jperpx1, jperpy1, jperpz1
     real(fp), allocatable, dimension(:,:,:) :: jperpx2, jperpy2, jperpz2
-    integer, parameter :: ncurrents = 14
+    integer, parameter :: ncurrents = 15
 
     contains
 
@@ -250,6 +250,9 @@ module current_densities
 
         ! Current for each species calculated directly using q*n*u
         call calc_qnu_current(ct, javg(:,12), javg(:,13), jdote_tot(12), jdote_tot(13))
+
+        ! Current due to the compressibility.
+        call calc_compression_current(ct, javg(:,15), jdote_tot(15))
 
         ! Current due to agyrotropic pressure.
         call calc_jdote(jagyx, jagyy, jagyz, jdote_tot(14))
@@ -797,6 +800,40 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jqnupara_avg)
         call calc_averaged_currents(jx2, jy2, jz2, jqnuperp_avg)
     end subroutine calc_qnu_current
+
+
+    !---------------------------------------------------------------------------
+    ! Calculate current density due to the compressibility.
+    ! [-(\nabla\times\vect{u})\vect{u}\times\vect{B}/B^2]\cdot\vect{E}
+    ! Input:
+    !   ct: current time frame.
+    ! Output:
+    !   jdivu_avg: the averaged 3 components of electric currents.
+    !   jdivu_dote: the total j dot E in the box.
+    !---------------------------------------------------------------------------
+    subroutine calc_compression_current(ct, jdivu_avg, jdivu_dote)
+        use particle_info, only: ptl_mass
+        use compression_shear, only: div_u, calc_div_u
+        use saving_flags, only: save_jdivu
+        implicit none
+        integer, intent(in) :: ct
+        real(fp), dimension(3), intent(out) :: jdivu_avg
+        real(fp), intent(out) :: jdivu_dote
+        call calc_div_u
+        jx1 = div_u * (uz*by - uy*bz) / (absB*absB)
+        jy1 = div_u * (ux*bz - uz*bx) / (absB*absB)
+        jz1 = div_u * (uy*bx - ux*by) / (absB*absB)
+        jx1 = jx1 * ptl_mass
+        jy1 = jy1 * ptl_mass
+        jz1 = jz1 * ptl_mass
+
+        call calc_jdote(jx1, jy1, jz1, jdivu_dote)
+        call calc_averaged_currents(jx1, jy1, jz1, jdivu_avg)
+        if (save_jdivu==1) then
+            call save_current_density('jdivu', jx1, jy1, jz1, ct)
+            call save_field(jdote, 'jdivu_dote', ct)
+        endif
+    end subroutine calc_compression_current
 
     !---------------------------------------------------------------------------
     ! Save calculated electric currents.
