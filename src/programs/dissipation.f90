@@ -4,44 +4,57 @@
 program dissipation
     use mpi_module
     use particle_info, only: species, ibtag, get_ptl_mass_charge
-    use para_perp_pressure, only: init_para_perp_pressure, &
-                                  free_para_perp_pressure
-    use analysis_management, only: init_analysis, end_analysis
-    use pic_fields, only: open_pic_fields, init_pic_fields, &
-                          free_pic_fields, close_pic_fields_file
-    use saving_flags, only: get_saving_flags
-    use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
-    use compression_shear, only: init_div_u, free_div_u
     implicit none
     integer :: ct
 
-    call init_analysis
-
-    species = 'i'
     ibtag = '00'
     ct = 1
-    call get_ptl_mass_charge(species)
 
-    call init_pic_fields
-    call init_para_perp_pressure
-    call init_div_u  ! For compression related current density.
-    call get_saving_flags
+    species = 'e'
+    call commit_analysis
 
-    call open_pic_fields(species)
-
-    call init_neighbors
-    call get_neighbors
-
-    call energy_conversion_from_current
-
-    call free_neighbors
-    call free_para_perp_pressure
-    call free_pic_fields
-    call close_pic_fields_file
-    call free_div_u
-    call end_analysis
+    species = 'i'
+    call commit_analysis
 
     contains
+
+    !---------------------------------------------------------------------------
+    ! This subroutine does the analysis.
+    !---------------------------------------------------------------------------
+    subroutine commit_analysis
+        use particle_info, only: species
+        use para_perp_pressure, only: init_para_perp_pressure, &
+                free_para_perp_pressure
+        use pic_fields, only: open_pic_fields, init_pic_fields, &
+                free_pic_fields, close_pic_fields_file
+        use saving_flags, only: get_saving_flags
+        use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
+        use compression_shear, only: init_div_u, free_div_u
+        use analysis_management, only: init_analysis, end_analysis
+        implicit none
+        call init_analysis
+
+        call get_ptl_mass_charge(species)
+        call init_pic_fields
+        call init_para_perp_pressure
+        call init_div_u  ! For compression related current density.
+        call get_saving_flags
+
+        call open_pic_fields(species)
+
+        call init_neighbors
+        call get_neighbors
+
+        call energy_conversion_from_current
+
+        call free_neighbors
+        call free_para_perp_pressure
+        call free_pic_fields
+        call close_pic_fields_file
+        call free_div_u
+
+        call end_analysis
+    end subroutine commit_analysis
 
     !---------------------------------------------------------------------------
     ! This subroutine calculates the energy conversion through electric current.
