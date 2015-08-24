@@ -829,9 +829,9 @@ module current_densities
         jx1 = div_u * (uz*by - uy*bz) / (absB*absB)
         jy1 = div_u * (ux*bz - uz*bx) / (absB*absB)
         jz1 = div_u * (uy*bx - ux*by) / (absB*absB)
-        jx1 = jx1 * ptl_mass
-        jy1 = jy1 * ptl_mass
-        jz1 = jz1 * ptl_mass
+        jx1 = jx1 * num_rho * ptl_mass
+        jy1 = jy1 * num_rho * ptl_mass
+        jz1 = jz1 * num_rho * ptl_mass
 
         call calc_jdote(jx1, jy1, jz1, jdivu_dote)
         call calc_averaged_currents(jx1, jy1, jz1, jdivu_avg)
