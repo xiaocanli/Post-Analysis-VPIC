@@ -63,7 +63,8 @@ module jdote_module
         endif
         output_record = ct - tp1 + 1
         pos1 = (output_record-1)*sizeof(fp)*(ncurrents+1) + 1
-        write(41, pos=pos1) jdote_tot(1:13), jdote_tot(15), jdote_tot(14)
+        write(41, pos=pos1) jdote_tot(1:13), jdote_tot(15), jdote_tot(14), &
+                jdote_tot(16)
         close(41)
     end subroutine save_jdote_total
 
