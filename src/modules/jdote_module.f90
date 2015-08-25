@@ -6,8 +6,12 @@ module jdote_module
     use constants, only: fp
     implicit none
     private
+    public jdote, jdote_tot
+    public init_jdote_total, free_jdote_total, save_jdote_total, &
+           calc_jdote, init_jdote, free_jdote
     real(fp), allocatable, dimension(:, :, :) :: jdote
-    public jdote, save_jdote_total, calc_jdote, init_jdote, free_jdote
+    real(fp), allocatable, dimension(:, :) :: jdote_tot
+    integer, parameter :: njdote = 16
 
     contains
 
@@ -22,6 +26,16 @@ module jdote_module
     end subroutine init_jdote
 
     !---------------------------------------------------------------------------
+    ! Initialize the total of jdote.
+    !---------------------------------------------------------------------------
+    subroutine init_jdote_total
+        use parameters, only: tp1, tp2
+        implicit none
+        allocate(jdote_tot(njdote, tp2-tp1+1))
+        jdote_tot = 0.0
+    end subroutine init_jdote_total
+
+    !---------------------------------------------------------------------------
     ! Free jdote data array.
     !---------------------------------------------------------------------------
     subroutine free_jdote
@@ -30,21 +44,25 @@ module jdote_module
     end subroutine free_jdote
 
     !---------------------------------------------------------------------------
-    ! Save the total jdote summed in the whole simulation box.
-    ! Inputs:
-    !   ct: current time frame.
-    !   jdtote_tot: the total jdote summed over the simulation box.
+    ! Free jdote_tot
     !---------------------------------------------------------------------------
-    subroutine save_jdote_total(ct, ncurrents, jdote_tot)
+    subroutine free_jdote_total
+        implicit none
+        deallocate(jdote_tot)
+    end subroutine free_jdote_total
+
+    !---------------------------------------------------------------------------
+    ! Save the total jdote summed in the whole simulation box.
+    !---------------------------------------------------------------------------
+    subroutine save_jdote_total
         use constants, only: fp
-        use parameters, only: tp1
+        use parameters, only: tp1, tp2
         use parameters, only: inductive
         use particle_info, only: species, ibtag
         implicit none
-        integer, intent(in) :: ct, ncurrents
-        real(fp), dimension(ncurrents+1), intent(in) :: jdote_tot
         integer :: pos1, output_record
         logical :: dir_e
+        integer :: ct
 
         inquire(file='./data/.', exist=dir_e)
         if (.not. dir_e) then
@@ -61,10 +79,13 @@ module jdote_module
                 file='data/jdote_in'//ibtag//'_'//species//'.gda',access='stream',&
                 status='unknown',form='unformatted',action='write')     
         endif
-        output_record = ct - tp1 + 1
-        pos1 = (output_record-1)*sizeof(fp)*(ncurrents+1) + 1
-        write(41, pos=pos1) jdote_tot(1:13), jdote_tot(15), jdote_tot(14), &
-                jdote_tot(16)
+        do ct = tp1, tp2
+            output_record = ct - tp1 + 1
+            pos1 = (output_record-1)*sizeof(fp)*njdote + 1
+            write(41, pos=pos1) jdote_tot(1:13, output_record), &
+                    jdote_tot(15, output_record), jdote_tot(14, output_record), &
+                    jdote_tot(16, output_record)
+        enddo
         close(41)
     end subroutine save_jdote_total
 

@@ -41,7 +41,6 @@ module analysis_management
         call get_inductive_flag
         call get_total_time_frames(tp2)
         call get_energy_band_number
-        call get_start_end_time_points
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info

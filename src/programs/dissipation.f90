@@ -72,8 +72,11 @@ program dissipation
         use previous_post_velocities, only: init_pre_post_velocities, &
                 read_pre_post_velocities, free_pre_post_velocities
         use current_densities, only: init_current_densities, &
-                free_current_densities, set_current_densities_to_zero
-        use jdote_module, only: init_jdote, free_jdote
+                free_current_densities, set_current_densities_to_zero, &
+                init_ava_current_densities, free_avg_current_densities, &
+                save_averaged_current
+        use jdote_module, only: init_jdote, free_jdote, &
+                init_jdote_total, free_jdote_total, save_jdote_total
 
         implicit none
 
@@ -86,8 +89,10 @@ program dissipation
         ! Calculate electric current due to all kinds of terms.
         ! And calculate energy conversion due to j.E.
         call init_current_densities
+        call init_ava_current_densities
         call init_pre_post_velocities
         call init_jdote
+        call init_jdote_total
         do input_record = tp1, tp2
             if (myid==master) print*, input_record
             output_record = input_record - tp1 + 1
@@ -99,8 +104,16 @@ program dissipation
             call calc_energy_conversion(input_record)
             call set_current_densities_to_zero
         enddo
+
+        if (myid == master) then
+            call save_averaged_current
+            call save_jdote_total
+        endif
+
+        call free_jdote_total
         call free_jdote
         call free_pre_post_velocities
+        call free_avg_current_densities
         call free_current_densities
 
         if (inductive == 1) then
