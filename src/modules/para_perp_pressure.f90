@@ -9,9 +9,25 @@ module para_perp_pressure
     public ppara, pperp, init_para_perp_pressure, free_para_perp_pressure
     public calc_para_perp_pressure, calc_real_para_perp_pressure
     public save_para_perp_pressure, save_averaged_para_perp_pressure
+    public init_avg_para_perp_pressure, free_avg_para_perp_pressure
     real(fp), allocatable, dimension(:,:,:) :: pperp, ppara
+    real(fp), allocatable, dimension(:) :: pperp_avg, ppara_avg
+    logical :: is_subtract_bulkflow
 
     contains
+
+    !---------------------------------------------------------------------------
+    ! Initialize the averaged parallel and perpendicular pressure.
+    !---------------------------------------------------------------------------
+    subroutine init_avg_para_perp_pressure
+        use parameters, only: tp1, tp2
+        implicit none
+        allocate(ppara_avg(tp2-tp1+1))
+        allocate(pperp_avg(tp2-tp1+1))
+
+        ppara_avg = 0.0
+        pperp_avg = 0.0
+    end subroutine init_avg_para_perp_pressure
 
     !---------------------------------------------------------------------------
     ! Initialization of the parallel and perpendicular pressure.
@@ -31,7 +47,17 @@ module para_perp_pressure
 
         ppara = 0.0
         pperp = 0.0
+
+        call init_avg_para_perp_pressure
     end subroutine init_para_perp_pressure
+
+    !---------------------------------------------------------------------------
+    ! Free the averaged parallel and perpendicular pressure.
+    !---------------------------------------------------------------------------
+    subroutine free_avg_para_perp_pressure
+        implicit none
+        deallocate(ppara_avg, pperp_avg)
+    end subroutine free_avg_para_perp_pressure
 
     !---------------------------------------------------------------------------
     ! Free the memory used by parallel and perpendicular pressure.
@@ -39,6 +65,7 @@ module para_perp_pressure
     subroutine free_para_perp_pressure
         implicit none
         deallocate(ppara, pperp)
+        call free_avg_para_perp_pressure
     end subroutine free_para_perp_pressure
 
     !---------------------------------------------------------------------------
@@ -52,14 +79,17 @@ module para_perp_pressure
     !---------------------------------------------------------------------------
     subroutine calc_para_perp_pressure(ct)
         use constants, only: fp
+        use parameters, only: tp1
         use pic_fields, only: bx, by, bz, absB, ux, uy, uz, num_rho, &
-                              pxx, pxy, pxz, pyy, pyz, pzz
+                pxx, pxy, pxz, pyy, pyz, pzz
+        use statistics, only: get_average_and_total
         use particle_info, only: ptl_mass
         use mpi_topology, only: htg
         use saving_flags, only: save_pre
         implicit none
         integer, intent(in) :: ct
         real(fp), allocatable, dimension(:,:,:) :: bsquare, prexx, preyy, prezz
+        real(fp) :: tot
         integer :: nx, ny, nz
 
         nx = htg%nx
@@ -84,12 +114,13 @@ module para_perp_pressure
         ppara = ppara / bsquare
         pperp = 0.5 * (prexx + preyy + prezz - ppara)
 
+        is_subtract_bulkflow = .false.
         if (save_pre==1) then
-            ! Save calculated parallel and perpendicular pressure.
-            call save_para_perp_pressure(ct, is_subtract_bulkflow=.false.)
+            call save_para_perp_pressure(ct)
         endif
         deallocate(bsquare, prexx, preyy, prezz)
-        call save_averaged_para_perp_pressure(ct, is_subtract_bulkflow=.false.)
+        call get_average_and_total(ppara, ppara_avg(ct-tp1+1), tot)
+        call get_average_and_total(pperp, pperp_avg(ct-tp1+1), tot)
     end subroutine calc_para_perp_pressure
 
     !---------------------------------------------------------------------------
@@ -100,13 +131,16 @@ module para_perp_pressure
     !---------------------------------------------------------------------------
     subroutine calc_real_para_perp_pressure(ct)
         use constants, only: fp
+        use parameters, only: tp1
         use pic_fields, only: bx, by, bz, absB, ux, uy, uz, num_rho, &
-                              pxx, pxy, pxz, pyy, pyz, pzz
+                pxx, pxy, pxz, pyy, pyz, pzz
+        use statistics, only: get_average_and_total
         use mpi_topology, only: htg
         use saving_flags, only: save_pre
         implicit none
         integer, intent(in) :: ct
         real(fp), allocatable, dimension(:,:,:) :: bsquare
+        real(fp) :: tot
         integer :: nx, ny, nz
 
         nx = htg%nx
@@ -122,27 +156,26 @@ module para_perp_pressure
         ppara = ppara / bsquare
         pperp = 0.5 * (pxx + pyy + pzz - ppara)
 
+        is_subtract_bulkflow = .true.
         if (save_pre==1) then
-            ! Save calculated parallel and perpendicular pressure.
-            call save_para_perp_pressure(ct, is_subtract_bulkflow=.true.)
+            call save_para_perp_pressure(ct)
         endif
         deallocate(bsquare)
-        call save_averaged_para_perp_pressure(ct, is_subtract_bulkflow=.true.)
+        call get_average_and_total(ppara, ppara_avg(ct-tp1+1), tot)
+        call get_average_and_total(pperp, pperp_avg(ct-tp1+1), tot)
     end subroutine calc_real_para_perp_pressure
 
     !---------------------------------------------------------------------------
     ! Save calculated parallel and perpendicular pressure.
     ! Input:
     !   ct: current time frame.
-    !   is_subtract_bulkflow: flag for whether bulk flow is subtracted.
     !---------------------------------------------------------------------------
-    subroutine save_para_perp_pressure(ct, is_subtract_bulkflow)
+    subroutine save_para_perp_pressure(ct)
         use mpi_module
         use constants, only: fp, delta
         use mpi_io_fields, only: save_field
         implicit none
         integer, intent(in) :: ct
-        logical, intent(in) :: is_subtract_bulkflow
         if (myid == master) then
             print*, 'Saving parallel and perpendicular pressure', ct
         endif
@@ -160,48 +193,36 @@ module para_perp_pressure
 
     !---------------------------------------------------------------------------
     ! Save averaged parallel and perpendicular pressure.
-    ! Input:
-    !   ct: current time frame.
-    !   is_subtract_bulkflow: flag for whether bulk flow is subtracted.
     !---------------------------------------------------------------------------
-    subroutine save_averaged_para_perp_pressure(ct, is_subtract_bulkflow)
-        use mpi_module
+    subroutine save_averaged_para_perp_pressure
         use constants, only: fp
         use particle_info, only: ibtag, species
-        use statistics, only: get_average_and_total
-        use parameters, only: tp1
+        use parameters, only: tp1, tp2
         implicit none
-        integer, intent(in) :: ct
-        logical, intent(in) :: is_subtract_bulkflow
-        real(fp) :: ppara_avg, pperp_avg, tot
         character(len=100) :: fname
         integer :: current_pos, output_record
         logical :: dir_e
+        integer :: ct
     
-        if (myid == master) then
-            inquire(file='./data/.', exist=dir_e)
-            if (.not. dir_e) then
-                call system('mkdir ./data')
-            endif
+        inquire(file='./data/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir ./data')
         endif
 
-        call get_average_and_total(ppara, ppara_avg, tot)
-        call get_average_and_total(pperp, pperp_avg, tot)
-        if (myid == master) then
-            if (is_subtract_bulkflow) then
-                fname = 'data/pre_real'//ibtag//'_'//species//'.gda'
-            else
-                fname = 'data/pre'//ibtag//'_'//species//'.gda'
-            endif
-            open(unit=51, file=trim(adjustl(fname)), access='stream',&
-                 status='unknown', form='unformatted', action='write')
+        if (is_subtract_bulkflow) then
+            fname = 'data/pre_real'//ibtag//'_'//species//'.gda'
+        else
+            fname = 'data/pre'//ibtag//'_'//species//'.gda'
+        endif
+        open(unit=51, file=trim(adjustl(fname)), access='stream',&
+             status='unknown', form='unformatted', action='write')
+        do ct = tp1, tp2
             output_record = ct - tp1 + 1
             current_pos = 2 * sizeof(fp) * (output_record-1) + 1
-            write(51, pos=current_pos) ppara_avg, pperp_avg
-            !PRINT*, input_record, 'Averaged pressure for ', & 
-            !    species, ppara_avg, pperp_avg
-            close(51)
-        endif
+            write(51, pos=current_pos) ppara_avg(output_record), &
+                    pperp_avg(output_record)
+        enddo
+        close(51)
     end subroutine save_averaged_para_perp_pressure
 
 end module para_perp_pressure

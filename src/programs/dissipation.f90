@@ -29,7 +29,7 @@ program dissipation
     subroutine commit_analysis
         use particle_info, only: species
         use para_perp_pressure, only: init_para_perp_pressure, &
-                free_para_perp_pressure
+                free_para_perp_pressure, save_averaged_para_perp_pressure
         use pic_fields, only: open_pic_fields, init_pic_fields, &
                 free_pic_fields, close_pic_fields_file
         use saving_flags, only: get_saving_flags
@@ -75,6 +75,7 @@ program dissipation
                 free_current_densities, set_current_densities_to_zero, &
                 init_ava_current_densities, free_avg_current_densities, &
                 save_averaged_current
+        use para_perp_pressure, only: save_averaged_para_perp_pressure
         use jdote_module, only: init_jdote, free_jdote, &
                 init_jdote_total, free_jdote_total, save_jdote_total
 
@@ -108,6 +109,7 @@ program dissipation
         if (myid == master) then
             call save_averaged_current
             call save_jdote_total
+            call save_averaged_para_perp_pressure
         endif
 
         call free_jdote_total
