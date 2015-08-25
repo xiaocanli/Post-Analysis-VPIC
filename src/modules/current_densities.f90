@@ -114,7 +114,7 @@ module current_densities
                           pyz, pzz, ux, uy, uz, num_rho, absB, jx, jy, jz
     use para_perp_pressure, only: ppara, pperp
     use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
-    use jdote_module, only: jdote, calc_jdote, save_jdote_total
+    use jdote_module, only: jdote, calc_jdote
     use mpi_topology, only: htg
     use picinfo, only: domain
     use mpi_io_fields, only: save_field
@@ -123,12 +123,15 @@ module current_densities
     public jx1, jy1, jz1, jx2, jy2, jz2, jagyx, jagyy, jagyz, &
         jperpx1, jperpy1, jperpz1, jperpx2, jperpy2, jperpz2
     public init_current_densities, calc_current_densities, &
-           free_current_densities, set_current_densities_to_zero
+           free_current_densities, set_current_densities_to_zero, &
+           init_ava_current_densities, free_avg_current_densities, &
+           save_averaged_current
     real(fp), allocatable, dimension(:,:,:) :: jx1, jy1, jz1
     real(fp), allocatable, dimension(:,:,:) :: jx2, jy2, jz2
     real(fp), allocatable, dimension(:,:,:) :: jagyx, jagyy, jagyz
     real(fp), allocatable, dimension(:,:,:) :: jperpx1, jperpy1, jperpz1
     real(fp), allocatable, dimension(:,:,:) :: jperpx2, jperpy2, jperpz2
+    real(fp), allocatable, dimension(:,:,:) :: javg
     integer, parameter :: ncurrents = 15
 
     contains
@@ -165,6 +168,24 @@ module current_densities
     end subroutine init_current_densities
 
     !---------------------------------------------------------------------------
+    ! Initialize the averaged current density.
+    !---------------------------------------------------------------------------
+    subroutine init_ava_current_densities
+        use parameters, only: tp1, tp2
+        implicit none
+        allocate(javg(3, ncurrents, tp2-tp1+1))
+        javg = 0.0
+    end subroutine init_ava_current_densities
+
+    !---------------------------------------------------------------------------
+    ! Free the averaged current density.
+    !---------------------------------------------------------------------------
+    subroutine free_avg_current_densities
+        implicit none
+        deallocate(javg)
+    end subroutine free_avg_current_densities
+
+    !---------------------------------------------------------------------------
     ! Set current densities to be zero. It is required for each time step.
     !---------------------------------------------------------------------------
     subroutine set_current_densities_to_zero
@@ -197,74 +218,75 @@ module current_densities
         use mpi_module
         use constants, only: fp
         use saving_flags, only: save_jtot, save_jagy, save_jperp1, &
-                                save_jperp2, save_jagy
+                save_jperp2, save_jagy
+        use jdote_module, only: jdote_tot
         use mpi_io_fields, only: save_field
+        use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
-        real(fp), dimension(3, ncurrents) :: javg
-        real(fp), dimension(ncurrents+1) :: jdote_tot
+        integer :: t
+
+        t = ct - tp1 + 1
+
         ! Current due to agyrotropic pressure.
         call calc_agyrotropy_current
 
         ! Current due to curvature drift (jcpara) and gyromotion(jcperp).
-        call calc_curvature_drift_current(ct, javg(:,1), javg(:,2), &
-                                          jdote_tot(1), jdote_tot(2))
+        call calc_curvature_drift_current(ct, javg(:,1,t), javg(:,2,t), &
+                                          jdote_tot(1,t), jdote_tot(2,t))
 
         ! Current due to perpendicular magnetization.
-        call calc_perp_magnetization_current(ct, javg(:,3), jdote_tot(3))
+        call calc_perp_magnetization_current(ct, javg(:,3,t), jdote_tot(3,t))
 
         ! Current due to gradient B drift.
-        call calc_gradientB_drift_current(ct, javg(:,4), jdote_tot(4))
+        call calc_gradientB_drift_current(ct, javg(:,4,t), jdote_tot(4,t))
 
         ! Current due to diamagnetic drift.
-        call calc_diamagnetic_drift_current(ct, javg(:,5), jdote_tot(5))
+        call calc_diamagnetic_drift_current(ct, javg(:,5,t), jdote_tot(5,t))
 
         ! Current due to polarization drift.
-        call calc_polarization_drift_current(ct, javg(:,6), jdote_tot(6))
+        call calc_polarization_drift_current(ct, javg(:,6,t), jdote_tot(6,t))
 
         ! Current due to E cross B drift.
-        call calc_exb_drift_current(ct, javg(:,7), jdote_tot(7))
+        call calc_exb_drift_current(ct, javg(:,7,t), jdote_tot(7,t))
 
         ! Current directly from PIC simulations.
-        call calc_current_single_fluid(ct, javg(:,8), javg(:,9), &
-            jdote_tot(8), jdote_tot(9))
+        call calc_current_single_fluid(ct, javg(:,8,t), javg(:,9,t), &
+            jdote_tot(8,t), jdote_tot(9,t))
 
-        call calc_jdote(jx, jy, jz, jdote_tot(15))
+        call calc_jdote(jx, jy, jz, jdote_tot(15,t))
         if (save_jtot==1) then
             call save_field(jdote, 'jdote', ct)
         endif
 
         ! Calculated perpendicular current density using two expressions.
-        call calc_jdote(jperpx1, jperpy1, jperpz1, jdote_tot(10))
+        call calc_jdote(jperpx1, jperpy1, jperpz1, jdote_tot(10,t))
         if (save_jperp1==1) then
             call save_current_density('jperp1', jperpx1, jperpy1, jperpz1, ct)
             call save_field(jdote, 'jperp1_dote', ct)
         endif
-        call calc_jdote(jperpx2, jperpy2, jperpz2, jdote_tot(11))
+        call calc_jdote(jperpx2, jperpy2, jperpz2, jdote_tot(11,t))
         if (save_jperp2==1) then
             call save_current_density('jperp2', jperpx2, jperpy2, jperpz2, ct)
             call save_field(jdote, 'jperp2_dote', ct)
         endif
-        call calc_averaged_currents(jx1, jy1, jz1, javg(:,10))
-        call calc_averaged_currents(jx2, jy2, jz2, javg(:,11))
+        call calc_averaged_currents(jx1, jy1, jz1, javg(:,10,t))
+        call calc_averaged_currents(jx2, jy2, jz2, javg(:,11,t))
 
         ! Current for each species calculated directly using q*n*u
-        call calc_qnu_current(ct, javg(:,12), javg(:,13), jdote_tot(12), jdote_tot(13))
+        call calc_qnu_current(ct, javg(:,12,t), javg(:,13,t), &
+                jdote_tot(12,t), jdote_tot(13,t))
 
         ! Current due to the compressibility.
-        call calc_compression_current(ct, javg(:,15), jdote_tot(16))
+        call calc_compression_current(ct, javg(:,15,t), jdote_tot(16,t))
 
         ! Current due to agyrotropic pressure.
-        call calc_jdote(jagyx, jagyy, jagyz, jdote_tot(14))
+        call calc_jdote(jagyx, jagyy, jagyz, jdote_tot(14,t))
         if (save_jagy==1) then
             call save_current_density('jagy', jagyx, jagyy, jagyz, ct)
             call save_field(jdote, 'jagy_dote', ct)
         endif
 
-        if (myid == master) then
-            call save_averaged_current(ct, javg)
-            call save_jdote_total(ct, ncurrents, jdote_tot)
-        endif
     end subroutine calc_current_densities
 
     !---------------------------------------------------------------------------
@@ -891,24 +913,22 @@ module current_densities
 
     !---------------------------------------------------------------------------
     ! Save the current density averaged over the simulation box.
-    ! Inputs:
-    !   ct: current time frame.
-    !   javg: the averaged current density.
     !---------------------------------------------------------------------------
-    subroutine save_averaged_current(ct, javg)
+    subroutine save_averaged_current
         use constants, only: fp
-        use parameters, only: tp1
+        use parameters, only: tp1, tp2
         use particle_info, only: species, ibtag
         implicit none
-        integer, intent(in) :: ct
-        real(fp), dimension(3, ncurrents), intent(in) :: javg
         integer :: pos1, output_record
+        integer :: ct
         open(unit=61,&
             file='data/current'//ibtag//'_'//species//'.gda',access='stream',&
             status='unknown',form='unformatted',action='write')
-        output_record = ct - tp1 + 1
-        pos1 = (output_record-1)*sizeof(fp)*3*ncurrents + 1
-        write(61, pos=pos1) javg
+        do ct = tp1, tp2
+            output_record = ct - tp1 + 1
+            pos1 = (output_record-1)*sizeof(fp)*3*ncurrents + 1
+            write(61, pos=pos1) javg(:,:,output_record)
+        enddo
         close(61)
     end subroutine save_averaged_current
 
