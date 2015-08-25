@@ -185,12 +185,12 @@ def read_jdote_data(species):
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
-    ntypes = 15 # different kind of data.
-    jdote_data = np.zeros((ntf, ntypes))
+    njote = 16  # different kind of data.
+    jdote_data = np.zeros((ntf, njote))
     index_start = 0
     index_end = 4
     for current_time in range(ntf):
-        for i in range(ntypes):
+        for i in range(njote):
             jdote_data[current_time, i], = \
                     struct.unpack('f', data[index_start:index_end])
             index_start = index_end
@@ -210,6 +210,7 @@ def read_jdote_data(species):
     jqnuperp_dote = jdote_data[:, 12]
     jagy_dote     = jdote_data[:, 14]
     jtot_dote     = jdote_data[:, 13]
+    jdivu_dote     = jdote_data[:, 15]
     jcpara_dote_int = cumulate_with_time(jcpara_dote, dtf_wpe, ntf)
     jcperp_dote_int = cumulate_with_time(jcperp_dote, dtf_wpe, ntf)
     jmag_dote_int   = cumulate_with_time(jmag_dote, dtf_wpe, ntf)
@@ -225,24 +226,27 @@ def read_jdote_data(species):
     jqnuperp_dote_int = cumulate_with_time(jqnuperp_dote, dtf_wpe, ntf)
     jagy_dote_int     = cumulate_with_time(jagy_dote, dtf_wpe, ntf)
     jtot_dote_int     = cumulate_with_time(jtot_dote, dtf_wpe, ntf)
+    jdivu_dote_int     = cumulate_with_time(jdivu_dote, dtf_wpe, ntf)
     jdote_collection = collections.namedtuple('jdote_collection',
             ['jcpara_dote', 'jcperp_dote', 'jmag_dote', 'jgrad_dote',
                 'jdiagm_dote', 'jpolar_dote', 'jexb_dote', 'jpara_dote',
                 'jperp_dote', 'jperp1_dote', 'jperp2_dote', 'jqnupara_dote',
-                'jqnuperp_dote', 'jagy_dote', 'jtot_dote',
+                'jqnuperp_dote', 'jagy_dote', 'jtot_dote', 'jdivu_dote',
                 'jcpara_dote_int', 'jcperp_dote_int', 'jmag_dote_int',
                 'jgrad_dote_int', 'jdiagm_dote_int', 'jpolar_dote_int',
                 'jexb_dote_int', 'jpara_dote_int', 'jperp_dote_int',
                 'jperp1_dote_int', 'jperp2_dote_int', 'jqnupara_dote_int',
-                'jqnuperp_dote_int', 'jagy_dote_int', 'jtot_dote_int',])
+                'jqnuperp_dote_int', 'jagy_dote_int', 'jtot_dote_int',
+                'jdivu_dote_int'])
     jdote = jdote_collection(jcpara_dote, jcperp_dote, jmag_dote, jgrad_dote,
             jdiagm_dote, jpolar_dote, jexb_dote, jpara_dote, jperp_dote,
             jperp1_dote, jperp2_dote, jqnupara_dote, jqnuperp_dote,
-            jagy_dote, jtot_dote, 
+            jagy_dote, jtot_dote, jdivu_dote,
             jcpara_dote_int, jcperp_dote_int, jmag_dote_int, jgrad_dote_int,
             jdiagm_dote_int, jpolar_dote_int, jexb_dote_int, jpara_dote_int, 
             jperp_dote_int, jperp1_dote_int, jperp2_dote_int, 
-            jqnupara_dote_int, jqnuperp_dote_int, jagy_dote_int, jtot_dote_int)
+            jqnupara_dote_int, jqnuperp_dote_int, jagy_dote_int,
+            jtot_dote_int, jdivu_dote_int)
     return jdote
 
 def cumulate_with_time(f, dt, ntf):
@@ -266,21 +270,12 @@ def plot_jdotes_evolution(species):
     """
     jdote = read_jdote_data(species)
     pic_info = pic_information.get_pic_info('../../')
-#    jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote + \
-#            jdote.jmag_dote + jdote.jpolar_dote + \
-#            jdote.jagy_dote + jdote.jqnupara_dote
-#    jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int + \
-#            jdote.jmag_dote_int + jdote.jpolar_dote_int + \
-#            jdote.jagy_dote_int + jdote.jqnupara_dote_int
-#    jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote + \
-#            jdote.jmag_dote + jdote.jpolar_dote + jdote.jqnupara_dote
-#    jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int + \
-#            jdote.jmag_dote_int + jdote.jpolar_dote_int + \
-#            jdote.jqnupara_dote_int
     jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote + \
-            jdote.jmag_dote + jdote.jpolar_dote
+            jdote.jmag_dote + jdote.jpolar_dote \
+            # + jdote.jqnupara_dote + jdote.jagy_dote
     jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int + \
-            jdote.jmag_dote_int + jdote.jpolar_dote_int
+            jdote.jmag_dote_int + jdote.jpolar_dote_int \
+            # + jdote.jqnupara_dote_int + jdote.jagy_dote_int
     if species == 'e':
         dkene = pic_info.dkene_e
         kene = pic_info.kene_e
@@ -341,19 +336,19 @@ def plot_jdotes_evolution(species):
     #ax1.legend(loc=1, prop={'size':16}, ncol=2,
     #        shadow=True, fancybox=True)
 
-    ax1.text(0.6, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
+    ax1.text(0.65, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.8, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
+    ax1.text(0.85, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.8, 0.6, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
+    ax1.text(0.85, 0.65, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.6, 0.1, r'$dK_e/dt$', color='k', fontsize=20,
+    ax1.text(0.65, 0.15, r'$dK_e/dt$', color='k', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.8, 0.1, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
+    ax1.text(0.85, 0.15, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
             fontsize=20, horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
 
@@ -453,7 +448,7 @@ def plot_jpara_perp_dote():
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     jdote = read_jdote_data('e')
-    plot_energy_evolution(pic_info)
+    # plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
-    # plot_jdotes_evolution('e')
+    plot_jdotes_evolution('i')
     # plot_jpara_perp_dote()
