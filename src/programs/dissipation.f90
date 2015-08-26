@@ -129,12 +129,13 @@ program dissipation
     !   ct: current time frame.
     !---------------------------------------------------------------------------
     subroutine calc_energy_conversion(ct)
-        use para_perp_pressure, only: calc_para_perp_pressure
+        use para_perp_pressure, only: calc_para_perp_pressure, &
+                calc_real_para_perp_pressure
         use current_densities, only: calc_current_densities
         implicit none
         integer, intent(in) :: ct
-        !call calc_real_para_perp_pressure(it)
-        call calc_para_perp_pressure(ct)
+        call calc_real_para_perp_pressure(ct)
+        ! call calc_para_perp_pressure(ct)
         call calc_current_densities(ct)
     end subroutine calc_energy_conversion
 
