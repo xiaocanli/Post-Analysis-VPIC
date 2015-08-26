@@ -37,7 +37,7 @@ module pic_fields
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
-    public ux, uy, uz, num_rho           ! Bulk flow velocity and number density
+    public vx, vy, vz, num_rho           ! Bulk flow velocity and number density
     public jx, jy, jz                    ! Current density for single fluid
     public eb
     ! File handlers
@@ -46,7 +46,7 @@ module pic_fields
 
     real(fp), allocatable, dimension(:,:,:) :: bx, by, bz, ex, ey, ez, absB
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
-    real(fp), allocatable, dimension(:,:,:) :: ux, uy, uz, num_rho
+    real(fp), allocatable, dimension(:,:,:) :: vx, vy, vz, num_rho
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz
     real(fp), allocatable, dimension(:,:,:) :: eb
     integer, dimension(4) :: bfields_fh
@@ -116,10 +116,10 @@ module pic_fields
     subroutine init_velocity_fields(nx, ny, nz)
         implicit none
         integer, intent(in) :: nx, ny, nz
-        allocate(ux(nx,ny,nz))
-        allocate(uy(nx,ny,nz))
-        allocate(uz(nx,ny,nz))
-        ux = 0.0; uy = 0.0; uz = 0.0
+        allocate(vx(nx,ny,nz))
+        allocate(vy(nx,ny,nz))
+        allocate(vz(nx,ny,nz))
+        vx = 0.0; vy = 0.0; vz = 0.0
     end subroutine init_velocity_fields
 
     !---------------------------------------------------------------------------
@@ -246,11 +246,11 @@ module pic_fields
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, ux)
+            subsizes_ghost, disp, offset, vx)
         call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, uy)
+            subsizes_ghost, disp, offset, vy)
         call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, uz)
+            subsizes_ghost, disp, offset, vz)
     end subroutine read_velocity_fields
 
     !---------------------------------------------------------------------------
@@ -459,7 +459,7 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine free_velocity_fields
         implicit none
-        deallocate(ux, uy, uz)
+        deallocate(vx, vy, vz)
     end subroutine free_velocity_fields
 
     !---------------------------------------------------------------------------

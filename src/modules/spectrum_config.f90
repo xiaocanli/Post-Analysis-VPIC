@@ -10,11 +10,11 @@ module spectrum_config
     public nbins, emax, emin, dve, dlogve, spatial_range, center, sizes
     public read_spectrum_config, set_spatial_range_de, calc_pic_mpi_ids, &
            calc_energy_interval
-    public corners_mpi, umax, umin, du, nbins_vdist, tframe
+    public corners_mpi, vmax, vmin, dv, nbins_vdist, tframe
     public calc_velocity_interval
     integer :: nbins
     real(fp) :: emax, emin, dve, dlogve
-    real(fp) :: umax, umin, du                  ! For velocity distribution.
+    real(fp) :: vmax, vmin, dv                  ! For velocity distribution.
     integer :: nbins_vdist
     integer :: tframe                           ! Time frame. 
     real(fp), dimension(3) :: center            ! In electron skin length (de).
@@ -52,8 +52,8 @@ module spectrum_config
         sizes(3) = get_variable(fh, 'zsize', '=')
         temp = get_variable(fh, 'nbins_vdist', '=')
         nbins_vdist = int(temp)
-        umax = get_variable(fh, 'umax', '=')
-        umin = get_variable(fh, 'umin', '=')
+        vmax = get_variable(fh, 'vmax', '=')
+        vmin = get_variable(fh, 'vmin', '=')
         temp = get_variable(fh, 'tframe', '=')
         tframe = int(temp)
         close(fh)
@@ -75,7 +75,7 @@ module spectrum_config
     !---------------------------------------------------------------------------
     subroutine calc_velocity_interval
         implicit none
-        du = (umax - umin) / nbins_vdist
+        dv = (vmax - vmin) / nbins_vdist
     end subroutine calc_velocity_interval
 
     !---------------------------------------------------------------------------

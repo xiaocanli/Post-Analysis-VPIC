@@ -5,12 +5,12 @@ module previous_post_velocities
     use constants, only: fp
     implicit none
     private
-    public udx1, udy1, udz1, udx2, udy2, udz2
+    public vdx1, vdy1, vdz1, vdx2, vdy2, vdz2
     public init_pre_post_velocities, free_pre_post_velocities, &
            read_pre_post_velocities
 
-    real(fp), allocatable, dimension(:, :, :) :: udx1, udy1, udz1
-    real(fp), allocatable, dimension(:, :, :) :: udx2, udy2, udz2
+    real(fp), allocatable, dimension(:, :, :) :: vdx1, vdy1, vdz1
+    real(fp), allocatable, dimension(:, :, :) :: vdx2, vdy2, vdz2
 
     contains
 
@@ -27,15 +27,15 @@ module previous_post_velocities
         ny = htg%ny
         nz = htg%nz
 
-        allocate(udx1(nx,ny,nz))
-        allocate(udy1(nx,ny,nz))
-        allocate(udz1(nx,ny,nz))
-        allocate(udx2(nx,ny,nz))
-        allocate(udy2(nx,ny,nz))
-        allocate(udz2(nx,ny,nz))
+        allocate(vdx1(nx,ny,nz))
+        allocate(vdy1(nx,ny,nz))
+        allocate(vdz1(nx,ny,nz))
+        allocate(vdx2(nx,ny,nz))
+        allocate(vdy2(nx,ny,nz))
+        allocate(vdz2(nx,ny,nz))
 
-        udx1 = 0.0; udy1 = 0.0; udz1 = 0.0
-        udx2 = 0.0; udy2 = 0.0; udz2 = 0.0
+        vdx1 = 0.0; vdy1 = 0.0; vdz1 = 0.0
+        vdx2 = 0.0; vdy2 = 0.0; vdz2 = 0.0
     end subroutine init_pre_post_velocities
 
     !---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ module previous_post_velocities
     !---------------------------------------------------------------------------
     subroutine free_pre_post_velocities
         implicit none
-        deallocate(udx1, udy1, udz1, udx2, udy2, udz2)
+        deallocate(vdx1, vdy1, vdz1, vdx2, vdy2, vdz2)
     end subroutine free_pre_post_velocities
 
     !---------------------------------------------------------------------------
@@ -60,7 +60,7 @@ module previous_post_velocities
         use picinfo, only: domain, nt   ! Total number of output time frames.
         use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
         use mpi_io_module, only: read_data_mpi_io
-        use pic_fields, only: ux, uy, uz
+        use pic_fields, only: vx, vy, vz
         implicit none
         integer, intent(in) :: ct
         integer, dimension(3), intent(in) :: fh
@@ -69,31 +69,31 @@ module previous_post_velocities
         if ((ct >= tp1) .and. (ct < nt)) then
             disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1+1)
             call read_data_mpi_io(fh(1), filetype_ghost, subsizes_ghost, &
-                disp, offset, udx2)
+                disp, offset, vdx2)
             call read_data_mpi_io(fh(2), filetype_ghost, subsizes_ghost, &
-                disp, offset, udy2)
+                disp, offset, vdy2)
             call read_data_mpi_io(fh(3), filetype_ghost, subsizes_ghost, &
-                disp, offset, udz2)
+                disp, offset, vdz2)
         else
             ! ct = nt, last time frame.
-            udx2 = ux
-            udy2 = uy
-            udz2 = uz
+            vdx2 = vx
+            vdy2 = vy
+            vdz2 = vz
         endif
 
         if ((ct <= nt) .and. (ct > tp1)) then
             disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1-1)
             call read_data_mpi_io(fh(1), filetype_ghost, subsizes_ghost, &
-                disp, offset, udx1)
+                disp, offset, vdx1)
             call read_data_mpi_io(fh(2), filetype_ghost, subsizes_ghost, &
-                disp, offset, udy1)
+                disp, offset, vdy1)
             call read_data_mpi_io(fh(3), filetype_ghost, subsizes_ghost, &
-                disp, offset, udz1)
+                disp, offset, vdz1)
         else
             ! ct = tp1, The first time frame.
-            udx1 = ux
-            udy1 = uy
-            udz1 = uz
+            vdx1 = vx
+            vdy1 = vy
+            vdz1 = vz
         endif
     end subroutine read_pre_post_velocities
 
@@ -111,7 +111,7 @@ end module previous_post_velocities
 module current_densities
     use constants, only: fp, dp
     use pic_fields, only: bx, by, bz, ex, ey, ez, pxx, pxy, pxz, pyy, &
-                          pyz, pzz, ux, uy, uz, num_rho, absB, jx, jy, jz
+                          pyz, pzz, vx, vy, vz, num_rho, absB, jx, jy, jz
     use para_perp_pressure, only: ppara, pperp
     use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
     use jdote_module, only: jdote, calc_jdote
@@ -274,7 +274,7 @@ module current_densities
         call calc_averaged_currents(jx2, jy2, jz2, javg(:,11,t))
 
         ! Current for each species calculated directly using q*n*u
-        call calc_qnu_current(ct, javg(:,12,t), javg(:,13,t), &
+        call calc_qnv_current(ct, javg(:,12,t), javg(:,13,t), &
                 jdote_tot(12,t), jdote_tot(13,t))
 
         ! Current due to the compressibility.
@@ -603,7 +603,7 @@ module current_densities
     ! -\rho_m(d\vect{u}_E/dt)\times\vect{B}/B^2, where is due to E cross B drift.
     ! \vect{u}_E and bulk flow velocity \vect{u} are very close. The latter is used
     ! in this calculation. We need the bulk velocities from the previous and
-    ! latter slices to calculate du/dt, which is the total derivative of u,
+    ! latter slices to calculate dv/dt, which is the total derivative of u,
     ! so there are partial derivative term and convective term.
     ! Input:
     !   ct: current time frame.
@@ -612,7 +612,7 @@ module current_densities
     !   jpolar_dote the total j dot E in the box.
     !---------------------------------------------------------------------------
     subroutine calc_polarization_drift_current(ct, jpolar_avg, jpolar_dote)
-        use previous_post_velocities, only: udx1, udy1, udz1, udx2, udy2, udz2
+        use previous_post_velocities, only: vdx1, vdy1, vdz1, vdx2, vdy2, vdz2
         use saving_flags, only: save_jpolar
         use particle_info, only: ptl_mass
         use parameters, only: tp1, tp2
@@ -621,7 +621,7 @@ module current_densities
         real(fp), dimension(3), intent(out) :: jpolar_avg
         real(fp), intent(out) :: jpolar_dote
         real(fp) :: bx1, by1, bz1, btot1, ib2
-        real(fp) :: duxdt, duydt, duzdt
+        real(fp) :: dvxdt, dvydt, dvzdt
         real(fp) :: idt
         integer :: nx, ny, nz, ix, iy, iz
 
@@ -645,22 +645,22 @@ module current_densities
                     btot1 = absB(ix, iy, iz)
                     ib2 = 1.0/(btot1*btot1)
 
-                    duxdt = (udx2(ix,iy,iz)-udx1(ix,iy,iz)) * idt
-                    duydt = (udy2(ix,iy,iz)-udy1(ix,iy,iz)) * idt
-                    duzdt = (udz2(ix,iy,iz)-udz1(ix,iy,iz)) * idt
+                    dvxdt = (vdx2(ix,iy,iz)-vdx1(ix,iy,iz)) * idt
+                    dvydt = (vdy2(ix,iy,iz)-vdy1(ix,iy,iz)) * idt
+                    dvzdt = (vdz2(ix,iy,iz)-vdz1(ix,iy,iz)) * idt
 
-                    duxdt = (ux(ixh(ix),iy,iz)-ux(ixl(ix),iy,iz))*ux(ix,iy,iz)*idx(ix) + &
-                            (ux(ix,iyh(iy),iz)-ux(ix,iyl(iy),iz))*uy(ix,iy,iz)*idy(iy) + &
-                            (ux(ix,iy,izh(iz))-ux(ix,iy,izl(iz)))*uz(ix,iy,iz)*idz(iz) + duxdt
-                    duydt = (uy(ixh(ix),iy,iz)-uy(ixl(ix),iy,iz))*ux(ix,iy,iz)*idx(ix) + &
-                            (uy(ix,iyh(iy),iz)-uy(ix,iyl(iy),iz))*uy(ix,iy,iz)*idy(iy) + &
-                            (uy(ix,iy,izh(iz))-uy(ix,iy,izl(iz)))*uz(ix,iy,iz)*idz(iz) + duydt
-                    duzdt = (uz(ixh(ix),iy,iz)-uz(ixl(ix),iy,iz))*ux(ix,iy,iz)*idx(ix) + &
-                            (uz(ix,iyh(iy),iz)-uz(ix,iyl(iy),iz))*uy(ix,iy,iz)*idy(iy) + &
-                            (uz(ix,iy,izh(iz))-uz(ix,iy,izl(iz)))*uz(ix,iy,iz)*idz(iz) + duzdt
-                    jx1(ix,iy,iz) = -(duydt*bz1-duzdt*by1)*num_rho(ix,iy,iz)*ib2
-                    jy1(ix,iy,iz) = -(duzdt*bx1-duxdt*bz1)*num_rho(ix,iy,iz)*ib2
-                    jz1(ix,iy,iz) = -(duxdt*by1-duydt*bx1)*num_rho(ix,iy,iz)*ib2
+                    dvxdt = (vx(ixh(ix),iy,iz)-vx(ixl(ix),iy,iz))*vx(ix,iy,iz)*idx(ix) + &
+                            (vx(ix,iyh(iy),iz)-vx(ix,iyl(iy),iz))*vy(ix,iy,iz)*idy(iy) + &
+                            (vx(ix,iy,izh(iz))-vx(ix,iy,izl(iz)))*vz(ix,iy,iz)*idz(iz) + dvxdt
+                    dvydt = (vy(ixh(ix),iy,iz)-vy(ixl(ix),iy,iz))*vx(ix,iy,iz)*idx(ix) + &
+                            (vy(ix,iyh(iy),iz)-vy(ix,iyl(iy),iz))*vy(ix,iy,iz)*idy(iy) + &
+                            (vy(ix,iy,izh(iz))-vy(ix,iy,izl(iz)))*vz(ix,iy,iz)*idz(iz) + dvydt
+                    dvzdt = (vz(ixh(ix),iy,iz)-vz(ixl(ix),iy,iz))*vx(ix,iy,iz)*idx(ix) + &
+                            (vz(ix,iyh(iy),iz)-vz(ix,iyl(iy),iz))*vy(ix,iy,iz)*idy(iy) + &
+                            (vz(ix,iy,izh(iz))-vz(ix,iy,izl(iz)))*vz(ix,iy,iz)*idz(iz) + dvzdt
+                    jx1(ix,iy,iz) = -(dvydt*bz1-dvzdt*by1)*num_rho(ix,iy,iz)*ib2
+                    jy1(ix,iy,iz) = -(dvzdt*bx1-dvxdt*bz1)*num_rho(ix,iy,iz)*ib2
+                    jz1(ix,iy,iz) = -(dvxdt*by1-dvydt*bx1)*num_rho(ix,iy,iz)*ib2
                 enddo
             enddo
         enddo
@@ -790,44 +790,44 @@ module current_densities
     ! Input:
     !   ct: current time frame.
     ! Output:
-    !   jqnupara_avg, jqnuperp_avg: the averaged 3 components of electric currents.
-    !   jqnupara_dote, jqnuperp_dote: the total j dot E in the box.
+    !   jqnvpara_avg, jqnvperp_avg: the averaged 3 components of electric currents.
+    !   jqnvpara_dote, jqnvperp_dote: the total j dot E in the box.
     !---------------------------------------------------------------------------
-    subroutine calc_qnu_current(ct, jqnupara_avg, jqnuperp_avg, &
-                                jqnupara_dote, jqnuperp_dote)
+    subroutine calc_qnv_current(ct, jqnvpara_avg, jqnvperp_avg, &
+                                jqnvpara_dote, jqnvperp_dote)
         use particle_info, only: ptl_charge
-        use saving_flags, only: save_jqnupara, save_jqnuperp
+        use saving_flags, only: save_jqnvpara, save_jqnvperp
         implicit none
         integer, intent(in) :: ct
-        real(fp), intent(out) :: jqnupara_dote, jqnuperp_dote
-        real(fp), dimension(3), intent(out) :: jqnupara_avg, jqnuperp_avg
-        real(fp), dimension(htg%nx,htg%ny,htg%nz) :: qnux, qnuy, qnuz, qnu_dotb
-        qnux = ptl_charge*num_rho*ux
-        qnuy = ptl_charge*num_rho*uy
-        qnuz = ptl_charge*num_rho*uz
-        qnu_dotb = (qnux*bx+qnuy*by+qnuz*bz) / (absB*absB)
+        real(fp), intent(out) :: jqnvpara_dote, jqnvperp_dote
+        real(fp), dimension(3), intent(out) :: jqnvpara_avg, jqnvperp_avg
+        real(fp), dimension(htg%nx,htg%ny,htg%nz) :: qnvx, qnvy, qnvz, qnv_dotb
+        qnvx = ptl_charge*num_rho*vx
+        qnvy = ptl_charge*num_rho*vy
+        qnvz = ptl_charge*num_rho*vz
+        qnv_dotb = (qnvx*bx+qnvy*by+qnvz*bz) / (absB*absB)
         ! Parallel direction
-        jx1 = qnu_dotb * bx
-        jy1 = qnu_dotb * by
-        jz1 = qnu_dotb * bz
+        jx1 = qnv_dotb * bx
+        jy1 = qnv_dotb * by
+        jz1 = qnv_dotb * bz
         ! Perpendicular direction
-        jx2 = qnux - jx1
-        jy2 = qnuy - jy1
-        jz2 = qnuz - jz1
+        jx2 = qnvx - jx1
+        jy2 = qnvy - jy1
+        jz2 = qnvz - jz1
 
-        call calc_jdote(jx1, jy1, jz1, jqnupara_dote)
-        if (save_jqnupara==1) then
-            call save_current_density('jqnupara', jx1, jy1, jz1, ct)
-            call save_field(jdote, 'jqnupara_dote', ct)
+        call calc_jdote(jx1, jy1, jz1, jqnvpara_dote)
+        if (save_jqnvpara==1) then
+            call save_current_density('jqnvpara', jx1, jy1, jz1, ct)
+            call save_field(jdote, 'jqnvpara_dote', ct)
         endif
-        call calc_jdote(jx2, jy2, jz2, jqnuperp_dote)
-        if (save_jqnuperp==1) then
-            call save_current_density('jqnuperp', jx2, jy2, jz2, ct)
-            call save_field(jdote, 'jqnuperp_dote', ct)
+        call calc_jdote(jx2, jy2, jz2, jqnvperp_dote)
+        if (save_jqnvperp==1) then
+            call save_current_density('jqnvperp', jx2, jy2, jz2, ct)
+            call save_field(jdote, 'jqnvperp_dote', ct)
         endif
-        call calc_averaged_currents(jx1, jy1, jz1, jqnupara_avg)
-        call calc_averaged_currents(jx2, jy2, jz2, jqnuperp_avg)
-    end subroutine calc_qnu_current
+        call calc_averaged_currents(jx1, jy1, jz1, jqnvpara_avg)
+        call calc_averaged_currents(jx2, jy2, jz2, jqnvperp_avg)
+    end subroutine calc_qnv_current
 
 
     !---------------------------------------------------------------------------
@@ -836,30 +836,30 @@ module current_densities
     ! Input:
     !   ct: current time frame.
     ! Output:
-    !   jdivu_avg: the averaged 3 components of electric currents.
-    !   jdivu_dote: the total j dot E in the box.
+    !   jdivv_avg: the averaged 3 components of electric currents.
+    !   jdivv_dote: the total j dot E in the box.
     !---------------------------------------------------------------------------
-    subroutine calc_compression_current(ct, jdivu_avg, jdivu_dote)
+    subroutine calc_compression_current(ct, jdivv_avg, jdivv_dote)
         use particle_info, only: ptl_mass
-        use compression_shear, only: div_u, calc_div_u
-        use saving_flags, only: save_jdivu
+        use compression_shear, only: div_v, calc_div_v
+        use saving_flags, only: save_jdivv
         implicit none
         integer, intent(in) :: ct
-        real(fp), dimension(3), intent(out) :: jdivu_avg
-        real(fp), intent(out) :: jdivu_dote
-        call calc_div_u
-        jx1 = div_u * (uz*by - uy*bz) / (absB*absB)
-        jy1 = div_u * (ux*bz - uz*bx) / (absB*absB)
-        jz1 = div_u * (uy*bx - ux*by) / (absB*absB)
+        real(fp), dimension(3), intent(out) :: jdivv_avg
+        real(fp), intent(out) :: jdivv_dote
+        call calc_div_v
+        jx1 = div_v * (vz*by - vy*bz) / (absB*absB)
+        jy1 = div_v * (vx*bz - vz*bx) / (absB*absB)
+        jz1 = div_v * (vy*bx - vx*by) / (absB*absB)
         jx1 = jx1 * num_rho * ptl_mass
         jy1 = jy1 * num_rho * ptl_mass
         jz1 = jz1 * num_rho * ptl_mass
 
-        call calc_jdote(jx1, jy1, jz1, jdivu_dote)
-        call calc_averaged_currents(jx1, jy1, jz1, jdivu_avg)
-        if (save_jdivu==1) then
-            call save_current_density('jdivu', jx1, jy1, jz1, ct)
-            call save_field(jdote, 'jdivu_dote', ct)
+        call calc_jdote(jx1, jy1, jz1, jdivv_dote)
+        call calc_averaged_currents(jx1, jy1, jz1, jdivv_avg)
+        if (save_jdivv==1) then
+            call save_current_density('jdivv', jx1, jy1, jz1, ct)
+            call save_field(jdote, 'jdivv_dote', ct)
         endif
     end subroutine calc_compression_current
 

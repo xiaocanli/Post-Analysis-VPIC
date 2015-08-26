@@ -9,7 +9,7 @@ module velocity_distribution
 
     public fvel_2d, fvel_xy, fvel_xz, fvel_yz, fvel_para, fvel_perp, &
            fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum, &
-           fvel_para_sum, fvel_perp_sum, ubins_short, ubins_long
+           fvel_para_sum, fvel_perp_sum, vbins_short, vbins_long
     public init_velocity_bins, free_velocity_bins, init_vdist_2d, &
            set_vdist_2d_zero, free_vdist_2d, init_vdist_2d_single, &
            set_vdist_2d_zero_single, free_vdist_2d_single, init_vdist_1d, &
@@ -23,7 +23,7 @@ module velocity_distribution
     real(dp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
     real(dp), allocatable, dimension(:, :) :: fvel_xz_sum, fvel_yz_sum
     real(dp), allocatable, dimension(:) :: fvel_para_sum, fvel_perp_sum
-    real(dp), allocatable, dimension(:) :: ubins_short, ubins_long
+    real(dp), allocatable, dimension(:) :: vbins_short, vbins_long
     ! The index of the left corner of the bin that contains the particle.
     integer :: ibin_para, ibin_perp, ibinx, ibiny, ibinz
     ! The offset from the left corner. [0, 1)
@@ -35,19 +35,19 @@ module velocity_distribution
     ! Initialize short (nbins_vdist) and long (2*nbins_vdist) velocity bins.
     !---------------------------------------------------------------------------
     subroutine init_velocity_bins
-        use spectrum_config, only: nbins_vdist, umax, du
+        use spectrum_config, only: nbins_vdist, vmax, dv
         implicit none
         integer :: i
 
-        allocate(ubins_short(nbins_vdist))
-        allocate(ubins_long(nbins_vdist*2))
+        allocate(vbins_short(nbins_vdist))
+        allocate(vbins_long(nbins_vdist*2))
 
         do i = 1, nbins_vdist
-            ubins_short(i) = (i - 0.5) * du
+            vbins_short(i) = (i - 0.5) * dv
         enddo
 
         do i = 1, nbins_vdist*2
-            ubins_long(i) = (i - 0.5)*du - umax
+            vbins_long(i) = (i - 0.5)*dv - vmax
         enddo
     end subroutine init_velocity_bins
 
@@ -56,7 +56,7 @@ module velocity_distribution
     !---------------------------------------------------------------------------
     subroutine free_velocity_bins
         implicit none
-        deallocate(ubins_short, ubins_long)
+        deallocate(vbins_short, vbins_long)
     end subroutine free_velocity_bins
 
     !---------------------------------------------------------------------------
@@ -282,7 +282,7 @@ module velocity_distribution
             open(unit=10, file=trim(fname), access='stream', &
                  status='unknown', form='unformatted', action='write')
             write(10) nbins_vdist
-            write(10) ubins_short, ubins_long
+            write(10) vbins_short, vbins_long
             write(10) fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum
             close(10)
         endif
@@ -466,7 +466,7 @@ module velocity_distribution
             open(unit=10, file=trim(fname), access='stream', &
                  status='unknown', form='unformatted', action='write')
             write(10) nbins_vdist
-            write(10) ubins_short, ubins_long
+            write(10) vbins_short, vbins_long
             write(10) fvel_para_sum, fvel_perp_sum
             close(10)
         endif
@@ -583,21 +583,21 @@ module velocity_distribution
     ! Calculate which bin (e.g. i-(i+1)) to put the particle in. The offset from
     ! i is also calculated.
     ! Inputs:
-    !   u: particle velocity (actually \gamma v).
-    !   umin: the minimum velocity.
-    !   du: the velocity interval.
+    !   v: particle velocity (actually \gamma v).
+    !   vmin: the minimum velocity.
+    !   dv: the velocity interval.
     ! Outputs:
     !   ibin: the energy bin.
     !   offset: offset from the left corner [0, 1).
     !---------------------------------------------------------------------------
-    subroutine calc_bin_offset(u, umin, du, ibin, offset)
+    subroutine calc_bin_offset(v, vmin, dv, ibin, offset)
         implicit none
-        real(fp), intent(in) :: u, umin, du
+        real(fp), intent(in) :: v, vmin, dv
         integer, intent(out) :: ibin
         real(fp), intent(out) :: offset
         real(fp) :: rbin
 
-        rbin = (u - umin) / du + 1
+        rbin = (v - vmin) / dv + 1
         ibin = floor(rbin)
         offset = rbin - ibin
     end subroutine calc_bin_offset
@@ -607,11 +607,11 @@ module velocity_distribution
     ! parallel and perpendicular direction to the local magnetic field.
     !---------------------------------------------------------------------------
     subroutine calc_bin_offset_para_perp
-        use particle_module, only: upara, uperp
-        use spectrum_config, only: umax, umin, du
+        use particle_module, only: vpara, vperp
+        use spectrum_config, only: vmax, vmin, dv
         implicit none
-        call calc_bin_offset(upara, -umax, du, ibin_para, offset_para)
-        call calc_bin_offset(uperp, umin, du, ibin_perp, offset_perp)
+        call calc_bin_offset(vpara, -vmax, dv, ibin_para, offset_para)
+        call calc_bin_offset(vperp, vmin, dv, ibin_perp, offset_perp)
     end subroutine calc_bin_offset_para_perp
 
     !---------------------------------------------------------------------------
@@ -620,11 +620,11 @@ module velocity_distribution
     !---------------------------------------------------------------------------
     subroutine calc_bin_offset_xyz
         use particle_module, only: ptl
-        use spectrum_config, only: umax, du
+        use spectrum_config, only: vmax, dv
         implicit none
-        call calc_bin_offset(ptl%ux, -umax, du, ibinx, offsetx)
-        call calc_bin_offset(ptl%uy, -umax, du, ibiny, offsety)
-        call calc_bin_offset(ptl%uz, -umax, du, ibinz, offsetz)
+        call calc_bin_offset(ptl%vx, -vmax, dv, ibinx, offsetx)
+        call calc_bin_offset(ptl%vy, -vmax, dv, ibiny, offsety)
+        call calc_bin_offset(ptl%vz, -vmax, dv, ibinz, offsetz)
     end subroutine calc_bin_offset_xyz
 
     !---------------------------------------------------------------------------

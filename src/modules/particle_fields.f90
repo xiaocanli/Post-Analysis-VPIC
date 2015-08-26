@@ -13,7 +13,7 @@ module particle_fields
            set_current_density_zero, adjust_particle_fields, &
            write_particle_fields, calc_current_density, calc_absJ, &
            write_current_densities
-    real(fp), allocatable, dimension(:,:,:) :: ux, uy, uz, nrho
+    real(fp), allocatable, dimension(:,:,:) :: vx, vy, vz, nrho
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz, absJ
     real(fp), allocatable, dimension(:,:,:,:) :: eb
@@ -26,9 +26,9 @@ module particle_fields
     subroutine init_particle_fields
         use topology, only: ht
         implicit none
-        allocate(ux(ht%nx, ht%ny, ht%nz))
-        allocate(uy(ht%nx, ht%ny, ht%nz))
-        allocate(uz(ht%nx, ht%ny, ht%nz))
+        allocate(vx(ht%nx, ht%ny, ht%nz))
+        allocate(vy(ht%nx, ht%ny, ht%nz))
+        allocate(vz(ht%nx, ht%ny, ht%nz))
         allocate(nrho(ht%nx, ht%ny, ht%nz))
         allocate(pxx(ht%nx, ht%ny, ht%nz))
         allocate(pxy(ht%nx, ht%ny, ht%nz))
@@ -45,7 +45,7 @@ module particle_fields
             eb = 0.0
         endif
 
-        ux = 0.0; uy = 0.0; uz = 0.0
+        vx = 0.0; vy = 0.0; vz = 0.0
         pxx = 0.0; pxy = 0.0; pxz = 0.0
         pyy = 0.0; pyz = 0.0; pzz = 0.0
         nrho = 0.0
@@ -67,7 +67,7 @@ module particle_fields
     !---------------------------------------------------------------------------
     subroutine free_particle_fields
         implicit none
-        deallocate(ux, uy, uz, nrho)
+        deallocate(vx, vy, vz, nrho)
         deallocate(pxx, pxy, pxz, pyy, pyz, pzz)
         deallocate(jx, jy, jz, absJ)
         if (nbands > 0) then
@@ -167,11 +167,11 @@ module particle_fields
         nc3 = fheader%nc(3) - 1
 
         read(fh) buffer
-        ux(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        uy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        uz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
         nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
@@ -201,14 +201,14 @@ module particle_fields
 
     !---------------------------------------------------------------------------
     ! Calculate the 3 components of the current density. This subroutine has
-    ! to be executed before adjust_particle_fields, which will change ux, uy,
-    ! uz to real bulk velocity.
+    ! to be executed before adjust_particle_fields, which will change vx, vy,
+    ! vz to real bulk velocity.
     !---------------------------------------------------------------------------
     subroutine calc_current_density
         implicit none
-        jx = jx + ux
-        jy = jy + uy
-        jz = jz + uz
+        jx = jx + vx
+        jy = jy + vy
+        jz = jz + vz
     end subroutine calc_current_density
 
     !---------------------------------------------------------------------------
@@ -221,9 +221,9 @@ module particle_fields
 
     !---------------------------------------------------------------------------
     ! Adjust particle fields. The changes include
-    !   1. ux, uy, uz are actually current densities. So we need to change them
-    !      to be real bulk velocities.
-    !   2. pxx ... pzz are stress tensor. We'll convert it to pressure tensor.
+    !   1. vx, vy, vz are actually current densities. So we need to change them
+    !      to be revl bulk velocities.
+    !   2. pxx ... vzz are stress tensor. We'll convert it to pressure tensor.
     !---------------------------------------------------------------------------
     subroutine adjust_particle_fields(species)
         use picinfo, only: mime
@@ -241,15 +241,15 @@ module particle_fields
 
         nrho = abs(nrho)    ! Exclude negative values.
         where (nrho > 0)
-            pxx = (pxx - ptl_mass*ux*ux/nrho)
-            pyy = (pyy - ptl_mass*uy*uy/nrho)
-            pzz = (pzz - ptl_mass*uz*uz/nrho)
-            pxy = (pxy - ptl_mass*ux*uy/nrho)
-            pxz = (pxz - ptl_mass*ux*uz/nrho)
-            pyz = (pyz - ptl_mass*uy*uz/nrho)
-            ux = ptl_charge * (ux/nrho)
-            uy = ptl_charge * (uy/nrho)
-            uz = ptl_charge * (uz/nrho)
+            pxx = (pxx - ptl_mass*vx*vx/nrho)
+            pyy = (pyy - ptl_mass*vy*vy/nrho)
+            pzz = (pzz - ptl_mass*vz*vz/nrho)
+            pxy = (pxy - ptl_mass*vx*vy/nrho)
+            pxz = (pxz - ptl_mass*vx*vz/nrho)
+            pyz = (pyz - ptl_mass*vy*vz/nrho)
+            vx = ptl_charge * (vx/nrho)
+            vy = ptl_charge * (vy/nrho)
+            vz = ptl_charge * (vz/nrho)
         elsewhere
             pxx = 0.0
             pyy = 0.0
@@ -257,9 +257,9 @@ module particle_fields
             pxy = 0.0
             pxz = 0.0
             pyz = 0.0
-            ux = 0.0
-            uy = 0.0
-            uz = 0.0
+            vx = 0.0
+            vy = 0.0
+            vz = 0.0
         endwhere
     end subroutine adjust_particle_fields
 
@@ -277,11 +277,11 @@ module particle_fields
         character(len=150) :: fname
         integer :: ib
         fname = trim(adjustl(rootpath))//'data/u'//species//'x'
-        call write_data(fname, ux, tindex, output_record)
+        call write_data(fname, vx, tindex, output_record)
         fname = trim(adjustl(rootpath))//'data/u'//species//'y'
-        call write_data(fname, uy, tindex, output_record)
+        call write_data(fname, vy, tindex, output_record)
         fname = trim(adjustl(rootpath))//'data/u'//species//'z'
-        call write_data(fname, uz, tindex, output_record)
+        call write_data(fname, vz, tindex, output_record)
         fname = trim(adjustl(rootpath))//'data/n'//species
         call write_data(fname, nrho, tindex, output_record)
         fname = trim(adjustl(rootpath))//'data/p'//species//'-xx'

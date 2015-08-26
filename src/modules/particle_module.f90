@@ -5,20 +5,20 @@ module particle_module
     use constants, only: fp
     implicit none
     private
-    public ptl, ke, px, py, pz, upara, uperp
+    public ptl, ke, px, py, pz, vpara, vperp
     public calc_particle_energy, calc_ptl_coord, calc_para_perp_velocity
 
     type particle
         real(fp) :: dx, dy, dz    ! Particle relative position in a cell [-1,1]
         integer :: icell          ! Index of cell containing the particle
-        real(fp) :: ux, uy, uz    ! Particle normalized momentum
+        real(fp) :: vx, vy, vz    ! Particle normalized momentum
         real(fp) :: q
     end type particle
 
     type(particle) :: ptl
     real(fp) :: ke                ! Kinetic energy
     real(fp) :: px, py, pz        ! Particle position
-    real(fp) :: upara, uperp      ! Parallel and perpendicular momentum
+    real(fp) :: vpara, vperp      ! Parallel and perpendicular momentum
 
     contains
 
@@ -32,7 +32,7 @@ module particle_module
         implicit none
         real(fp) :: gama
 
-        gama = sqrt(1.0 + ptl%ux**2 + ptl%uy**2 + ptl%uz**2)        
+        gama = sqrt(1.0 + ptl%vx**2 + ptl%vy**2 + ptl%vz**2)        
         ke = gama - 1.0
     end subroutine calc_particle_energy
 
@@ -77,8 +77,8 @@ module particle_module
         dz = real(domain%dz, kind=4)
         call get_magnetic_field_at_point(px, pz, dx, dz)
         absB = sqrt(bx0**2 + by0**2 + bz0**2)
-        upara = (ptl%ux*bx0 + ptl%uy*by0 + ptl%uz*bz0) / absB
-        uperp = sqrt(ptl%ux**2 + ptl%uy**2 + ptl%uz**2 - upara**2)
+        vpara = (ptl%vx*bx0 + ptl%vy*by0 + ptl%vz*bz0) / absB
+        vperp = sqrt(ptl%vx**2 + ptl%vy**2 + ptl%vz**2 - vpara**2)
     end subroutine calc_para_perp_velocity
 
 end module particle_module

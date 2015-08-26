@@ -25,7 +25,7 @@ program bulk_flow_energy
         use mpi_module
         use constants, only: fp
         use mpi_topology, only: htg
-        use pic_fields, only: ux, uy, uz, pxx, pyy, pzz, num_rho, &
+        use pic_fields, only: vx, vy, vz, pxx, pyy, pzz, num_rho, &
                 open_velocity_field_files, open_pressure_tensor_files, &
                 init_velocity_fields, init_pressure_tensor, &
                 read_velocity_fields, read_pressure_tensor, &
@@ -65,21 +65,21 @@ program bulk_flow_energy
             call read_velocity_fields(ct)
             call read_pressure_tensor(ct)
             call read_number_density(ct)
-            call get_average_and_total(0.5*ux*ux*ptl_mass*num_rho, &
+            call get_average_and_total(0.5*vx*vx*ptl_mass*num_rho, &
                     bene_avg, bene_tot)
             call get_average_and_total(0.5*pxx, iene_avg, iene_tot)
             if (myid == master) then
                 bulk_energy(1, ct-tp1+1) = bene_tot
                 internal_energy(1, ct-tp1+1) = iene_tot
             endif
-            call get_average_and_total(0.5*uy*uy*ptl_mass*num_rho, &
+            call get_average_and_total(0.5*vy*vy*ptl_mass*num_rho, &
                     bene_avg, bene_tot)
             call get_average_and_total(0.5*pyy, iene_avg, iene_tot)
             if (myid == master) then
                 bulk_energy(2, ct-tp1+1) = bene_tot
                 internal_energy(2, ct-tp1+1) = iene_tot
             endif
-            call get_average_and_total(0.5*uz*uz*ptl_mass*num_rho, &
+            call get_average_and_total(0.5*vz*vz*ptl_mass*num_rho, &
                     bene_avg, bene_tot)
             call get_average_and_total(0.5*pzz, iene_avg, iene_tot)
             if (myid == master) then

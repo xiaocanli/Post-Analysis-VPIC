@@ -7,15 +7,15 @@ module saving_flags
     private
     public save_jcpara, save_jcperp, save_jmag, save_jgrad, save_jdiagm, &
            save_jpolar, save_jexb, save_jpara, save_jperp, save_jperp1, &
-           save_jperp2, save_jqnupara, save_jqnuperp, save_jagy, save_jtot, &
-           save_jdivu, save_pre
+           save_jperp2, save_jqnvpara, save_jqnvperp, save_jagy, save_jtot, &
+           save_jdivv, save_pre
     public get_saving_flags
 
     integer :: save_jcpara, save_jcperp, save_jmag
     integer :: save_jgrad, save_jdiagm, save_jpolar
     integer :: save_jexb, save_jpara, save_jperp
-    integer :: save_jperp1, save_jperp2, save_jqnupara
-    integer :: save_jqnuperp, save_jagy, save_jtot, save_jdivu
+    integer :: save_jperp1, save_jperp2, save_jqnvpara
+    integer :: save_jqnvperp, save_jagy, save_jtot, save_jdivv
     integer :: save_pre
 
     contains
@@ -40,11 +40,11 @@ module saving_flags
         save_jperp = get_variable_int(fh, 'save_jperp', '=')
         save_jperp1 = get_variable_int(fh, 'save_jperp1', '=')
         save_jperp2 = get_variable_int(fh, 'save_jperp2', '=')
-        save_jqnupara = get_variable_int(fh, 'save_jqnupara', '=')
-        save_jqnuperp = get_variable_int(fh, 'save_jqnuperp', '=')
+        save_jqnvpara = get_variable_int(fh, 'save_jqnvpara', '=')
+        save_jqnvperp = get_variable_int(fh, 'save_jqnvperp', '=')
         save_jagy = get_variable_int(fh, 'save_jagy', '=')
         save_jtot = get_variable_int(fh, 'save_jtot', '=')
-        save_jtot = get_variable_int(fh, 'save_jdivu', '=')
+        save_jtot = get_variable_int(fh, 'save_jdivv', '=')
         save_pre = get_variable_int(fh, 'save_pre', '=')
         close(fh)
     end subroutine get_saving_flags

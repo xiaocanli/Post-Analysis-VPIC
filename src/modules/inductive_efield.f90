@@ -85,16 +85,16 @@ module inductive_electric_field
         use picinfo, only: domain, mime
         use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
         use mpi_io_module, only: read_data_mpi_io
-        use usingle, only: calc_usingle, usx, usy, usz
+        use usingle, only: calc_usingle, vsx, vsy, vsz
         implicit none
         integer, intent(in) :: ct
         character(*), intent(in) :: species
 
         call calc_usingle(species)
 
-        exin = by*usz - bz*usy
-        eyin = bz*usx - bx*usz
-        ezin = bx*usy - by*usx
+        exin = by*vsz - bz*vsy
+        eyin = bz*vsx - bx*vsz
+        ezin = bx*vsy - by*vsx
     end subroutine calc_inductive_e
 
 end module inductive_electric_field

@@ -5,11 +5,11 @@ module usingle
     use constants, only: fp
     implicit none
     private
-    public usx, usy, usz    ! s indicates 'single fluid'
+    public vsx, vsy, vsz    ! s indicates 'single fluid'
     public init_usingle, free_usingle, calc_usingle, &
            open_velocity_density_files, close_velocity_density_files
-    real(fp), allocatable, dimension(:, :, :) :: usx, usy, usz
-    real(fp), allocatable, dimension(:, :, :) :: ux, uy, uz
+    real(fp), allocatable, dimension(:, :, :) :: vsx, vsy, vsz
+    real(fp), allocatable, dimension(:, :, :) :: vx, vy, vz
     real(fp), allocatable, dimension(:, :, :) :: nrho_a, nrho_b
     integer, dimension(3) :: fh_vel     ! File handler for velocity field.
     integer, dimension(3) :: fh_vel_b   ! For the other species.
@@ -49,9 +49,9 @@ module usingle
     subroutine init_usingle_s
         use mpi_topology, only: htg
         implicit none
-        allocate(usx(htg%nx, htg%ny, htg%nz))
-        allocate(usy(htg%nx, htg%ny, htg%nz))
-        allocate(usz(htg%nx, htg%ny, htg%nz))
+        allocate(vsx(htg%nx, htg%ny, htg%nz))
+        allocate(vsy(htg%nx, htg%ny, htg%nz))
+        allocate(vsz(htg%nx, htg%ny, htg%nz))
         allocate(nrho_a(htg%nx, htg%ny, htg%nz))
     end subroutine init_usingle_s
 
@@ -59,12 +59,12 @@ module usingle
         use mpi_topology, only: htg
         implicit none
         character(*), intent(in) :: species
-        allocate(usx(htg%nx, htg%ny, htg%nz))
-        allocate(usy(htg%nx, htg%ny, htg%nz))
-        allocate(usz(htg%nx, htg%ny, htg%nz))
-        allocate(ux(htg%nx, htg%ny, htg%nz))
-        allocate(uy(htg%nx, htg%ny, htg%nz))
-        allocate(uz(htg%nx, htg%ny, htg%nz))
+        allocate(vsx(htg%nx, htg%ny, htg%nz))
+        allocate(vsy(htg%nx, htg%ny, htg%nz))
+        allocate(vsz(htg%nx, htg%ny, htg%nz))
+        allocate(vx(htg%nx, htg%ny, htg%nz))
+        allocate(vy(htg%nx, htg%ny, htg%nz))
+        allocate(vz(htg%nx, htg%ny, htg%nz))
         allocate(nrho_a(htg%nx, htg%ny, htg%nz))
         allocate(nrho_b(htg%nx, htg%ny, htg%nz))
     end subroutine init_usingle_b
@@ -74,15 +74,15 @@ module usingle
     !---------------------------------------------------------------------------
     subroutine free_usingle_s
         implicit none
-        deallocate(usx, usy, usz)
+        deallocate(vsx, vsy, vsz)
         deallocate(nrho_a)
     end subroutine free_usingle_s
 
     subroutine free_usingle_b(species)
         implicit none
         character(*), intent(in) :: species
-        deallocate(usx, usy, usz)
-        deallocate(ux, uy, uz)
+        deallocate(vsx, vsy, vsz)
+        deallocate(vx, vy, vz)
         deallocate(nrho_a, nrho_b)
     end subroutine free_usingle_b
 
@@ -194,11 +194,11 @@ module usingle
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
-            disp, offset, usx)
+            disp, offset, vsx)
         call read_data_mpi_io(fh_vel(2), filetype_ghost, subsizes_ghost, &
-            disp, offset, usy)
+            disp, offset, vsy)
         call read_data_mpi_io(fh_vel(3), filetype_ghost, subsizes_ghost, &
-            disp, offset, usz)
+            disp, offset, vsz)
         call read_data_mpi_io(fh_nrho, filetype_ghost, subsizes_ghost, &
             disp, offset, nrho_a)
     end subroutine read_velocity_density_s
@@ -222,20 +222,20 @@ module usingle
         offset = 0 
         ! Electron
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
-            disp, offset, usx)
+            disp, offset, vsx)
         call read_data_mpi_io(fh_vel(2), filetype_ghost, subsizes_ghost, &
-            disp, offset, usy)
+            disp, offset, vsy)
         call read_data_mpi_io(fh_vel(3), filetype_ghost, subsizes_ghost, &
-            disp, offset, usz)
+            disp, offset, vsz)
         call read_data_mpi_io(fh_nrho, filetype_ghost, subsizes_ghost, &
             disp, offset, nrho_a)
         ! Ion
         call read_data_mpi_io(fh_vel_b(1), filetype_ghost, subsizes_ghost, &
-            disp, offset, ux)
+            disp, offset, vx)
         call read_data_mpi_io(fh_vel_b(2), filetype_ghost, subsizes_ghost, &
-            disp, offset, uy)
+            disp, offset, vy)
         call read_data_mpi_io(fh_vel_b(3), filetype_ghost, subsizes_ghost, &
-            disp, offset, uz)
+            disp, offset, vz)
         call read_data_mpi_io(fh_nrho, filetype_ghost, subsizes_ghost, &
             disp, offset, nrho_b)
     end subroutine read_velocity_density_b
@@ -246,17 +246,17 @@ module usingle
     !---------------------------------------------------------------------------
     subroutine calc_usingle_s(species)
         use picinfo, only: mime
-        use pic_fields, only: ux, uy, uz, num_rho
+        use pic_fields, only: vx, vy, vz, num_rho
         implicit none
         character(*), intent(in) :: species
         if (species == 'e') then
-            usx = (usx*mime*nrho_a + ux*num_rho) / (mime*nrho_a + num_rho)
-            usy = (usy*mime*nrho_a + uy*num_rho) / (mime*nrho_a + num_rho)
-            usz = (usz*mime*nrho_a + uz*num_rho) / (mime*nrho_a + num_rho)
+            vsx = (vsx*mime*nrho_a + vx*num_rho) / (mime*nrho_a + num_rho)
+            vsy = (vsy*mime*nrho_a + vy*num_rho) / (mime*nrho_a + num_rho)
+            vsz = (vsz*mime*nrho_a + vz*num_rho) / (mime*nrho_a + num_rho)
         else
-            usx = (usx*nrho_a + ux*mime*num_rho) / (mime*num_rho + nrho_a)
-            usy = (usy*nrho_a + uy*mime*num_rho) / (mime*num_rho + nrho_a)
-            usz = (usz*nrho_a + uz*mime*num_rho) / (mime*num_rho + nrho_a)
+            vsx = (vsx*nrho_a + vx*mime*num_rho) / (mime*num_rho + nrho_a)
+            vsy = (vsy*nrho_a + vy*mime*num_rho) / (mime*num_rho + nrho_a)
+            vsz = (vsz*nrho_a + vz*mime*num_rho) / (mime*num_rho + nrho_a)
         endif
     end subroutine calc_usingle_s
 
@@ -266,11 +266,11 @@ module usingle
     !---------------------------------------------------------------------------
     subroutine calc_usingle_b
         use picinfo, only: mime
-        use pic_fields, only: ux, uy, uz, num_rho
+        use pic_fields, only: vx, vy, vz, num_rho
         implicit none
-        usx = (usx*nrho_a + ux*mime*nrho_b) / (mime*nrho_b + nrho_a)
-        usy = (usy*nrho_a + uy*mime*nrho_b) / (mime*nrho_b + nrho_a)
-        usz = (usz*nrho_a + uz*mime*nrho_b) / (mime*nrho_b + nrho_a)
+        vsx = (vsx*nrho_a + vx*mime*nrho_b) / (mime*nrho_b + nrho_a)
+        vsy = (vsy*nrho_a + vy*mime*nrho_b) / (mime*nrho_b + nrho_a)
+        vsz = (vsz*nrho_a + vz*mime*nrho_b) / (mime*nrho_b + nrho_a)
     end subroutine calc_usingle_b
 
 end module usingle
