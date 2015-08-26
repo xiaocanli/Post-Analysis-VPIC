@@ -36,10 +36,14 @@ program parspec
 
     call init_energy_spectra
 
-    do ct = 1, 1
+    do ct = 1, 10
         call calc_energy_spectra(ct, 'e')
         call set_energy_spectra_zero
-        ! call calc_particle_spectrum(ct, 'h')
+    enddo
+
+    do ct = 1, 10
+        call calc_energy_spectra(ct, 'h')
+        call set_energy_spectra_zero
     enddo
 
     call free_energy_spectra
