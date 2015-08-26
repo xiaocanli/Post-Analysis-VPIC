@@ -6,7 +6,7 @@
 module pic_fields
     use mpi_module
     use constants, only: fp
-    use parameters, only: tp1
+    use parameters, only: tp1, is_rel
     use picinfo, only: domain
     use mpi_topology, only: htg
     use mpi_io_module, only: open_data_mpi_io, read_data_mpi_io
@@ -37,20 +37,25 @@ module pic_fields
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
+    public pyx, pzx, pzy                 ! Pressure tensor when relativistic
     public vx, vy, vz, num_rho           ! Bulk flow velocity and number density
+    public ux, uy, uz                    ! Bulk flow 4-velocity
     public jx, jy, jz                    ! Current density for single fluid
     public eb
     ! File handlers
     public bfields_fh, efields_fh, pre_fh, vfields_fh, jfields_fh, nrho_fh
-    public eband_fh
+    public eband_fh, pre_rel_fh, ufields_fh
 
     real(fp), allocatable, dimension(:,:,:) :: bx, by, bz, ex, ey, ez, absB
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
+    real(fp), allocatable, dimension(:,:,:) :: pyx, pzx, pzy
     real(fp), allocatable, dimension(:,:,:) :: vx, vy, vz, num_rho
+    real(fp), allocatable, dimension(:,:,:) :: ux, uy, uz
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz
     real(fp), allocatable, dimension(:,:,:) :: eb
     integer, dimension(4) :: bfields_fh
     integer, dimension(3) :: efields_fh, vfields_fh, jfields_fh
+    integer, dimension(3) :: ufields_fh, pre_rel_fh
     integer, dimension(6) :: pre_fh
     integer :: nrho_fh, eband_fh
 
@@ -108,6 +113,12 @@ module pic_fields
         allocate(pzz(nx,ny,nz))
         pxx = 0.0; pyy = 0.0; pzz = 0.0
         pxy = 0.0; pxz = 0.0; pyz = 0.0
+        if (is_rel == 1) then
+            allocate(pyx(nx,ny,nz))
+            allocate(pzx(nx,ny,nz))
+            allocate(pzy(nx,ny,nz))
+            pyx = 0.0; pzx = 0.0; pzy = 0.0
+        endif
     end subroutine init_pressure_tensor
 
     !---------------------------------------------------------------------------
@@ -120,6 +131,12 @@ module pic_fields
         allocate(vy(nx,ny,nz))
         allocate(vz(nx,ny,nz))
         vx = 0.0; vy = 0.0; vz = 0.0
+        if (is_rel == 1) then
+            allocate(ux(nx,ny,nz))
+            allocate(uy(nx,ny,nz))
+            allocate(uz(nx,ny,nz))
+            ux = 0.0; uy = 0.0; uz = 0.0
+        endif
     end subroutine init_velocity_fields
 
     !---------------------------------------------------------------------------
@@ -234,6 +251,14 @@ module pic_fields
             subsizes_ghost, disp, offset, pyz)
         call read_data_mpi_io(pre_fh(6), filetype_ghost, &
             subsizes_ghost, disp, offset, pzz)
+        if (is_rel == 1) then
+            call read_data_mpi_io(pre_rel_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, pyx)
+            call read_data_mpi_io(pre_rel_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, pzx)
+            call read_data_mpi_io(pre_rel_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, pzy)
+        endif
     end subroutine read_pressure_tensor
 
     !---------------------------------------------------------------------------
@@ -251,6 +276,14 @@ module pic_fields
             subsizes_ghost, disp, offset, vy)
         call read_data_mpi_io(vfields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, vz)
+        if (is_rel == 1) then
+            call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, ux)
+            call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, uy)
+            call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, uz)
+        endif
     end subroutine read_velocity_fields
 
     !---------------------------------------------------------------------------
@@ -362,6 +395,14 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(5))
         fname = trim(adjustl(filepath))//'p'//species//'-zz.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(6))
+        if (is_rel == 1) then
+            fname = trim(adjustl(filepath))//'p'//species//'-yx.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(1))
+            fname = trim(adjustl(filepath))//'p'//species//'-zx.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(2))
+            fname = trim(adjustl(filepath))//'p'//species//'-zy.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
+        endif
     end subroutine open_pressure_tensor_files
 
     !---------------------------------------------------------------------------
@@ -372,12 +413,20 @@ module pic_fields
         character(*), intent(in) :: species
         character(len=100) :: fname
         vfields_fh = 0
-        fname = trim(adjustl(filepath))//'u'//species//'x.gda'
+        fname = trim(adjustl(filepath))//'v'//species//'x.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
-        fname = trim(adjustl(filepath))//'u'//species//'y.gda'
+        fname = trim(adjustl(filepath))//'v'//species//'y.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
-        fname = trim(adjustl(filepath))//'u'//species//'z.gda'
+        fname = trim(adjustl(filepath))//'v'//species//'z.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
+        if (is_rel == 1) then
+            fname = trim(adjustl(filepath))//'u'//species//'x.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
+            fname = trim(adjustl(filepath))//'u'//species//'y.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
+            fname = trim(adjustl(filepath))//'u'//species//'z.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+        endif
     end subroutine open_velocity_field_files
 
     !---------------------------------------------------------------------------
@@ -452,6 +501,9 @@ module pic_fields
     subroutine free_pressure_tensor
         implicit none
         deallocate(pxx, pxy, pxz, pyy, pyz, pzz)
+        if (is_rel == 1) then
+            deallocate(pyx, pzx, pzy)
+        endif
     end subroutine free_pressure_tensor
 
     !---------------------------------------------------------------------------
@@ -460,6 +512,9 @@ module pic_fields
     subroutine free_velocity_fields
         implicit none
         deallocate(vx, vy, vz)
+        if (is_rel == 1) then
+            deallocate(ux, uy, uz)
+        endif
     end subroutine free_velocity_fields
 
     !---------------------------------------------------------------------------
@@ -531,6 +586,11 @@ module pic_fields
         do i = 1, 6
             call MPI_FILE_CLOSE(pre_fh(i), ierror)
         end do
+        if (is_rel == 1) then
+            do i = 1, 3
+                call MPI_FILE_CLOSE(pre_rel_fh(i), ierror)
+            enddo
+        endif
     end subroutine close_pressure_tensor_files
 
     !---------------------------------------------------------------------------
@@ -541,6 +601,11 @@ module pic_fields
         call MPI_FILE_CLOSE(vfields_fh(1), ierror)
         call MPI_FILE_CLOSE(vfields_fh(2), ierror)
         call MPI_FILE_CLOSE(vfields_fh(3), ierror)
+        if (is_rel == 1) then
+            call MPI_FILE_CLOSE(ufields_fh(1), ierror)
+            call MPI_FILE_CLOSE(ufields_fh(2), ierror)
+            call MPI_FILE_CLOSE(ufields_fh(3), ierror)
+        endif
     end subroutine close_velocity_field_files
 
     !---------------------------------------------------------------------------
