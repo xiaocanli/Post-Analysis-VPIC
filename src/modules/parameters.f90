@@ -4,7 +4,7 @@
 module parameters
     implicit none
     private
-    public tp1, tp2, inductive
+    public tp1, tp2, inductive, is_rel
     public get_start_end_time_points, get_inductive_flag, get_relativistic_flag
 
     integer :: tp1, tp2  ! Starting and ending time points for analysis.
