@@ -979,6 +979,14 @@ module current_densities
         implicit none
         integer :: pos1, output_record
         integer :: ct
+        logical :: dir_e
+
+        inquire(file='./data/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir ./data')
+        endif
+        print*, "Saving current densities..."
+
         open(unit=61,&
             file='data/current'//ibtag//'_'//species//'.gda',access='stream',&
             status='unknown',form='unformatted',action='write')
