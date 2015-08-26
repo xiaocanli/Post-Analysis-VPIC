@@ -66,7 +66,7 @@ program dissipation
         use particle_info, only: ibtag, species
         use pic_fields, only: open_pic_fields, read_pic_fields, &
                 close_pic_fields_file
-        use pic_fields, only: ufields_fh
+        use pic_fields, only: vfields_fh
         use inductive_electric_field, only: calc_inductive_e, &
                 init_inductive, free_inductive
         use previous_post_velocities, only: init_pre_post_velocities, &
@@ -101,7 +101,7 @@ program dissipation
             if (inductive == 1) then
                 call calc_inductive_e(input_record, species)
             endif
-            call read_pre_post_velocities(input_record, ufields_fh)
+            call read_pre_post_velocities(input_record, vfields_fh)
             call calc_energy_conversion(input_record)
             call set_current_densities_to_zero
         enddo

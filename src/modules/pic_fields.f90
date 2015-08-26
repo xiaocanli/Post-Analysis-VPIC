@@ -41,7 +41,7 @@ module pic_fields
     public jx, jy, jz                    ! Current density for single fluid
     public eb
     ! File handlers
-    public bfields_fh, efields_fh, pre_fh, ufields_fh, jfields_fh, nrho_fh
+    public bfields_fh, efields_fh, pre_fh, vfields_fh, jfields_fh, nrho_fh
     public eband_fh
 
     real(fp), allocatable, dimension(:,:,:) :: bx, by, bz, ex, ey, ez, absB
@@ -50,7 +50,7 @@ module pic_fields
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz
     real(fp), allocatable, dimension(:,:,:) :: eb
     integer, dimension(4) :: bfields_fh
-    integer, dimension(3) :: efields_fh, ufields_fh, jfields_fh
+    integer, dimension(3) :: efields_fh, vfields_fh, jfields_fh
     integer, dimension(6) :: pre_fh
     integer :: nrho_fh, eband_fh
 
@@ -245,11 +245,11 @@ module pic_fields
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
         offset = 0 
-        call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
+        call read_data_mpi_io(vfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, vx)
-        call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
+        call read_data_mpi_io(vfields_fh(2), filetype_ghost, &
             subsizes_ghost, disp, offset, vy)
-        call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
+        call read_data_mpi_io(vfields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, vz)
     end subroutine read_velocity_fields
 
@@ -371,13 +371,13 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
-        ufields_fh = 0
+        vfields_fh = 0
         fname = trim(adjustl(filepath))//'u'//species//'x.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
         fname = trim(adjustl(filepath))//'u'//species//'y.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
         fname = trim(adjustl(filepath))//'u'//species//'z.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
     end subroutine open_velocity_field_files
 
     !---------------------------------------------------------------------------
@@ -538,9 +538,9 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_velocity_field_files
         implicit none
-        call MPI_FILE_CLOSE(ufields_fh(1), ierror)
-        call MPI_FILE_CLOSE(ufields_fh(2), ierror)
-        call MPI_FILE_CLOSE(ufields_fh(3), ierror)
+        call MPI_FILE_CLOSE(vfields_fh(1), ierror)
+        call MPI_FILE_CLOSE(vfields_fh(2), ierror)
+        call MPI_FILE_CLOSE(vfields_fh(3), ierror)
     end subroutine close_velocity_field_files
 
     !---------------------------------------------------------------------------

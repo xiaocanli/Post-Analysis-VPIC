@@ -96,7 +96,7 @@ module usingle
     subroutine open_velocity_density_files_s(species)
         use path_info, only: filepath
         use mpi_info_module, only: fileinfo
-        use pic_fields, only: open_velocity_field_files, ufields_fh, &
+        use pic_fields, only: open_velocity_field_files, vfields_fh, &
                 open_number_density_file, nrho_fh
         implicit none
         character(*), intent(in) :: species
@@ -111,7 +111,7 @@ module usingle
         fh_nrho = 0
         call open_velocity_field_files(species_other)
         call open_number_density_file(species_other)
-        fh_vel = ufields_fh
+        fh_vel = vfields_fh
         fh_nrho = nrho_fh
     end subroutine open_velocity_density_files_s
 
@@ -122,7 +122,7 @@ module usingle
     subroutine open_velocity_density_files_b
         use path_info, only: filepath
         use mpi_info_module, only: fileinfo
-        use pic_fields, only: open_velocity_field_files, ufields_fh, &
+        use pic_fields, only: open_velocity_field_files, vfields_fh, &
                 open_number_density_file, nrho_fh
         implicit none
         character(len=100) :: fname
@@ -133,13 +133,13 @@ module usingle
         ! Electron
         call open_velocity_field_files('e')
         call open_number_density_file('e')
-        fh_vel = ufields_fh
+        fh_vel = vfields_fh
         fh_nrho = nrho_fh
 
         ! Ion
         call open_velocity_field_files('i')
         call open_number_density_file('i')
-        fh_vel_b = ufields_fh
+        fh_vel_b = vfields_fh
         fh_nrho_b = nrho_fh
     end subroutine open_velocity_density_files_b
 
