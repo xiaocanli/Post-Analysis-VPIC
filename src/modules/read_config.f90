@@ -26,10 +26,12 @@ module read_config
         character(*), intent(in) :: var_name, delimiter
         real(fp) :: var_value
         character(len=150) :: single_line
+        integer :: len1
         do while (index(single_line, var_name) == 0)
             read(fh, '(A)') single_line
         enddo
-        read(single_line(index(single_line, delimiter)+1:), *) var_value
+        len1 = len(trim(single_line))
+        read(single_line(index(single_line, delimiter)+1:len1), *) var_value
     end function
 
     !---------------------------------------------------------------------------
