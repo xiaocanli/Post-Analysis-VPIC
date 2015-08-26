@@ -7,6 +7,7 @@ module particle_fields
     use constants, only: fp
     use path_info, only: rootpath
     use picinfo, only: nbands
+    use parameters, only: is_rel  ! Whether they are relativistic fields.
     implicit none
     private
     public init_particle_fields, free_particle_fields, read_particle_fields, &
@@ -16,6 +17,7 @@ module particle_fields
     real(fp), allocatable, dimension(:,:,:) :: vx, vy, vz, nrho
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz, absJ
+    real(fp), allocatable, dimension(:,:,:) :: pyx, pzx, pzy, ux, uy, uz
     real(fp), allocatable, dimension(:,:,:,:) :: eb
 
     contains
@@ -51,6 +53,17 @@ module particle_fields
         nrho = 0.0
         call set_current_density_zero
 
+        if (is_rel == 1) then
+            ! Relativistic fields
+            allocate(ux(ht%nx, ht%ny, ht%nz))
+            allocate(uy(ht%nx, ht%ny, ht%nz))
+            allocate(uz(ht%nx, ht%ny, ht%nz))
+            allocate(pyx(ht%nx, ht%ny, ht%nz))
+            allocate(pzx(ht%nx, ht%ny, ht%nz))
+            allocate(pzy(ht%nx, ht%ny, ht%nz))
+            ux = 0.0; uy = 0.0; uz = 0.0
+            pyx = 0.0; pzx = 0.0; pzy = 0.0
+        endif
     end subroutine init_particle_fields
 
     !---------------------------------------------------------------------------
@@ -72,6 +85,10 @@ module particle_fields
         deallocate(jx, jy, jz, absJ)
         if (nbands > 0) then
             deallocate(eb)
+        endif
+        if (is_rel == 1) then
+            deallocate(pyx, pzx, pzy)
+            deallocate(ux, uy, uz)
         endif
     end subroutine free_particle_fields
 
@@ -174,6 +191,17 @@ module particle_fields
         vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
         nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+
+        if (is_rel == 1) then
+            read(fh) buffer
+            ux(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+        endif
+
         read(fh) buffer
         pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
@@ -240,27 +268,63 @@ module particle_fields
         endif
 
         nrho = abs(nrho)    ! Exclude negative values.
-        where (nrho > 0)
-            pxx = (pxx - ptl_mass*vx*vx/nrho)
-            pyy = (pyy - ptl_mass*vy*vy/nrho)
-            pzz = (pzz - ptl_mass*vz*vz/nrho)
-            pxy = (pxy - ptl_mass*vx*vy/nrho)
-            pxz = (pxz - ptl_mass*vx*vz/nrho)
-            pyz = (pyz - ptl_mass*vy*vz/nrho)
-            vx = ptl_charge * (vx/nrho)
-            vy = ptl_charge * (vy/nrho)
-            vz = ptl_charge * (vz/nrho)
-        elsewhere
-            pxx = 0.0
-            pyy = 0.0
-            pzz = 0.0
-            pxy = 0.0
-            pxz = 0.0
-            pyz = 0.0
-            vx = 0.0
-            vy = 0.0
-            vz = 0.0
-        endwhere
+        if (is_rel == 1) then
+            where (nrho > 0.0) 
+               vx = (vx/nrho) * ptl_charge
+               vy = (vy/nrho) * ptl_charge
+               vz = (vz/nrho) * ptl_charge
+               ux = (ux/nrho) / ptl_mass
+               uy = (uy/nrho) / ptl_mass
+               uz = (uz/nrho) / ptl_mass
+               pxx = (pxx - ptl_mass*nrho*vx*ux)
+               pyy = (pyy - ptl_mass*nrho*vy*uy)
+               pzz = (pzz - ptl_mass*nrho*vz*uz)
+               pyx = (pxy - ptl_mass*nrho*vy*ux)
+               pzx = (pxz - ptl_mass*nrho*vz*ux)
+               pzy = (pyz - ptl_mass*nrho*vz*uy)
+               pxy = (pxy - ptl_mass*nrho*vx*uy)
+               pxz = (pxz - ptl_mass*nrho*vx*uz)
+               pyz = (pyz - ptl_mass*nrho*vy*uz)
+            elsewhere
+               pxx = 0.0
+               pyy = 0.0
+               pzz = 0.0
+               pyx = 0.0
+               pzx = 0.0
+               pzy = 0.0
+               pxy = 0.0
+               pxz = 0.0
+               pyz = 0.0
+               vx = 0.0
+               vy = 0.0
+               vz = 0.0
+               ux = 0.0
+               uy = 0.0
+               uz = 0.0
+            endwhere
+        else
+            where (nrho > 0)
+                pxx = (pxx - ptl_mass*vx*vx/nrho)
+                pyy = (pyy - ptl_mass*vy*vy/nrho)
+                pzz = (pzz - ptl_mass*vz*vz/nrho)
+                pxy = (pxy - ptl_mass*vx*vy/nrho)
+                pxz = (pxz - ptl_mass*vx*vz/nrho)
+                pyz = (pyz - ptl_mass*vy*vz/nrho)
+                vx = ptl_charge * (vx/nrho)
+                vy = ptl_charge * (vy/nrho)
+                vz = ptl_charge * (vz/nrho)
+            elsewhere
+                pxx = 0.0
+                pyy = 0.0
+                pzz = 0.0
+                pxy = 0.0
+                pxz = 0.0
+                pyz = 0.0
+                vx = 0.0
+                vy = 0.0
+                vz = 0.0
+            endwhere
+        endif
     end subroutine adjust_particle_fields
 
     !---------------------------------------------------------------------------
@@ -276,11 +340,11 @@ module particle_fields
         character(len=1), intent(in) :: species
         character(len=150) :: fname
         integer :: ib
-        fname = trim(adjustl(rootpath))//'data/u'//species//'x'
+        fname = trim(adjustl(rootpath))//'data/v'//species//'x'
         call write_data(fname, vx, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/u'//species//'y'
+        fname = trim(adjustl(rootpath))//'data/v'//species//'y'
         call write_data(fname, vy, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/u'//species//'z'
+        fname = trim(adjustl(rootpath))//'data/v'//species//'z'
         call write_data(fname, vz, tindex, output_record)
         fname = trim(adjustl(rootpath))//'data/n'//species
         call write_data(fname, nrho, tindex, output_record)
@@ -296,6 +360,21 @@ module particle_fields
         call write_data(fname, pxz, tindex, output_record)
         fname = trim(adjustl(rootpath))//'data/p'//species//'-xy'
         call write_data(fname, pxy, tindex, output_record)
+
+        if (is_rel == 1) then
+            fname = trim(adjustl(rootpath))//'data/u'//species//'x'
+            call write_data(fname, ux, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/u'//species//'y'
+            call write_data(fname, uy, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/u'//species//'z'
+            call write_data(fname, uz, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-yx'
+            call write_data(fname, pyx, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-zx'
+            call write_data(fname, pzx, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'
+            call write_data(fname, pzy, tindex, output_record)
+        endif
                     
         if (nbands > 0) then
             do ib = 1, nbands

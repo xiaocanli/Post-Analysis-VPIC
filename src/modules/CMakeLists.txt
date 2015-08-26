@@ -48,7 +48,7 @@ add_library(file_header STATIC file_header.f90)
 
 add_library(translate_module translate_config.f90 emfields.f90
     particle_fields.f90 mpi_io_translate.f90 global.f90 get_info_translate.f90)
-target_link_libraries(translate_module file_header get_info mpi_io)
+target_link_libraries(translate_module file_header get_info mpi_io parameters)
 
 add_library(spectrum_config spectrum_config.f90)
 target_link_libraries(spectrum_config read_config)
