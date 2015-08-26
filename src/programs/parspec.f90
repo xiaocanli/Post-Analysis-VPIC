@@ -10,7 +10,8 @@ program parspec
     use particle_energy_spectrum, only: init_energy_spectra, &
             free_energy_spectra, calc_energy_spectra, &
             set_energy_spectra_zero
-    use parameters, only: get_start_end_time_points, get_inductive_flag
+    use parameters, only: get_start_end_time_points, get_inductive_flag, &
+            get_relativistic_flag
     implicit none
     integer :: ct
     ! Initialize Message Passing
@@ -31,6 +32,7 @@ program parspec
     call broadcast_pic_info
     call get_start_end_time_points
     call get_inductive_flag
+    call get_relativistic_flag
     call read_spectrum_config
     call set_spatial_range_de
 

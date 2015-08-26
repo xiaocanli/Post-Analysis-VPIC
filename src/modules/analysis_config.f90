@@ -24,7 +24,8 @@ module analysis_management
         use mpi_info_module, only: fileinfo, set_mpi_info
         use picinfo, only: read_domain, broadcast_pic_info, &
                 get_total_time_frames, get_energy_band_number
-        use parameters, only: get_start_end_time_points, get_inductive_flag, tp2
+        use parameters, only: get_start_end_time_points, get_inductive_flag, &
+                tp2, get_relativistic_flag
 
         implicit none
 
@@ -39,6 +40,7 @@ module analysis_management
         call broadcast_pic_info
         call get_start_end_time_points
         call get_inductive_flag
+        call get_relativistic_flag
         call get_total_time_frames(tp2)
         call get_energy_band_number
         call set_mpi_topology   ! MPI topology
