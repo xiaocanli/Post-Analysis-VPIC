@@ -16,6 +16,8 @@ program dissipation
     species = 'e'
     call commit_analysis
 
+    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+
     species = 'i'
     call commit_analysis
 
