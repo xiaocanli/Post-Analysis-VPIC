@@ -111,13 +111,15 @@ end module previous_post_velocities
 module current_densities
     use constants, only: fp, dp
     use pic_fields, only: bx, by, bz, ex, ey, ez, pxx, pxy, pxz, pyy, &
-                          pyz, pzz, vx, vy, vz, num_rho, absB, jx, jy, jz
+            pyz, pzz, pyx, pzx, pzy, vx, vy, vz, ux, uy, uz, &
+            num_rho, absB, jx, jy, jz
     use para_perp_pressure, only: ppara, pperp
     use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
     use jdote_module, only: jdote, calc_jdote
     use mpi_topology, only: htg
     use picinfo, only: domain
     use mpi_io_fields, only: save_field
+    use parameters, only: is_rel
     implicit none
     private
     public jx1, jy1, jz1, jx2, jy2, jz2, jagyx, jagyy, jagyz, &
@@ -621,7 +623,7 @@ module current_densities
         real(fp), dimension(3), intent(out) :: jpolar_avg
         real(fp), intent(out) :: jpolar_dote
         real(fp) :: bx1, by1, bz1, btot1, ib2
-        real(fp) :: dvxdt, dvydt, dvzdt
+        real(fp) :: dvxdt, dvydt, dvzdt, duxdt, duydt, duzdt
         real(fp) :: idt
         integer :: nx, ny, nz, ix, iy, iz
 
@@ -636,34 +638,84 @@ module current_densities
             idt = domain%idt
         endif
 
-        do iz = 1, nz
-            do iy = 1, ny
-                do ix = 1, nx
-                    bx1 = bx(ix, iy, iz)
-                    by1 = by(ix, iy, iz)
-                    bz1 = bz(ix, iy, iz)
-                    btot1 = absB(ix, iy, iz)
-                    ib2 = 1.0/(btot1*btot1)
+        if (is_rel == 1) then
+            do iz = 1, nz
+                do iy = 1, ny
+                    do ix = 1, nx
+                        bx1 = bx(ix, iy, iz)
+                        by1 = by(ix, iy, iz)
+                        bz1 = bz(ix, iy, iz)
+                        btot1 = absB(ix, iy, iz)
+                        ib2 = 1.0/(btot1*btot1)
 
-                    dvxdt = (vdx2(ix,iy,iz)-vdx1(ix,iy,iz)) * idt
-                    dvydt = (vdy2(ix,iy,iz)-vdy1(ix,iy,iz)) * idt
-                    dvzdt = (vdz2(ix,iy,iz)-vdz1(ix,iy,iz)) * idt
+                        ! vdx1... here is actually 4-velocity
+                        duxdt = (vdx2(ix,iy,iz)-vdx1(ix,iy,iz)) * idt
+                        duydt = (vdy2(ix,iy,iz)-vdy1(ix,iy,iz)) * idt
+                        duzdt = (vdz2(ix,iy,iz)-vdz1(ix,iy,iz)) * idt
 
-                    dvxdt = (vx(ixh(ix),iy,iz)-vx(ixl(ix),iy,iz))*vx(ix,iy,iz)*idx(ix) + &
-                            (vx(ix,iyh(iy),iz)-vx(ix,iyl(iy),iz))*vy(ix,iy,iz)*idy(iy) + &
-                            (vx(ix,iy,izh(iz))-vx(ix,iy,izl(iz)))*vz(ix,iy,iz)*idz(iz) + dvxdt
-                    dvydt = (vy(ixh(ix),iy,iz)-vy(ixl(ix),iy,iz))*vx(ix,iy,iz)*idx(ix) + &
-                            (vy(ix,iyh(iy),iz)-vy(ix,iyl(iy),iz))*vy(ix,iy,iz)*idy(iy) + &
-                            (vy(ix,iy,izh(iz))-vy(ix,iy,izl(iz)))*vz(ix,iy,iz)*idz(iz) + dvydt
-                    dvzdt = (vz(ixh(ix),iy,iz)-vz(ixl(ix),iy,iz))*vx(ix,iy,iz)*idx(ix) + &
-                            (vz(ix,iyh(iy),iz)-vz(ix,iyl(iy),iz))*vy(ix,iy,iz)*idy(iy) + &
-                            (vz(ix,iy,izh(iz))-vz(ix,iy,izl(iz)))*vz(ix,iy,iz)*idz(iz) + dvzdt
-                    jx1(ix,iy,iz) = -(dvydt*bz1-dvzdt*by1)*num_rho(ix,iy,iz)*ib2
-                    jy1(ix,iy,iz) = -(dvzdt*bx1-dvxdt*bz1)*num_rho(ix,iy,iz)*ib2
-                    jz1(ix,iy,iz) = -(dvxdt*by1-dvydt*bx1)*num_rho(ix,iy,iz)*ib2
+                        duxdt = (ux(ixh(ix),iy,iz)-ux(ixl(ix),iy,iz)) * &
+                                vx(ix,iy,iz) * idx(ix) + &
+                                (ux(ix,iyh(iy),iz)-ux(ix,iyl(iy),iz)) * &
+                                vy(ix,iy,iz) * idy(iy) + &
+                                (ux(ix,iy,izh(iz))-ux(ix,iy,izl(iz))) * &
+                                vz(ix,iy,iz) * idz(iz) + duxdt
+                        duydt = (uy(ixh(ix),iy,iz)-uy(ixl(ix),iy,iz)) * &
+                                vx(ix,iy,iz) * idx(ix) + &
+                                (uy(ix,iyh(iy),iz)-uy(ix,iyl(iy),iz)) * &
+                                vy(ix,iy,iz) * idy(iy) + &
+                                (uy(ix,iy,izh(iz))-uy(ix,iy,izl(iz))) * &
+                                vz(ix,iy,iz) * idz(iz) + duydt
+                        duzdt = (uz(ixh(ix),iy,iz)-uz(ixl(ix),iy,iz)) * &
+                                vx(ix,iy,iz) * idx(ix) + &
+                                (uz(ix,iyh(iy),iz)-uz(ix,iyl(iy),iz)) * &
+                                vy(ix,iy,iz) * idy(iy) + &
+                                (uz(ix,iy,izh(iz))-uz(ix,iy,izl(iz))) * &
+                                vz(ix,iy,iz) * idz(iz) + duzdt
+                        jx1(ix,iy,iz) = -(duydt*bz1-duzdt*by1)*num_rho(ix,iy,iz)*ib2
+                        jy1(ix,iy,iz) = -(duzdt*bx1-duxdt*bz1)*num_rho(ix,iy,iz)*ib2
+                        jz1(ix,iy,iz) = -(duxdt*by1-duydt*bx1)*num_rho(ix,iy,iz)*ib2
+                    enddo
                 enddo
             enddo
-        enddo
+        else
+            do iz = 1, nz
+                do iy = 1, ny
+                    do ix = 1, nx
+                        bx1 = bx(ix, iy, iz)
+                        by1 = by(ix, iy, iz)
+                        bz1 = bz(ix, iy, iz)
+                        btot1 = absB(ix, iy, iz)
+                        ib2 = 1.0/(btot1*btot1)
+
+                        dvxdt = (vdx2(ix,iy,iz)-vdx1(ix,iy,iz)) * idt
+                        dvydt = (vdy2(ix,iy,iz)-vdy1(ix,iy,iz)) * idt
+                        dvzdt = (vdz2(ix,iy,iz)-vdz1(ix,iy,iz)) * idt
+
+                        dvxdt = (vx(ixh(ix),iy,iz)-vx(ixl(ix),iy,iz)) * &
+                                vx(ix,iy,iz) * idx(ix) + &
+                                (vx(ix,iyh(iy),iz)-vx(ix,iyl(iy),iz)) * &
+                                vy(ix,iy,iz) * idy(iy) + &
+                                (vx(ix,iy,izh(iz))-vx(ix,iy,izl(iz))) * &
+                                vz(ix,iy,iz) * idz(iz) + dvxdt
+                        dvydt = (vy(ixh(ix),iy,iz)-vy(ixl(ix),iy,iz)) * &
+                                vx(ix,iy,iz) * idx(ix) + &
+                                (vy(ix,iyh(iy),iz)-vy(ix,iyl(iy),iz)) * &
+                                vy(ix,iy,iz) * idy(iy) + &
+                                (vy(ix,iy,izh(iz))-vy(ix,iy,izl(iz))) * &
+                                vz(ix,iy,iz) * idz(iz) + dvydt
+                        dvzdt = (vz(ixh(ix),iy,iz)-vz(ixl(ix),iy,iz)) * &
+                                vx(ix,iy,iz) * idx(ix) + &
+                                (vz(ix,iyh(iy),iz)-vz(ix,iyl(iy),iz)) * &
+                                vy(ix,iy,iz) * idy(iy) + &
+                                (vz(ix,iy,izh(iz))-vz(ix,iy,izl(iz))) * &
+                                vz(ix,iy,iz) * idz(iz) + dvzdt
+                        jx1(ix,iy,iz) = -(dvydt*bz1-dvzdt*by1)*num_rho(ix,iy,iz)*ib2
+                        jy1(ix,iy,iz) = -(dvzdt*bx1-dvxdt*bz1)*num_rho(ix,iy,iz)*ib2
+                        jz1(ix,iy,iz) = -(dvxdt*by1-dvydt*bx1)*num_rho(ix,iy,iz)*ib2
+                    enddo
+                enddo
+            enddo
+        endif
 
         jx1 = jx1 * ptl_mass
         jy1 = jy1 * ptl_mass
@@ -848,9 +900,15 @@ module current_densities
         real(fp), dimension(3), intent(out) :: jdivv_avg
         real(fp), intent(out) :: jdivv_dote
         call calc_div_v
-        jx1 = div_v * (vz*by - vy*bz) / (absB*absB)
-        jy1 = div_v * (vx*bz - vz*bx) / (absB*absB)
-        jz1 = div_v * (vy*bx - vx*by) / (absB*absB)
+        if (is_rel == 1) then
+            jx1 = div_v * (uz*by - uy*bz) / (absB*absB)
+            jy1 = div_v * (ux*bz - uz*bx) / (absB*absB)
+            jz1 = div_v * (uy*bx - ux*by) / (absB*absB)
+        else
+            jx1 = div_v * (vz*by - vy*bz) / (absB*absB)
+            jy1 = div_v * (vx*bz - vz*bx) / (absB*absB)
+            jz1 = div_v * (vy*bx - vx*by) / (absB*absB)
+        endif
         jx1 = jx1 * num_rho * ptl_mass
         jy1 = jy1 * num_rho * ptl_mass
         jz1 = jz1 * num_rho * ptl_mass
