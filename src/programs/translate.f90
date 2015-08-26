@@ -88,6 +88,7 @@ program translate
         use mpi_io_translate, only: set_mpi_io
         use emfields, only: init_emfields
         use particle_fields, only: init_particle_fields
+        use parameters, only: get_relativistic_flag
         implicit none
 
         call MPI_INIT(ierr)
@@ -100,6 +101,7 @@ program translate
             call write_pic_info
         endif
         call broadcast_pic_info
+        call get_relativistic_flag
         call get_energy_band_number
         call read_configuration
         call set_topology
