@@ -26,7 +26,7 @@ module particle_fields
     ! Initialize particle related fields.
     !---------------------------------------------------------------------------
     subroutine init_particle_fields
-        use topology, only: ht
+        use topology_translate, only: ht
         implicit none
         allocate(vx(ht%nx, ht%ny, ht%nz))
         allocate(vy(ht%nx, ht%ny, ht%nz))
@@ -101,7 +101,7 @@ module particle_fields
     subroutine read_particle_fields(tindex0, species)
         use rank_index_mapping, only: index_to_rank
         use picinfo, only: domain
-        use topology, only: ht
+        use topology_translate, only: ht
         implicit none
         integer, intent(in) :: tindex0
         character(len=1), intent(in) :: species
@@ -128,7 +128,7 @@ module particle_fields
     subroutine read_particle_fields_single(tindex0, pic_mpi_id, species)
         use constants, only: fp
         use file_header, only: read_boilerplate, read_fields_header, fheader
-        use topology, only: idxstart, idxstop
+        use topology_translate, only: idxstart, idxstop
         implicit none
         integer, intent(in) :: tindex0, pic_mpi_id
         character(len=1), intent(in) :: species

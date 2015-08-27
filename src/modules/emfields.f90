@@ -14,7 +14,7 @@ module emfields
     ! Initialize the fields
     !---------------------------------------------------------------------------
     subroutine init_emfields
-        use topology, only: ht
+        use topology_translate, only: ht
         implicit none
         allocate(ex(ht%nx, ht%ny, ht%nz))
         allocate(ey(ht%nx, ht%ny, ht%nz))
@@ -46,7 +46,7 @@ module emfields
     subroutine read_emfields(tindex0)
         use rank_index_mapping, only: index_to_rank
         use picinfo, only: domain
-        use topology, only: ht
+        use topology_translate, only: ht
         implicit none
         integer, intent(in) :: tindex0
         integer :: dom_x, dom_y, dom_z, n
@@ -72,7 +72,7 @@ module emfields
         use path_info, only: rootpath
         use constants, only: fp
         use file_header, only: read_boilerplate, read_fields_header, fheader
-        use topology, only: idxstart, idxstop
+        use topology_translate, only: idxstart, idxstop
         implicit none
         integer, intent(in) :: tindex0, pic_mpi_id
         real(fp), allocatable, dimension(:,:,:) :: buffer

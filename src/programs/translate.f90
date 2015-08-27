@@ -83,7 +83,7 @@ program translate
         use picinfo, only: read_domain, broadcast_pic_info, write_pic_info, &
                 get_energy_band_number
         use configuration_translate, only: read_configuration
-        use topology, only: set_topology, set_start_stop_cells
+        use topology_translate, only: set_topology, set_start_stop_cells
         use time_info, only: get_nout, adjust_tindex_start, set_output_record
         use mpi_io_translate, only: set_mpi_io
         use emfields, only: init_emfields
@@ -120,7 +120,7 @@ program translate
     !---------------------------------------------------------------------------
     subroutine end_analysis
         use mpi_module
-        use topology, only: free_start_stop_cells
+        use topology_translate, only: free_start_stop_cells
         use mpi_io_translate, only: datatype
         use mpi_info_module, only: fileinfo
         use emfields, only: free_emfields
