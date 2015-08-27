@@ -316,10 +316,11 @@ module picinfo
     ! Get the total number of energy band.
     !---------------------------------------------------------------------------
     subroutine get_energy_band_number
+        use mpi_module
         use constants, only: fp
         implicit none
         integer :: fh, index1, index2
-        character(len=150) :: buff
+        character(len=150) :: buff, single_line
         character(len=20) :: fname
 
         fh = 40
@@ -332,6 +333,19 @@ module picinfo
         index1 = index(buff, '=')
         index2 = index(buff, ';')
         read(buff(index1+1:index2-1), *) nbands
+
+        ! When the energy diagnostics are commented
+        do while (index(buff, 'energy.cxx') == 0)
+            read(fh, '(A)') buff
+        enddo
+        single_line = trim(adjustl(buff))
+        if (single_line(1:2) == '//') then
+            nbands = 0
+        endif
+
+        if (myid == master) then
+            write(*, "(A,I0)") " Number of energy band: ", nbands
+        endif
         close(fh)
     end subroutine get_energy_band_number
 
