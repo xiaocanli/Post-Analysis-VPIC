@@ -27,6 +27,7 @@ module analysis_management
         use parameters, only: get_start_end_time_points, get_inductive_flag, &
                 tp2, get_relativistic_flag
         use configuration_translate, only: read_configuration
+        use time_info, only: get_nout
 
         implicit none
 
@@ -42,9 +43,10 @@ module analysis_management
         call get_start_end_time_points
         call get_inductive_flag
         call get_relativistic_flag
+        call read_configuration
+        call get_nout
         call get_total_time_frames(tp2)
         call get_energy_band_number
-        call read_configuration
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info
