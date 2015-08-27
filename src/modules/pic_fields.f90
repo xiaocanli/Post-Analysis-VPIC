@@ -59,6 +59,46 @@ module pic_fields
     integer, dimension(6) :: pre_fh
     integer :: nrho_fh, eband_fh
 
+    interface open_pic_fields
+        module procedure &
+            open_pic_fields_single, open_pic_fields_multiple
+    end interface open_pic_fields
+
+    interface open_magnetic_field_files
+        module procedure &
+            open_magnetic_field_files_single, open_magnetic_field_files_multiple
+    end interface open_magnetic_field_files
+
+    interface open_electric_field_files
+        module procedure &
+            open_electric_field_files_single, open_electric_field_files_multiple
+    end interface open_electric_field_files
+
+    interface open_current_density_files
+        module procedure &
+            open_current_density_files_single, open_current_density_files_multiple
+    end interface open_current_density_files
+
+    interface open_pressure_tensor_files
+        module procedure &
+            open_pressure_tensor_files_single, open_pressure_tensor_files_multiple
+    end interface open_pressure_tensor_files
+
+    interface open_velocity_field_files
+        module procedure &
+            open_velocity_field_files_single, open_velocity_field_files_multiple
+    end interface open_velocity_field_files
+
+    interface open_number_density_file
+        module procedure &
+            open_number_density_file_single, open_number_density_file_multiple
+    end interface open_number_density_file
+
+    interface open_fraction_eband_file
+        module procedure &
+            open_fraction_eband_file_single, open_fraction_eband_file_multiple
+    end interface open_fraction_eband_file
+
     contains
 
     !---------------------------------------------------------------------------
@@ -329,9 +369,9 @@ module pic_fields
     end subroutine read_pic_fields
 
     !---------------------------------------------------------------------------
-    ! Open magnetic field files.
+    ! Open magnetic field files when each field is saved in a single file.
     !---------------------------------------------------------------------------
-    subroutine open_magnetic_field_files
+    subroutine open_magnetic_field_files_single
         implicit none
         character(len=100) :: fname
         bfields_fh = 0
@@ -343,12 +383,12 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
         fname = trim(adjustl(filepath))//'absB.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
-    end subroutine open_magnetic_field_files
+    end subroutine open_magnetic_field_files_single
 
     !---------------------------------------------------------------------------
-    ! Open electric field files.
+    ! Open electric field files when each field is saved in a single file.
     !---------------------------------------------------------------------------
-    subroutine open_electric_field_files
+    subroutine open_electric_field_files_single
         implicit none
         character(len=100) :: fname
         efields_fh = 0
@@ -358,12 +398,12 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(2))
         fname = trim(adjustl(filepath))//'ez.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
-    end subroutine open_electric_field_files
+    end subroutine open_electric_field_files_single
 
     !---------------------------------------------------------------------------
-    ! Open current density files.
+    ! Open current density files when each field is saved in a single file.
     !---------------------------------------------------------------------------
-    subroutine open_current_density_files
+    subroutine open_current_density_files_single
         implicit none
         character(len=100) :: fname
         jfields_fh = 0
@@ -373,12 +413,12 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(2))
         fname = trim(adjustl(filepath))//'jz.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(3))
-    end subroutine open_current_density_files
+    end subroutine open_current_density_files_single
 
     !---------------------------------------------------------------------------
-    ! Open press tensor files.
+    ! Open press tensor files files when each field is saved in a single file.
     !---------------------------------------------------------------------------
-    subroutine open_pressure_tensor_files(species)
+    subroutine open_pressure_tensor_files_single(species)
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
@@ -403,12 +443,12 @@ module pic_fields
             fname = trim(adjustl(filepath))//'p'//species//'-zy.gda'
             call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
         endif
-    end subroutine open_pressure_tensor_files
+    end subroutine open_pressure_tensor_files_single
 
     !---------------------------------------------------------------------------
-    ! Open velocity field files.
+    ! Open velocity field files when each field is saved in a single file.
     !---------------------------------------------------------------------------
-    subroutine open_velocity_field_files(species)
+    subroutine open_velocity_field_files_single(species)
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
@@ -427,24 +467,28 @@ module pic_fields
             fname = trim(adjustl(filepath))//'u'//species//'z.gda'
             call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
         endif
-    end subroutine open_velocity_field_files
+    end subroutine open_velocity_field_files_single
 
     !---------------------------------------------------------------------------
-    ! Open number density file.
+    ! Open number density file when each field is saved in a single file.
     !---------------------------------------------------------------------------
-    subroutine open_number_density_file(species)
+    subroutine open_number_density_file_single(species)
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
         nrho_fh = 0
         fname = trim(adjustl(filepath))//'n'//species//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
-    end subroutine open_number_density_file
+    end subroutine open_number_density_file_single
 
     !---------------------------------------------------------------------------
-    ! Open the file of the fraction of particle in one energy band.
+    ! Open the file of the fraction of particle in one energy band when each
+    ! field is saved in a single file.
+    ! Inputs:
+    !   species: particle species.
+    !   iband: the energy band index.
     !---------------------------------------------------------------------------
-    subroutine open_fraction_eband_file(species, iband)
+    subroutine open_fraction_eband_file_single(species, iband)
         implicit none
         character(*), intent(in) :: species
         integer, intent(in) :: iband
@@ -454,22 +498,217 @@ module pic_fields
         write(tag_band, '(I2.2)') iband
         fname = trim(adjustl(filepath))//species//'EB'//tag_band//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, eband_fh)
-    end subroutine open_fraction_eband_file
+    end subroutine open_fraction_eband_file_single
 
     !---------------------------------------------------------------------------
-    ! Open PIC fields file collectively using MPI procedures.
+    ! Open magnetic field files.
+    ! Inputs:
+    !   tindex: the time index.
     !---------------------------------------------------------------------------
-    subroutine open_pic_fields(species)
+    subroutine open_magnetic_field_files_multiple(tindex)
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        bfields_fh = 0
+        fname = trim(adjustl(filepath))//'bx_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(1))
+        fname = trim(adjustl(filepath))//'by_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(2))
+        fname = trim(adjustl(filepath))//'bz_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
+        fname = trim(adjustl(filepath))//'absB_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+    end subroutine open_magnetic_field_files_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open electric field files.
+    ! Inputs:
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_electric_field_files_multiple(tindex)
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        efields_fh = 0
+        fname = trim(adjustl(filepath))//'ex_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(1))
+        fname = trim(adjustl(filepath))//'ey_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(2))
+        fname = trim(adjustl(filepath))//'ez_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
+    end subroutine open_electric_field_files_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open current density files.
+    ! Inputs:
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_current_density_files_multiple(tindex)
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        jfields_fh = 0
+        fname = trim(adjustl(filepath))//'jx_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(1))
+        fname = trim(adjustl(filepath))//'jy_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(2))
+        fname = trim(adjustl(filepath))//'jz_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(3))
+    end subroutine open_current_density_files_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open press tensor files.
+    ! Inputs:
+    !   species: particle species
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_pressure_tensor_files_multiple(species, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        pre_fh = 0
+        fname = trim(adjustl(filepath))//'p'//species//'-xx_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(1))
+        fname = trim(adjustl(filepath))//'p'//species//'-xy_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(2))
+        fname = trim(adjustl(filepath))//'p'//species//'-xz_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(3))
+        fname = trim(adjustl(filepath))//'p'//species//'-yy_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(4))
+        fname = trim(adjustl(filepath))//'p'//species//'-yz_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(5))
+        fname = trim(adjustl(filepath))//'p'//species//'-zz_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(6))
+        if (is_rel == 1) then
+            fname = &
+                trim(adjustl(filepath))//'p'//species//'-yx_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(1))
+            fname = &
+                trim(adjustl(filepath))//'p'//species//'-zx_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(2))
+            fname = &
+                trim(adjustl(filepath))//'p'//species//'-zy_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
+        endif
+    end subroutine open_pressure_tensor_files_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open velocity field files.
+    ! Inputs:
+    !   species: particle species
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_velocity_field_files_multiple(species, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        vfields_fh = 0
+        fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
+        fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
+        fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
+        if (is_rel == 1) then
+            fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
+            fname = trim(adjustl(filepath))//'u'//species//'y_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
+            fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+        endif
+    end subroutine open_velocity_field_files_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open number density file.
+    ! Inputs:
+    !   species: particle species
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_number_density_file_multiple(species, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        nrho_fh = 0
+        fname = trim(adjustl(filepath))//'n'//species//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+    end subroutine open_number_density_file_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open the file of the fraction of particle in one energy band.
+    ! Inputs:
+    !   species: particle species.
+    !   iband: the energy band index.
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_fraction_eband_file_multiple(species, iband, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: iband
+        integer, intent(in) :: tindex
+        character(len=100) :: fname
+        character(len=2) :: tag_band
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        eband_fh = 0
+        write(tag_band, '(I2.2)') iband
+        fname = &
+            trim(adjustl(filepath))//species//'EB'//tag_band//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, eband_fh)
+    end subroutine open_fraction_eband_file_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open PIC fields file collectively using MPI procedures. One field is saved
+    ! in a single file for all of the time steps.
+    ! Inputs:
+    !   species: particle species
+    !---------------------------------------------------------------------------
+    subroutine open_pic_fields_single(species)
         implicit none
         character(*), intent(in) :: species
 
-        call open_magnetic_field_files
-        call open_electric_field_files
-        call open_current_density_files
-        call open_pressure_tensor_files(species)
-        call open_velocity_field_files(species)
-        call open_number_density_file(species)
-    end subroutine open_pic_fields
+        call open_magnetic_field_files_single
+        call open_electric_field_files_single
+        call open_current_density_files_single
+        call open_pressure_tensor_files_single(species)
+        call open_velocity_field_files_single(species)
+        call open_number_density_file_single(species)
+    end subroutine open_pic_fields_single
+
+    !---------------------------------------------------------------------------
+    ! Open PIC fields file collectively using MPI procedures. One field is saved
+    ! in a single files for each time step, so there are multiple files.
+    ! Inputs:
+    !   species: particle species
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_pic_fields_multiple(species, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex
+
+        call open_magnetic_field_files_multiple(tindex)
+        call open_electric_field_files_multiple(tindex)
+        call open_current_density_files_multiple(tindex)
+        call open_pressure_tensor_files_multiple(species, tindex)
+        call open_velocity_field_files_multiple(species, tindex)
+        call open_number_density_file_multiple(species, tindex)
+    end subroutine open_pic_fields_multiple
 
     !---------------------------------------------------------------------------
     ! Free magnetic fields.

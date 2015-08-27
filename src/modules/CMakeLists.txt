@@ -18,7 +18,7 @@ add_library(parameters parameters.f90 global.f90)
 target_link_libraries(parameters read_config)
 
 add_library(analysis_config STATIC analysis_config.f90 mpi_setup.f90
-    mpi_io_fields.f90 particle_info.f90)
+    mpi_io_fields.f90 particle_info.f90 translate_config.f90)
 target_link_libraries(analysis_config get_info mpi_io parameters)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
