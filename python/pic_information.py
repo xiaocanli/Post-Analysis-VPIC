@@ -108,7 +108,23 @@ def get_fields_frames(base_directory):
     nz = pic_initial_info.nz
     fname = base_directory + '/data/ex.gda'
     fname_fields = base_directory + '/fields/T.1'
-    if (os.path.isfile(fname)):
+    fname_bx = base_directory + '/data/bx_0.gda'
+    if (os.path.isfile(fname_bx)):
+        current_time = 1
+        is_exist = False
+        while (not is_exist):
+            current_time += 1
+            fname = base_directory + '/data/bx_' + str(current_time) + '.gda'
+            is_exist = os.path.isfile(fname)
+        fields_interval = current_time
+        ntf = 1
+        is_exist = True
+        while (is_exist):
+            ntf += 1
+            current_time += fields_interval
+            fname = base_directory + '/data/bx_' + str(current_time) + '.gda'
+            is_exist = os.path.isfile(fname)
+    elif (os.path.isfile(fname)):
         file_size = os.path.getsize(fname)
         ntf = int(file_size/(nx*ny*nz*4))
     elif (os.path.isdir(fname_fields)):
@@ -258,3 +274,4 @@ def get_variable_value(variable_name, current_line, content):
 
 if __name__ == "__main__":
     pic_info = get_pic_info('../..')
+    print pic_info.ntf
