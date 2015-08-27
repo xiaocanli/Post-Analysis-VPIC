@@ -4,8 +4,11 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Add libraries.
 add_library(read_config read_config.f90 global.f90)
 
-add_library(get_info STATIC get_info.f90 global.f90)
-target_link_libraries(get_info read_config)
+add_library(path_info path_info.f90)
+
+add_library(get_info STATIC get_info.f90 get_info_translate.f90
+    translate_config.f90 global.f90)
+target_link_libraries(get_info read_config path_info)
 
 add_library(statistics STATIC statistics.f90)
 
@@ -18,7 +21,8 @@ add_library(parameters parameters.f90 global.f90)
 target_link_libraries(parameters read_config)
 
 add_library(analysis_config STATIC analysis_config.f90 mpi_setup.f90
-    mpi_io_fields.f90 particle_info.f90 translate_config.f90)
+    mpi_io_fields.f90 particle_info.f90 translate_config.f90
+    get_info_translate.f90)
 target_link_libraries(analysis_config get_info mpi_io parameters)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
@@ -47,7 +51,8 @@ target_link_libraries(jdote compression_shear)
 add_library(file_header STATIC file_header.f90)
 
 add_library(translate_module translate_config.f90 emfields.f90
-    particle_fields.f90 mpi_io_translate.f90 global.f90 get_info_translate.f90)
+    particle_fields.f90 mpi_io_translate.f90 global.f90 get_info_translate.f90
+    topology_translate.f90)
 target_link_libraries(translate_module file_header get_info mpi_io parameters)
 
 add_library(spectrum_config spectrum_config.f90)
