@@ -1,30 +1,4 @@
 !*******************************************************************************
-! Module of file path information, including the root path of current PIC run,
-! the filepath of the data files (bx, by, bz ...) and the outputpath of current
-! analysis.
-!*******************************************************************************
-module path_info
-    implicit none
-    save
-    private
-    public rootpath, filepath, outputpath, get_file_paths
-    character(len=150) :: rootpath, filepath, outputpath
-
-    contains
-
-    subroutine get_file_paths
-        implicit none
-        integer :: status1, getcwd, index1
-        status1 = getcwd(rootpath)
-        index1 = index(rootpath, '/', back=.true.)
-        rootpath = rootpath(1:index1)
-        filepath = trim(rootpath)//'data/'
-        outputpath = trim(rootpath)//'data1/'
-    end subroutine get_file_paths
-end module path_info
-
-
-!*******************************************************************************
 ! Module of the parameters related to PIC simulations.
 !*******************************************************************************
 module picinfo
@@ -299,12 +273,38 @@ module picinfo
     subroutine get_total_time_frames(tp2)
         use mpi_module
         use path_info, only: filepath
+        use configuration_translate, only: output_format, tindex_start, &
+                tindex_stop
+        use time_info, only: nout
         implicit none
         integer, intent(inout) :: tp2
         integer(kind=8) :: filesize
+        logical :: is_exist0, is_exist1, is_exist
+        character(len=16) :: cfname
+        character(len=150) :: fname
+        integer :: tindex, nframe
         if (myid == master) then
-            inquire(file=trim(adjustl(filepath))//'bx.gda', size=filesize)
-            nt = filesize / (domain%nx*domain%ny*domain%nz*4)
+            if (output_format == 1) then
+                ! One field is saved in one file for all time steps.
+                inquire(file=trim(adjustl(filepath))//'bx.gda', size=filesize)
+                nt = filesize / (domain%nx*domain%ny*domain%nz*4)
+            else
+                is_exist = .false.
+                is_exist0 = .false.
+                is_exist1 = .false.
+                inquire(file=trim(adjustl(filepath))//'bx_0.gda', exist=is_exist0)
+                inquire(file=trim(adjustl(filepath))//'bx_1.gda', exist=is_exist1)
+                is_exist = is_exist0 .or. is_exist1
+                nframe = 0
+                do while (is_exist)
+                    nframe = nframe + 1
+                    tindex = nout * nframe
+                    write(cfname, '(I0)') tindex
+                    fname = trim(adjustl(filepath))//'bx_'//trim(cfname)//'.gda'
+                    inquire(file=fname, exist=is_exist)
+                enddo
+                nt = nframe
+            endif
             print*, 'Number of output time frames: ', nt
         endif
         call MPI_BCAST(nt, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
