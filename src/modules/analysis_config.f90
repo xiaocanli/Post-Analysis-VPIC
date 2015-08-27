@@ -26,6 +26,7 @@ module analysis_management
                 get_total_time_frames, get_energy_band_number
         use parameters, only: get_start_end_time_points, get_inductive_flag, &
                 tp2, get_relativistic_flag
+        use configuration_translate, only: read_configuration
 
         implicit none
 
@@ -43,6 +44,7 @@ module analysis_management
         call get_relativistic_flag
         call get_total_time_frames(tp2)
         call get_energy_band_number
+        call read_configuration
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info
