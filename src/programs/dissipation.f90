@@ -37,6 +37,7 @@ program dissipation
         use saving_flags, only: get_saving_flags
         use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
         use compression_shear, only: init_div_v, free_div_v
+        use configuration_translate, only: output_format
         implicit none
 
         call get_ptl_mass_charge(species)
@@ -45,7 +46,9 @@ program dissipation
         call init_div_v  ! For compression related current density.
         call get_saving_flags
 
-        call open_pic_fields(species)
+        if (output_format == 1) then
+            call open_pic_fields(species)
+        endif
 
         call init_neighbors
         call get_neighbors
@@ -55,7 +58,9 @@ program dissipation
         call free_neighbors
         call free_para_perp_pressure
         call free_pic_fields
-        call close_pic_fields_file
+        if (output_format == 1) then
+            call close_pic_fields_file
+        endif
         call free_div_v
     end subroutine commit_analysis
 
@@ -80,10 +85,13 @@ program dissipation
         use para_perp_pressure, only: save_averaged_para_perp_pressure
         use jdote_module, only: init_jdote, free_jdote, &
                 init_jdote_total, free_jdote_total, save_jdote_total
+        use configuration_translate, only: output_format
+        use time_info, only: nout
 
         implicit none
 
         integer :: input_record, output_record
+        integer :: tindex
 
         if (inductive == 1) then
             call init_inductive(species)
@@ -99,7 +107,14 @@ program dissipation
         do input_record = tp1, tp2
             if (myid==master) print*, input_record
             output_record = input_record - tp1 + 1
-            call read_pic_fields(input_record)
+            if (output_format /= 1) then
+                tindex = nout * (input_record - tp1) 
+                call open_pic_fields(species, tindex)
+                output_record = 1
+                call read_pic_fields(tp1)
+            else
+                call read_pic_fields(input_record)
+            endif
             if (inductive == 1) then
                 call calc_inductive_e(input_record, species)
             endif
@@ -110,6 +125,9 @@ program dissipation
             endif
             call calc_energy_conversion(input_record)
             call set_current_densities_to_zero
+            if (output_format /= 1) then
+                call close_pic_fields_file
+            endif
         enddo
 
         if (myid == master) then
