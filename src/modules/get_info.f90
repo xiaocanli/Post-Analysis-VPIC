@@ -273,8 +273,7 @@ module picinfo
     subroutine get_total_time_frames(tp2)
         use mpi_module
         use path_info, only: filepath
-        use configuration_translate, only: output_format, tindex_start, &
-                tindex_stop
+        use configuration_translate, only: output_format
         use time_info, only: nout
         implicit none
         integer, intent(inout) :: tp2
