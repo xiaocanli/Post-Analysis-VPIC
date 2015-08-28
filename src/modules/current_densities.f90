@@ -810,7 +810,8 @@ module current_densities
         integer, intent(in) :: ct
         real(fp), intent(out) :: jpara_dote, jperp_dote
         real(fp), dimension(3), intent(out) :: jpara_avg, jperp_avg
-        real(fp), dimension(htg%nx,htg%ny,htg%nz) :: jdotb_over_b2
+        real(fp), allocatable, dimension(:, :, :) :: jdotb_over_b2
+        allocate(jdotb_over_b2(htg%nx, htg%ny, htg%nx))
         jdotb_over_b2 = (jx*bx+jy*by+jz*bz)/(absB*absB)
         ! Parallel direction
         jx1 = jdotb_over_b2 * bx
@@ -821,6 +822,7 @@ module current_densities
         jy2 = jy - jy1
         jz2 = jz - jz1
 
+        deallocate(jdotb_over_b2)
         call calc_jdote(jx1, jy1, jz1, jpara_dote)
         if (save_jpara==1) then
             call save_current_density('jpara', jx1, jy1, jz1, ct)
@@ -853,7 +855,11 @@ module current_densities
         integer, intent(in) :: ct
         real(fp), intent(out) :: jqnvpara_dote, jqnvperp_dote
         real(fp), dimension(3), intent(out) :: jqnvpara_avg, jqnvperp_avg
-        real(fp), dimension(htg%nx,htg%ny,htg%nz) :: qnvx, qnvy, qnvz, qnv_dotb
+        real(fp), allocatable, dimension(:, :, :) :: qnvx, qnvy, qnvz, qnv_dotb
+        allocate(qnvx(htg%nx, htg%ny, htg%nz))
+        allocate(qnvy(htg%nx, htg%ny, htg%nz))
+        allocate(qnvz(htg%nx, htg%ny, htg%nz))
+        allocate(qnv_dotb(htg%nx, htg%ny, htg%nz))
         qnvx = ptl_charge*num_rho*vx
         qnvy = ptl_charge*num_rho*vy
         qnvz = ptl_charge*num_rho*vz
@@ -867,6 +873,7 @@ module current_densities
         jy2 = qnvy - jy1
         jz2 = qnvz - jz1
 
+        deallocate(qnvx, qnvy, qnvz, qnv_dotb)
         call calc_jdote(jx1, jy1, jz1, jqnvpara_dote)
         if (save_jqnvpara==1) then
             call save_current_density('jqnvpara', jx1, jy1, jz1, ct)
