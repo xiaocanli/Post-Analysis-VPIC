@@ -3,6 +3,7 @@
 !*******************************************************************************
 program parspec
     use mpi_module
+    use constants, only: dp
     use path_info, only: get_file_paths
     use picinfo, only: read_domain, broadcast_pic_info
     use particle_frames, only: get_particle_frames, nt, tinterval
@@ -14,6 +15,8 @@ program parspec
             get_relativistic_flag
     implicit none
     integer :: ct
+    real(dp) :: mp_elapsed
+
     ! Initialize Message Passing
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -38,11 +41,19 @@ program parspec
 
     call init_energy_spectra
 
-    do ct = 1, 1
+    mp_elapsed = MPI_WTIME()
+
+    do ct = 1, 4
         call calc_energy_spectra(ct, 'e')
         call set_energy_spectra_zero
         ! call calc_particle_spectrum(ct, 'h')
     enddo
+
+    mp_elapsed = MPI_WTIME() - mp_elapsed
+
+    if (myid==master) then
+        write(*,'(A, F6.1)') " Total time used (s): ", mp_elapsed
+    endif
 
     call free_energy_spectra
     call MPI_FINALIZE(ierr)
