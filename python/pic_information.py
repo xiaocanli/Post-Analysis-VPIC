@@ -30,10 +30,11 @@ def get_pic_info(base_directory):
     pic_ene = read_pic_energies(dt_energy, dte_wpe, base_directory)
     pic_times = collections.namedtuple("pic_times", 
             ['ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 
-                'tparticles', 'dt_energy'])
+                'tparticles', 'dt_energy', 'fields_interval', 'particle_interval'])
     pic_times_info = pic_times(ntf=ntf, dt_fields=dt_fields,
             dt_particles=dt_particles, tfields=tfields, dt_energy=dt_energy,
-            ntp=ntp, tparticles=tparticles)
+            ntp=ntp, tparticles=tparticles, fields_interval=fields_interval,
+            particle_interval=particle_interval)
     pic_information = collections.namedtuple("pic_info", 
             pic_initial_info._fields + pic_times_info._fields + pic_ene._fields)
     pic_info = pic_information(*(pic_initial_info + pic_times_info + pic_ene))
