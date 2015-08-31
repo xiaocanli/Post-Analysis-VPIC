@@ -148,16 +148,14 @@ def get_fields_frames(base_directory):
         return
     return ntf
 
-def get_output_intervals(dtwci, base_directory):
-    """
-    Get output intervals from the main configuration file for current PIC
-    simulation.
-    
+def get_main_source_filename(base_directory):
+    """Get the source file name.
+
+    Get the configuration source file name for the PIC simulation.
+
     Args:
-        dtwci: the time step in 1/wci.
         base_directory: the base directory for different runs.
     """
-    # Get the file name of the main configuration file.
     fname = base_directory + '/Makefile'
     try:
         f = open(fname, 'r')
@@ -175,6 +173,18 @@ def get_output_intervals(dtwci, base_directory):
 
     filename = word_splits[1]
     fname = base_directory + '/' + filename[:-1]
+    return fname
+
+def get_output_intervals(dtwci, base_directory):
+    """
+    Get output intervals from the main configuration file for current PIC
+    simulation.
+    
+    Args:
+        dtwci: the time step in 1/wci.
+        base_directory: the base directory for different runs.
+    """
+    fname = get_main_source_filename(base_directory)
     try:
         f = open(fname, 'r')
     except IOError:
