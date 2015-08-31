@@ -35,10 +35,14 @@ def get_pic_info(base_directory):
             dt_particles=dt_particles, tfields=tfields, dt_energy=dt_energy,
             ntp=ntp, tparticles=tparticles, fields_interval=fields_interval,
             particle_interval=particle_interval)
+    pic_topology = get_pic_topology(base_directory)
     pic_information = collections.namedtuple("pic_info", 
-            pic_initial_info._fields + pic_times_info._fields + pic_ene._fields)
-    pic_info = pic_information(*(pic_initial_info + pic_times_info + pic_ene))
+            pic_initial_info._fields + pic_times_info._fields +
+            pic_ene._fields + pic_topology._fields)
+    pic_info = pic_information(*(pic_initial_info + pic_times_info +
+        pic_ene + pic_topology))
     return pic_info
+
 
 def read_pic_energies(dte_wci, dte_wpe, base_directory):
     """Read particle-in-cell simulation energies.
@@ -95,6 +99,7 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
                 dene_electric=dene_electric, dene_magnetic=dene_magnetic)
         return pic_ene
 
+
 def get_fields_frames(base_directory):
     """Get the total number of time frames for fields.
 
@@ -148,6 +153,7 @@ def get_fields_frames(base_directory):
         return
     return ntf
 
+
 def get_main_source_filename(base_directory):
     """Get the source file name.
 
@@ -174,6 +180,7 @@ def get_main_source_filename(base_directory):
     filename = word_splits[1]
     fname = base_directory + '/' + filename[:-1]
     return fname
+
 
 def get_output_intervals(dtwci, base_directory):
     """
@@ -213,9 +220,8 @@ def get_output_intervals(dtwci, base_directory):
 def read_pic_info(base_directory):
     """Read particle-in-cell simulation information.
     
-    Returns:
+    Args:
         pic_info: a namedtuple for PIC initial information.
-        base_directory: the base directory for different runs.
     """
     fname = base_directory + '/info'
     with open(fname) as f:
@@ -264,6 +270,7 @@ def read_pic_info(base_directory):
             dtwci=dtwci, energy_interval=energy_interval, vthi=vthi, vthe=vthe)
     return pic_info
 
+
 def get_variable_value(variable_name, current_line, content):
     """
     Get the value of one variable from the content of the information file.
@@ -283,6 +290,46 @@ def get_variable_value(variable_name, current_line, content):
     variable_value = float(line_splits[1])
     return (variable_value, line_number)
 
+
+def get_pic_topology(base_directory):
+    """Get the PIC simulation topology
+
+    Args:
+        base_directory: the base directory for different runs.
+    """
+    fname = get_main_source_filename(base_directory)
+    try:
+        f = open(fname, 'r')
+    except IOError:
+        print 'cannot open ', fname
+    else:
+        content = f.readlines()
+        f.close()
+        nlines = len(content)
+        current_line = 0
+        while not 'double topology_x =' in content[current_line]:
+            current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        topology_x = int(word_splits[0])
+        current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        topology_y = int(word_splits[0])
+        current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        topology_z = int(word_splits[0])
+    pic_topology = collections.namedtuple('pic_topology',
+            ['topology_x', 'topology_y', 'topology_z'])
+    pic_topo = pic_topology(topology_x = topology_x,
+            topology_y = topology_y, topology_z = topology_z)
+    return pic_topo
+
+
 if __name__ == "__main__":
-    pic_info = get_pic_info('../..')
-    print pic_info.ntf
+    base_directory = '../../'
+    pic_info = get_pic_info(base_directory)
