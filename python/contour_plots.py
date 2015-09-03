@@ -19,6 +19,7 @@ import struct
 import collections
 import pic_information
 import color_maps as cm
+import colormap.colormaps as cmaps
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -155,7 +156,8 @@ def plot_jy(pic_info, species, current_time):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
-    p1.set_cmap(plt.cm.get_cmap('idl05'))
+    # p1.set_cmap(plt.cm.get_cmap('idl05'))
+    p1.set_cmap(cmaps.plasma)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
