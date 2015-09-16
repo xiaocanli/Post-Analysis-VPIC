@@ -284,7 +284,7 @@ def plot_beta_rho(pic_info):
     Args:
         pic_info: namedtuple for the PIC simulation information.
     """
-    kwargs = {"current_time":50, "xl":0, "xr":200, "zb":-10, "zt":10}
+    kwargs = {"current_time":20, "xl":0, "xr":200, "zb":-10, "zt":10}
     x, z, pexx = read_2d_fields(pic_info, "../../data/pe-xx.gda", **kwargs) 
     x, z, peyy = read_2d_fields(pic_info, "../../data/pe-yy.gda", **kwargs) 
     x, z, pezz = read_2d_fields(pic_info, "../../data/pe-zz.gda", **kwargs) 
@@ -304,6 +304,7 @@ def plot_beta_rho(pic_info):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, beta_e, ax1, fig, **kwargs_plot)
+    p1.set_cmap(cmaps.viridis)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='white', linewidths=0.5)
     ax1.tick_params(axis='x', labelbottom='off')
@@ -313,6 +314,7 @@ def plot_beta_rho(pic_info):
     ax2 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep":2, "zstep":2}
     p2, cbar2 = plot_2d_contour(x, z, eEB05, ax2, fig, **kwargs_plot)
+    p2.set_cmap(cmaps.viridis)
     ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='white', linewidths=0.5)
     ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
@@ -352,7 +354,7 @@ def plot_jdote_2d(pic_info):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jcpara_dote, ax1, fig, **kwargs_plot)
-    p1.set_cmap(plt.cm.seismic)
+    p1.set_cmap(cmaps.viridis)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
@@ -364,7 +366,7 @@ def plot_jdote_2d(pic_info):
     ax2 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep":2, "zstep":2, "vmin":-1, "vmax":1}
     p2, cbar2 = plot_2d_contour(x, z, jcpara_dote, ax2, fig, **kwargs_plot)
-    p2.set_cmap(plt.cm.seismic)
+    p2.set_cmap(cmaps.viridis)
     ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     cbar2.set_ticks(np.arange(-0.8, 1.0, 0.4))
@@ -376,7 +378,7 @@ def plot_jdote_2d(pic_info):
     ax3 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep":2, "zstep":2, "vmin":0, "vmax":1.5}
     p3, cbar3 = plot_2d_contour(x, z, agyp, ax3, fig, **kwargs_plot)
-    p3.set_cmap(plt.cm.binary)
+    p3.set_cmap(cmaps.viridis)
     ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     cbar3.set_ticks(np.arange(0, 1.6, 0.4))
@@ -552,7 +554,7 @@ def plot_jy_Ey(pic_info, species, current_time):
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    # plot_beta_rho(pic_info)
+    plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
     # plot_anistropy(pic_info, 'e')
     # plot_phi_parallel(pic_info)
@@ -564,7 +566,7 @@ if __name__ == "__main__":
     #     # plot_jy(pic_info, 'e', i)
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
-    plot_jy(pic_info, 'e', 12)
+    # plot_jy(pic_info, 'e', 12)
     # plot_Ey(pic_info, 'e', 40)
     # plot_jy_Ey(pic_info, 'e', 40)
     # for i in range(pic_info.ntf):
