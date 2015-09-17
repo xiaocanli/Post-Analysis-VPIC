@@ -19,7 +19,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         char *filename_attribute, char *filename_meta)
 {
     int c;
-    static const char *options="f:o:a:g:k:mhsvewl:t:c";
+    static const char *options="f:o:a:g:m:k:hsvewl:t:c";
     extern char *optarg;
 
     /* Default values */
@@ -58,12 +58,12 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
                 /* strncpy(group_name, optarg, NAME_MAX); */
                 /* group_name = strdup(optarg); */
                 break;
-            case 'k':
-                *key_index = atoi(optarg);
-                break;
             case 'm':
                 *meta_data = 1;
                 strcpy(filename_meta, optarg);
+                break;
+            case 'k':
+                *key_index = atoi(optarg);
                 break;
             case 's':
                 *skew_data = 1;
