@@ -27,3 +27,7 @@ vdist_1d_along_fieldline
 vdist_2d_along_fieldline
 vdistribution
 xz_field.dat
+vpic-sorter/*.o
+vpic-sorter/h5group-sorter
+vpic-sorter/h5trajectory
+vpic-sorter/data/
