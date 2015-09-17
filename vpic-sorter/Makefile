@@ -12,7 +12,7 @@ LIBS = $(HDF5LIB) -ldl -lm
 
 # define the C source files
 SRCS = h5group-sorter.c configuration.c mpi_io.c vpic_data.c package_data.c \
-	   qsort-parallel.c get_data.c
+	   qsort-parallel.c get_data.c meta_data.c
 
 SRCS_TRAJ = particle_trajectory.c time_frame_info.c particle_tags.c \
 			vpic_data.c get_data.c package_data.c mpi_io.c
