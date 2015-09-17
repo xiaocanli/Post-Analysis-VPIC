@@ -14,10 +14,12 @@ void print_help();
 int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         int *sort_key_only, int *skew_data, int *verbose, int *write_result,
         int *collect_data, int *weak_scale_test, int *weak_scale_test_length,
-        int *local_sort_threaded, int *local_sort_threads_num, char *filename,
-        char *group_name, char *filename_sorted, char *filename_attribute) {
+        int *local_sort_threaded, int *local_sort_threads_num, int *meta_data,
+        char *filename, char *group_name, char *filename_sorted,
+        char *filename_attribute, char *filename_meta)
+{
     int c;
-    static const char *options="f:o:a:g:k:hsveml:t:c";
+    static const char *options="f:o:a:g:k:mhsvewl:t:c";
     extern char *optarg;
 
     /* Default values */
@@ -31,6 +33,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *weak_scale_test_length = 1000000;
     *local_sort_threaded = 0;
     *local_sort_threads_num = 16;
+    *meta_data = 0;
 
     //opterr = 0;
     while ((c = getopt (argc, argv, options)) != -1){
@@ -58,10 +61,14 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 'k':
                 *key_index = atoi(optarg);
                 break;
+            case 'm':
+                *meta_data = 1;
+                strcpy(filename_meta, optarg);
+                break;
             case 's':
                 *skew_data = 1;
                 break;
-            case 'm':
+            case 'w':
                 *write_result = 0;
                 break;
             case 'v':
@@ -105,7 +112,9 @@ void print_help(){
                -o name of the file to store sorted results \n\
                -a name of the attribute file to store sort table  \n\
                -k the index key of the file \n\
+               -m the meta data is used determine particle position \n\
                -s the data is in skew shape \n\
+               -w won't write the sorted data \n\
                -e only sort the key  \n\
                -v verbose  \n\
                example: ./h5group-sorter -f testf.h5p  -g /testg  -o testg-sorted.h5p -a testf.attribute -k 0 \n";
