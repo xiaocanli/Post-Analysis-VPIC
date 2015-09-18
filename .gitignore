@@ -31,4 +31,5 @@ vpic-sorter/*.o
 vpic-sorter/h5group-sorter
 vpic-sorter/h5trajectory
 vpic-sorter/data/
+vpic-sorter/attribute
 python/colormap/*.pyc
