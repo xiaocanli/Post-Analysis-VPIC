@@ -93,8 +93,8 @@ int main(int argc, char **argv){
                 collect_data, write_result, group_name, filename_sorted,
                 filename_attribute, dname_array);
     }
-
     free_opic_data_type();
+
     free(dname_array);
     free(package_data);
 

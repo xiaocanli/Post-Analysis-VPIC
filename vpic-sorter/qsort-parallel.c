@@ -265,14 +265,11 @@ void set_external_variables(int type_size_max, int index_key, int dset_num,
     verbose = verbosity;
     local_sort_threaded = omp_threaded;
     local_sort_threads_num = omp_threads_num;
-    len = strlen(gname);
-    group_name = (char *)malloc(len * sizeof(char));
+    group_name = (char *)malloc(NAME_MAX * sizeof(char));
     strcpy(group_name, gname);
-    len = strlen(fname_sorted);
-    filename_sorted = (char *)malloc(len * sizeof(char));
+    filename_sorted = (char *)malloc(NAME_MAX * sizeof(char));
     strcpy(filename_sorted, fname_sorted);
-    len = strlen(fname_attribute);
-    filename_attribute = (char *)malloc(len * sizeof(char));
+    filename_attribute = (char *)malloc(NAME_MAX * sizeof(char));
     strcpy(filename_attribute, fname_attribute);
     dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
     memcpy(dname_array, dataname_array, MAX_DATASET_NUM * sizeof(dset_name_item));
@@ -309,14 +306,14 @@ int master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
             verbosity, omp_threaded, omp_threads_num, gname, fname_sorted,
             fname_attribute, dataname_array);
 
-    /*All samples*/
+    /* All samples */
     all_samp  = malloc(mpi_size * mpi_size * row_size);
     temp_samp = malloc(mpi_size * row_size);
     pivots    = malloc((mpi_size - 1)*row_size);
 
     t1 = MPI_Wtime();
     printf("Phase1 is running .... \n"); 
-    /*Sort its own data, and select samples*/
+    /* Sort its own data, and select samples */
     phase1(0, mpi_size, data, my_data_size, temp_samp, row_size);
     t2 = MPI_Wtime();
     printf("Master's phase1 taking [%f]s \n", (t2-t1));
@@ -917,8 +914,9 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
         printf("Write result file takes [%f]s)\n", (t2-t1));
     }
 
-    if(collect_data == 1)
+    if(collect_data == 1) {
         free(final_buff);
+    }
 }
 
 /******************************************************************************
