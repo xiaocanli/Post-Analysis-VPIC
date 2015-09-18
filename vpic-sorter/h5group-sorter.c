@@ -18,6 +18,7 @@
 #include "vpic_data.h"
 #include "configuration.h"
 #include "get_data.h"
+#include "meta_data.h"
 
 /******************************************************************************
  * Main of the parallel sampling sort
@@ -29,9 +30,10 @@ int main(int argc, char **argv){
     int key_index, key_value_type, sort_key_only, skew_data, verbose,
         write_result, collect_data, weak_scale_test, weak_scale_test_length,
         local_sort_threaded, local_sort_threads_num, dataset_num,
-        max_type_size;
+        max_type_size, meta_data;
     char *filename, *group_name, *filename_sorted, *filename_attribute;
-    hsize_t my_data_size, rest_size;
+    char *filename_meta;
+    hsize_t my_data_size, rest_size, my_offset;
 
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Init(&argc, &argv);
@@ -42,13 +44,15 @@ int main(int argc, char **argv){
     group_name = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filename_sorted = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filename_attribute = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
+    filename_meta = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
 
     t0 = MPI_Wtime();
     is_help = get_configuration(argc, argv, mpi_rank, &key_index,
             &sort_key_only, &skew_data, &verbose, &write_result,
             &collect_data, &weak_scale_test, &weak_scale_test_length,
-            &local_sort_threaded, &local_sort_threads_num, filename,
-            group_name, filename_sorted, filename_attribute);
+            &local_sort_threaded, &local_sort_threads_num, &meta_data,
+            filename, group_name, filename_sorted, filename_attribute,
+            filename_meta);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {
@@ -56,16 +60,19 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    /* Set the variables for retrieving the data with actual datatypes. */
-    set_variable_data(max_type_size, key_index, dataset_num, key_value_type);
-
     char *package_data;
     dset_name_item *dname_array;
     dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
     package_data = get_vpic_data_h5(mpi_rank, mpi_size, filename, group_name,
             weak_scale_test, weak_scale_test_length, sort_key_only, key_index,
             &row_size, &my_data_size, &rest_size, &dataset_num, &max_type_size,
-            &key_value_type, dname_array);
+            &key_value_type, dname_array, &my_offset);
+
+    /* Set the variables for retrieving the data with actual datatypes. */
+    set_variable_data(max_type_size, key_index, dataset_num, key_value_type);
+
+    calc_particle_positions(mpi_rank, my_offset, row_size, max_type_size,
+            my_data_size, filename_meta, group_name, package_data);
 
     /* master:  also do slave's job. In addition, it is responsible for samples and pivots */
     /* slave:   (1) sorts. (2) samples (3) sends sample to master (4) receives pivots */
@@ -86,19 +93,22 @@ int main(int argc, char **argv){
                 collect_data, write_result, group_name, filename_sorted,
                 filename_attribute, dname_array);
     }
+
     free_opic_data_type();
     free(dname_array);
     free(package_data);
 
     MPI_Barrier(MPI_COMM_WORLD);		
     t1 = MPI_Wtime();
-    if(mpi_rank == 0)
+    if(mpi_rank == 0) {
         printf("Overall time is [%f]s \n", (t1 - t0));
+    }
 
     free(filename);
     free(group_name);
     free(filename_sorted);
     free(filename_attribute);
+    free(filename_meta);
     MPI_Finalize();
     return 0;
 }
