@@ -34,13 +34,12 @@ char* get_vpic_data_h5(int mpi_rank, int mpi_size, char *filename,
         char *group_name, int weak_scale_test, int weak_scale_test_length,
         int sort_key_only, int key_index, int *row_size, hsize_t *my_data_size,
         hsize_t *rest_size, int *dataset_num, int *max_type_size,
-        int *key_value_type, dset_name_item *dname_array)
+        int *key_value_type, dset_name_item *dname_array, hsize_t *my_offset)
 {
     int is_all_dset;
 
     hid_t plist_id, file_id, gid;
     hsize_t dims_out[1];
-    hsize_t my_offset;
 
     open_file_group_h5(filename, group_name, &plist_id, &file_id, &gid);
     /* whether to read all of the dataset. */
@@ -57,10 +56,10 @@ char* get_vpic_data_h5(int mpi_rank, int mpi_size, char *filename,
     if (weak_scale_test == 1) {
         partition_data_weak_test_h5(dname_array, mpi_rank, mpi_size,
                 weak_scale_test_length, dims_out, my_data_size,
-                rest_size, &my_offset);
+                rest_size, my_offset);
     } else {
         partition_data_h5(dname_array, mpi_rank, mpi_size, dims_out,
-                my_data_size, rest_size, &my_offset);
+                my_data_size, rest_size, my_offset);
     }
 
     /* Compute the size of "package_data" */ 
@@ -77,7 +76,7 @@ char* get_vpic_data_h5(int mpi_rank, int mpi_size, char *filename,
         printf(" Data patition (based on key) My rank: %d, ", mpi_rank);
         printf("file size: %lu, ", (unsigned long)dims_out[0]);
         printf("my_data_size: %lu, ", (unsigned long)(*my_data_size));
-        printf("my_offset: %lu, ", (unsigned long)my_offset);
+        printf("my_offset: %lu, ", (unsigned long)(*my_offset));
         printf("row_size %d, ", *row_size);
         printf("char size %ld ,", sizeof(char));
         printf("dataset_num = %d, ", *dataset_num);
@@ -90,7 +89,7 @@ char* get_vpic_data_h5(int mpi_rank, int mpi_size, char *filename,
     package_data = (char *)malloc(row_count * (*row_size) * sizeof(char));
 
     read_dataset_h5(row_count, *row_size, *max_type_size, *my_data_size,
-            mpi_rank, mpi_size, *dataset_num, dname_array, my_offset,
+            mpi_rank, mpi_size, *dataset_num, dname_array, *my_offset,
             package_data);
 
     /* free(package_data); */
