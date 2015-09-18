@@ -9,5 +9,5 @@ do
     arr=( $(echo $D | awk -F "." '{print $2}') )
     tstep=${arr[0]}
     echo $filepath/T.$tstep/electron_tracer.h5p
-    mpirun -np 128 ./h5group-sorter -f $filepath/T.$tstep/electron_tracer.h5p -g /Step#$tstep -o $filepath/T.$tstep/electron_tracer_sorted.h5p -k 7 -a attribute
+    mpirun -np 128 ./h5group-sorter -f $filepath/T.$tstep/electron_tracer.h5p -g /Step#$tstep -m $filepath/T.$tstep/grid_metadata_electron_tracer.h5p -o $filepath/T.$tstep/electron_tracer_sorted.h5p -k 7 -a attribute
 done
