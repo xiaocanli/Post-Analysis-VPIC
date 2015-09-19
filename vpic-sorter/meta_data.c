@@ -267,9 +267,9 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
             px = x0c + ((ix - 1) + (deltax + 1)*0.5) * cell_sizes[0];
             py = y0c + ((iy - 1) + (deltay + 1)*0.5) * cell_sizes[1];
             pz = z0c + ((iz - 1) + (deltaz + 1)*0.5) * cell_sizes[2];
-            memcpy(&px, package_data + offset*row_size + max_type_size*3, max_type_size);
-            memcpy(&py, package_data + offset*row_size + max_type_size*4, max_type_size);
-            memcpy(&pz, package_data + offset*row_size + max_type_size*5, max_type_size);
+            memcpy(package_data + offset*row_size + max_type_size*3, &px, max_type_size);
+            memcpy(package_data + offset*row_size + max_type_size*4, &py, max_type_size);
+            memcpy(package_data + offset*row_size + max_type_size*5, &pz, max_type_size);
             offset++;
         }
     }
