@@ -12,9 +12,10 @@
 int get_time_frame_info(int *ntf, int *tinterval, char *path) {
     struct dirent* dent;
     DIR* srcdir = opendir(path);
-    int tp1, tp2;
+    int tmin, tmax, ct;
 
-    tp1 = 0;
+    tmin = 10000;
+    tmax = 0;
     *ntf = 0;
     if (srcdir == NULL)
     {
@@ -36,12 +37,13 @@ int get_time_frame_info(int *ntf, int *tinterval, char *path) {
         }
 
         if (S_ISDIR(st.st_mode)) {
-            sscanf(dent->d_name, "T.%d", &tp2);
-            *tinterval = tp2 - tp1;
-            tp1 = tp2;
+            sscanf(dent->d_name, "T.%d", &ct);
+            if (ct < tmin) tmin = ct;
+            if (ct > tmax) tmax = ct;
             (*ntf)++;
         }
     }
+    *tinterval = (tmax - tmin) / (*ntf - 1);
     closedir(srcdir);
     return 0;
 }
