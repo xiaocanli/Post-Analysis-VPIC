@@ -13,7 +13,7 @@
 #include "package_data.h"
 
 void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
-        char *filepath, int *tags, int num_ptl, char *filename_out);
+        char *filepath, int *tags, int num_ptl, char *filename_out, char *particle);
 void get_tracked_particle_info(char *package_data, int qindex, int row_size,
         hsize_t my_data_size, int ct, int ntf, int *tags, int num_ptl, 
         char *tracked_particles);
@@ -27,7 +27,7 @@ void save_tracked_particles(char *filename_out, char *tracked_particles,
  ******************************************************************************/
 int main(int argc, char **argv){
     int mpi_size, mpi_rank;
-    static const char *options="d:o:n:a";
+    static const char *options="d:o:n:p:a";
     const int MAX_LEN = 200;
     int ntf, tinterval;
     extern char *optarg;
@@ -43,6 +43,7 @@ int main(int argc, char **argv){
     num_ptl = 10;
     char filepath[MAX_LEN];
     char filename_out[MAX_LEN];
+    char particle[MAX_LEN];
     while ((c = getopt (argc, argv, options)) != -1){
         switch (c){
             case 'd':
@@ -53,6 +54,9 @@ int main(int argc, char **argv){
                 break;
             case 'n':
                 num_ptl = atoi(optarg);
+                break;
+            case 'p':
+                strcpy(particle, optarg);
                 break;
             default:
                 printf("Error option [%s]\n", optarg);
@@ -67,12 +71,12 @@ int main(int argc, char **argv){
     tags = (int *)malloc(num_ptl * sizeof(int));
     char filename[MAX_LEN];
     tstep = (ntf - 1) * tinterval;
-    snprintf(filename, MAX_LEN, "%s%s%d%s", filepath, "T.",
-            tstep, "/electron_tracer_energy_sorted.h5p");
+    snprintf(filename, MAX_LEN, "%s%s%d%s%s%s", filepath, "T.",
+            tstep, "/", particle, "_tracer_energy_sorted.h5p");
     get_particle_tags(filename, tstep, num_ptl, tags);
     qsort(tags, num_ptl, sizeof(int), CompareInt32Value);
     track_particles(mpi_rank, mpi_size, ntf, tinterval,
-            filepath, tags, num_ptl, filename_out);
+            filepath, tags, num_ptl, filename_out, particle);
     free(tags);
     MPI_Finalize();
     return 0;
@@ -95,7 +99,7 @@ int get_dataset_index(char *dname, dset_name_item *dname_array, int dataset_num)
  * Track particles
  ******************************************************************************/
 void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
-        char *filepath, int *tags, int num_ptl, char *filename_out)
+        char *filepath, int *tags, int num_ptl, char *filename_out, char *particle)
 {
     int i, row_size, dataset_num, max_type_size, key_value_type;
     hsize_t my_data_size, rest_size;
@@ -113,8 +117,8 @@ void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
     t0 = MPI_Wtime();
 
     tstep = 0;
-    snprintf(filename, MAX_FILENAME_LEN, "%s%s%d%s", filepath, "T.",
-            tstep, "/electron_tracer_sorted.h5p");
+    snprintf(filename, MAX_FILENAME_LEN, "%s%s%d%s%s%s", filepath, "T.",
+            tstep, "/", particle, "_tracer_sorted.h5p");
     snprintf(group_name, MAX_FILENAME_LEN, "%s%d", "/Step#", tstep);
     package_data = get_vpic_pure_data_h5(mpi_rank, mpi_size, filename,
             group_name, &row_size, &my_data_size, &rest_size, &dataset_num,
@@ -139,8 +143,8 @@ void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
 
     for (i = 1; i < ntf; i++) {
         tstep = i * tinterval;
-        snprintf(filename, MAX_FILENAME_LEN, "%s%s%d%s", filepath, "T.",
-                tstep, "/electron_tracer_sorted.h5p");
+        snprintf(filename, MAX_FILENAME_LEN, "%s%s%d%s%s%s", filepath, "T.",
+                tstep, "/", particle, "_tracer_sorted.h5p");
         snprintf(group_name, MAX_FILENAME_LEN, "%s%d", "/Step#", tstep);
         package_data = get_vpic_pure_data_h5(mpi_rank, mpi_size, filename,
                 group_name, &row_size, &my_data_size, &rest_size, &dataset_num,
