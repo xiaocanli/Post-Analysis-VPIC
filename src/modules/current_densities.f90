@@ -308,29 +308,55 @@ module current_densities
         ny = htg%ny
         nz = htg%nz
 
-        do iz = 1, nz
-            do iy = 1, ny
-                do ix = 1, nx
-                    bx1 = bx(ix, iy, iz)
-                    by1 = by(ix, iy, iz)
-                    bz1 = bz(ix, iy, iz)
-                    btot1 = absB(ix, iy, iz)
-                    ib2 = 1.0/(btot1*btot1)
-                    divpx = (pxx(ixh(ix),iy,iz)-pxx(ixl(ix),iy,iz))*idx(ix) + &
-                            (pxy(ix,iyh(iy),iz)-pxy(ix,iyl(iy),iz))*idy(iy) + &
-                            (pxz(ix,iy,izh(iz))-pxz(ix,iy,izl(iz)))*idz(iz)
-                    divpy = (pxy(ixh(ix),iy,iz)-pxy(ixl(ix),iy,iz))*idx(ix) + &
-                            (pyy(ix,iyh(iy),iz)-pyy(ix,iyl(iy),iz))*idy(iy) + &
-                            (pyz(ix,iy,izh(iz))-pyz(ix,iy,izl(iz)))*idz(iz)
-                    divpz = (pxz(ixh(ix),iy,iz)-pxz(ixl(ix),iy,iz))*idx(ix) + &
-                            (pyz(ix,iyh(iy),iz)-pyz(ix,iyl(iy),iz))*idy(iy) + &
-                            (pzz(ix,iy,izh(iz))-pzz(ix,iy,izl(iz)))*idz(iz)
-                    jagyx(ix,iy,iz) = -(divpy*bz1-divpz*by1)*ib2
-                    jagyy(ix,iy,iz) = -(divpz*bx1-divpx*bz1)*ib2
-                    jagyz(ix,iy,iz) = -(divpx*by1-divpy*bx1)*ib2
-                enddo ! x loop
-            enddo ! y loop
-        enddo ! z loop
+        if (is_rel == 0) then
+            do iz = 1, nz
+                do iy = 1, ny
+                    do ix = 1, nx
+                        bx1 = bx(ix, iy, iz)
+                        by1 = by(ix, iy, iz)
+                        bz1 = bz(ix, iy, iz)
+                        btot1 = absB(ix, iy, iz)
+                        ib2 = 1.0/(btot1*btot1)
+                        divpx = (pxx(ixh(ix),iy,iz)-pxx(ixl(ix),iy,iz))*idx(ix) + &
+                                (pxy(ix,iyh(iy),iz)-pxy(ix,iyl(iy),iz))*idy(iy) + &
+                                (pxz(ix,iy,izh(iz))-pxz(ix,iy,izl(iz)))*idz(iz)
+                        divpy = (pxy(ixh(ix),iy,iz)-pxy(ixl(ix),iy,iz))*idx(ix) + &
+                                (pyy(ix,iyh(iy),iz)-pyy(ix,iyl(iy),iz))*idy(iy) + &
+                                (pyz(ix,iy,izh(iz))-pyz(ix,iy,izl(iz)))*idz(iz)
+                        divpz = (pxz(ixh(ix),iy,iz)-pxz(ixl(ix),iy,iz))*idx(ix) + &
+                                (pyz(ix,iyh(iy),iz)-pyz(ix,iyl(iy),iz))*idy(iy) + &
+                                (pzz(ix,iy,izh(iz))-pzz(ix,iy,izl(iz)))*idz(iz)
+                        jagyx(ix,iy,iz) = -(divpy*bz1-divpz*by1)*ib2
+                        jagyy(ix,iy,iz) = -(divpz*bx1-divpx*bz1)*ib2
+                        jagyz(ix,iy,iz) = -(divpx*by1-divpy*bx1)*ib2
+                    enddo ! x loop
+                enddo ! y loop
+            enddo ! z loop
+        else
+            do iz = 1, nz
+                do iy = 1, ny
+                    do ix = 1, nx
+                        bx1 = bx(ix, iy, iz)
+                        by1 = by(ix, iy, iz)
+                        bz1 = bz(ix, iy, iz)
+                        btot1 = absB(ix, iy, iz)
+                        ib2 = 1.0/(btot1*btot1)
+                        divpx = (pxx(ixh(ix),iy,iz)-pxx(ixl(ix),iy,iz))*idx(ix) + &
+                                (pxy(ix,iyh(iy),iz)-pxy(ix,iyl(iy),iz))*idy(iy) + &
+                                (pxz(ix,iy,izh(iz))-pxz(ix,iy,izl(iz)))*idz(iz)
+                        divpy = (pyx(ixh(ix),iy,iz)-pyx(ixl(ix),iy,iz))*idx(ix) + &
+                                (pyy(ix,iyh(iy),iz)-pyy(ix,iyl(iy),iz))*idy(iy) + &
+                                (pyz(ix,iy,izh(iz))-pyz(ix,iy,izl(iz)))*idz(iz)
+                        divpz = (pzx(ixh(ix),iy,iz)-pzx(ixl(ix),iy,iz))*idx(ix) + &
+                                (pzy(ix,iyh(iy),iz)-pzy(ix,iyl(iy),iz))*idy(iy) + &
+                                (pzz(ix,iy,izh(iz))-pzz(ix,iy,izl(iz)))*idz(iz)
+                        jagyx(ix,iy,iz) = -(divpy*bz1-divpz*by1)*ib2
+                        jagyy(ix,iy,iz) = -(divpz*bx1-divpx*bz1)*ib2
+                        jagyz(ix,iy,iz) = -(divpx*by1-divpy*bx1)*ib2
+                    enddo ! x loop
+                enddo ! y loop
+            enddo ! z loop
+        endif
     end subroutine calc_agyrotropy_current
 
     !---------------------------------------------------------------------------
