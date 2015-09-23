@@ -99,6 +99,88 @@ module previous_post_velocities
 
 end module previous_post_velocities
 
+!*******************************************************************************
+! Module for number density of previous and post time frames.
+!*******************************************************************************
+module previous_post_density
+    use constants, only: fp
+    implicit none
+    private
+    public nrho1, nrho2
+    public init_pre_post_density, free_pre_post_density, read_pre_post_density
+
+    real(fp), allocatable, dimension(:, :, :) :: nrho1, nrho2
+
+    contains
+
+    !---------------------------------------------------------------------------
+    ! Initialize density of the previous time frame and post time frame.
+    ! They are going be be used to calculate polarization drift current.
+    !---------------------------------------------------------------------------
+    subroutine init_pre_post_density
+        use mpi_topology, only: htg
+        implicit none
+        integer :: nx, ny, nz
+
+        nx = htg%nx
+        ny = htg%ny
+        nz = htg%nz
+
+        allocate(nrho1(nx,ny,nz))
+        allocate(nrho2(nx,ny,nz))
+
+        nrho1 = 0.0
+        nrho2 = 0.0
+    end subroutine init_pre_post_density
+
+    !---------------------------------------------------------------------------
+    ! Free the density of the previous time frame and post time frame.
+    !---------------------------------------------------------------------------
+    subroutine free_pre_post_density
+        implicit none
+        deallocate(nrho1, nrho2)
+    end subroutine free_pre_post_density
+
+    !---------------------------------------------------------------------------
+    ! Read previous and post densities. Only one of them is read in the
+    ! first and last time frame.
+    ! Input:
+    !   ct: current time frame.
+    !   fh: the file handlers for the velocities.
+    !---------------------------------------------------------------------------
+    subroutine read_pre_post_density(ct, fh)
+        use mpi_module
+        use constants, only: fp
+        use parameters, only: tp1
+        use picinfo, only: domain, nt   ! Total number of output time frames.
+        use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
+        use mpi_io_module, only: read_data_mpi_io
+        use pic_fields, only: num_rho
+        implicit none
+        integer, intent(in) :: ct
+        integer, intent(in) :: fh
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        offset = 0 
+        if ((ct >= tp1) .and. (ct < nt)) then
+            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1+1)
+            call read_data_mpi_io(fh, filetype_ghost, subsizes_ghost, &
+                disp, offset, nrho2)
+        else
+            ! ct = nt, last time frame.
+            nrho2 = num_rho
+        endif
+
+        if ((ct <= nt) .and. (ct > tp1)) then
+            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1-1)
+            call read_data_mpi_io(fh, filetype_ghost, subsizes_ghost, &
+                disp, offset, nrho1)
+        else
+            ! ct = tp1, The first time frame.
+            nrho1 = num_rho
+        endif
+    end subroutine read_pre_post_density
+
+end module previous_post_density
 
 !*******************************************************************************
 ! This module include the methods to calculate current densities due to
@@ -641,6 +723,7 @@ module current_densities
     !---------------------------------------------------------------------------
     subroutine calc_polarization_drift_current(ct, jpolar_avg, jpolar_dote)
         use previous_post_velocities, only: vdx1, vdy1, vdz1, vdx2, vdy2, vdz2
+        use previous_post_density, only: nrho1, nrho2
         use saving_flags, only: save_jpolar
         use particle_info, only: ptl_mass
         use parameters, only: tp1, tp2
@@ -675,31 +758,43 @@ module current_densities
                         ib2 = 1.0/(btot1*btot1)
 
                         ! vdx1... here is actually 4-velocity
-                        duxdt = (vdx2(ix,iy,iz)-vdx1(ix,iy,iz)) * idt
-                        duydt = (vdy2(ix,iy,iz)-vdy1(ix,iy,iz)) * idt
-                        duzdt = (vdz2(ix,iy,iz)-vdz1(ix,iy,iz)) * idt
+                        duxdt = (vdx2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                                 vdx1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        duydt = (vdy2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                                 vdy1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        duzdt = (vdz2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                                 vdz1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
 
-                        duxdt = (ux(ixh(ix),iy,iz)-ux(ixl(ix),iy,iz)) * &
+                        duxdt = (ux(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                                 ux(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (ux(ix,iyh(iy),iz)-ux(ix,iyl(iy),iz)) * &
+                                (ux(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                                 ux(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (ux(ix,iy,izh(iz))-ux(ix,iy,izl(iz))) * &
+                                (ux(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                                 ux(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + duxdt
-                        duydt = (uy(ixh(ix),iy,iz)-uy(ixl(ix),iy,iz)) * &
+                        duydt = (uy(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                                 uy(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (uy(ix,iyh(iy),iz)-uy(ix,iyl(iy),iz)) * &
+                                (uy(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                                 uy(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (uy(ix,iy,izh(iz))-uy(ix,iy,izl(iz))) * &
+                                (uy(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                                 uy(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + duydt
-                        duzdt = (uz(ixh(ix),iy,iz)-uz(ixl(ix),iy,iz)) * &
+                        duzdt = (uz(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                                 uz(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (uz(ix,iyh(iy),iz)-uz(ix,iyl(iy),iz)) * &
+                                (uz(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                                 uz(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (uz(ix,iy,izh(iz))-uz(ix,iy,izl(iz))) * &
+                                (uz(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                                 uz(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + duzdt
-                        jx1(ix,iy,iz) = -(duydt*bz1-duzdt*by1)*num_rho(ix,iy,iz)*ib2
-                        jy1(ix,iy,iz) = -(duzdt*bx1-duxdt*bz1)*num_rho(ix,iy,iz)*ib2
-                        jz1(ix,iy,iz) = -(duxdt*by1-duydt*bx1)*num_rho(ix,iy,iz)*ib2
+                        jx1(ix,iy,iz) = -(duydt*bz1 - duzdt*by1) * ib2
+                        jy1(ix,iy,iz) = -(duzdt*bx1 - duxdt*bz1) * ib2
+                        jz1(ix,iy,iz) = -(duxdt*by1 - duydt*bx1) * ib2
                     enddo
                 enddo
             enddo
@@ -713,31 +808,43 @@ module current_densities
                         btot1 = absB(ix, iy, iz)
                         ib2 = 1.0/(btot1*btot1)
 
-                        dvxdt = (vdx2(ix,iy,iz)-vdx1(ix,iy,iz)) * idt
-                        dvydt = (vdy2(ix,iy,iz)-vdy1(ix,iy,iz)) * idt
-                        dvzdt = (vdz2(ix,iy,iz)-vdz1(ix,iy,iz)) * idt
+                        dvxdt = (vdx2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                                 vdx1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        dvydt = (vdy2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                                 vdy1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        dvzdt = (vdz2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                                 vdz1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
 
-                        dvxdt = (vx(ixh(ix),iy,iz)-vx(ixl(ix),iy,iz)) * &
+                        dvxdt = (vx(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                                 vx(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (vx(ix,iyh(iy),iz)-vx(ix,iyl(iy),iz)) * &
+                                (vx(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                                 vx(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (vx(ix,iy,izh(iz))-vx(ix,iy,izl(iz))) * &
+                                (vx(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                                 vx(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + dvxdt
-                        dvydt = (vy(ixh(ix),iy,iz)-vy(ixl(ix),iy,iz)) * &
+                        dvydt = (vy(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                                 vy(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (vy(ix,iyh(iy),iz)-vy(ix,iyl(iy),iz)) * &
+                                (vy(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                                 vy(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (vy(ix,iy,izh(iz))-vy(ix,iy,izl(iz))) * &
+                                (vy(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                                 vy(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + dvydt
-                        dvzdt = (vz(ixh(ix),iy,iz)-vz(ixl(ix),iy,iz)) * &
+                        dvzdt = (vz(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                                 vz(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (vz(ix,iyh(iy),iz)-vz(ix,iyl(iy),iz)) * &
+                                (vz(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                                 vz(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (vz(ix,iy,izh(iz))-vz(ix,iy,izl(iz))) * &
+                                (vz(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                                 vz(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + dvzdt
-                        jx1(ix,iy,iz) = -(dvydt*bz1-dvzdt*by1)*num_rho(ix,iy,iz)*ib2
-                        jy1(ix,iy,iz) = -(dvzdt*bx1-dvxdt*bz1)*num_rho(ix,iy,iz)*ib2
-                        jz1(ix,iy,iz) = -(dvxdt*by1-dvydt*bx1)*num_rho(ix,iy,iz)*ib2
+                        jx1(ix,iy,iz) = -(dvydt*bz1 - dvzdt*by1) * ib2
+                        jy1(ix,iy,iz) = -(dvzdt*bx1 - dvxdt*bz1) * ib2
+                        jz1(ix,iy,iz) = -(dvxdt*by1 - dvydt*bx1) * ib2
                     enddo
                 enddo
             enddo
