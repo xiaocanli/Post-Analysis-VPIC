@@ -452,12 +452,25 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
+        character(len=1) :: vel
+        logical :: ex
+        integer :: file_size
+
         vfields_fh = 0
+        ex = .false.
+        ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
         fname = trim(adjustl(filepath))//'v'//species//'x.gda'
+        inquire(file=fname, exist=ex, size=file_size)
+        if (ex .and. file_size .ne. 0) then
+            vel = 'v'
+        else
+            vel = 'u'
+        endif
+        fname = trim(adjustl(filepath))//vel//species//'x.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
-        fname = trim(adjustl(filepath))//'v'//species//'y.gda'
+        fname = trim(adjustl(filepath))//vel//species//'y.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
-        fname = trim(adjustl(filepath))//'v'//species//'z.gda'
+        fname = trim(adjustl(filepath))//vel//species//'z.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
         if (is_rel == 1) then
             fname = trim(adjustl(filepath))//'u'//species//'x.gda'
