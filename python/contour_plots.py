@@ -141,7 +141,7 @@ def plot_jy(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
+    kwargs = {"current_time":current_time, "xl":150, "xr":200, "zb":-20, "zt":20}
     x, z, jy = read_2d_fields(pic_info, "../../data/jy.gda", **kwargs) 
     x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     nx, = x.shape
@@ -156,8 +156,8 @@ def plot_jy(pic_info, species, current_time):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
-    # p1.set_cmap(plt.cm.get_cmap('idl05'))
-    p1.set_cmap(cmaps.plasma)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    # p1.set_cmap(cmaps.inferno)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
@@ -304,7 +304,7 @@ def plot_beta_rho(pic_info):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, beta_e, ax1, fig, **kwargs_plot)
-    p1.set_cmap(cmaps.viridis)
+    p1.set_cmap(cmaps.plasma)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='white', linewidths=0.5)
     ax1.tick_params(axis='x', labelbottom='off')
@@ -314,7 +314,10 @@ def plot_beta_rho(pic_info):
     ax2 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep":2, "zstep":2}
     p2, cbar2 = plot_2d_contour(x, z, eEB05, ax2, fig, **kwargs_plot)
-    p2.set_cmap(cmaps.viridis)
+    # p2.set_cmap(cmaps.magma)
+    # p2.set_cmap(cmaps.inferno)
+    p2.set_cmap(cmaps.plasma)
+    # p2.set_cmap(cmaps.viridis)
     ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='white', linewidths=0.5)
     ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
@@ -464,8 +467,8 @@ def plot_Ey(pic_info, species, current_time):
     """
     print(current_time)
     kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
-    x, z, ey = read_2d_fields(pic_info, "../data/ey.gda", **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../data/Ay.gda", **kwargs) 
+    x, z, ey = read_2d_fields(pic_info, "../../data/ey.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     nx, = x.shape
     nz, = z.shape
     width = 0.75
@@ -478,7 +481,7 @@ def plot_Ey(pic_info, species, current_time):
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, ey, ax1, fig, **kwargs_plot)
-    p1.set_cmap(plt.cm.seismic)
+    p1.set_cmap(cmaps.plasma)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
@@ -499,8 +502,8 @@ def plot_Ey(pic_info, species, current_time):
     fname = '../img/img_ey/ey_' + str(current_time).zfill(3) + '.jpg'
     fig.savefig(fname, dpi=200)
 
-    #plt.show()
-    plt.close()
+    plt.show()
+    # plt.close()
 
 def plot_jy_Ey(pic_info, species, current_time):
     """Plot out-of-plane current density.
@@ -551,10 +554,91 @@ def plot_jy_Ey(pic_info, species, current_time):
     #plt.show()
     plt.close()
 
+def plot_epara(pic_info, species, current_time):
+    """Plot out-of-plane current density.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
+    x, z, bx = read_2d_fields(pic_info, "../../data/bx.gda", **kwargs) 
+    x, z, by = read_2d_fields(pic_info, "../../data/by.gda", **kwargs) 
+    x, z, bz = read_2d_fields(pic_info, "../../data/bz.gda", **kwargs) 
+    x, z, absB = read_2d_fields(pic_info, "../../data/absB.gda", **kwargs) 
+    x, z, ex = read_2d_fields(pic_info, "../../data/ex.gda", **kwargs) 
+    x, z, ey = read_2d_fields(pic_info, "../../data/ey.gda", **kwargs) 
+    x, z, ez = read_2d_fields(pic_info, "../../data/ez.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+
+    absE = np.sqrt(ex*ex + ey*ey + ez*ez)
+    epara = (ex*bx + ey*by + ez*bz) / absB
+    eperp = np.sqrt(absE*absE - epara*epara)
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    epara = signal.convolve2d(epara, kernel)
+    eperp = signal.convolve2d(eperp, kernel)
+
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.37
+    xs = 0.12
+    ys = 0.92 - height
+    gap = 0.05
+
+    fig = plt.figure(figsize=[10,6])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":0, "vmax":0.1}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, eperp, ax1, fig, **kwargs_plot)
+    p1.set_cmap(cmaps.inferno)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    # ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=20)
+    cbar1.ax.set_ylabel(r'$E_\perp$', fontdict=font, fontsize=24)
+    # cbar1.set_ticks(np.arange(-0.1, 0.15, 0.1))
+    cbar1.ax.tick_params(labelsize=20)
+
+    ys -= height + 0.05
+    ax2 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.05, "vmax":0.05}
+    p2, cbar2 = plot_2d_contour(x, z, epara, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.seismic)
+    # p2.set_cmap(cmaps.plasma)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax2.tick_params(labelsize=20)
+    cbar2.ax.set_ylabel(r'$E_\parallel$', fontdict=font, fontsize=24)
+    # cbar1.set_ticks(np.arange(-0.1, 0.15, 0.1))
+    cbar2.ax.tick_params(labelsize=20)
+    
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # if not os.path.isdir('../img/img_jy_ey/'):
+    #     os.makedirs('../img/img_jy_ey/')
+    # fname = '../img/img_jy_ey/jy_ey' + '_' + str(current_time).zfill(3) + '.jpg'
+    # fig.savefig(fname, dpi=200)
+
+    plt.show()
+    # plt.close()
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    plot_beta_rho(pic_info)
+    # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
     # plot_anistropy(pic_info, 'e')
     # plot_phi_parallel(pic_info)
@@ -566,11 +650,12 @@ if __name__ == "__main__":
     #     # plot_jy(pic_info, 'e', i)
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
-    # plot_jy(pic_info, 'e', 12)
-    # plot_Ey(pic_info, 'e', 40)
+    plot_jy(pic_info, 'e', 60)
+    # plot_Ey(pic_info, 'e', 12)
     # plot_jy_Ey(pic_info, 'e', 40)
     # for i in range(pic_info.ntf):
     #     plot_Ey(pic_info, 'e', i)
 
     # for i in range(pic_info.ntf):
     #     plot_jy_Ey(pic_info, 'e', i)
+    # plot_epara(pic_info, 'e', 40)
