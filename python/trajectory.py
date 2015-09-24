@@ -34,7 +34,8 @@ particles = collections.namedtuple("particles",
         ["x", "y", "z", "ux", "uy", "uz"])
 
 class Viewer2d(object):
-    def __init__(self, file, nptl, x, y, fdata, init_ft, var_field, var_name):
+    def __init__(self, file, nptl, x, y, fdata, init_ft, var_field, var_name,
+            species):
         """
         Shows a given array in a 2d-viewer.
         Input: z, an 2d array.
@@ -48,6 +49,7 @@ class Viewer2d(object):
         self.ct = init_ft
         self.iptl = 0
         self.particle_tags = []
+        self.species = species
         for item in self.file:
             self.particle_tags.append(item)
         group = file[self.particle_tags[self.iptl]]
@@ -198,10 +200,10 @@ class Viewer2d(object):
     def save_figure(self):
         if not os.path.isdir('../img/'):
             os.makedirs('../img/')
-        if not os.path.isdir('../img/img_traj/'):
-            os.makedirs('../img/img_traj/')
-        fname = '../img/img_traj/traj_' + str(self.iptl) + '_' + \
-                str(self.ct).zfill(3) + '.jpg'
+        if not os.path.isdir('../img/img_traj2/'):
+            os.makedirs('../img/img_traj2/')
+        fname = '../img/img_traj2/traj_' + str(self.iptl) + '_' + \
+                str(self.ct).zfill(3) + '_' + self.species + '.jpg'
         self.fig.savefig(fname, dpi=200)
 
 
@@ -272,7 +274,11 @@ if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     filepath = '/net/scratch1/guofan/share/ultra-sigma/'
     filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
-    fname = filepath + 'electrons.h5p'
+    species = 'i'
+    if species == 'i':
+        fname = filepath + 'ions_2.h5p'
+    else:
+        fname = filepath + 'electrons_2.h5p'
     file = h5py.File(fname, 'r')
     ngroups = len(file)
     init_ft = 40
@@ -281,6 +287,7 @@ if __name__ == "__main__":
     kwargs = {"current_time":init_ft, "xl":0, "xr":400, "zb":-100, "zt":100}
     fname = '../../data/' + var_field + '.gda'
     x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
-    fig_v = Viewer2d(file, ngroups, x, z, data, init_ft, var_field, var_name)
+    fig_v = Viewer2d(file, ngroups, x, z, data, init_ft, var_field, var_name,
+            species)
     plt.show()
     file.close()
