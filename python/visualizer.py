@@ -23,6 +23,7 @@ import pic_information
 from contour_plots import read_2d_fields, plot_2d_contour
 from energy_conversion import read_jdote_data
 from particle_distribution import set_mpi_ranks, get_particle_distribution
+import colormap.colormaps as cmaps
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -50,11 +51,13 @@ class viewer_2d(object):
 
         # Overview
         self.overview = self.fig.add_axes([0.1, 0.7, 0.8, 0.28])
-        vmax = np.min([np.abs(np.min(data)), np.abs(np.max(data))])
+        # vmax = np.min([np.abs(np.min(data)), np.abs(np.max(data))])
+        vmin = 0.0
+        vmax = np.max(self.z)
         self.im1 = self.overview.imshow(self.z, cmap=plt.cm.seismic,
                 extent=[np.min(self.x), np.max(self.x), np.min(self.y), np.max(self.y)],
                 aspect='auto', origin='lower',
-                vmin = -vmax, vmax = vmax,
+                vmin = vmin, vmax = vmax,
                 interpolation='bicubic')
         divider = make_axes_locatable(self.overview)
         self.cax = divider.append_axes("right", size="2%", pad=0.05)
@@ -72,7 +75,7 @@ class viewer_2d(object):
 
         # Slider to choose time frame
         pic_info = pic_information.get_pic_info('../../')
-        self.sliderax = plt.axes([0.25, 0.1, 0.65, 0.03])
+        self.sliderax = plt.axes([0.1, 0.1, 0.8, 0.03])
         time_frames = np.arange(1, pic_info.ntp+1)
         self.slider = DiscreteSlider(self.sliderax,'Time Frame', 1, 10,\
                 allowed_vals=time_frames, valinit=time_frames[5])
@@ -183,9 +186,14 @@ class DiscreteSlider(Slider):
 if __name__=='__main__':
     pic_info = pic_information.get_pic_info('../../')
     ratio = pic_info.particle_interval / pic_info.fields_interval
-    ct = 6
-    kwargs = {"current_time":ct*ratio, "xl":0, "xr":200, "zb":-50, "zt":50}
+    ct = 5
+    kwargs = {"current_time":40, "xl":0, "xr":200, "zb":-20, "zt":20}
+    fname = "../../data/bx.gda"
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs) 
     fname = "../../data/by.gda"
-    x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = "../../data/bz.gda"
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs) 
+    data = np.sqrt(bx*bx + by*by + bz*bz)
     fig_v = viewer_2d(data, x, z)
     plt.show()
