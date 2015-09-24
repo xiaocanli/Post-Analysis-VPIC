@@ -27,10 +27,11 @@ void save_tracked_particles(char *filename_out, char *tracked_particles,
  ******************************************************************************/
 int main(int argc, char **argv){
     int mpi_size, mpi_rank;
-    static const char *options="d:o:n:p:a";
+    static const char *options="d:o:n:p:r:a";
     const int MAX_LEN = 200;
     int ntf, tinterval;
     extern char *optarg;
+    int ratio_emax;  // The ratio of maximum energy and target energy
     int c, num_ptl, tstep;
     int *tags;
 
@@ -44,6 +45,7 @@ int main(int argc, char **argv){
     char filepath[MAX_LEN];
     char filename_out[MAX_LEN];
     char particle[MAX_LEN];
+    ratio_emax = 1;
     while ((c = getopt (argc, argv, options)) != -1){
         switch (c){
             case 'd':
@@ -57,6 +59,9 @@ int main(int argc, char **argv){
                 break;
             case 'p':
                 strcpy(particle, optarg);
+                break;
+            case 'r':
+                ratio_emax = atoi(optarg);
                 break;
             default:
                 printf("Error option [%s]\n", optarg);
@@ -73,7 +78,7 @@ int main(int argc, char **argv){
     tstep = (ntf - 1) * tinterval;
     snprintf(filename, MAX_LEN, "%s%s%d%s%s%s", filepath, "T.",
             tstep, "/", particle, "_tracer_energy_sorted.h5p");
-    get_particle_tags(filename, tstep, num_ptl, tags);
+    get_particle_tags(filename, tstep, ratio_emax, num_ptl, tags);
     qsort(tags, num_ptl, sizeof(int), CompareInt32Value);
     track_particles(mpi_rank, mpi_size, ntf, tinterval,
             filepath, tags, num_ptl, filename_out, particle);
