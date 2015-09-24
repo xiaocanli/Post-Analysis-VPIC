@@ -551,10 +551,47 @@ def plot_jy_Ey(pic_info, species, current_time):
     #plt.show()
     plt.close()
 
+
+def plot_jpolar_dote(pic_info, species, current_time):
+    """Plot out-of-plane current density.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {"current_time":current_time, "xl":0, "xr":400, "zb":-100, "zt":100}
+    x, z, jpolar_dote = read_2d_fields(pic_info, "../../data1/jpolar_dote00_e.gda", **kwargs) 
+    # x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.7
+    xs = 0.12
+    ys = 0.9 - height
+    fig = plt.figure(figsize=[10,4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1, "vmax":1}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, jpolar_dote, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.seismic)
+    # ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+    #         colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    # cbar1.ax.set_ylabel(r'$j_yE_y$', fontdict=font, fontsize=24)
+    # cbar1.set_ticks(np.arange(-0.01, 0.015, 0.01))
+    cbar1.ax.tick_params(labelsize=24)
+    plt.show()
+
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    plot_beta_rho(pic_info)
+    # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
     # plot_anistropy(pic_info, 'e')
     # plot_phi_parallel(pic_info)
@@ -566,7 +603,7 @@ if __name__ == "__main__":
     #     # plot_jy(pic_info, 'e', i)
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
-    # plot_jy(pic_info, 'e', 12)
+    plot_jy(pic_info, 'e', 12)
     # plot_Ey(pic_info, 'e', 40)
     # plot_jy_Ey(pic_info, 'e', 40)
     # for i in range(pic_info.ntf):
@@ -574,3 +611,4 @@ if __name__ == "__main__":
 
     # for i in range(pic_info.ntf):
     #     plot_jy_Ey(pic_info, 'e', i)
+    # plot_jpolar_dote(pic_info, 'e', 30)
