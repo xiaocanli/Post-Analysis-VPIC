@@ -44,7 +44,6 @@ module analysis_management
         call get_inductive_flag
         call get_relativistic_flag
         call read_configuration
-        call get_nout
         call get_total_time_frames(tp2)
         call get_energy_band_number
         call set_mpi_topology   ! MPI topology
