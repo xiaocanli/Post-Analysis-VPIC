@@ -260,7 +260,8 @@ module picinfo
         call get_fields_interval(domain%dtwpe, domain%dtwce, domain%dtwpi, &
             domain%dtwci, domain%fields_interval, domain%hydro_interval, &
             domain%particle_interval)
-        domain%dt = dtf_wci * domain%dtwpe / domain%dtwci
+
+        domain%dt = domain%fields_interval * domain%dtwpe
         domain%idt = 1.0 / domain%dt
 
         close(fh)
@@ -281,9 +282,10 @@ module picinfo
         write(*, "(A,E14.6)") " dtwci = ", domain%dtwci
         write(*, "(A,E14.6)") " Fields output interval (1/wpe) = ", domain%dt
         write(*, "(A,F6.1)") " mi/me = ", mime
-        write(*, "(A,I0)") " Fields outptut interval = ", domain%fields_interval
-        write(*, "(A,I0)") " Hydro outptut interval = ", domain%hydro_interval
-        write(*, "(A,I0)") " Particle outptut interval = ", domain%Particle_interval
+        write(*, "(A,I0)") " Energies outptut steps = ", domain%energies_interval
+        write(*, "(A,I0)") " Fields outptut steps = ", domain%fields_interval
+        write(*, "(A,I0)") " Hydro outptut steps = ", domain%hydro_interval
+        write(*, "(A,I0)") " Particle outptut steps = ", domain%Particle_interval
         write(*, "(A,I0)") " Numer of CPU cores used = ", domain%nproc
         write(*, "(A,I0,A,I0,A,I0)") " MPI topology: ", &
             domain%pic_tx, ',', domain%pic_ty, ',', domain%pic_tz
