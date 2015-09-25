@@ -13,13 +13,13 @@ program dissipation
 
     call init_analysis
 
-    ! species = 'e'
-    ! call commit_analysis
+    species = 'e'
+    call commit_analysis
 
-    ! call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
-    ! species = 'i'
-    ! call commit_analysis
+    species = 'i'
+    call commit_analysis
 
     call end_analysis
 
