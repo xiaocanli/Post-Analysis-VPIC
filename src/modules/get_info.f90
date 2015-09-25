@@ -60,14 +60,17 @@ module picinfo
     ! Get the fields output time interval from the initialization file sigma.cxx.
     ! The interval is defined as "int interval = ...", for example,
     ! int interval = int(2.5/(wci*dt)); 
+    ! Input:
+    !   dtwpe: time step in 1/wpe
     ! Return:
-    !   dtf_wci: the fields output interval in 1/wci.
+    !   dtf_wpe: the fields output interval in 1/wpe.
     !---------------------------------------------------------------------------
-    function get_fields_interval() result(dtf_wci)
+    function get_fields_interval(dtwpe) result(dtf_wpe)
         use constants, only: fp
         implicit none
-        real(fp) :: dtf_wci ! The interval in 1/wci
-        integer :: fh, index1, index2
+        real(fp), intent(in) :: dtwpe
+        real(fp) :: dt_tracer_wpe, dtf_wpe ! The interval in 1/wpe
+        integer :: fh, index1, index2, ratio, interval
         character(len=150) :: buff
         character(len=20) :: fname
         fh = 40
@@ -76,12 +79,22 @@ module picinfo
 
         open(unit=fh, file=trim(adjustl(rootpath))//trim(adjustl(fname)), status='old')
         read(fh, '(A)') buff
-        do while (index(buff, 'int interval = ') == 0)
+        do while (index(buff, 'int tracer_int = ') == 0)
             read(fh, '(A)') buff
         enddo
         index1 = index(buff, '(')
         index2 = index(buff, '/')
-        read(buff(index1+1:index2-1), *) dtf_wci
+        read(buff(index1+1:index2-1), *) dt_tracer_wpe
+        interval = int(dt_tracer_wpe / dtwpe)
+
+        do while (index(buff, 'int interval = ') == 0)
+            read(fh, '(A)') buff
+        enddo
+        index1 = index(buff, '=')
+        index2 = index(buff, '*')
+        read(buff(index1+1:index2-1), *) ratio
+
+        dtf_wpe = interval * ratio * dtwpe
         close(fh)
     end function get_fields_interval
 
@@ -94,7 +107,7 @@ module picinfo
     subroutine read_domain
         use constants, only: dp, fp
         implicit none
-        real(fp) :: temp, dtf_wci
+        real(fp) :: temp, dtf_wpe
         integer :: fh
         ! read the time step of the simulation
         fh = 10
@@ -126,8 +139,8 @@ module picinfo
         domain%idyh = 0.5*domain%idy
         domain%idzh = 0.5*domain%idz
 
-        dtf_wci = get_fields_interval()
-        domain%dt = dtf_wci * domain%dtwpe / domain%dtwci
+        dtf_wpe = get_fields_interval(domain%dtwpe)
+        domain%dt = dtf_wpe
         domain%idt = 1.0 / domain%dt
 
         close(fh)
