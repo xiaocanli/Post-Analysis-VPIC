@@ -432,7 +432,6 @@ module picinfo
                 nframe = 0
                 do while (is_exist)
                     nframe = nframe + 1
-                    print*, domain%fields_interval
                     tindex = domain%fields_interval * nframe
                     write(cfname, '(I0)') tindex
                     fname = trim(adjustl(filepath))//'bx_'//trim(cfname)//'.gda'
