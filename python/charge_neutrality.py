@@ -48,13 +48,13 @@ def plot_charge_neutrality(pic_info, current_time):
     nx, = x.shape
     nz, = z.shape
     width = 0.75
-    height = 0.8
+    height = 0.76
     xs = 0.12
     ys = 0.95 - height
     gap = 0.05
     fig = plt.figure(figsize=[10,4])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.3, "vmax":0.3}
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1, "vmax":1}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, (ni-ne) / (ne+ni), ax1, fig, **kwargs_plot)
@@ -77,4 +77,4 @@ def plot_charge_neutrality(pic_info, current_time):
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    plot_charge_neutrality(pic_info, 20)
+    plot_charge_neutrality(pic_info, 40)
