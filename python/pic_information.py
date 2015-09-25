@@ -14,33 +14,36 @@ def get_pic_info(base_directory):
         base_directory: the base directory for different runs.
     """
     pic_initial_info = read_pic_info(base_directory)
+    dtwpe = pic_initial_info.dtwpe
+    dtwce = pic_initial_info.dtwce
+    dtwci = pic_initial_info.dtwci
     ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
-    dtwci = pic_initial_info.dtwci
-    dtwce = pic_initial_info.dtwce
-    dtwpe = pic_initial_info.dtwpe
-    dtwpi = dtwci * dtwpe / dtwce
     fields_interval, particle_interval = \
-            get_output_intervals(dtwpi, base_directory)
+            get_output_intervals(dtwpe, dtwce, dtwci, base_directory)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
     ntp = ntf / (particle_interval/fields_interval)
     tparticles = np.arange(ntp) * dt_particles
     tfields = np.arange(ntf) * dt_fields
     dt_energy = energy_interval * dtwci
-    dtwpe = pic_initial_info.dtwpe
     dte_wpe = dt_energy * dtwpe / dtwci
     pic_ene = read_pic_energies(dt_energy, dte_wpe, base_directory)
     pic_times = collections.namedtuple("pic_times", 
             ['ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 
-                'tparticles', 'dt_energy'])
+                'tparticles', 'dt_energy', 'fields_interval', 'particle_interval'])
     pic_times_info = pic_times(ntf=ntf, dt_fields=dt_fields,
             dt_particles=dt_particles, tfields=tfields, dt_energy=dt_energy,
-            ntp=ntp, tparticles=tparticles)
+            ntp=ntp, tparticles=tparticles, fields_interval=fields_interval,
+            particle_interval=particle_interval)
+    pic_topology = get_pic_topology(base_directory)
     pic_information = collections.namedtuple("pic_info", 
-            pic_initial_info._fields + pic_times_info._fields + pic_ene._fields)
-    pic_info = pic_information(*(pic_initial_info + pic_times_info + pic_ene))
+            pic_initial_info._fields + pic_times_info._fields +
+            pic_ene._fields + pic_topology._fields)
+    pic_info = pic_information(*(pic_initial_info + pic_times_info +
+        pic_ene + pic_topology))
     return pic_info
+
 
 def read_pic_energies(dte_wci, dte_wpe, base_directory):
     """Read particle-in-cell simulation energies.
@@ -97,6 +100,7 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
                 dene_electric=dene_electric, dene_magnetic=dene_magnetic)
         return pic_ene
 
+
 def get_fields_frames(base_directory):
     """Get the total number of time frames for fields.
 
@@ -150,16 +154,15 @@ def get_fields_frames(base_directory):
         return
     return ntf
 
-def get_output_intervals(dtwci, base_directory):
-    """
-    Get output intervals from the main configuration file for current PIC
-    simulation.
-    
+
+def get_main_source_filename(base_directory):
+    """Get the source file name.
+
+    Get the configuration source file name for the PIC simulation.
+
     Args:
-        dtwci: the time step in 1/wci.
         base_directory: the base directory for different runs.
     """
-    # Get the file name of the main configuration file.
     fname = base_directory + '/Makefile'
     try:
         f = open(fname, 'r')
@@ -177,6 +180,21 @@ def get_output_intervals(dtwci, base_directory):
 
     filename = word_splits[1]
     fname = base_directory + '/' + filename[:-1]
+    return fname
+
+
+def get_output_intervals(dtwpe, dtwce, dtwci, base_directory):
+    """
+    Get output intervals from the main configuration file for current PIC
+    simulation.
+    
+    Args:
+        dtwpe: the time step in 1/wpe.
+        dtwce: the time step in 1/wce.
+        dtwci: the time step in 1/wci.
+        base_directory: the base directory for different runs.
+    """
+    fname = get_main_source_filename(base_directory)
     try:
         f = open(fname, 'r')
     except IOError:
@@ -186,28 +204,78 @@ def get_output_intervals(dtwci, base_directory):
         f.close()
         nlines = len(content)
         current_line = 0
-        while not 'int interval' in content[current_line]: current_line += 1
-        single_line = content[current_line]
-        line_splits = single_line.split("(")
-        word_splits = line_splits[1].split("/")
-        interval = float(word_splits[0])
-        interval = int(interval/dtwci)
+        cond1 = not 'int interval = ' in content[current_line] 
+        cond2 = '//' in content[current_line]  # commented out
+        while cond1 or cond2:
+            current_line += 1
+            cond1 = not 'int interval = ' in content[current_line] 
+            cond2 = '//' in content[current_line]  # commented out
+        if not '(' in content[current_line]:
+            single_line = content[current_line]
+            if '*' in content[current_line]:
+                line_splits = single_line.split('*')
+                word_splits = line_splits[0].split('=')
+                time_ratio = float(word_splits[1])
+            else:
+                line_splits = single_line.split('=')
+                time_ratio = 1.0
+            word_splits = line_splits[1].split(";")
+            word = 'int ' + word_splits[0] + ' = '
+            cline = current_line
+            # go back to the number for word_splits[0]
+            cond1 = not word in content[current_line] 
+            cond2 = '//' in content[current_line]  # commented out
+            while cond1 or cond2:
+                current_line -= 1
+                cond1 = not word in content[current_line]
+                cond2 = '//' in content[current_line]  # commented out
+            interval = get_time_interval(content[current_line], dtwpe, dtwce, dtwci)
+            interval = int(interval * time_ratio)
+        else:
+            interval = get_time_interval(content[current_line], dtwpe, dtwce, dtwci)
+        
+        fields_interval = interval
+
         while not 'int eparticle_interval' in content[current_line]: 
             current_line += 1
         single_line = content[current_line]
         line_splits = single_line.split("=")
         word_splits = line_splits[1].split("*")
-        particle_interval = float(word_splits[0]) * interval
-    fields_interval = interval
-    particle_interval = int(particle_interval)
+        particle_interval = int(word_splits[0]) * interval
+
     return (fields_interval, particle_interval)
+
+def get_time_interval(line, dtwpe, dtwce, dtwci):
+    """Get time interval from a line
+    
+    The line is in the form: int *** = int(5.0/***);
+
+    Args:
+        line: one single line
+        dtwpe: the time step in 1/wpe.
+        dtwce: the time step in 1/wce.
+        dtwci: the time step in 1/wci.
+    """
+    line_splits = line.split("(")
+    word_splits = line_splits[1].split("/")
+    interval = float(word_splits[0])
+    word2_splits = line_splits[2].split("*")
+    dt = 0.0
+    if word2_splits[0] == "wpe":
+        dt = dtwpe
+    elif word2_splits[0] == "wce":
+        dt = dtwce
+    elif word2_splits[0] == "wci":
+        dt = dtwci
+
+    interval = int(interval/dt)
+    return interval
 
 def read_pic_info(base_directory):
     """Read particle-in-cell simulation information.
     
-    Returns:
+    Args:
         pic_info: a namedtuple for PIC initial information.
-        base_directory: the base directory for different runs.
     """
     fname = base_directory + '/info'
     with open(fname) as f:
@@ -243,8 +311,10 @@ def read_pic_info(base_directory):
     x = np.arange(nx)*dxdi
     y = (np.arange(ny)-ny/2.0+0.5)*dydi
     z = (np.arange(nz)-nz/2.0+0.5)*dzdi
-    vthi, current_line = get_variable_value('vthi/c', current_line, content)
-    vthe, current_line = get_variable_value('vthe/c', current_line, content)
+    # vthi, current_line = get_variable_value('vthi/c', current_line, content)
+    # vthe, current_line = get_variable_value('vthe/c', current_line, content)
+    vthe = 1.0
+    vthi = 1.0
 
     pic_information = collections.namedtuple('pic_info',
             ['mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz',
@@ -255,6 +325,7 @@ def read_pic_info(base_directory):
             x_di=x, y_di=y, z_di=z, nppc=nppc, b0=b0, dtwpe=dtwpe, dtwce=dtwce,
             dtwci=dtwci, energy_interval=energy_interval, vthi=vthi, vthe=vthe)
     return pic_info
+
 
 def get_variable_value(variable_name, current_line, content):
     """
@@ -275,6 +346,46 @@ def get_variable_value(variable_name, current_line, content):
     variable_value = float(line_splits[1])
     return (variable_value, line_number)
 
+
+def get_pic_topology(base_directory):
+    """Get the PIC simulation topology
+
+    Args:
+        base_directory: the base directory for different runs.
+    """
+    fname = get_main_source_filename(base_directory)
+    try:
+        f = open(fname, 'r')
+    except IOError:
+        print 'cannot open ', fname
+    else:
+        content = f.readlines()
+        f.close()
+        nlines = len(content)
+        current_line = 0
+        while not 'double topology_x =' in content[current_line]:
+            current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        topology_x = int(word_splits[0])
+        current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        topology_y = int(word_splits[0])
+        current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        topology_z = int(word_splits[0])
+    pic_topology = collections.namedtuple('pic_topology',
+            ['topology_x', 'topology_y', 'topology_z'])
+    pic_topo = pic_topology(topology_x = topology_x,
+            topology_y = topology_y, topology_z = topology_z)
+    return pic_topo
+
+
 if __name__ == "__main__":
-    pic_info = get_pic_info('../..')
-    print pic_info.ntf
+    base_directory = '../../'
+    pic_info = get_pic_info(base_directory)

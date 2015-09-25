@@ -52,7 +52,7 @@ def plot_energy_evolution(pic_info):
     p3, = ax.plot(tenergy, kene_e/enorm, linewidth=2, 
             color='r', label=r'$\Delta K_e$')
     p4, = ax.plot(tenergy, ene_electric/enorm, linewidth=2, 
-            color='m', label='$100E^2$')
+            color='m', label='$E^2$')
     # ax.set_xlim([0, 1190])
     # ax.set_ylim([0, 1.05])
 
@@ -271,12 +271,18 @@ def plot_jdotes_evolution(species):
     """
     jdote = read_jdote_data(species)
     pic_info = pic_information.get_pic_info('../../')
-    jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote + \
-            jdote.jmag_dote + jdote.jpolar_dote \
-            + jdote.jqnupara_dote + jdote.jagy_dote
-    jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int + \
-            jdote.jmag_dote_int + jdote.jpolar_dote_int \
-            + jdote.jqnupara_dote_int + jdote.jagy_dote_int
+    jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote \
+            + jdote.jmag_dote \
+            + jdote.jqnupara_dote \
+            + jdote.jdivu_dote \
+            + jdote.jagy_dote \
+            + jdote.jpolar_dote
+    jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int \
+            + jdote.jmag_dote_int \
+            + jdote.jqnupara_dote_int \
+            + jdote.jdivu_dote_int \
+            + jdote.jagy_dote_int \
+            + jdote.jpolar_dote_int
     if species == 'e':
         dkene = pic_info.dkene_e
         kene = pic_info.kene_e
@@ -316,7 +322,6 @@ def plot_jdotes_evolution(species):
     #start, end = ax1.get_ylim()
     #ax1.yaxis.set_ticks(np.arange(start+0.1, end, 0.2))
     # ax1.set_xlim([0, 800])
-    ax1.set_ylim([-10, 20])
 
     enorm = pic_info.ene_bx[0]
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -338,31 +343,32 @@ def plot_jdotes_evolution(species):
     #ax1.legend(loc=1, prop={'size':16}, ncol=2,
     #        shadow=True, fancybox=True)
 
-    ax1.text(0.65, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
+    ax1.text(0.05, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.85, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
+    ax1.text(0.2, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.85, 0.65, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
+    ax1.text(0.05, 0.65, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.65, 0.15, r'$dK_e/dt$', color='k', fontsize=20,
+    fname = r'$dK_' + species + '/dt$'
+    ax1.text(0.05, 0.15, fname, color='k', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.85, 0.15, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
+    ax1.text(0.2, 0.15, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
             fontsize=20, horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
 
-    td = 76
+    td = 50
     print 'The fraction of perpendicular heating (model): ', \
             jdote_tot_drifts_int[td]/(kene[td]-kene[0])
     print 'The fraction of perpendicular heating (simulation): ', \
             jdote.jqnuperp_dote_int[-1]/(kene[-1]-kene[0])
 
     #plt.tight_layout()
-    #fname = 'jdrifts_dote_' + species + '.eps'
-    #fig.savefig(fname)
+    fname = '../img/jdrifts_dote_with_jpolar' + species + '.eps'
+    fig.savefig(fname)
     plt.show()
 
 def plot_jpara_perp_dote():
@@ -383,10 +389,11 @@ def plot_jpara_perp_dote():
     #fig, axes = plt.subplots(2, sharex=True, sharey=False)
     fig = plt.figure(figsize=[7, 5])
    
-    width = 0.84
-    height = 0.4
+    width = 0.83
+    height = 0.39
     xs = 0.13
-    ys = 0.97-height
+    ys = 0.96 - height
+    gap = 0.05
     #mpl.rc('text', usetex=False)
     ax1 = fig.add_axes([xs, ys, width, height])
     ax1.plot(tfields, jdote.jqnupara_dote, lw=2, color='b', 
@@ -400,25 +407,25 @@ def plot_jpara_perp_dote():
     ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=24)
     ax1.tick_params(reset=True, labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
-    ax1.set_ylim([-20, 20])
+    # ax1.set_ylim([-2, 6])
     # ax1.yaxis.set_ticks(np.arange(-1, 6, 1))
     # ax1.set_xlim([0, 800])
-    # ax1.text(0.6, 0.8, r'$(e)$', color='black', fontsize=24,
-    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-    #         horizontalalignment='left', verticalalignment='center',
-    #         transform = ax1.transAxes)
-    ax1.text(0.8, 0.8, r'$\mathbf{j}_{\parallel}\cdot\mathbf{E}$',
+    ax1.text(0.02, 0.85, r'$(e)$', color='black', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.1, 0.85, r'$dK_e/dt$', color='black', fontsize=24,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.4, 0.85, r'$\mathbf{j}_{\parallel}\cdot\mathbf{E}$',
             color='blue', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.6, 0.8, r'$\mathbf{j}_{\perp}\cdot\mathbf{E}$',
+    ax1.text(0.6, 0.85, r'$\mathbf{j}_{\perp}\cdot\mathbf{E}$',
             color='green', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.4, 0.8, r'$dK_e/dt$', color='black', fontsize=24,
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax1.transAxes)
-    ax1.text(0.6, 0.2, r'$(\mathbf{j}_{\parallel}+\mathbf{j}_\perp)\cdot\mathbf{E}$',
+    ax1.text(0.02, 0.6, r'$(\mathbf{j}_{\parallel}+\mathbf{j}_\perp)\cdot\mathbf{E}$',
             color='red', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
@@ -430,7 +437,7 @@ def plot_jpara_perp_dote():
     kene = pic_info.kene_i
     kename = '$\Delta K_i$'
 
-    ys -= height + 0.03
+    ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
     ax2.plot(tfields, jdote.jqnupara_dote, lw=2, color='b', 
             label=r'$\mathbf{j}_{e\parallel}\cdot\mathbf{E}$')
@@ -444,11 +451,15 @@ def plot_jpara_perp_dote():
     ax2.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=24)
     ax2.tick_params(reset=True, labelsize=20)
     # ax2.set_ylim([-2, 10])
-    ax2.yaxis.set_ticks(np.arange(-2, 11, 2))
-    ax2.set_xlim([0, 800])
-    ax2.text(650, 7, r'$dK_i/dt$', color='black', fontsize=24)
-    ax2.text(10, 8, r'$(i)$', color='black', fontsize=24,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0))
+    # ax2.yaxis.set_ticks(np.arange(-2, 11, 2))
+    # ax2.set_xlim([0, 800])
+    ax2.text(0.02, 0.85, r'$(i)$', color='black', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
+    ax2.text(0.1, 0.85, r'$dK_i/dt$', color='black', fontsize=24,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')

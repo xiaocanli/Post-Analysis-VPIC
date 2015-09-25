@@ -13,6 +13,7 @@ import numpy as np
 from scipy.ndimage.filters import generic_filter as gf
 from scipy import signal
 from scipy.fftpack import fft2, ifft2, fftshift
+from scipy.interpolate import interp1d
 import math
 import os.path
 import struct
@@ -246,19 +247,22 @@ def plot_bulk_energy(pic_info, species):
     ux2 = content[:, 0]
     uy2 = content[:, 1]
     uz2 = content[:, 2]
-    pxx = content[:, 3]
-    pyy = content[:, 4]
-    pzz = content[:, 5]
+    bene = content[:, 3]
+    pxx = content[:, 4]
+    pyy = content[:, 5]
+    pzz = content[:, 6]
+    iene = content[:, 7]
     f.close()
 
-    ratio_ene = (ux2 + uy2 + uz2) / (pxx + pyy + pzz)
+    ratio_ene = bene / iene
     fig = plt.figure(figsize=[7, 7])
     w1, h1 = 0.8, 0.25
     xs, ys = 0.15, 0.96 - h1
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    p1, = ax1.plot(tfields, ux2, linewidth=2, color='r', label=r'$x$')
-    p2, = ax1.plot(tfields, uy2, linewidth=2, color='g', label=r'$y$')
-    p3, = ax1.plot(tfields, uz2, linewidth=2, color='b', label=r'$z$')
+    p11, = ax1.plot(tfields, ux2, linewidth=2, color='r', label=r'$x$')
+    p12, = ax1.plot(tfields, uy2, linewidth=2, color='g', label=r'$y$')
+    p13, = ax1.plot(tfields, uz2, linewidth=2, color='b', label=r'$z$')
+    p14, = ax1.plot(tfields, bene, linewidth=2, color='k', label=r'$z$')
     ax1.set_ylabel(r'Bulk', fontdict=font, fontsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.tick_params(labelsize=16)
@@ -267,9 +271,10 @@ def plot_bulk_energy(pic_info, species):
 
     ys -= h1 + 0.05
     ax2 = fig.add_axes([xs, ys, w1, h1])
-    p4, = ax2.plot(tfields, pxx, linewidth=2, color='r', label=r'$x$')
-    p5, = ax2.plot(tfields, pyy, linewidth=2, color='g', label=r'$y$')
-    p6, = ax2.plot(tfields, pzz, linewidth=2, color='b', label=r'$z$')
+    p21, = ax2.plot(tfields, pxx, linewidth=2, color='r', label=r'$x$')
+    p22, = ax2.plot(tfields, pyy, linewidth=2, color='g', label=r'$y$')
+    p23, = ax2.plot(tfields, pzz, linewidth=2, color='b', label=r'$z$')
+    p24, = ax2.plot(tfields, iene, linewidth=2, color='k', label=r'$z$')
     ax2.legend(loc=4, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
     ax2.set_ylabel(r'Internal', fontdict=font, fontsize=20)
@@ -470,15 +475,69 @@ def plot_bulk_energy_distribution(pic_info, species):
     plt.show()
 
 
+def plot_bulk_energy_rel(pic_info, species):
+    """Plot bulk and internal energy for relativistic case.
+    """
+    tfields = pic_info.tfields
+    tenergy = pic_info.tenergy
+
+    fname = '../data/bulk_internal_energy_' + species + '.dat'
+    f = open(fname, 'r')
+    content = np.genfromtxt(f)
+    bene = content[:, 3]
+    if species == 'e':
+        kene = pic_info.kene_e
+        kename = '$\Delta K_e$'
+    else:
+        kene = pic_info.kene_i
+        kename = '$\Delta K_i$'
+
+    f = interp1d(tenergy, kene)
+    kene_new = f(tfields)
+    iene = kene_new - bene
+
+    fig = plt.figure(figsize=[7, 5])
+    w1, h1 = 0.8, 0.4
+    xs, ys = 0.15, 0.96 - h1
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p11, = ax1.plot(tfields, bene, linewidth=2, color='r', label=r'Bulk')
+    p12, = ax1.plot(tfields, iene, linewidth=2, color='b', label=r'Internal')
+    p13, = ax1.plot(tfields, kene_new, linewidth=2, color='k', label=r'Total')
+    ax1.set_ylabel(r'Energy', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=16)
+    ax1.legend(loc=2, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ys -= h1
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    p21, = ax2.plot(tfields, bene / kene_new, linewidth=2,
+            color='r', label=r'Bulk / Total')
+    p22, = ax2.plot(tfields, iene / kene_new, linewidth=2,
+            color='b', label=r'Internal / Total')
+    ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'Fraction', fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
+    ax2.set_yticks(np.arange(0.0, 1.0, 0.2))
+    ax2.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # fname = '../img/bulk_internal_ene_' + species + '.eps'
+    # fig.savefig(fname)
+    plt.show()
+
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
     # bulk_energy(pic_info, 'i', 12)
     # bulk_energy_change_rate(pic_info, 'e', 17)
-    for ct in range(pic_info.ntf):
-        bulk_energy(pic_info, 'e', ct)
-    for ct in range(pic_info.ntf):
-        bulk_energy(pic_info, 'i', ct)
-    # plot_bulk_energy(pic_info, 'i')
+    # for ct in range(pic_info.ntf):
+    #     bulk_energy(pic_info, 'e', ct)
+    # for ct in range(pic_info.ntf):
+    #     bulk_energy(pic_info, 'i', ct)
+    # plot_bulk_energy(pic_info, 'e')
+    plot_bulk_energy_rel(pic_info, 'e')
     # check_energy(pic_info, 'e')
     # plot_bulk_energy_distribution(pic_info, 'i')

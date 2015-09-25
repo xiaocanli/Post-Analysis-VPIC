@@ -73,11 +73,13 @@ program dissipation
         use particle_info, only: ibtag, species
         use pic_fields, only: open_pic_fields, read_pic_fields, &
                 close_pic_fields_file
-        use pic_fields, only: vfields_fh, ufields_fh
+        use pic_fields, only: vfields_fh, ufields_fh, nrho_fh
         use inductive_electric_field, only: calc_inductive_e, &
                 init_inductive, free_inductive
         use previous_post_velocities, only: init_pre_post_velocities, &
                 read_pre_post_velocities, free_pre_post_velocities
+        use previous_post_density, only: init_pre_post_density, &
+                read_pre_post_density, free_pre_post_density
         use current_densities, only: init_current_densities, &
                 free_current_densities, set_current_densities_to_zero, &
                 init_ava_current_densities, free_avg_current_densities, &
@@ -102,6 +104,7 @@ program dissipation
         call init_current_densities
         call init_ava_current_densities
         call init_pre_post_velocities
+        call init_pre_post_density
         call init_jdote
         call init_jdote_total
         do input_record = tp1, tp2
@@ -123,6 +126,7 @@ program dissipation
             else
                 call read_pre_post_velocities(input_record, vfields_fh)
             endif
+            call read_pre_post_density(input_record, nrho_fh)
             call calc_energy_conversion(input_record)
             call set_current_densities_to_zero
             if (output_format /= 1) then
@@ -139,6 +143,7 @@ program dissipation
         call free_jdote_total
         call free_jdote
         call free_pre_post_velocities
+        call free_pre_post_density
         call free_avg_current_densities
         call free_current_densities
 
