@@ -1,7 +1,7 @@
 &datum
- httx = 32,                  ! number of domains in x (converter)
- htty = 1,                  ! the same in y
- httz = 2,                  ! the same in z
+ httx = 4,                  ! number of domains in x (converter)
+ htty = 4,                  ! the same in y
+ httz = 4,                  ! the same in z
  tindex_start = 0,          ! time slice to start at
  tindex_stop = 9999999,     ! time slice to stop at. set to a large number to process all
  output_format = 2,         ! output format. 2=file per slice, 1=all slices in one file

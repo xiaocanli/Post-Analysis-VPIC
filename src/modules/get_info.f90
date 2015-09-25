@@ -18,8 +18,13 @@ module picinfo
         real(dp) :: idx, idy, idz         ! Inverse of dx, dy, dz
         real(dp) :: idxh, idyh, idzh      ! Half of idx, idy, idz
         real(fp) :: lx_de, ly_de, lz_de   ! Simulation box sizes
-        real(fp) :: dtwpe, dtwce, dtwci   ! Time step in PIC simulation
+        real(fp) :: dtwpe, dtwce          ! Time step in PIC simulation
+        real(fp) :: dtwpi, dtwci          ! Time step in PIC simulation
         real(fp) :: dt, idt               ! Fields output interval and its inverse
+        integer :: energies_interval      ! Energy output time interval
+        integer :: fields_interval        ! Fields output time interval
+        integer :: hydro_interval         ! hydro output time interval
+        integer :: particle_interval     ! Particles output time interval
         integer :: nx, ny, nz             ! Grid numbers
         integer :: pic_tx, pic_ty, pic_tz ! MPI topology
         integer :: pic_nx, pic_ny, pic_nz ! The domain sizes for each process
@@ -57,46 +62,156 @@ module picinfo
     end function get_main_fname
 
     !---------------------------------------------------------------------------
-    ! Get the fields output time interval from the initialization file sigma.cxx.
+    ! Get the fields output time interval from the initialization file.
     ! The interval is defined as "int interval = ...", for example,
-    ! int interval = int(2.5/(wci*dt)); 
+    ! int interval = int(2.5/(wci*dt)). This routine assumes the intervals
+    ! are the same for all particle species.
+    !
     ! Input:
-    !   dtwpe: time step in 1/wpe
-    ! Return:
-    !   dtf_wpe: the fields output interval in 1/wpe.
+    !   dtwpe, dtwce, dtwpi, dtwci: time step in different units.
+    ! Output:
+    !   fields_interval: the fields output interval
+    !   hydro_interval: the hydro fields output interval
+    !   particles_interval: the particle output interval
     !---------------------------------------------------------------------------
-    function get_fields_interval(dtwpe) result(dtf_wpe)
+    subroutine get_fields_interval(dtwpe, dtwce, dtwpi, dtwci, fields_interval, &
+            hydro_interval, particle_interval)
         use constants, only: fp
         implicit none
-        real(fp), intent(in) :: dtwpe
-        real(fp) :: dt_tracer_wpe, dtf_wpe ! The interval in 1/wpe
-        integer :: fh, index1, index2, ratio, interval
-        character(len=150) :: buff
-        character(len=20) :: fname
+        real(fp), intent(in) :: dtwpe, dtwce, dtwpi, dtwci
+        integer, intent(out) :: fields_interval, hydro_interval, particle_interval
+        integer :: fh, index1, index2, index3
+        character(len=150) :: buff, code
+        character(len=20) :: fname, another_interval
+        logical :: cond1, cond2
+        integer :: interval, ratio, interval_base
         fh = 40
 
         fname = get_main_fname()
 
         open(unit=fh, file=trim(adjustl(rootpath))//trim(adjustl(fname)), status='old')
         read(fh, '(A)') buff
-        do while (index(buff, 'int tracer_int = ') == 0)
+        ! Make sure the line is not commented out
+        cond1 = index(buff, 'int interval = ') == 0
+        cond2 = index(buff, '//') /= 0
+        do while (cond1 .or. cond2)
             read(fh, '(A)') buff
+            cond1 = index(buff, 'int interval = ') == 0
+            cond2 = index(buff, '//') /= 0
         enddo
-        index1 = index(buff, '(')
-        index2 = index(buff, '/')
-        read(buff(index1+1:index2-1), *) dt_tracer_wpe
-        interval = int(dt_tracer_wpe / dtwpe)
+        if (index(buff, '(') == 0) then
+            ! This interval is based on another interval
+            index1 = index(buff, '=')
+            index2 = index(buff, ';')
+            if (index(buff, '*') == 0) then
+                another_interval = trim(adjustl(buff(index1+1:index2-1)))
+                ratio = 1
+            else
+                index3 = index(buff, '*')
+                another_interval = trim(adjustl(buff(index3+1:index2-1)))
+                read(buff(index1+1:index3-1), *) ratio
+            endif
+            code = 'int '//trim(adjustl(another_interval))//' = '
+            ! Find another_interval
+            rewind(fh)
+            cond1 = index(buff, trim(adjustl(code))) == 0
+            cond2 = index(buff, '//') /= 0
+            do while (cond1 .or. cond2)
+                read(fh, '(A)') buff
+                cond1 = index(buff, trim(adjustl(code))) == 0
+                cond2 = index(buff, '//') /= 0
+            enddo
+            interval_base = get_time_interval(buff, dtwpe, dtwce, dtwpi, dtwci)
+            interval = interval_base * ratio
+        else
+            interval = get_time_interval(buff, dtwpe, dtwce, dtwpi, dtwci)
+        endif
 
-        do while (index(buff, 'int interval = ') == 0)
+        ! Read fields_interval
+        cond1 = index(buff, 'int fields_interval = ') == 0
+        cond2 = index(buff, '//') /= 0
+        do while (cond1 .or. cond2)
             read(fh, '(A)') buff
+            cond1 = index(buff, 'int fields_interval = ') == 0
+            cond2 = index(buff, '//') /= 0
         enddo
-        index1 = index(buff, '=')
-        index2 = index(buff, '*')
-        read(buff(index1+1:index2-1), *) ratio
+        if (index(buff, '*') /= 0) then
+            index1 = index(buff, '=')
+            index2 = index(buff, '*')
+            read(buff(index1+1:index2-1), *) ratio
+        else
+            ratio = 1
+        endif
+        fields_interval = interval * ratio
 
-        dtf_wpe = interval * ratio * dtwpe
+        ! Read hydro_interval, assuming ehydro_interval == Hhydro_interval
+        cond1 = index(buff, 'int ehydro_interval = ') == 0
+        cond2 = index(buff, '//') /= 0
+        do while (cond1 .or. cond2)
+            read(fh, '(A)') buff
+            cond1 = index(buff, 'int ehydro_interval = ') == 0
+            cond2 = index(buff, '//') /= 0
+        enddo
+        if (index(buff, '*') /= 0) then
+            index1 = index(buff, '=')
+            index2 = index(buff, '*')
+            read(buff(index1+1:index2-1), *) ratio
+        else
+            ratio = 1
+        endif
+        hydro_interval = interval * ratio
+
+        ! Read particle_interval, assuming eparticle_interval == Hparticle_interval
+        cond1 = index(buff, 'int eparticle_interval = ') == 0
+        cond2 = index(buff, '//') /= 0
+        do while (cond1 .or. cond2)
+            read(fh, '(A)') buff
+            cond1 = index(buff, 'int eparticle_interval = ') == 0
+            cond2 = index(buff, '//') /= 0
+        enddo
+        if (index(buff, '*') /= 0) then
+            index1 = index(buff, '=')
+            index2 = index(buff, '*')
+            read(buff(index1+1:index2-1), *) ratio
+        else
+            ratio = 1
+        endif
+        particle_interval = interval * ratio
         close(fh)
-    end function get_fields_interval
+    end subroutine get_fields_interval
+
+    !---------------------------------------------------------------------------
+    ! Read domain information from info file directly from the PIC simulation.
+    ! Args:
+    !   line: one single line
+    !   dtwpe: the time step in 1/wpe.
+    !   dtwce: the time step in 1/wce.
+    !   dtwpi: the time step in 1/wpi.
+    !   dtwci: the time step in 1/wci.
+    !---------------------------------------------------------------------------
+    function get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci) result(interval)
+        implicit none
+        character(*), intent(in) :: line
+        real(fp), intent(in) :: dtwpe, dtwce, dtwpi, dtwci
+        integer :: interval, index1, index2, index3
+        real(fp) :: dt
+        character(len=16) :: buff
+        index1 = index(line, '(')
+        index2 = index(line, '/')
+        index3 = index(line, '*')
+        read(line(index1+1:index2-1), *) dt
+        buff = line(index2+2:index3-1)
+        if (buff == 'wpe') then
+            interval = int(dt / dtwpe)
+        else if (buff == 'wce') then
+            interval = int(dt / dtwce)
+        else if (buff == 'wpi') then
+            interval = int(dt / dtwpi)
+        else if (buff == 'wci') then
+            interval = int(dt / dtwci)
+        endif
+    end function get_time_interval
+
 
     !---------------------------------------------------------------------------
     ! Read domain information from info file directly from the PIC simulation.
@@ -129,6 +244,9 @@ module picinfo
         domain%dtwpe = get_variable(fh, 'dt*wpe', '=')
         domain%dtwce = get_variable(fh, 'dt*wce', '=')
         domain%dtwci = get_variable(fh, 'dt*wci', '=')
+        domain%dtwpi = domain%dtwpe / mime
+        temp = get_variable(fh, 'energies_interval', ':')
+        domain%energies_interval = int(temp)
         domain%dx = get_variable(fh, 'dx/de', '=')
         domain%dy = get_variable(fh, 'dy/de', '=')
         domain%dz = get_variable(fh, 'dz/de', '=')
@@ -139,8 +257,11 @@ module picinfo
         domain%idyh = 0.5*domain%idy
         domain%idzh = 0.5*domain%idz
 
-        dtf_wpe = get_fields_interval(domain%dtwpe)
-        domain%dt = dtf_wpe
+        call get_fields_interval(domain%dtwpe, domain%dtwce, domain%dtwpi, &
+            domain%dtwci, domain%fields_interval, domain%hydro_interval, &
+            domain%particle_interval)
+
+        domain%dt = domain%fields_interval * domain%dtwpe
         domain%idt = 1.0 / domain%dt
 
         close(fh)
@@ -154,13 +275,17 @@ module picinfo
             domain%lx_de, ',', domain%ly_de, ',', domain%lz_de
         write(*, "(A,I0,A,I0,A,I0)") " nx, ny, nz = ", &
             domain%nx, ',', domain%ny, ',', domain%nz
-        write(*, "(A,F14.6,A,F14.6,A,F14.6)") " dx, dy, dz (de) = ", &
+        write(*, "(A,F9.6,A,F9.6,A,F9.6)") " dx, dy, dz (de) = ", &
             domain%dx, ',', domain%dy, ',', domain%dz
         write(*, "(A,E14.6)") " dtwpe = ", domain%dtwpe
         write(*, "(A,E14.6)") " dtwce = ", domain%dtwce
         write(*, "(A,E14.6)") " dtwci = ", domain%dtwci
         write(*, "(A,E14.6)") " Fields output interval (1/wpe) = ", domain%dt
         write(*, "(A,F6.1)") " mi/me = ", mime
+        write(*, "(A,I0)") " Energies outptut steps = ", domain%energies_interval
+        write(*, "(A,I0)") " Fields outptut steps = ", domain%fields_interval
+        write(*, "(A,I0)") " Hydro outptut steps = ", domain%hydro_interval
+        write(*, "(A,I0)") " Particle outptut steps = ", domain%Particle_interval
         write(*, "(A,I0)") " Numer of CPU cores used = ", domain%nproc
         write(*, "(A,I0,A,I0,A,I0)") " MPI topology: ", &
             domain%pic_tx, ',', domain%pic_ty, ',', domain%pic_tz
@@ -258,12 +383,12 @@ module picinfo
         call MPI_TYPE_EXTENT(MPI_DOUBLE_PRECISION, extent, ierr)
         offsets(1) = 9 * extent
         oldtypes(1) = MPI_REAL
-        blockcounts(1) = 8
+        blockcounts(1) = 9
         ! Setup description of the 3 MPI_INTEGER fields.
         call MPI_TYPE_EXTENT(MPI_REAL, extent, ierr)
-        offsets(2) = offsets(1) + 8 * extent
+        offsets(2) = offsets(1) + 9 * extent
         oldtypes(2) = MPI_INTEGER
-        blockcounts(2) = 11
+        blockcounts(2) = 15
         ! Define structured type and commit it. 
         call MPI_TYPE_STRUCT(3, blockcounts, offsets, oldtypes, picInfoType, ierr)
         call MPI_TYPE_COMMIT(picInfoType, ierr)
@@ -287,7 +412,6 @@ module picinfo
         use mpi_module
         use path_info, only: filepath
         use configuration_translate, only: output_format
-        use time_info, only: nout
         implicit none
         integer, intent(inout) :: tp2
         integer(kind=8) :: filesize
@@ -310,7 +434,7 @@ module picinfo
                 nframe = 0
                 do while (is_exist)
                     nframe = nframe + 1
-                    tindex = nout * nframe
+                    tindex = domain%fields_interval * nframe
                     write(cfname, '(I0)') tindex
                     fname = trim(adjustl(filepath))//'bx_'//trim(cfname)//'.gda'
                     inquire(file=fname, exist=is_exist)

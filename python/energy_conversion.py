@@ -41,11 +41,11 @@ def plot_energy_evolution(pic_info):
     ene_by = pic_info.ene_by
     ene_bz = pic_info.ene_bz
 
-    enorm = ene_bx[0]
+    enorm = ene_bx[0] + ene_by[0]
 
     fig = plt.figure(figsize=[3.5,2.5])
     ax = fig.add_axes([0.22, 0.22, 0.75, 0.73])
-    p1, = ax.plot(tenergy, ene_bx/enorm, linewidth=2, 
+    p1, = ax.plot(tenergy, (ene_bx+ene_by)/enorm, linewidth=2, 
             label=r'$B_x^2(t)$', color='b')
     p2, = ax.plot(tenergy, kene_i/enorm, linewidth=2, 
             color='g', label=r'$\Delta K_i$')
@@ -59,9 +59,10 @@ def plot_energy_evolution(pic_info):
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax.set_ylabel(r'Energy/$\varepsilon_{bx}(0)$', fontdict=font, fontsize=20)
 
-    ax.text(500, 0.85, r'$\varepsilon_{bx}(t)$', color='blue', fontsize=24)
-    ax.text(500, 0.65, r'$100\varepsilon_e$', color='m', fontsize=24)
-    ax.text(900, 0.85, r'$K_e$', color='red', fontsize=24)
+    ax.text(500, 1.1, r'$\varepsilon_{bx}(t) + \varepsilon_{by}(t)$',
+            color='blue', fontsize=24)
+    ax.text(500, 0.65, r'$\varepsilon_e$', color='m', fontsize=24)
+    ax.text(1300, 0.65, r'$K_e$', color='red', fontsize=24)
     ax.text(900, 0.65, r'$K_i$', color='green', fontsize=24)
    
     plt.tick_params(labelsize=16)
@@ -467,10 +468,82 @@ def plot_jpara_perp_dote():
     plt.show()
 
 
+def plot_jtot_dote():
+    """
+    Plot the total energy conversion jtot_dote for both electrons and ions.
+
+    """
+    pic_info = pic_information.get_pic_info('../../')
+    tfields = pic_info.tfields
+    tenergy = pic_info.tenergy
+
+    jdote = read_jdote_data('e')
+    jtot_dote = jdote.jqnupara_dote + jdote.jqnuperp_dote
+    jtot_dote_int = jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
+    # jdote = read_jdote_data('i')
+    # jtot_dote += jdote.jqnupara_dote + jdote.jqnuperp_dote
+    # jtot_dote_int += jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
+
+    dkene_e = pic_info.dkene_e
+    kene_e = pic_info.kene_e
+    dkene_i = pic_info.dkene_i
+    kene_i = pic_info.kene_i
+    dkene = dkene_e + dkene_i
+    kene = kene_e + kene_i
+    kename = '$\Delta K_e$'
+
+    #fig, axes = plt.subplots(2, sharex=True, sharey=False)
+    fig = plt.figure(figsize=[7, 3])
+   
+    width = 0.76
+    height = 0.7
+    xs = 0.18
+    ys = 0.95-height
+    #mpl.rc('text', usetex=False)
+    ax1 = fig.add_axes([xs, ys, width, height])
+    ax1.plot(tfields, jdote.jqnupara_dote_int, lw=2, color='b', 
+            label=r'$\mathbf{j}_{e\parallel}\cdot\mathbf{E}$')
+    ax1.plot(tfields, jdote.jqnuperp_dote_int, lw=2, color='g',
+            label=r'$\mathbf{j}_{e\perp}\cdot\mathbf{E}$')
+    ax1.plot(tfields, jtot_dote_int, lw=2, color='r',
+            label=r'$\mathbf{j}\cdot\mathbf{E}$')
+    ax1.plot(tenergy, kene_e-kene_e[0], lw=2, color='k', label=kename)
+    ax1.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
+    ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$d\varepsilon_c$', fontdict=font, fontsize=24)
+    ax1.tick_params(reset=True, labelsize=20)
+    # ax1.tick_params(axis='x', labelbottom='off')
+    # ax1.set_ylim([-20, 20])
+    # ax1.yaxis.set_ticks(np.arange(-1, 6, 1))
+    # ax1.set_xlim([0, 800])
+    ax1.text(0.5, 0.8, r'$\mathbf{j}_{\parallel}\cdot\mathbf{E}$',
+            color='blue', fontsize=24,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.7, 0.8, r'$\mathbf{j}_{\perp}\cdot\mathbf{E}$',
+            color='green', fontsize=24,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.5, 0.6, r'$(\mathbf{j}_{\parallel}+\mathbf{j}_\perp)\cdot\mathbf{E}$',
+            color='red', fontsize=24,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.6, 0.4, r'$dK_e/dt$', color='black', fontsize=24,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig.savefig('../img/jtot_dote.eps')
+
+    plt.show()
+
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     # jdote = read_jdote_data('e')
     # plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
-    plot_jdotes_evolution('i')
-    # plot_jpara_perp_dote()
+    # plot_jdotes_evolution('e')
+    plot_jpara_perp_dote()
+    # plot_jtot_dote()

@@ -16,6 +16,7 @@ bulk_internal_energy
 calc_agyrotropy
 compression
 dissipation
+jdote_eband
 energies_pic.dat
 fileContents.txt
 nrho_eband

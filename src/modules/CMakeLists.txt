@@ -78,3 +78,6 @@ target_link_libraries(pressure_tensor get_info fields)
 add_library(compression_shear compression_shear.f90 global.f90
     para_perp_pressure.f90)
 target_link_libraries(compression_shear pressure_tensor get_info pic_fields)
+
+add_library(jdote_energy_band jdote_energy_band.f90 global.f90)
+target_link_libraries(jdote_energy_band read_config analysis_config)

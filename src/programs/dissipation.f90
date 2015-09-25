@@ -13,10 +13,10 @@ program dissipation
 
     call init_analysis
 
-    ! species = 'e'
-    ! call commit_analysis
+    species = 'e'
+    call commit_analysis
 
-    ! call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
     species = 'i'
     call commit_analysis
@@ -69,6 +69,7 @@ program dissipation
     !---------------------------------------------------------------------------
     subroutine energy_conversion_from_current
         use mpi_module
+        use picinfo, only: domain
         use parameters, only: tp1, tp2, inductive, is_rel
         use particle_info, only: ibtag, species
         use pic_fields, only: open_pic_fields, read_pic_fields, &
@@ -88,7 +89,6 @@ program dissipation
         use jdote_module, only: init_jdote, free_jdote, &
                 init_jdote_total, free_jdote_total, save_jdote_total
         use configuration_translate, only: output_format
-        use time_info, only: nout
 
         implicit none
 
@@ -111,7 +111,7 @@ program dissipation
             if (myid==master) print*, input_record
             output_record = input_record - tp1 + 1
             if (output_format /= 1) then
-                tindex = nout * (input_record - tp1) 
+                tindex = domain%fields_interval * (input_record - tp1) 
                 call open_pic_fields(species, tindex)
                 output_record = 1
                 call read_pic_fields(tp1)
