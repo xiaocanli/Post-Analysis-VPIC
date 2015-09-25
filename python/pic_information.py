@@ -17,8 +17,11 @@ def get_pic_info(base_directory):
     ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
     dtwci = pic_initial_info.dtwci
+    dtwce = pic_initial_info.dtwce
+    dtwpe = pic_initial_info.dtwpe
+    dtwpi = dtwci * dtwpe / dtwce
     fields_interval, particle_interval = \
-            get_output_intervals(dtwci, base_directory)
+            get_output_intervals(dtwpi, base_directory)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
     ntp = ntf / (particle_interval/fields_interval)
