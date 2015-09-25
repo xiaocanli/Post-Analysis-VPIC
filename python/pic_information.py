@@ -17,10 +17,11 @@ def get_pic_info(base_directory):
     dtwpe = pic_initial_info.dtwpe
     dtwce = pic_initial_info.dtwce
     dtwci = pic_initial_info.dtwci
+    dtwpi = dtwpe / math.sqrt(pic_initial_info.mime)
     ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
     fields_interval, particle_interval = \
-            get_output_intervals(dtwpe, dtwce, dtwci, base_directory)
+            get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
     ntp = ntf / (particle_interval/fields_interval)
@@ -183,7 +184,7 @@ def get_main_source_filename(base_directory):
     return fname
 
 
-def get_output_intervals(dtwpe, dtwce, dtwci, base_directory):
+def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
     """
     Get output intervals from the main configuration file for current PIC
     simulation.
@@ -191,6 +192,7 @@ def get_output_intervals(dtwpe, dtwce, dtwci, base_directory):
     Args:
         dtwpe: the time step in 1/wpe.
         dtwce: the time step in 1/wce.
+        dtwpi: the time step in 1/wpi.
         dtwci: the time step in 1/wci.
         base_directory: the base directory for different runs.
     """
@@ -229,10 +231,12 @@ def get_output_intervals(dtwpe, dtwce, dtwci, base_directory):
                 current_line -= 1
                 cond1 = not word in content[current_line]
                 cond2 = '//' in content[current_line]  # commented out
-            interval = get_time_interval(content[current_line], dtwpe, dtwce, dtwci)
+            interval = get_time_interval(content[current_line], dtwpe, dtwce,
+                    dtwpi, dtwci)
             interval = int(interval * time_ratio)
         else:
-            interval = get_time_interval(content[current_line], dtwpe, dtwce, dtwci)
+            interval = get_time_interval(content[current_line], dtwpe, dtwce,
+                    dtwpi, dtwci)
         
         fields_interval = interval
 
@@ -245,7 +249,7 @@ def get_output_intervals(dtwpe, dtwce, dtwci, base_directory):
 
     return (fields_interval, particle_interval)
 
-def get_time_interval(line, dtwpe, dtwce, dtwci):
+def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
     """Get time interval from a line
     
     The line is in the form: int *** = int(5.0/***);
@@ -254,6 +258,7 @@ def get_time_interval(line, dtwpe, dtwce, dtwci):
         line: one single line
         dtwpe: the time step in 1/wpe.
         dtwce: the time step in 1/wce.
+        dtwpi: the time step in 1/wpi.
         dtwci: the time step in 1/wci.
     """
     line_splits = line.split("(")
@@ -265,6 +270,8 @@ def get_time_interval(line, dtwpe, dtwce, dtwci):
         dt = dtwpe
     elif word2_splits[0] == "wce":
         dt = dtwce
+    elif word2_splits[0] == "wpi":
+        dt = dtwpi
     elif word2_splits[0] == "wci":
         dt = dtwci
 
