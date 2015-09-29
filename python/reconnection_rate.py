@@ -8,6 +8,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LogNorm
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy import signal
 import numpy as np
 import math
 import os.path
@@ -40,9 +41,13 @@ def calc_reconnection_rate(pic_info):
         kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-1, "zt":1}
         x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
         nz, = z.shape
-        max_ay = np.max(Ay[nz/2, :])
-        min_ay = np.min(Ay[nz/2, :])
+        # max_ay = np.max(np.sum(Ay[nz/2-1:nz/2+1, :], axis=0)/2)
+        # min_ay = np.min(np.sum(Ay[nz/2-1:nz/2+1, :], axis=0)/2)
+        max_ay = np.max(Ay[nz/2-1:nz/2+1, :])
+        min_ay = np.min(Ay[nz/2-1:nz/2+1, :])
         phi[ct] = max_ay - min_ay
+    nk = 3
+    phi = signal.medfilt(phi, kernel_size=nk)
     dtwpe = pic_info.dtwpe
     dtwce = pic_info.dtwce
     dtwci = pic_info.dtwci
@@ -59,6 +64,11 @@ def calc_reconnection_rate(pic_info):
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
+    ax.set_ylim([0, 0.12])
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fname = '../img/er.eps'
+    fig.savefig(fname)
     plt.show()
 
 if __name__ == "__main__":
