@@ -23,6 +23,7 @@ program compression
     !---------------------------------------------------------------------------
     subroutine commit_analysis
         use mpi_module
+        use mpi_topology, only: htg
         use particle_info, only: species, ibtag, get_ptl_mass_charge
         use para_perp_pressure, only: init_para_perp_pressure, &
                 free_para_perp_pressure, calc_para_perp_pressure
@@ -49,7 +50,7 @@ program compression
 
         call open_pic_fields(species)
 
-        call init_neighbors
+        call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
         call init_scalar_pressure

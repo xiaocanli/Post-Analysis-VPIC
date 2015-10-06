@@ -4,7 +4,6 @@
 !*******************************************************************************
 module neighbors_module
     use constants, only: fp, dp
-    use mpi_topology, only: htg
     use picinfo, only: domain
     implicit none
     private
@@ -15,6 +14,8 @@ module neighbors_module
     integer, allocatable, dimension(:) :: ixl, ixh, iyl, iyh, izl, izh
     ! The inverse of the distance between the neighbors.
     real(dp), allocatable, dimension(:) :: idx, idy, idz
+    ! The sizes in each dimension.
+    integer :: nx, ny, nz
 
     contains
 
@@ -22,17 +23,21 @@ module neighbors_module
     ! Initialize the indices of the neighbors and the inverse of the distance
     ! between them.
     !---------------------------------------------------------------------------
-    subroutine init_neighbors
+    subroutine init_neighbors(nx0, ny0, nz0)
         implicit none
-        allocate(ixl(htg%nx))
-        allocate(ixh(htg%nx))
-        allocate(idx(htg%nx))
-        allocate(iyl(htg%ny))
-        allocate(iyh(htg%ny))
-        allocate(idy(htg%ny))
-        allocate(izl(htg%nz))
-        allocate(izh(htg%nz))
-        allocate(idz(htg%nz))
+        integer, intent(in) :: nx0, ny0, nz0
+        nx = nx0
+        ny = ny0
+        nz = nz0
+        allocate(ixl(nx))
+        allocate(ixh(nx))
+        allocate(idx(nx))
+        allocate(iyl(ny))
+        allocate(iyh(ny))
+        allocate(idy(ny))
+        allocate(izl(nz))
+        allocate(izh(nz))
+        allocate(idz(nz))
         ixl = 0; iyl = 0; izl = 0
         ixh = 0; iyh = 0; izh = 0
         idx = 0.0; idy = 0.0; idz = 0.0
@@ -83,10 +88,7 @@ module neighbors_module
     !---------------------------------------------------------------------------
     subroutine get_neighbors
         implicit none
-        integer :: nx, ny, nz, ix, iy, iz
-        nx = htg%nx
-        ny = htg%ny
-        nz = htg%nz
+        integer :: ix, iy, iz
 
         do ix = 1, nx
             call neighbors(nx, ix, ixl(ix), ixh(ix))

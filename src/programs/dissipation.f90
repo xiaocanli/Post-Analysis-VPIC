@@ -29,6 +29,7 @@ program dissipation
     ! This subroutine does the analysis.
     !---------------------------------------------------------------------------
     subroutine commit_analysis
+        use mpi_topology, only: htg
         use particle_info, only: species
         use para_perp_pressure, only: init_para_perp_pressure, &
                 free_para_perp_pressure, save_averaged_para_perp_pressure
@@ -50,7 +51,7 @@ program dissipation
             call open_pic_fields(species)
         endif
 
-        call init_neighbors
+        call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
         call energy_conversion_from_current
