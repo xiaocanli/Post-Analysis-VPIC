@@ -5,7 +5,7 @@ module particle_module
     use constants, only: fp
     implicit none
     private
-    public ptl, ke, px, py, pz, vpara, vperp
+    public ptl, ke, px, py, pz, vpara, vperp, gama
     public calc_particle_energy, calc_ptl_coord, calc_para_perp_velocity
 
     type particle
@@ -17,6 +17,7 @@ module particle_module
 
     type(particle) :: ptl
     real(fp) :: ke                ! Kinetic energy
+    real(fp) :: gama              ! Lorentz factor
     real(fp) :: px, py, pz        ! Particle position
     real(fp) :: vpara, vperp      ! Parallel and perpendicular momentum
 
@@ -30,7 +31,6 @@ module particle_module
     !---------------------------------------------------------------------------
     subroutine calc_particle_energy
         implicit none
-        real(fp) :: gama
 
         gama = sqrt(1.0 + ptl%vx**2 + ptl%vy**2 + ptl%vz**2)        
         ke = gama - 1.0
