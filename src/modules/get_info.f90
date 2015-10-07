@@ -509,7 +509,8 @@ module picinfo
         Ti_Te = get_variable(fh, 'Ti/Te', '=')
         if (myid == master) then
             if (Ti_Te < 0) then
-                write(*, "(A)") " The temperature ratio is not defined: "
+                write(*, "(A)") " Ti/Te is not defined. 1.0 is used."
+                Ti_Te = 1.0
             else
                 write(*, "(A, F4.2)") " The temperature ratio Ti/Te is: ", Ti_Te
             endif
@@ -517,17 +518,19 @@ module picinfo
         vthi = get_variable(fh, 'vthi/c', '=')
         if (myid == master) then
             if (vthi < 0) then
-                write(*, "(A)") " The ion thermal speed is not defined: "
+                write(*, "(A)") " vthi is not defined. 1.0 is used."
+                vthi = 1.0
             else
-                write(*, "(A, E14.6)") " The ion thermal speed is: ", vthi
+                write(*, "(A, E14.6)") " vthi is: ", vthi
             endif
         endif
         vthe = get_variable(fh, 'vthe/c', '=')
         if (myid == master) then
             if (vthe < 0) then
-                write(*, "(A)") " The electron thermal speed is not defined: "
+                write(*, "(A)") " vthe is not defined. 1.0 is used."
+                vthe = 1.0
             else
-                write(*, "(A, E14.6)") " The electron thermal speed is: ", vthe
+                write(*, "(A, E14.6)") " vthe is: ", vthe
             endif
         endif
         close(fh)
