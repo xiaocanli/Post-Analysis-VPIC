@@ -7,7 +7,8 @@ module interpolation_emf
     private
     public init_emfields, free_emfields, init_emfields_derivatives, &
            free_emfields_derivatives, read_emfields_single, &
-           calc_interp_weights, calc_emfields_derivatives, trilinear_interp
+           calc_interp_weights, calc_emfields_derivatives, trilinear_interp, &
+           calc_b_norm, calc_gradient_B, calc_curvature
     public bx0, by0, bz0, ex0, ey0, ez0, dbxdx0, dbxdy0, dbxdz0, &
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
