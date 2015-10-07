@@ -9,7 +9,7 @@ module picinfo
     save
     private
     public picdomain, broadcast_pic_info, get_total_time_frames, &
-           write_pic_info, get_energy_band_number
+           write_pic_info, get_energy_band_number, read_thermal_params
     public nbands, mime, domain, nt, read_domain, emax
     ! Information of simulation domain. All values are in simulation units.
     ! Length is in de. Time is in 1/wpe unless clarified.
@@ -490,8 +490,46 @@ module picinfo
 
         if (myid == master) then
             write(*, "(A,I0)") " Number of energy band: ", nbands
-            write(*, "(A,F10.6)") " Maximum energy for these bands: ", emax
+            write(*, "(A,E14.6)") " Maximum energy for these bands: ", emax
         endif
     end subroutine get_energy_band_number
 
+    !---------------------------------------------------------------------------
+    ! Read Ti_Te, vthe, vthi if they are in the information file.
+    !---------------------------------------------------------------------------
+    subroutine read_thermal_params
+        use mpi_module
+        use constants, only: dp, fp
+        implicit none
+        real(fp) :: temp, dtf_wpe
+        integer :: fh
+        ! read the time step of the simulation
+        fh = 10
+        open(unit=fh, file=trim(adjustl(rootpath))//'info', status='old')
+        Ti_Te = get_variable(fh, 'Ti/Te', '=')
+        if (myid == master) then
+            if (Ti_Te < 0) then
+                write(*, "(A)") " The temperature ratio is not defined: "
+            else
+                write(*, "(A, F4.2)") " The temperature ratio Ti/Te is: ", Ti_Te
+            endif
+        endif
+        vthi = get_variable(fh, 'vthi/c', '=')
+        if (myid == master) then
+            if (vthi < 0) then
+                write(*, "(A)") " The ion thermal speed is not defined: "
+            else
+                write(*, "(A, E14.6)") " The ion thermal speed is: ", vthi
+            endif
+        endif
+        vthe = get_variable(fh, 'vthe/c', '=')
+        if (myid == master) then
+            if (vthe < 0) then
+                write(*, "(A)") " The electron thermal speed is not defined: "
+            else
+                write(*, "(A, E14.6)") " The electron thermal speed is: ", vthe
+            endif
+        endif
+        close(fh)
+    end subroutine read_thermal_params
 end module picinfo
