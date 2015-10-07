@@ -10,7 +10,7 @@ module picinfo
     private
     public picdomain, broadcast_pic_info, get_total_time_frames, &
            write_pic_info, get_energy_band_number
-    public nbands, mime, domain, nt, read_domain
+    public nbands, mime, domain, nt, read_domain, emax
     ! Information of simulation domain. All values are in simulation units.
     ! Length is in de. Time is in 1/wpe unless clarified.
     type picdomain
