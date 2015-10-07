@@ -24,7 +24,7 @@ module picinfo
         integer :: energies_interval      ! Energy output time interval
         integer :: fields_interval        ! Fields output time interval
         integer :: hydro_interval         ! hydro output time interval
-        integer :: particle_interval     ! Particles output time interval
+        integer :: particle_interval      ! Particles output time interval
         integer :: nx, ny, nz             ! Grid numbers
         integer :: pic_tx, pic_ty, pic_tz ! MPI topology
         integer :: pic_nx, pic_ny, pic_nz ! The domain sizes for each process
@@ -34,10 +34,12 @@ module picinfo
 
     type(picdomain) :: domain
 
-    real(fp) :: mime     ! Mass ratio
-    integer :: nt        ! Total number of time frames for field output.
-    integer :: nbands    ! Total number of energy bands.
-    real(fp) :: emax     ! Maximum energy for energy bands.
+    real(fp) :: mime        ! Mass ratio
+    integer :: nt           ! Total number of time frames for field output.
+    integer :: nbands       ! Total number of energy bands.
+    real(fp) :: emax        ! Maximum energy for energy bands.
+    real(fp) :: Ti_Te       ! Temperature ratio of ions and electrons
+    real(fp) :: vthe, vthi  ! Thermal speed
 
     contains
 
@@ -442,7 +444,7 @@ module picinfo
                 enddo
                 nt = nframe
             endif
-            print*, 'Number of output time frames: ', nt
+            write(*, "(A,I0)") " Number of output time frames: ", nt
         endif
         call MPI_BCAST(nt, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
         ! Check if the last frame is larger than nt
@@ -484,12 +486,12 @@ module picinfo
             nbands = 0
             emax = 0
         endif
+        close(fh)
 
         if (myid == master) then
             write(*, "(A,I0)") " Number of energy band: ", nbands
-            write(*, "(A,I0)") " Maximum energy for these bands: ", emax
+            write(*, "(A,F10.6)") " Maximum energy for these bands: ", emax
         endif
-        close(fh)
     end subroutine get_energy_band_number
 
 end module picinfo
