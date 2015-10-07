@@ -9,7 +9,8 @@ module picinfo
     save
     private
     public picdomain, broadcast_pic_info, get_total_time_frames, &
-           write_pic_info, get_energy_band_number, read_thermal_params
+           write_pic_info, get_energy_band_number, read_thermal_params, &
+           calc_energy_interval
     public nbands, mime, domain, nt, read_domain, emax
     ! Information of simulation domain. All values are in simulation units.
     ! Length is in de. Time is in 1/wpe unless clarified.
@@ -40,6 +41,7 @@ module picinfo
     real(fp) :: emax        ! Maximum energy for energy bands.
     real(fp) :: Ti_Te       ! Temperature ratio of ions and electrons
     real(fp) :: vthe, vthi  ! Thermal speed
+    real(fp) :: einterval_e, einterval_i ! Energy interval for different band
 
     contains
 
@@ -535,4 +537,42 @@ module picinfo
         endif
         close(fh)
     end subroutine read_thermal_params
+
+    !---------------------------------------------------------------------------
+    ! Calculate the energy interval for different energy band. This routine
+    ! requires the user to give one parameter eratio, so the energy interval
+    ! is eratio * vthe**2 or eratio * vthi**2. eratio is given in
+    ! config_files/analysis_config.dat. It can be calculated using
+    !   global->ede.vth, global->edi.vth defined in the main source file (e.g.
+    !       sigma.cxx).
+    !   dke that is defined in energy.cxx
+    !---------------------------------------------------------------------------
+    subroutine calc_energy_interval
+        use mpi_module
+        implicit none
+        integer :: fh
+        real(fp) :: eratio
+
+        fh = 10
+        ! Read the configuration file
+        if (myid==master) then
+            open(unit=fh, file='config_files/analysis_config.dat', &
+                 form='formatted', status='old')
+            eratio = get_variable(fh, 'eratio', '=')
+            close(fh)
+            write(*, "(A,F6.2)") " The ratio of energy interval to vth**2: ", &
+                    eratio
+        endif
+
+        call MPI_BCAST(eratio, 1, MPI_REAL, master, MPI_COMM_WORLD, ierr)
+        einterval_e = eratio * vthe**2
+        einterval_i = eratio * vthi**2
+        if (myid == master) then
+            write(*, "(A,E14.6)") " The electron energy band interval: ", &
+                    einterval_e
+            write(*, "(A,E14.6)") " The ion energy band interval: ", &
+                    einterval_i
+        endif
+    end subroutine calc_energy_interval
+
 end module picinfo

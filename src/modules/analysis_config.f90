@@ -24,7 +24,7 @@ module analysis_management
         use mpi_info_module, only: fileinfo, set_mpi_info
         use picinfo, only: read_domain, broadcast_pic_info, &
                 get_total_time_frames, get_energy_band_number, &
-                read_thermal_params 
+                read_thermal_params, calc_energy_interval, nbands
         use parameters, only: get_start_end_time_points, get_inductive_flag, &
                 tp2, get_relativistic_flag
         use configuration_translate, only: read_configuration
@@ -48,6 +48,9 @@ module analysis_management
         call get_total_time_frames(tp2)
         call get_energy_band_number
         call read_thermal_params
+        if (nbands > 0) then
+            call calc_energy_interval
+        endif
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info

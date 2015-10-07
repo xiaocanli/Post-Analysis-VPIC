@@ -1,10 +1,13 @@
 ***** Configuration file for general analysis *****
 ! Starting and ending time points.
 tp1 = 1
-tp2 = 10
+tp2 = 185
 
 ! Whether to use motional electric field.
 inductive = 0
 
 ! Whether to use relativistic expressions. 
-is_rel = 1
+is_rel = 0
+
+! The ratio of energy interval to vth**2
+eratio = 3.0
