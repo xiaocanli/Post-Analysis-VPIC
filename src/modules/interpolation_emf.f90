@@ -6,7 +6,10 @@ module interpolation_emf
     implicit none
     private
     public init_emfields, free_emfields, init_emfields_derivatives, &
-           free_emfields_derivatives, read_emfields_single
+           free_emfields_derivatives, read_emfields_single, &
+           calc_interp_weights, calc_emfields_derivatives, trilinear_interp
+    public bx0, by0, bz0, ex0, ey0, ez0, dbxdx0, dbxdy0, dbxdz0, &
+           dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0
     real(fp), allocatable, dimension(:,:,:) :: ex, ey, ez, bx, by, bz
     real(fp), allocatable, dimension(:,:,:) :: dbxdx, dbxdy, dbxdz
     real(fp), allocatable, dimension(:,:,:) :: dbydx, dbydy, dbydz
