@@ -11,7 +11,10 @@ module particle_module
            ibx, jbx, kbx, iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
            dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
            dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz
-    public calc_particle_energy, calc_ptl_coord, calc_para_perp_velocity
+    public calc_particle_energy, calc_ptl_coord, calc_para_perp_velocity, &
+           calc_para_perp_velocity_3d, calc_gyrofrequency, &
+           calc_gradient_drift_velocity, calc_curvature_drift_velocity, &
+           calc_interp_param
 
     type particle
         real(fp) :: dx, dy, dz    ! Particle relative position in a cell [-1,1]
@@ -202,12 +205,12 @@ module particle_module
     !---------------------------------------------------------------------------
     ! Calculate the gyrofrequency. The Lorentz factor should be calculated.
     !---------------------------------------------------------------------------
-    subroutine calc_gryfrequency
+    subroutine calc_gyrofrequency
         use interpolation_emf, only: absB0
         use particle_info, only: ptl_mass, ptl_charge
         implicit none
         gyrof = abs(ptl_charge) * absB0 / (gama * ptl_mass)
-    end subroutine calc_gryfrequency
+    end subroutine calc_gyrofrequency
 
     !---------------------------------------------------------------------------
     ! Calculate the particle's parallel and perpendicular momentum to the local
