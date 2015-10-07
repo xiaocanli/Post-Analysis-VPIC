@@ -37,6 +37,7 @@ module picinfo
     real(fp) :: mime     ! Mass ratio
     integer :: nt        ! Total number of time frames for field output.
     integer :: nbands    ! Total number of energy bands.
+    real(fp) :: emax     ! Maximum energy for energy bands.
 
     contains
 
@@ -449,7 +450,7 @@ module picinfo
     end subroutine get_total_time_frames
 
     !---------------------------------------------------------------------------
-    ! Get the total number of energy band.
+    ! Get the total number of energy band and the maximum energy.
     !---------------------------------------------------------------------------
     subroutine get_energy_band_number
         use mpi_module
@@ -469,6 +470,10 @@ module picinfo
         index1 = index(buff, '=')
         index2 = index(buff, ';')
         read(buff(index1+1:index2-1), *) nbands
+        read(fh, '(A)') buff
+        index1 = index(buff, '=')
+        index2 = index(buff, ';')
+        read(buff(index1+1:index2-1), *) emax
 
         ! When the energy diagnostics are commented
         do while (index(buff, 'energy.cxx') == 0)
@@ -477,10 +482,12 @@ module picinfo
         single_line = trim(adjustl(buff))
         if (single_line(1:2) == '//') then
             nbands = 0
+            emax = 0
         endif
 
         if (myid == master) then
             write(*, "(A,I0)") " Number of energy band: ", nbands
+            write(*, "(A,I0)") " Maximum energy for these bands: ", emax
         endif
         close(fh)
     end subroutine get_energy_band_number
