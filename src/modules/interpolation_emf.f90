@@ -9,15 +9,19 @@ module interpolation_emf
            free_emfields_derivatives, read_emfields_single, &
            calc_interp_weights, calc_emfields_derivatives, trilinear_interp
     public bx0, by0, bz0, ex0, ey0, ez0, dbxdx0, dbxdy0, dbxdz0, &
-           dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0
+           dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
+           dBdx, dBdy, dBdz, kappax, kappay, kappaz
     real(fp), allocatable, dimension(:,:,:) :: ex, ey, ez, bx, by, bz
     real(fp), allocatable, dimension(:,:,:) :: dbxdx, dbxdy, dbxdz
     real(fp), allocatable, dimension(:,:,:) :: dbydx, dbydy, dbydz
     real(fp), allocatable, dimension(:,:,:) :: dbzdx, dbzdy, dbzdz
-    real(fp) :: bx0, by0, bz0, ex0, ey0, ez0
+    real(fp) :: bx0, by0, bz0, ex0, ey0, ez0, absB0
     real(fp) :: dbxdx0, dbxdy0, dbxdz0
     real(fp) :: dbydx0, dbydy0, dbydz0
     real(fp) :: dbzdx0, dbzdy0, dbzdz0
+    real(fp) :: bxn, byn, bzn     ! Norm of the magnetic field
+    real(fp) :: dBdx, dBdy, dBdz  ! The gradient of B
+    real(fp) :: kappax, kappay, kappaz  ! The curvature of the magnetic field
     real(fp), dimension(2,2,2) :: weights  ! The weights for trilinear interpolation
 
     contains
@@ -223,4 +227,42 @@ module interpolation_emf
         dbzdy0 = sum(dbzdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbzdz0 = sum(dbzdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
     end subroutine trilinear_interp
+
+    !---------------------------------------------------------------------------
+    ! Calculate the norm of the magnetic field.
+    !---------------------------------------------------------------------------
+    subroutine calc_b_norm
+        implicit none
+        real(fp) :: ib
+        absB0 = sqrt(bx0**2 + by0**2 + bz0**2)
+        ib = 1 / absB0
+        bxn = bx0 * ib
+        byn = by0 * ib
+        bzn = bz0 * ib
+    end subroutine calc_b_norm
+
+    !---------------------------------------------------------------------------
+    ! Calculate the gradient of B. calc_b_norm should be called previously.
+    !---------------------------------------------------------------------------
+    subroutine calc_gradient_B
+        implicit none
+        dBdx = bxn * dbxdx0 + byn * dbydx0 + bzn * dbzdx0
+        dBdy = bxn * dbxdy0 + byn * dbydy0 + bzn * dbzdy0
+        dBdz = bxn * dbxdz0 + byn * dbydz0 + bzn * dbzdz0
+    end subroutine calc_gradient_B
+
+    !---------------------------------------------------------------------------
+    ! Calculate the curvature of the magnetic field. calc_gradient_B should be
+    ! called previously.
+    !---------------------------------------------------------------------------
+    subroutine calc_curvature
+        implicit none
+        real(fp) :: b_dot_gradB, ib2, ib
+        b_dot_gradB = bxn * dBdx + byn * dBdy + bzn * dBdz
+        ib = 1 / absB0
+        ib2 = ib * ib
+        kappax = (bxn*dbxdx0 + byn*dbxdy0 + bzn*dbxdz0)*ib - bx0*b_dot_gradB*ib2
+        kappay = (bxn*dbydx0 + byn*dbydy0 + bzn*dbydz0)*ib - by0*b_dot_gradB*ib2
+        kappaz = (bxn*dbzdx0 + byn*dbzdy0 + bzn*dbzdz0)*ib - bz0*b_dot_gradB*ib2
+    end subroutine calc_curvature
 end module interpolation_emf
