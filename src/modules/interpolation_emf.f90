@@ -11,6 +11,10 @@ module interpolation_emf
     real(fp), allocatable, dimension(:,:,:) :: dbxdx, dbxdy, dbxdz
     real(fp), allocatable, dimension(:,:,:) :: dbydx, dbydy, dbydz
     real(fp), allocatable, dimension(:,:,:) :: dbzdx, dbzdy, dbzdz
+    real(fp) :: bx0, by0, bz0, ex0, ey0, ez0
+    real(fp) :: dbxdx0, dbxdy0, dbxdz0
+    real(fp) :: dbydx0, dbydy0, dbydz0
+    real(fp) :: dbzdx0, dbzdy0, dbzdz0
     real(fp), dimension(2,2,2) :: weights  ! The weights for trilinear interpolation
 
     contains
@@ -195,14 +199,25 @@ module interpolation_emf
     ! Trilinear interpolation for the fields.
     ! 
     ! Input:
-    !   farray: the field arrays.
     !   ix0, iy0, iz0: the indices of the lower-left corner.
     !---------------------------------------------------------------------------
-    function trilinear_interp(farray, ix0, iy0, iz0) result(fvalue)
+    subroutine trilinear_interp(ix0, iy0, iz0)
         implicit none
-        real(fp), dimension(:, :, :), intent(in) :: farray
         integer, intent(in) :: ix0, iy0, iz0
-        real(fp) :: fvalue
-        fvalue = sum(farray(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
-    end function trilinear_interp
+        bx0 = sum(bx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        by0 = sum(by(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        bz0 = sum(bz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbxdx0 = sum(dbxdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbxdy0 = sum(dbxdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbxdz0 = sum(dbxdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbydx0 = sum(dbydx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbydy0 = sum(dbydy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbydz0 = sum(dbydz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbzdx0 = sum(dbzdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbzdy0 = sum(dbzdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbzdz0 = sum(dbzdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+    end subroutine trilinear_interp
 end module interpolation_emf
