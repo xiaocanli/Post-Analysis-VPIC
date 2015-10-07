@@ -210,28 +210,35 @@ module interpolation_emf
     ! 
     ! Input:
     !   ix0, iy0, iz0: the indices of the lower-left corner.
+    !   dx, dy, dz: the distance to the lower-left corner, [0, 1]
     !---------------------------------------------------------------------------
-    subroutine trilinear_interp_bx(ix0, iy0, iz0)
+    subroutine trilinear_interp_bx(ix0, iy0, iz0, dx, dy, dz)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
         bx0 = sum(bx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbxdx0 = sum(dbxdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbxdy0 = sum(dbxdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbxdz0 = sum(dbxdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
     end subroutine trilinear_interp_bx
 
-    subroutine trilinear_interp_by(ix0, iy0, iz0)
+    subroutine trilinear_interp_by(ix0, iy0, iz0, dx, dy, dz)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
         by0 = sum(by(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbydx0 = sum(dbydx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbydy0 = sum(dbydy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbydz0 = sum(dbydz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
     end subroutine trilinear_interp_by
 
-    subroutine trilinear_interp_bz(ix0, iy0, iz0)
+    subroutine trilinear_interp_bz(ix0, iy0, iz0, dx, dy, dz)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
         bz0 = sum(bz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
@@ -246,22 +253,29 @@ module interpolation_emf
     ! 
     ! Input:
     !   ix0, iy0, iz0: the indices of the lower-left corner.
+    !   dx, dy, dz: the distance to the lower-left corner, [0, 1]
     !---------------------------------------------------------------------------
-    subroutine trilinear_interp_ex(ix0, iy0, iz0)
+    subroutine trilinear_interp_ex(ix0, iy0, iz0, dx, dy, dz)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
         ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
     end subroutine trilinear_interp_ex
 
-    subroutine trilinear_interp_ey(ix0, iy0, iz0)
+    subroutine trilinear_interp_ey(ix0, iy0, iz0, dx, dy, dz)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
         ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
     end subroutine trilinear_interp_ey
 
-    subroutine trilinear_interp_ez(ix0, iy0, iz0)
+    subroutine trilinear_interp_ez(ix0, iy0, iz0, dx, dy, dz)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
         ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
     end subroutine trilinear_interp_ez
 
