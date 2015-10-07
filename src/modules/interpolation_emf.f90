@@ -7,8 +7,10 @@ module interpolation_emf
     private
     public init_emfields, free_emfields, init_emfields_derivatives, &
            free_emfields_derivatives, read_emfields_single, &
-           calc_interp_weights, calc_emfields_derivatives, trilinear_interp, &
-           calc_b_norm, calc_gradient_B, calc_curvature
+           calc_interp_weights, calc_emfields_derivatives, calc_b_norm, &
+           calc_gradient_B, calc_curvature, trilinear_interp_bx,&
+           trilinear_interp_by, trilinear_interp_bz, trilinear_interp_ex, &
+           trilinear_interp_ey, trilinear_interp_ez
     public bx0, by0, bz0, ex0, ey0, ez0, absB0, dbxdx0, dbxdy0, dbxdz0, &
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
@@ -204,30 +206,64 @@ module interpolation_emf
     end subroutine calc_interp_weights
 
     !---------------------------------------------------------------------------
-    ! Trilinear interpolation for the fields.
+    ! Trilinear interpolation for Bx, By, Bz.
     ! 
     ! Input:
     !   ix0, iy0, iz0: the indices of the lower-left corner.
     !---------------------------------------------------------------------------
-    subroutine trilinear_interp(ix0, iy0, iz0)
+    subroutine trilinear_interp_bx(ix0, iy0, iz0)
         implicit none
         integer, intent(in) :: ix0, iy0, iz0
         bx0 = sum(bx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbxdx0 = sum(dbxdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbxdy0 = sum(dbxdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbxdz0 = sum(dbxdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+    end subroutine trilinear_interp_bx
+
+    subroutine trilinear_interp_by(ix0, iy0, iz0)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
         by0 = sum(by(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbydx0 = sum(dbydx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbydy0 = sum(dbydy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        dbydz0 = sum(dbydz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+    end subroutine trilinear_interp_by
+
+    subroutine trilinear_interp_bz(ix0, iy0, iz0)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
         bz0 = sum(bz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbxdx0 = sum(dbxdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbxdy0 = sum(dbxdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbxdz0 = sum(dbxdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbydx0 = sum(dbydx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbydy0 = sum(dbydy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbydz0 = sum(dbydz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbzdx0 = sum(dbzdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbzdy0 = sum(dbzdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
         dbzdz0 = sum(dbzdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-    end subroutine trilinear_interp
+    end subroutine trilinear_interp_bz
+
+    !---------------------------------------------------------------------------
+    ! Trilinear interpolation for Ex, Ey, Ez.
+    ! 
+    ! Input:
+    !   ix0, iy0, iz0: the indices of the lower-left corner.
+    !---------------------------------------------------------------------------
+    subroutine trilinear_interp_ex(ix0, iy0, iz0)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+    end subroutine trilinear_interp_ex
+
+    subroutine trilinear_interp_ey(ix0, iy0, iz0)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+    end subroutine trilinear_interp_ey
+
+    subroutine trilinear_interp_ez(ix0, iy0, iz0)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+    end subroutine trilinear_interp_ez
 
     !---------------------------------------------------------------------------
     ! Calculate the norm of the magnetic field.
