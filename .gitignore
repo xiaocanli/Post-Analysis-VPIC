@@ -34,3 +34,4 @@ vpic-sorter/h5trajectory
 vpic-sorter/data/
 vpic-sorter/attribute
 python/colormap/*.pyc
+particle_based_jdote
