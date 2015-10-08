@@ -10,10 +10,15 @@ module particle_fields
     use parameters, only: is_rel  ! Whether they are relativistic fields.
     implicit none
     private
-    public init_particle_fields, free_particle_fields, read_particle_fields, &
-           set_current_density_zero, adjust_particle_fields, &
+    public init_particle_fields, init_density_fields, init_velocity_fields, &
+           init_current_densities, init_pressure_tensor, read_particle_fields, &
+           read_density_fields_single, read_velocity_fields_single, &
+           read_pressure_tensor_single, free_particle_fields, &
+           free_velocity_fields, free_density_fields, free_current_densities, &
+           free_pressure_tensor, set_current_density_zero, adjust_particle_fields, &
            write_particle_fields, calc_current_density, calc_absJ, &
            write_current_densities
+    public nrho, eb
     real(fp), allocatable, dimension(:,:,:) :: vx, vy, vz, nrho
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz, absJ
@@ -26,45 +31,80 @@ module particle_fields
     ! Initialize particle related fields.
     !---------------------------------------------------------------------------
     subroutine init_particle_fields
+        call init_density_fields
+        call init_velocity_fields
+        call init_pressure_tensor
+        call init_current_densities
+    end subroutine init_particle_fields
+
+    !---------------------------------------------------------------------------
+    ! Initialize density and particle fraction for different energy band.
+    !---------------------------------------------------------------------------
+    subroutine init_density_fields
+        use topology_translate, only: ht
+        implicit none
+        allocate(nrho(ht%nx, ht%ny, ht%nz))
+        if (nbands > 0) then
+            allocate(eb(ht%nx, ht%ny, ht%nz, nbands))
+            eb = 0.0
+        endif
+        nrho = 0.0
+    end subroutine init_density_fields
+
+    !---------------------------------------------------------------------------
+    ! Initialize velocity fields.
+    !---------------------------------------------------------------------------
+    subroutine init_velocity_fields
         use topology_translate, only: ht
         implicit none
         allocate(vx(ht%nx, ht%ny, ht%nz))
         allocate(vy(ht%nx, ht%ny, ht%nz))
         allocate(vz(ht%nx, ht%ny, ht%nz))
-        allocate(nrho(ht%nx, ht%ny, ht%nz))
+        vx = 0.0; vy = 0.0; vz = 0.0
+        if (is_rel == 1) then
+            ! Relativistic fields
+            allocate(ux(ht%nx, ht%ny, ht%nz))
+            allocate(uy(ht%nx, ht%ny, ht%nz))
+            allocate(uz(ht%nx, ht%ny, ht%nz))
+            ux = 0.0; uy = 0.0; uz = 0.0
+        endif
+    end subroutine init_velocity_fields
+
+    !---------------------------------------------------------------------------
+    ! Initialize pressure tensor fields.
+    !---------------------------------------------------------------------------
+    subroutine init_pressure_tensor
+        use topology_translate, only: ht
+        implicit none
         allocate(pxx(ht%nx, ht%ny, ht%nz))
         allocate(pxy(ht%nx, ht%ny, ht%nz))
         allocate(pxz(ht%nx, ht%ny, ht%nz))
         allocate(pyy(ht%nx, ht%ny, ht%nz))
         allocate(pyz(ht%nx, ht%ny, ht%nz))
         allocate(pzz(ht%nx, ht%ny, ht%nz))
+        pxx = 0.0; pxy = 0.0; pxz = 0.0
+        pyy = 0.0; pyz = 0.0; pzz = 0.0
+        if (is_rel == 1) then
+            ! Relativistic fields
+            allocate(pyx(ht%nx, ht%ny, ht%nz))
+            allocate(pzx(ht%nx, ht%ny, ht%nz))
+            allocate(pzy(ht%nx, ht%ny, ht%nz))
+            pyx = 0.0; pzx = 0.0; pzy = 0.0
+        endif
+    end subroutine init_pressure_tensor
+
+    !---------------------------------------------------------------------------
+    ! Initialize current densities.
+    !---------------------------------------------------------------------------
+    subroutine init_current_densities
+        use topology_translate, only: ht
+        implicit none
         allocate(jx(ht%nx, ht%ny, ht%nz))
         allocate(jy(ht%nx, ht%ny, ht%nz))
         allocate(jz(ht%nx, ht%ny, ht%nz))
         allocate(absJ(ht%nx, ht%ny, ht%nz))
-        if (nbands > 0) then
-            allocate(eb(ht%nx, ht%ny, ht%nz, nbands))
-            eb = 0.0
-        endif
-
-        vx = 0.0; vy = 0.0; vz = 0.0
-        pxx = 0.0; pxy = 0.0; pxz = 0.0
-        pyy = 0.0; pyz = 0.0; pzz = 0.0
-        nrho = 0.0
         call set_current_density_zero
-
-        if (is_rel == 1) then
-            ! Relativistic fields
-            allocate(ux(ht%nx, ht%ny, ht%nz))
-            allocate(uy(ht%nx, ht%ny, ht%nz))
-            allocate(uz(ht%nx, ht%ny, ht%nz))
-            allocate(pyx(ht%nx, ht%ny, ht%nz))
-            allocate(pzx(ht%nx, ht%ny, ht%nz))
-            allocate(pzy(ht%nx, ht%ny, ht%nz))
-            ux = 0.0; uy = 0.0; uz = 0.0
-            pyx = 0.0; pzx = 0.0; pzy = 0.0
-        endif
-    end subroutine init_particle_fields
+    end subroutine init_current_densities
 
     !---------------------------------------------------------------------------
     ! Set current densities to zero to avoid accumulation.
@@ -80,17 +120,52 @@ module particle_fields
     !---------------------------------------------------------------------------
     subroutine free_particle_fields
         implicit none
-        deallocate(vx, vy, vz, nrho)
-        deallocate(pxx, pxy, pxz, pyy, pyz, pzz)
-        deallocate(jx, jy, jz, absJ)
+        call free_density_fields
+        call free_velocity_fields
+        call free_pressure_tensor
+        call free_current_densities
+    end subroutine free_particle_fields
+
+    !---------------------------------------------------------------------------
+    ! Free density and particle fraction for different energy band.
+    !---------------------------------------------------------------------------
+    subroutine free_density_fields
+        implicit none
+        deallocate(nrho)
         if (nbands > 0) then
             deallocate(eb)
         endif
+    end subroutine free_density_fields
+
+    !---------------------------------------------------------------------------
+    ! Free velocity fields.
+    !---------------------------------------------------------------------------
+    subroutine free_velocity_fields
+        implicit none
+        deallocate(vx, vy, vz)
         if (is_rel == 1) then
-            deallocate(pyx, pzx, pzy)
             deallocate(ux, uy, uz)
         endif
-    end subroutine free_particle_fields
+    end subroutine free_velocity_fields
+
+    !---------------------------------------------------------------------------
+    ! Free pressure tensor fields.
+    !---------------------------------------------------------------------------
+    subroutine free_pressure_tensor
+        implicit none
+        deallocate(pxx, pxy, pxz, pyy, pyz, pzz)
+        if (is_rel == 1) then
+            deallocate(pyx, pzx, pzy)
+        endif
+    end subroutine free_pressure_tensor
+
+    !---------------------------------------------------------------------------
+    ! Free current densities.
+    !---------------------------------------------------------------------------
+    subroutine free_current_densities
+        implicit none
+        deallocate(jx, jy, jz, absJ)
+    end subroutine free_current_densities
 
     !---------------------------------------------------------------------------
     ! Read electromagnetic fields from file.
@@ -118,30 +193,22 @@ module particle_fields
     end subroutine read_particle_fields
 
     !---------------------------------------------------------------------------
-    ! Read the particle related fields for a single MPI process of PIC
-    ! simulation.
-    ! Inputs:
-    !   tindex: the time step index.
+    ! Open one particle fields file.
+    ! Input:
+    !   fh: file handler
+    !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !   species: 'e' for electron, 'H' for ion.
     !---------------------------------------------------------------------------
-    subroutine read_particle_fields_single(tindex0, pic_mpi_id, species)
-        use constants, only: fp
-        use file_header, only: read_boilerplate, read_fields_header, fheader
-        use topology_translate, only: idxstart, idxstop
+    subroutine open_particle_file(fh, tindex0, pic_mpi_id, species)
+        use file_header, only: read_boilerplate, read_fields_header
         implicit none
+        integer, intent(in) :: fh   ! File handler
         integer, intent(in) :: tindex0, pic_mpi_id
         character(len=1), intent(in) :: species
-        real(fp), allocatable, dimension(:,:,:) :: buffer
         character(len=150) :: fname
+        integer :: tindex
         logical :: is_exist
-        integer :: fh   ! File handler
-        integer :: n, ixl, iyl, izl, ixh, iyh, izh
-        integer :: nc1, nc2, nc3
-        integer :: tindex, i
-
-        fh = 10
-
         tindex = tindex0
         !! Index 0 does not have proper current, so use index 1 if it exists
         if (tindex == 0) then
@@ -159,7 +226,7 @@ module particle_fields
         inquire(file=trim(fname), exist=is_exist)
       
         if (is_exist) then 
-            open(unit=10, file=trim(fname), access='stream', status='unknown', &
+            open(unit=fh, file=trim(fname), access='stream', status='unknown', &
                  form='unformatted', action='read')
         else
             print *, "Can't find file:", fname
@@ -167,11 +234,23 @@ module particle_fields
             print *, " ***  Terminating ***"
             stop
         endif
-
         call read_boilerplate(fh)
         call read_fields_header(fh)
-        allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))     
-        
+    end subroutine open_particle_file
+
+    !---------------------------------------------------------------------------
+    ! Set array indices.
+    ! Input:
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !---------------------------------------------------------------------------
+    subroutine set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, izl, izh, &
+            nc1, nc2, nc3)
+        use file_header, only: fheader
+        use topology_translate, only: idxstart, idxstop
+        implicit none
+        integer, intent(in) :: pic_mpi_id
+        integer, intent(out) :: ixl, ixh, iyl, iyh, izl, izh, nc1, nc2, nc3
+        integer :: n
         n = pic_mpi_id + 1  ! MPI ID starts at 0. The 1D rank starts at 1.
         ixl = idxstart(n, 1)
         iyl = idxstart(n, 2)
@@ -182,7 +261,36 @@ module particle_fields
         nc1 = fheader%nc(1) - 1
         nc2 = fheader%nc(2) - 1
         nc3 = fheader%nc(3) - 1
+    end subroutine set_array_indices
 
+    !---------------------------------------------------------------------------
+    ! Read the particle related fields for a single MPI process of PIC
+    ! simulation.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !   species: 'e' for electron, 'H' for ion.
+    !---------------------------------------------------------------------------
+    subroutine read_particle_fields_single(tindex0, pic_mpi_id, species)
+        use constants, only: fp
+        use file_header, only: fheader
+        use topology_translate, only: idxstart, idxstop
+        implicit none
+        integer, intent(in) :: tindex0, pic_mpi_id
+        character(len=1), intent(in) :: species
+        real(fp), allocatable, dimension(:,:,:) :: buffer
+        integer :: ixl, iyl, izl, ixh, iyh, izh
+        integer :: nc1, nc2, nc3
+        integer :: i, fh
+
+        fh = 10
+
+        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+
+        allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
+        call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
+                izl, izh, nc1, nc2, nc3)
+        
         read(fh) buffer
         vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
@@ -226,6 +334,162 @@ module particle_fields
         deallocate(buffer)
         close(fh)
     end subroutine read_particle_fields_single
+
+    !---------------------------------------------------------------------------
+    ! Read the particle velocity fields only.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !   species: 'e' for electron, 'H' for ion.
+    !---------------------------------------------------------------------------
+    subroutine read_velocity_fields_single(tindex0, pic_mpi_id, species)
+        use constants, only: fp
+        use file_header, only: fheader
+        use topology_translate, only: idxstart, idxstop
+        implicit none
+        integer, intent(in) :: tindex0, pic_mpi_id
+        character(len=1), intent(in) :: species
+        real(fp), allocatable, dimension(:,:,:) :: buffer
+        integer :: ixl, iyl, izl, ixh, iyh, izh
+        integer :: nc1, nc2, nc3
+        integer :: i, fh
+
+        fh = 10
+
+        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+
+        allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
+        call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
+                izl, izh, nc1, nc2, nc3)
+        
+        read(fh) buffer
+        vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+
+        if (is_rel == 1) then
+            read(fh) buffer
+            ux(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+        endif
+
+        deallocate(buffer)
+        close(fh)
+    end subroutine read_velocity_fields_single
+
+    !---------------------------------------------------------------------------
+    ! Read pressure tensor only.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !   species: 'e' for electron, 'H' for ion.
+    !---------------------------------------------------------------------------
+    subroutine read_pressure_tensor_single(tindex0, pic_mpi_id, species)
+        use constants, only: fp
+        use file_header, only: fheader, v0
+        use topology_translate, only: idxstart, idxstop
+        implicit none
+        integer, intent(in) :: tindex0, pic_mpi_id
+        character(len=1), intent(in) :: species
+        real(fp), allocatable, dimension(:,:,:) :: buffer
+        integer :: ixl, iyl, izl, ixh, iyh, izh
+        integer :: nc1, nc2, nc3
+        integer :: i, fh
+        integer :: offset, buffer_size
+
+        fh = 10
+
+        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+        offset = 23 + sizeof(fheader) + sizeof(v0)  ! 23 is the size of boilerplate
+
+        allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
+        call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
+                izl, izh, nc1, nc2, nc3)
+        
+        buffer_size = fheader%nc(1) * fheader%nc(2) * fheader%nc(3) * 4
+        offset = offset + 4 * buffer_size
+
+        if (is_rel == 1) then
+            offset = offset + 4 * buffer_size
+        endif
+
+        read(fh, pos=offset+1) buffer
+        pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        
+        deallocate(buffer)
+        close(fh)
+    end subroutine read_pressure_tensor_single
+
+    !---------------------------------------------------------------------------
+    ! Read density fields only.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !   species: 'e' for electron, 'H' for ion.
+    !---------------------------------------------------------------------------
+    subroutine read_density_fields_single(tindex0, pic_mpi_id, species)
+        use constants, only: fp
+        use file_header, only: fheader, v0
+        use topology_translate, only: idxstart, idxstop
+        implicit none
+        integer, intent(in) :: tindex0, pic_mpi_id
+        character(len=1), intent(in) :: species
+        real(fp), allocatable, dimension(:,:,:) :: buffer
+        integer :: ixl, iyl, izl, ixh, iyh, izh
+        integer :: nc1, nc2, nc3
+        integer :: i, fh
+        integer :: offset, buffer_size
+
+        fh = 10
+
+        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+        offset = 23 + sizeof(fheader) + sizeof(v0)  ! 23 is the size of boilerplate
+
+        allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
+        call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
+                izl, izh, nc1, nc2, nc3)
+        
+        buffer_size = fheader%nc(1) * fheader%nc(2) * fheader%nc(3) * 4
+        offset = offset + 3 * buffer_size
+        read(fh, pos=offset+1) buffer
+        nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        offset = offset + buffer_size
+
+        if (is_rel == 1) then
+            offset = offset + 4 * buffer_size
+        endif
+
+        offset = offset + 6 * buffer_size
+
+        ! Particle fraction in each energy band.
+        if (nbands > 0) then
+            do i = 1, nbands
+                read(fh, pos=offset+1) buffer
+                eb(ixl:ixh, iyl:iyh, izl:izh, i) = buffer(2:nc1, 2:nc2, 2:nc3)
+                offset = offset + buffer_size
+            end do
+        endif
+
+        deallocate(buffer)
+        close(fh)
+    end subroutine read_density_fields_single
 
     !---------------------------------------------------------------------------
     ! Calculate the 3 components of the current density. This subroutine has
