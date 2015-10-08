@@ -126,8 +126,8 @@ program particle_based_jdote
             ! Check if there is another time slice to read
             dfile = .false.
             tindex_new = tindex + domain%particle_interval
-            ! if (tindex_new <= tindex_stop) then
-            if (tindex_new <= 5000) then
+            if (tindex_new <= tindex_stop) then
+            ! if (tindex_new <= 5000) then
                 write(fname, "(A,I0,A,I0,A)") &
                     trim(adjustl(rootpath))//"fields/T.", tindex_new, &
                     "/fields.", tindex_new, ".0"
