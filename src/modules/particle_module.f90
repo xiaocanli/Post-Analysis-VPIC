@@ -54,6 +54,7 @@ module particle_module
         implicit none
 
         gama = sqrt(1.0 + ptl%vx**2 + ptl%vy**2 + ptl%vz**2)        
+        igama = 1.0 / gama
         ke = gama - 1.0
     end subroutine calc_particle_energy
 
