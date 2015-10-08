@@ -45,6 +45,7 @@ program particle_based_jdote
         use particle_drift, only: init_drift_fields, init_para_perp_fields, &
                 init_jdote_sum
         use neighbors_module, only: init_neighbors, get_neighbors
+        use particle_fields, only: init_density_fields
         implicit none
         integer :: nx, ny, nz
 
@@ -82,6 +83,7 @@ program particle_based_jdote
         call init_neighbors(nx, ny, nz)
         call get_neighbors
 
+        call init_density_fields
         call init_emfields
         call init_emfields_derivatives
         call init_drift_fields
@@ -166,6 +168,7 @@ program particle_based_jdote
         use rank_index_mapping, only: index_to_rank
         use picinfo, only: domain
         use topology_translate, only: ht
+        use particle_fields, only: read_density_fields_single
         implicit none
         integer, intent(in) :: tindex0, ct, output_record
         integer :: dom_x, dom_y, dom_z, n
@@ -180,6 +183,7 @@ program particle_based_jdote
                                        domain%pic_ty, domain%pic_tz, n)
                     call read_emfields_single(tindex0, n-1)
                     call calc_emfields_derivatives
+                    call read_density_fields_single(tindex0, n-1, species)
                     call calc_particle_energy_change_rate(tindex0, species, &
                             n-1, ix, iy, iz)
                 enddo ! x
@@ -203,6 +207,7 @@ program particle_based_jdote
         use particle_drift, only: free_drift_fields, free_para_perp_fields, &
                 free_jdote_sum
         use neighbors_module, only: free_neighbors
+        use particle_fields, only: free_density_fields
         implicit none
         call free_neighbors
         call free_jdote_sum
@@ -210,6 +215,7 @@ program particle_based_jdote
         call free_drift_fields
         call free_emfields_derivatives
         call free_emfields
+        call free_density_fields
         call free_start_stop_cells
         call MPI_TYPE_FREE(datatype, ierror)
         call MPI_INFO_FREE(fileinfo, ierror)

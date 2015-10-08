@@ -91,4 +91,4 @@ target_link_libraries(interp_emf get_info)
 add_library(particle_drift particle_drift.f90 particle_frames.f90
     particle_file.f90)
 target_link_libraries(particle_drift file_header magnetic_field interp_emf
-    particle_module)
+    particle_module translate_module)

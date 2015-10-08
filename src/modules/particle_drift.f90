@@ -223,14 +223,28 @@ module particle_drift
         use mpi_io_translate, only: write_data
         use picinfo, only: nbands
         use particle_info, only: species
+        use particle_fields, only: nrho, eb
         implicit none
         integer, intent(in) :: tindex, output_record
         character(len=150) :: fname
         character(len=2) :: band_tag
         integer :: i 
+        integer :: ix, iy, iz
 
         do i = 1, nbands
             write(band_tag, '(I2.2)') i
+            where (eb(:,:,:,i) > 0)
+                jcpara_dote(:,:,:,i) = jcpara_dote(:,:,:,i) / (nrho*eb(:,:,:,i))
+                jgrad_dote(:,:,:,i) = jgrad_dote(:,:,:,i) / (nrho*eb(:,:,:,i))
+                jpara_dote(:,:,:,i) = jpara_dote(:,:,:,i) / (nrho*eb(:,:,:,i))
+                jperp_dote(:,:,:,i) = jperp_dote(:,:,:,i) / (nrho*eb(:,:,:,i))
+            elsewhere
+                jcpara_dote(:,:,:,i) = 0.0
+                jgrad_dote(:,:,:,i) = 0.0
+                jpara_dote(:,:,:,i) = 0.0
+                jperp_dote(:,:,:,i) = 0.0
+            end where
+
             fname = trim(adjustl(opath))//'jcpara_dote_'//species//'_'//band_tag
             call write_data(fname, jcpara_dote(:,:,:,i), tindex, output_record)
             fname = trim(adjustl(opath))//'jgrad_dote_'//species//'_'//band_tag
@@ -255,6 +269,18 @@ module particle_drift
         integer :: iband
         real(fp) :: dv
         dv = domain%dx * domain%dy * domain%dz
+        where (ISNAN(jcpara_dote))
+            jcpara_dote = 0.0
+        end where
+        where (ISNAN(jgrad_dote))
+            jgrad_dote = 0.0
+        end where
+        where (ISNAN(jpara_dote))
+            jpara_dote = 0.0
+        end where
+        where (ISNAN(jperp_dote))
+            jperp_dote = 0.0
+        end where
         do iband = 1, nbands
             jdote_sum_local(ct, iband, 1) = sum(jcpara_dote(:, :, :, iband))
             jdote_sum_local(ct, iband, 2) = sum(jgrad_dote(:, :, :, iband))
