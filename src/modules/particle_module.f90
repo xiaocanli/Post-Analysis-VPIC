@@ -205,12 +205,13 @@ module particle_module
 
     !---------------------------------------------------------------------------
     ! Calculate the gyrofrequency. The Lorentz factor should be calculated.
+    ! The gyrofrequency is charge-dependent, not actually gyrofrequency.
     !---------------------------------------------------------------------------
     subroutine calc_gyrofrequency
         use interpolation_emf, only: absB0
         use particle_info, only: ptl_mass, ptl_charge
         implicit none
-        gyrof = abs(ptl_charge) * absB0 / (gama * ptl_mass)
+        gyrof = ptl_charge * absB0 / (gama * ptl_mass)
     end subroutine calc_gyrofrequency
 
     !---------------------------------------------------------------------------
