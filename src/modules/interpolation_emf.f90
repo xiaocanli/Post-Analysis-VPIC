@@ -15,6 +15,7 @@ module interpolation_emf
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
     real(fp), allocatable, dimension(:,:,:) :: ex, ey, ez, bx, by, bz
+    real(fp), allocatable, dimension(:,:,:) :: ex1, ey1, ez1, bx1, by1, bz1
     real(fp), allocatable, dimension(:,:,:) :: dbxdx, dbxdy, dbxdz
     real(fp), allocatable, dimension(:,:,:) :: dbydx, dbydy, dbydz
     real(fp), allocatable, dimension(:,:,:) :: dbzdx, dbzdy, dbzdz
@@ -26,6 +27,7 @@ module interpolation_emf
     real(fp) :: dBdx, dBdy, dBdz  ! The gradient of B
     real(fp) :: kappax, kappay, kappaz  ! The curvature of the magnetic field
     real(fp), dimension(2,2,2) :: weights  ! The weights for trilinear interpolation
+    integer :: nx, ny, nz
 
     contains
 
@@ -35,20 +37,27 @@ module interpolation_emf
     subroutine init_emfields
         use picinfo, only: domain
         implicit none
-        integer :: nx, ny, nz
         nx = domain%pic_nx + 2  ! Including ghost cells
         ny = domain%pic_ny + 2
         nz = domain%pic_nz + 2
 
-        allocate(ex(nx, ny, nz))
-        allocate(ey(nx, ny, nz))
-        allocate(ez(nx, ny, nz))
-        allocate(bx(nx, ny, nz))
-        allocate(by(nx, ny, nz))
-        allocate(bz(nx, ny, nz))
+        allocate(ex(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(ey(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(ez(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(bx(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(by(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(bz(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(ex1(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(ey1(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(ez1(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(bx1(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(by1(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(bz1(0:nx-1, 0:ny-1, 0:nz-1))
 
         ex = 0.0; ey = 0.0; ez = 0.0
         bx = 0.0; by = 0.0; bz = 0.0
+        ex1 = 0.0; ey1 = 0.0; ez1 = 0.0
+        bx1 = 0.0; by1 = 0.0; bz1 = 0.0
     end subroutine init_emfields
 
     !---------------------------------------------------------------------------
@@ -57,20 +66,16 @@ module interpolation_emf
     subroutine init_emfields_derivatives
         use picinfo, only: domain
         implicit none
-        integer :: nx, ny, nz
-        nx = domain%pic_nx + 2  ! Including ghost cells
-        ny = domain%pic_ny + 2
-        nz = domain%pic_nz + 2
 
-        allocate(dbxdx(nx, ny, nz))
-        allocate(dbxdy(nx, ny, nz))
-        allocate(dbxdz(nx, ny, nz))
-        allocate(dbydx(nx, ny, nz))
-        allocate(dbydy(nx, ny, nz))
-        allocate(dbydz(nx, ny, nz))
-        allocate(dbzdx(nx, ny, nz))
-        allocate(dbzdy(nx, ny, nz))
-        allocate(dbzdz(nx, ny, nz))
+        allocate(dbxdx(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbxdy(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbxdz(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbydx(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbydy(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbydz(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbzdx(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbzdy(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbzdz(0:nx-1, 0:ny-1, 0:nz-1))
 
         dbxdx = 0.0; dbxdy = 0.0; dbxdz = 0.0
         dbydx = 0.0; dbydy = 0.0; dbydz = 0.0
@@ -84,6 +89,8 @@ module interpolation_emf
         implicit none
         deallocate(ex, ey, ez)
         deallocate(bx, by, bz)
+        deallocate(ex1, ey1, ez1)
+        deallocate(bx1, by1, bz1)
     end subroutine free_emfields
 
     !---------------------------------------------------------------------------
@@ -97,25 +104,20 @@ module interpolation_emf
     end subroutine free_emfields_derivatives
 
     !---------------------------------------------------------------------------
-    ! Read the fields for a single MPI process of PIC simulation.
+    ! Open the fields file for a single MPI process of PIC simulation.
     ! Inputs:
+    !   fh: file handler.
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !---------------------------------------------------------------------------
-    subroutine read_emfields_single(tindex0, pic_mpi_id)
+    subroutine open_emfields_file(fh, tindex0, pic_mpi_id)
         use path_info, only: rootpath
-        use constants, only: fp
-        use file_header, only: read_boilerplate, read_fields_header, fheader
+        use file_header, only: read_boilerplate, read_fields_header
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: fh, tindex0, pic_mpi_id
         character(len=150) :: fname
         logical :: is_exist
-        integer :: fh   ! File handler
-        integer :: n
         integer :: tindex
-
-        fh = 10
-
         tindex = tindex0
         ! Index 0 does not have proper current, so use index 1 if it exists
         if (tindex == 0) then
@@ -142,8 +144,42 @@ module interpolation_emf
 
         call read_boilerplate(fh)
         call read_fields_header(fh)
-        
-        n = pic_mpi_id + 1  ! MPI ID starts at 0. The 1D rank starts at 1.
+
+    end subroutine open_emfields_file
+
+    !---------------------------------------------------------------------------
+    ! Read the fields for a neighbor.
+    ! Inputs:
+    !   fh: file handler.
+    !---------------------------------------------------------------------------
+    subroutine read_neighbor_fields(fh)
+        implicit none
+        integer, intent(in) :: fh
+        read(fh) ex1
+        read(fh) ey1
+        read(fh) ez1
+        read(fh) bx1
+        read(fh) by1
+        read(fh) bz1
+    end subroutine read_neighbor_fields
+
+    !---------------------------------------------------------------------------
+    ! Read the fields for a single MPI process of PIC simulation.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !---------------------------------------------------------------------------
+    subroutine read_emfields_single(tindex0, pic_mpi_id)
+        use constants, only: fp
+        use neighbors_module, only: get_mpi_neighbors
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: tindex0, pic_mpi_id
+        integer :: nxl, nxh, nyl, nyh, nzl, nzh
+        integer :: fh
+
+        fh = 10
+        call open_emfields_file(fh, tindex0, pic_mpi_id)
 
         read(fh) ex
         read(fh) ey
@@ -152,6 +188,82 @@ module interpolation_emf
         read(fh) by
         read(fh) bz
         close(fh)
+
+        ! Get the neighbors.
+        call get_mpi_neighbors(pic_mpi_id, nxl, nxh, nyl, nyh, nzl, nzh)
+
+        if (nxl > 0) then
+            call open_emfields_file(fh, tindex0, nxl)
+            call read_neighbor_fields(fh)
+            bx(0, :, :) = bx1(nx-2, :, :)
+            by(0, :, :) = by1(nx-2, :, :)
+            bz(0, :, :) = bz1(nx-2, :, :)
+            ex(0, :, :) = ex1(nx-2, :, :)
+            ey(0, :, :) = ey1(nx-2, :, :)
+            ez(0, :, :) = ez1(nx-2, :, :)
+            close(fh)
+        endif
+
+        if (nxh > 0) then
+            call open_emfields_file(fh, tindex0, nxh)
+            call read_neighbor_fields(fh)
+            bx(nx-1, :, :) = bx1(1, :, :)
+            by(nx-1, :, :) = by1(1, :, :)
+            bz(nx-1, :, :) = bz1(1, :, :)
+            ex(nx-1, :, :) = ex1(1, :, :)
+            ey(nx-1, :, :) = ey1(1, :, :)
+            ez(nx-1, :, :) = ez1(1, :, :)
+            close(fh)
+        endif
+
+        if (nyl > 0) then
+            call open_emfields_file(fh, tindex0, nyl)
+            call read_neighbor_fields(fh)
+            bx(:, 0, :) = bx1(:, ny-2, :)
+            by(:, 0, :) = by1(:, ny-2, :)
+            bz(:, 0, :) = bz1(:, ny-2, :)
+            ex(:, 0, :) = ex1(:, ny-2, :)
+            ey(:, 0, :) = ey1(:, ny-2, :)
+            ez(:, 0, :) = ez1(:, ny-2, :)
+            close(fh)
+        endif
+
+        if (nyh > 0) then
+            call open_emfields_file(fh, tindex0, nyh)
+            call read_neighbor_fields(fh)
+            bx(:, ny-1, :) = bx1(:, 1, :)
+            by(:, ny-1, :) = by1(:, 1, :)
+            bz(:, ny-1, :) = bz1(:, 1, :)
+            ex(:, ny-1, :) = ex1(:, 1, :)
+            ey(:, ny-1, :) = ey1(:, 1, :)
+            ez(:, ny-1, :) = ez1(:, 1, :)
+            close(fh)
+        endif
+
+        if (nzl > 0) then
+            call open_emfields_file(fh, tindex0, nzl)
+            call read_neighbor_fields(fh)
+            bx(:, :, 0) = bx1(:, :, nz-2)
+            by(:, :, 0) = by1(:, :, nz-2)
+            bz(:, :, 0) = bz1(:, :, nz-2)
+            ex(:, :, 0) = ex1(:, :, nz-2)
+            ey(:, :, 0) = ey1(:, :, nz-2)
+            ez(:, :, 0) = ez1(:, :, nz-2)
+            close(fh)
+        endif
+
+        if (nzh > 0) then
+            call open_emfields_file(fh, tindex0, nzh)
+            call read_neighbor_fields(fh)
+            bx(:, :, nz-1) = bx1(:, :, 1)
+            by(:, :, nz-1) = by1(:, :, 1)
+            bz(:, :, nz-1) = bz1(:, :, 1)
+            ex(:, :, nz-1) = ex1(:, :, 1)
+            ey(:, :, nz-1) = ey1(:, :, 1)
+            ez(:, :, nz-1) = ez1(:, :, 1)
+            close(fh)
+        endif
+
     end subroutine read_emfields_single
 
     !---------------------------------------------------------------------------
@@ -161,28 +273,31 @@ module interpolation_emf
         use picinfo, only: domain
         use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
         implicit none
-        integer :: nx, ny, nz
         integer :: ix, iy, iz
-        nx = domain%pic_nx + 2  ! Including ghost cells
-        ny = domain%pic_ny + 2
-        nz = domain%pic_nz + 2
 
-        do ix = 1, nx
-            dbxdx(ix, :, :) = (bx(ixh(ix), :, :) - bx(ixl(ix), :, :)) * idx(ix)
-            dbydx(ix, :, :) = (by(ixh(ix), :, :) - by(ixl(ix), :, :)) * idx(ix)
-            dbzdx(ix, :, :) = (bz(ixh(ix), :, :) - bz(ixl(ix), :, :)) * idx(ix)
+        do ix = 0, nx - 1
+            dbxdx(ix, :, :) = (bx(ixh(ix+1)-1, :, :) - bx(ixl(ix+1)-1, :, :)) * idx(ix+1)
+            dbydx(ix, :, :) = (by(ixh(ix+1)-1, :, :) - by(ixl(ix+1)-1, :, :)) * idx(ix+1)
+            dbzdx(ix, :, :) = (bz(ixh(ix+1)-1, :, :) - bz(ixl(ix+1)-1, :, :)) * idx(ix+1)
         enddo
 
-        do iy = 1, ny
-            dbxdy(:, iy, :) = (bx(:, iyh(iy), :) - bx(:, iyl(iy), :)) * idy(iy)
-            dbydy(:, iy, :) = (by(:, iyh(iy), :) - by(:, iyl(iy), :)) * idy(iy)
-            dbzdy(:, iy, :) = (bz(:, iyh(iy), :) - bz(:, iyl(iy), :)) * idy(iy)
-        enddo
+        if (ny > 3) then
+            do iy = 0, ny - 1
+                dbxdy(:, iy, :) = (bx(:, iyh(iy+1)-1, :) - bx(:, iyl(iy+1)-1, :)) * idy(iy+1)
+                dbydy(:, iy, :) = (by(:, iyh(iy+1)-1, :) - by(:, iyl(iy+1)-1, :)) * idy(iy+1)
+                dbzdy(:, iy, :) = (bz(:, iyh(iy+1)-1, :) - bz(:, iyl(iy+1)-1, :)) * idy(iy+1)
+            enddo
+        else
+            ! 2D simulation
+            dbxdy = 0.0
+            dbydy = 0.0
+            dbzdy = 0.0
+        endif
 
-        do iz = 1, nz
-            dbxdz(:, :, iz) = (bx(:, :, izh(iz)) - bx(:, :, izl(iz))) * idz(iz)
-            dbydz(:, :, iz) = (by(:, :, izh(iz)) - by(:, :, izl(iz))) * idz(iz)
-            dbzdz(:, :, iz) = (bz(:, :, izh(iz)) - bz(:, :, izl(iz))) * idz(iz)
+        do iz = 0, nz - 1
+            dbxdz(:, :, iz) = (bx(:, :, izh(iz+1)-1) - bx(:, :, izl(iz+1)-1)) * idz(iz+1)
+            dbydz(:, :, iz) = (by(:, :, izh(iz+1)-1) - by(:, :, izl(iz+1)-1)) * idz(iz+1)
+            dbzdz(:, :, iz) = (bz(:, :, izh(iz+1)-1) - bz(:, :, izl(iz+1)-1)) * idz(iz+1)
         enddo
     end subroutine calc_emfields_derivatives
 
@@ -217,10 +332,10 @@ module interpolation_emf
         integer, intent(in) :: ix0, iy0, iz0
         real(fp), intent(in) :: dx, dy, dz
         call calc_interp_weights(dx, dy, dz)
-        bx0 = sum(bx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbxdx0 = sum(dbxdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbxdy0 = sum(dbxdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbxdz0 = sum(dbxdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        bx0 = sum(bx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbxdx0 = sum(dbxdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbxdy0 = sum(dbxdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbxdz0 = sum(dbxdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_bx
 
     subroutine trilinear_interp_by(ix0, iy0, iz0, dx, dy, dz)
@@ -228,10 +343,10 @@ module interpolation_emf
         integer, intent(in) :: ix0, iy0, iz0
         real(fp), intent(in) :: dx, dy, dz
         call calc_interp_weights(dx, dy, dz)
-        by0 = sum(by(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbydx0 = sum(dbydx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbydy0 = sum(dbydy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbydz0 = sum(dbydz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        by0 = sum(by(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbydx0 = sum(dbydx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbydy0 = sum(dbydy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbydz0 = sum(dbydz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_by
 
     subroutine trilinear_interp_bz(ix0, iy0, iz0, dx, dy, dz)
@@ -239,13 +354,10 @@ module interpolation_emf
         integer, intent(in) :: ix0, iy0, iz0
         real(fp), intent(in) :: dx, dy, dz
         call calc_interp_weights(dx, dy, dz)
-        bz0 = sum(bz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbzdx0 = sum(dbzdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbzdy0 = sum(dbzdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
-        dbzdz0 = sum(dbzdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        bz0 = sum(bz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbzdx0 = sum(dbzdx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbzdy0 = sum(dbzdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbzdz0 = sum(dbzdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_bz
 
     !---------------------------------------------------------------------------
@@ -260,7 +372,7 @@ module interpolation_emf
         integer, intent(in) :: ix0, iy0, iz0
         real(fp), intent(in) :: dx, dy, dz
         call calc_interp_weights(dx, dy, dz)
-        ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        ex0 = sum(ex(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_ex
 
     subroutine trilinear_interp_ey(ix0, iy0, iz0, dx, dy, dz)
@@ -268,7 +380,7 @@ module interpolation_emf
         integer, intent(in) :: ix0, iy0, iz0
         real(fp), intent(in) :: dx, dy, dz
         call calc_interp_weights(dx, dy, dz)
-        ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        ey0 = sum(ey(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_ey
 
     subroutine trilinear_interp_ez(ix0, iy0, iz0, dx, dy, dz)
@@ -276,7 +388,7 @@ module interpolation_emf
         integer, intent(in) :: ix0, iy0, iz0
         real(fp), intent(in) :: dx, dy, dz
         call calc_interp_weights(dx, dy, dz)
-        ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights) * 0.125
+        ez0 = sum(ez(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_ez
 
     !---------------------------------------------------------------------------
