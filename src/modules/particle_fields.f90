@@ -531,7 +531,7 @@ module particle_fields
             ptl_charge = 1.0
         endif
 
-        nrho = abs(nrho)    ! Exclude negative values.
+        nrho = abs(nrho / ptl_charge)
         if (is_rel == 1) then
             where (nrho > 0.0) 
                vx = (vx/nrho) * ptl_charge
