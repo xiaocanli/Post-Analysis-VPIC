@@ -55,8 +55,11 @@ def plot_particle_drift(pic_info, species, current_time):
     kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
+
+    ratio = pic_info.particle_interval / pic_info.fields_interval
     
-    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
+    ct = (current_time+1) * ratio
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     nx, = x.shape
     nz, = z.shape
@@ -68,9 +71,13 @@ def plot_particle_drift(pic_info, species, current_time):
     data_acc = np.zeros((nbands, nx))
     
     nb = 0
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
     for iband in range(1, nbands+1, 2):
+        fname = "../../data1/jpara_dote_" + species + "_" + str(iband).zfill(2) + ".gda"
+        x, z, jpara_dote = read_2d_fields(pic_info, fname, **kwargs) 
         fname = "../../data1/jperp_dote_" + species + "_" + str(iband).zfill(2) + ".gda"
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, jperp_dote = read_2d_fields(pic_info, fname, **kwargs) 
+        data = jpara_dote + jperp_dote
 
         nk = 5
         kernel = np.ones((nk,nk)) / float(nk*nk)
@@ -91,6 +98,10 @@ def plot_particle_drift(pic_info, species, current_time):
         data_acc[nb, :] = np.cumsum(data_sum[nb, :])
         nb += 1
 
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
+    data_sum *= dv
+    data_acc *= dv
+
     ys0 = 0.1
     height0 = ys + height - ys0
     w1, h1 = fig.get_size_inches()
@@ -98,17 +109,28 @@ def plot_particle_drift(pic_info, species, current_time):
     ax1 = fig.add_axes([xs, ys0, width0, height0])
     for i in range(nb):
         fname = 'Band' + str(i+1).zfill(2)
+        # ax1.plot(x, data_sum[i, :], linewidth=2, label=fname)
         ax1.plot(x, data_acc[i, :], linewidth=2, label=fname)
 
     ax1.tick_params(labelsize=20)
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
-    ax1.legend(loc=1, prop={'size':20}, ncol=1,
+    ax1.legend(loc=2, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
     
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # if not os.path.isdir('../img/img_particle_drift/'):
+    #     os.makedirs('../img/img_particle_drift/')
+    # fname = 'ene_gain_' + str(current_time).zfill(3) + '_' + species + '.jpg'
+    # fname = '../img/img_particle_drift/' + fname
+    # fig.savefig(fname)
+    # plt.close()
     plt.show()
 
 
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
-    plot_particle_drift(pic_info, 'e', 7)
+    # for ct in range(ntp):
+    #     plot_particle_drift(pic_info, 'e', ct)
+    plot_particle_drift(pic_info, 'e', 11)
