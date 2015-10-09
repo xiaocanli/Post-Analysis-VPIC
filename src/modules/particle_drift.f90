@@ -222,7 +222,7 @@ module particle_drift
         use path_info, only: opath => outputpath
         use mpi_io_translate, only: write_data
         use picinfo, only: nbands
-        use particle_info, only: species
+        use particle_info, only: species, ptl_charge
         use particle_fields, only: nrho, eb
         implicit none
         integer, intent(in) :: tindex, output_record
@@ -230,6 +230,9 @@ module particle_drift
         character(len=2) :: band_tag
         integer :: i 
         integer :: ix, iy, iz
+
+        ! The original nrho is charge density.
+        nrho = nrho / ptl_charge
 
         do i = 1, nbands
             write(band_tag, '(I2.2)') i
@@ -252,7 +255,7 @@ module particle_drift
             fname = trim(adjustl(opath))//'jpara_dote_'//species//'_'//band_tag
             call write_data(fname, jpara_dote(:,:,:,i), tindex, output_record)
             fname = trim(adjustl(opath))//'jperp_dote_'//species//'_'//band_tag
-            call write_data(fname, jgrad_dote(:,:,:,i), tindex, output_record)
+            call write_data(fname, jperp_dote(:,:,:,i), tindex, output_record)
         enddo
 
     end subroutine save_data_arrays
