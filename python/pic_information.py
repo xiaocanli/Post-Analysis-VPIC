@@ -8,7 +8,7 @@ import struct
 import collections
 import cPickle as pickle
 import simplejson as json
-from serialize_json import data_to_json, json_to_data, test_equivalence
+from serialize_json import data_to_json, json_to_data
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.
