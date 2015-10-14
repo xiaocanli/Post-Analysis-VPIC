@@ -14,6 +14,8 @@ import os.path
 import struct
 import collections
 import pic_information
+import simplejson as json
+from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -539,11 +541,51 @@ def plot_jtot_dote():
     plt.show()
 
 
+def calc_energy_gain_single(fname):
+    """Calculate the particle energy gain for a single run.
+
+    Args:
+        fname: file name of the json file of PIC information.
+    """
+    with open(fname, 'r') as json_file:
+        pic_info = json_to_data(json.load(json_file))
+    print('Reading ', fname)
+    kene_e = pic_info.kene_e
+    kene_i = pic_info.kene_i
+    dke_e = (kene_e[-1] - kene_e[0]) / kene_e[0]
+    dke_i = (kene_i[-1] - kene_i[0]) / kene_i[0]
+    print('Electron energy gain percentage: %4.2f' % dke_e)
+    print('Ion energy gain percentage: %4.2f' % dke_i)
+
+
+def calc_energy_gain_multi():
+    """Calculate the particle energy gain for different runs.
+    """
+    dir = '../data/pic_info/'
+    fname = dir + 'pic_info_mime25_beta02.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime25_beta007.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime25_beta002.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime25_beta0007.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime100_beta002.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime25_beta002_sigma01.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime25_beta002_sigma033.json'
+    calc_energy_gain_single(fname)
+    fname = dir + 'pic_info_mime25_beta002_noperturb.json'
+    calc_energy_gain_single(fname)
+
+
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
+    # pic_info = pic_information.get_pic_info('../../')
     # jdote = read_jdote_data('e')
     # plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
     # plot_jdotes_evolution('e')
-    plot_jpara_perp_dote()
+    # plot_jpara_perp_dote()
     # plot_jtot_dote()
+    calc_energy_gain_multi()
