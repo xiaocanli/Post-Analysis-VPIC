@@ -55,6 +55,10 @@ target_link_libraries(compression ${MPI_Fortran_LIBRARIES} analysis_config
 add_executable(jdote_eband jdote_eband.f90)
 target_link_libraries(jdote_eband ${MPI_Fortran_LIBRARIES} jdote_energy_band)
 
+add_executable(particle_based_jdote particle_based_jdote.f90)
+target_link_libraries(particle_based_jdote ${MPI_Fortran_LIBRARIES}
+    particle_drift interp_emf get_info translate_module)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -69,3 +73,4 @@ install (TARGETS nrho_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS bulk_internal_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS compression DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS jdote_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS particle_based_jdote DESTINATION ${CMAKE_INSTALL_PREFIX})

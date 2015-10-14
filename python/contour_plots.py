@@ -141,7 +141,7 @@ def plot_jy(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time":current_time, "xl":150, "xr":200, "zb":-20, "zt":20}
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
     x, z, jy = read_2d_fields(pic_info, "../../data/jy.gda", **kwargs) 
     x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     nx, = x.shape
@@ -662,6 +662,101 @@ def plot_epara(pic_info, species, current_time):
     plt.show()
     # plt.close()
 
+
+def plot_diff_fields(pic_info, species, current_time):
+    """Plot the differential of the fields.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
+    x, z, data = read_2d_fields(pic_info, "../../data/absB.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.7
+    xs = 0.12
+    ys = 0.9 - height
+    fig = plt.figure(figsize=[10,4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.01, "vmax":0.01}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    data_new = np.zeros((nz, nx))
+    # data_new[:, 0:nx-1] = data[:, 1:nx] - data[:, 0:nx-1]
+    data_new[0:nz-1, :] = data[1:nz, :] - data[0:nz-1, :]
+    ng = 5
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    data_new = signal.convolve2d(data_new, kernel)
+    p1, cbar1 = plot_2d_contour(x, z, data_new, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    # p1.set_cmap(cmaps.inferno)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    cbar1.ax.set_ylabel(r'$j_y$', fontdict=font, fontsize=24)
+    cbar1.set_ticks(np.arange(-0.4, 0.5, 0.2))
+    cbar1.ax.tick_params(labelsize=24)
+    
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    plt.show()
+
+
+def plot_jpara_perp(pic_info, species, current_time):
+    """Plot the energy conversion from parallel and perpendicular direction.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
+    x, z, data = read_2d_fields(pic_info, "../../data1/jqnvperp_dote00_e.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.7
+    xs = 0.12
+    ys = 0.9 - height
+    fig = plt.figure(figsize=[10,4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    dmax = -0.0005
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-dmax, "vmax":dmax}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    data_new = np.zeros((nz, nx))
+    ng = 5
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    data_new = signal.convolve2d(data, kernel)
+    p1, cbar1 = plot_2d_contour(x, z, data_new, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    # p1.set_cmap(cmaps.inferno)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    # cbar1.ax.set_ylabel(r'$j_y$', fontdict=font, fontsize=24)
+    # cbar1.set_ticks(np.arange(-0.4, 0.5, 0.2))
+    cbar1.ax.tick_params(labelsize=24)
+    
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    plt.show()
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
@@ -677,7 +772,9 @@ if __name__ == "__main__":
     #     # plot_jy(pic_info, 'e', i)
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
-    plot_jy(pic_info, 'e', 12)
+    # plot_jy(pic_info, 'e', 120)
+    plot_diff_fields(pic_info, 'e', 120)
+    # plot_jpara_perp(pic_info, 'e', 120)
     # plot_Ey(pic_info, 'e', 40)
     # plot_jy_Ey(pic_info, 'e', 40)
     # for i in range(pic_info.ntf):

@@ -9,8 +9,10 @@ module picinfo
     save
     private
     public picdomain, broadcast_pic_info, get_total_time_frames, &
-           write_pic_info, get_energy_band_number
-    public nbands, mime, domain, nt, read_domain
+           write_pic_info, get_energy_band_number, read_thermal_params, &
+           calc_energy_interval
+    public nbands, mime, domain, nt, read_domain, emax, einterval_e, &
+           einterval_i
     ! Information of simulation domain. All values are in simulation units.
     ! Length is in de. Time is in 1/wpe unless clarified.
     type picdomain
@@ -24,7 +26,7 @@ module picinfo
         integer :: energies_interval      ! Energy output time interval
         integer :: fields_interval        ! Fields output time interval
         integer :: hydro_interval         ! hydro output time interval
-        integer :: particle_interval     ! Particles output time interval
+        integer :: particle_interval      ! Particles output time interval
         integer :: nx, ny, nz             ! Grid numbers
         integer :: pic_tx, pic_ty, pic_tz ! MPI topology
         integer :: pic_nx, pic_ny, pic_nz ! The domain sizes for each process
@@ -34,9 +36,13 @@ module picinfo
 
     type(picdomain) :: domain
 
-    real(fp) :: mime     ! Mass ratio
-    integer :: nt        ! Total number of time frames for field output.
-    integer :: nbands    ! Total number of energy bands.
+    real(fp) :: mime        ! Mass ratio
+    integer :: nt           ! Total number of time frames for field output.
+    integer :: nbands       ! Total number of energy bands.
+    real(fp) :: emax        ! Maximum energy for energy bands.
+    real(fp) :: Ti_Te       ! Temperature ratio of ions and electrons
+    real(fp) :: vthe, vthi  ! Thermal speed
+    real(fp) :: einterval_e, einterval_i ! Energy interval for different band
 
     contains
 
@@ -441,7 +447,7 @@ module picinfo
                 enddo
                 nt = nframe
             endif
-            print*, 'Number of output time frames: ', nt
+            write(*, "(A,I0)") " Number of output time frames: ", nt
         endif
         call MPI_BCAST(nt, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
         ! Check if the last frame is larger than nt
@@ -449,7 +455,7 @@ module picinfo
     end subroutine get_total_time_frames
 
     !---------------------------------------------------------------------------
-    ! Get the total number of energy band.
+    ! Get the total number of energy band and the maximum energy.
     !---------------------------------------------------------------------------
     subroutine get_energy_band_number
         use mpi_module
@@ -469,6 +475,10 @@ module picinfo
         index1 = index(buff, '=')
         index2 = index(buff, ';')
         read(buff(index1+1:index2-1), *) nbands
+        read(fh, '(A)') buff
+        index1 = index(buff, '=')
+        index2 = index(buff, ';')
+        read(buff(index1+1:index2-1), *) emax
 
         ! When the energy diagnostics are commented
         do while (index(buff, 'energy.cxx') == 0)
@@ -477,12 +487,93 @@ module picinfo
         single_line = trim(adjustl(buff))
         if (single_line(1:2) == '//') then
             nbands = 0
+            emax = 0
         endif
+        close(fh)
 
         if (myid == master) then
             write(*, "(A,I0)") " Number of energy band: ", nbands
+            write(*, "(A,E14.6)") " Maximum energy for these bands: ", emax
+        endif
+    end subroutine get_energy_band_number
+
+    !---------------------------------------------------------------------------
+    ! Read Ti_Te, vthe, vthi if they are in the information file.
+    !---------------------------------------------------------------------------
+    subroutine read_thermal_params
+        use mpi_module
+        use constants, only: dp, fp
+        implicit none
+        real(fp) :: temp, dtf_wpe
+        integer :: fh
+        ! read the time step of the simulation
+        fh = 10
+        open(unit=fh, file=trim(adjustl(rootpath))//'info', status='old')
+        Ti_Te = get_variable(fh, 'Ti/Te', '=')
+        if (myid == master) then
+            if (Ti_Te < 0) then
+                write(*, "(A)") " Ti/Te is not defined. 1.0 is used."
+                Ti_Te = 1.0
+            else
+                write(*, "(A, F4.2)") " The temperature ratio Ti/Te is: ", Ti_Te
+            endif
+        endif
+        vthi = get_variable(fh, 'vthi/c', '=')
+        if (myid == master) then
+            if (vthi < 0) then
+                write(*, "(A)") " vthi is not defined. 1.0 is used."
+                vthi = 1.0
+            else
+                write(*, "(A, E14.6)") " vthi is: ", vthi
+            endif
+        endif
+        vthe = get_variable(fh, 'vthe/c', '=')
+        if (myid == master) then
+            if (vthe < 0) then
+                write(*, "(A)") " vthe is not defined. 1.0 is used."
+                vthe = 1.0
+            else
+                write(*, "(A, E14.6)") " vthe is: ", vthe
+            endif
         endif
         close(fh)
-    end subroutine get_energy_band_number
+    end subroutine read_thermal_params
+
+    !---------------------------------------------------------------------------
+    ! Calculate the energy interval for different energy band. This routine
+    ! requires the user to give one parameter eratio, so the energy interval
+    ! is eratio * vthe**2 or eratio * vthi**2. eratio is given in
+    ! config_files/analysis_config.dat. It can be calculated using
+    !   global->ede.vth, global->edi.vth defined in the main source file (e.g.
+    !       sigma.cxx).
+    !   dke that is defined in energy.cxx
+    !---------------------------------------------------------------------------
+    subroutine calc_energy_interval
+        use mpi_module
+        implicit none
+        integer :: fh
+        real(fp) :: eratio
+
+        fh = 10
+        ! Read the configuration file
+        if (myid==master) then
+            open(unit=fh, file='config_files/analysis_config.dat', &
+                 form='formatted', status='old')
+            eratio = get_variable(fh, 'eratio', '=')
+            close(fh)
+            write(*, "(A,F6.2)") " The ratio of energy interval to vth**2: ", &
+                    eratio
+        endif
+
+        call MPI_BCAST(eratio, 1, MPI_REAL, master, MPI_COMM_WORLD, ierr)
+        einterval_e = eratio * vthe**2
+        einterval_i = eratio * vthi**2
+        if (myid == master) then
+            write(*, "(A,E14.6)") " The electron energy band interval: ", &
+                    einterval_e
+            write(*, "(A,E14.6)") " The ion energy band interval: ", &
+                    einterval_i
+        endif
+    end subroutine calc_energy_interval
 
 end module picinfo

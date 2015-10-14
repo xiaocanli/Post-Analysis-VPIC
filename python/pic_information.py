@@ -6,6 +6,9 @@ import math
 import os.path
 import struct
 import collections
+import cPickle as pickle
+import simplejson as json
+from serialize_json import data_to_json, json_to_data
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.
@@ -38,7 +41,7 @@ def get_pic_info(base_directory):
             ntp=ntp, tparticles=tparticles, fields_interval=fields_interval,
             particle_interval=particle_interval)
     pic_topology = get_pic_topology(base_directory)
-    pic_information = collections.namedtuple("pic_info", 
+    pic_information = collections.namedtuple("pic_information", 
             pic_initial_info._fields + pic_times_info._fields +
             pic_ene._fields + pic_topology._fields)
     pic_info = pic_information(*(pic_initial_info + pic_times_info +
@@ -321,11 +324,11 @@ def read_pic_info(base_directory):
     vthi, current_line = get_variable_value('vthi/c', current_line, content)
     vthe, current_line = get_variable_value('vthe/c', current_line, content)
 
-    pic_information = collections.namedtuple('pic_info',
+    pic_init_info = collections.namedtuple('pic_init_info',
             ['mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz',
                 'dx_di', 'dy_di', 'dz_di', 'x_di', 'y_di', 'z_di', 'nppc', 'b0',
                 'dtwpe', 'dtwce', 'dtwci', 'energy_interval', 'vthi', 'vthe'])
-    pic_info = pic_information(mime=mime, lx_di=lx, ly_di=ly, lz_di=lz,
+    pic_info = pic_init_info(mime=mime, lx_di=lx, ly_di=ly, lz_di=lz,
             nx=nx, ny=ny, nz=nz, dx_di=dxdi, dy_di=dydi, dz_di=dzdi, 
             x_di=x, y_di=y, z_di=z, nppc=nppc, b0=b0, dtwpe=dtwpe, dtwce=dtwce,
             dtwci=dtwci, energy_interval=energy_interval, vthi=vthi, vthe=vthe)
@@ -391,6 +394,73 @@ def get_pic_topology(base_directory):
     return pic_topo
 
 
+def save_pic_info_json():
+    """Save pic_info for different runs as json format
+    """
+    if not os.path.isdir('../data/'):
+        os.makedirs('../data/')
+    dir = '../data/pic_info/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+
+    base_dir = '/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta02.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta007.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/scratch3/xiaocanli/sigma1-mime25-beta001/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta002.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/scratch3/xiaocanli/sigma1-mime25-beta0003-npc200/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta0007.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/scratch3/xiaocanli/sigma1-mime100-beta001-mustang/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime100_beta002.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/scratch3/xiaocanli/mime25-guide0-beta001-200-100/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta002_sigma01.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/scratch3/xiaocanli/mime25-guide0-beta001-200-100-sigma033/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta002_sigma033.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+    base_dir = '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/'
+    pic_info = get_pic_info(base_dir)
+    pic_info_json = data_to_json(pic_info)
+    fname = dir + 'pic_info_mime25_beta002_noperturb.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+
+
 if __name__ == "__main__":
-    base_directory = '../../'
-    pic_info = get_pic_info(base_directory)
+    # base_directory = '../../'
+    # pic_info = get_pic_info(base_directory)
+    save_pic_info_json()
