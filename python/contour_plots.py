@@ -768,9 +768,15 @@ def plot_ux(pic_info, species, current_time):
     """
     print(current_time)
     kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
-    x, z, uex = read_2d_fields(pic_info, "../../data/uex.gda", **kwargs) 
+    fname = "../../data/vex.gda"
+    if not os.path.isfile(fname):
+        fname = "../../data/uex.gda"
+    x, z, uex = read_2d_fields(pic_info, fname, **kwargs) 
     x, z, ne = read_2d_fields(pic_info, "../../data/ne.gda", **kwargs) 
-    x, z, uix = read_2d_fields(pic_info, "../../data/uix.gda", **kwargs) 
+    fname = "../../data/vix.gda"
+    if not os.path.isfile(fname):
+        fname = "../../data/uix.gda"
+    x, z, uix = read_2d_fields(pic_info, fname, **kwargs) 
     x, z, ni = read_2d_fields(pic_info, "../../data/ni.gda", **kwargs) 
     x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
@@ -841,7 +847,7 @@ if __name__ == "__main__":
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
     # plot_jy(pic_info, 'e', 120)
-    plot_ux(pic_info, 'e', 80)
+    plot_ux(pic_info, 'e', 14)
     # plot_diff_fields(pic_info, 'e', 120)
     # plot_jpara_perp(pic_info, 'e', 120)
     # plot_Ey(pic_info, 'e', 40)
