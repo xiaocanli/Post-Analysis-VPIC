@@ -69,7 +69,9 @@ def save_reconnection_rate(tfields, reconnection_rate, fname):
     """
     if not os.path.isdir('../data/'):
         os.makedirs('../data/')
-    filename = '../data/' + fname
+    if not os.path.isdir('../data/rate/'):
+        os.makedirs('../data/rate/')
+    filename = '../data/rate/' + fname
     f = open(filename, 'w')
     np.savetxt(f, (tfields, reconnection_rate))
     f.close()
@@ -127,11 +129,15 @@ def calc_multi_reconnection_rate():
     # t, rate = calc_reconnection_rate(base_dir)
     # save_reconnection_rate(t, rate, 'rate_mime25_beta002_sigma033.dat')
 
+    # base_dir = '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/'
+    # t, rate = calc_reconnection_rate(base_dir)
+    # save_reconnection_rate(t, rate, 'rate_mime25_beta002_noperturb.dat')
+
 
 def plot_multi_reconnection_rate():
     """Calculate reconnection rate for multiple runs
     """
-    path = '../data/'
+    path = '../data/rate/'
     fname = path + 'rate_mime25_beta02.dat'
     tf1, rate1 = np.genfromtxt(fname)
     fname = path + 'rate_mime25_beta007.dat'
@@ -146,6 +152,8 @@ def plot_multi_reconnection_rate():
     tf6, rate6 = np.genfromtxt(fname)
     fname = path + 'rate_mime25_beta002_sigma033.dat'
     tf7, rate7 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta002_noperturb.dat'
+    tf8, rate8 = np.genfromtxt(fname)
 
     fig = plt.figure(figsize=[7, 5])
     ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
@@ -156,9 +164,11 @@ def plot_multi_reconnection_rate():
     # ax.plot(tf5, rate5, linewidth=2)
     ax.plot(tf6, rate6, linewidth=2)
     ax.plot(tf7, rate7, linewidth=2)
+    ax.plot(tf8, rate8, linewidth=2)
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
+    ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
     plt.show()
 
