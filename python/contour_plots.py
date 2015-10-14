@@ -757,6 +757,74 @@ def plot_jpara_perp(pic_info, species, current_time):
 
     plt.show()
 
+
+def plot_ux(pic_info, species, current_time):
+    """Plot the in-plane bulk velocity field.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-20, "zt":20}
+    x, z, uex = read_2d_fields(pic_info, "../../data/uex.gda", **kwargs) 
+    x, z, ne = read_2d_fields(pic_info, "../../data/ne.gda", **kwargs) 
+    x, z, uix = read_2d_fields(pic_info, "../../data/uix.gda", **kwargs) 
+    x, z, ni = read_2d_fields(pic_info, "../../data/ni.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    ux = (uex*ne + uix*ni*pic_info.mime) / (ne + ni*pic_info.mime)
+    ux /= va
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.4
+    xs = 0.15
+    ys = 0.92 - height
+    fig = plt.figure(figsize=[7,5])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1.0, "vmax":1.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, ux, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=20)
+    cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
+    cbar1.ax.tick_params(labelsize=20)
+    ax1.text(0.02, 0.8, r'$u_x/V_A$', color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    gap = 0.06
+    ys0 = 0.15
+    height0 = ys - gap - ys0
+    w1, h1 = fig.get_size_inches()
+    width0 = width * 0.98 - 0.05 / w1
+    ax2 = fig.add_axes([xs, ys0, width0, height0])
+    ax2.plot(x, ux[nz/2, :], color='k', linewidth=1)
+    ax2.plot([np.min(x), np.max(x)], [0, 0], linestyle='--', color='k')
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax2.set_ylabel(r'$u_x/V_A$', fontdict=font, fontsize=24)
+    ax2.tick_params(labelsize=20)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    # fig.savefig(fname, dpi=200)
+
+    plt.show()
+    # plt.close()
+
 if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
@@ -773,7 +841,8 @@ if __name__ == "__main__":
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
     # plot_jy(pic_info, 'e', 120)
-    plot_diff_fields(pic_info, 'e', 120)
+    plot_ux(pic_info, 'e', 80)
+    # plot_diff_fields(pic_info, 'e', 120)
     # plot_jpara_perp(pic_info, 'e', 120)
     # plot_Ey(pic_info, 'e', 40)
     # plot_jy_Ey(pic_info, 'e', 40)
