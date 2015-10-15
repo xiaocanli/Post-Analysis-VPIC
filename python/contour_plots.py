@@ -807,6 +807,7 @@ def plot_ux(pic_info, species, current_time):
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
+    ax1.plot([np.min(x), np.max(x)], [0, 0], linestyle='--', color='k', linewidth=2)
     
     t_wci = current_time*pic_info.dt_fields
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
