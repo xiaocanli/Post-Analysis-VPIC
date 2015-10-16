@@ -9,6 +9,8 @@ import collections
 import cPickle as pickle
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
+from os import listdir
+from os.path import isfile, join
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.
@@ -460,7 +462,21 @@ def save_pic_info_json():
         json.dump(pic_info_json, f)
 
 
+def list_pic_info_dir(filepath):
+    """List all of the json files of the PIC information
+
+    Args:
+        filepath: the filepath saving the json files.
+
+    Returns:
+        pic_infos: the list of filenames.
+    """
+    pic_infos = [f for f in listdir(filepath) if isfile(join(filepath,f))]
+    return pic_infos
+
+
 if __name__ == "__main__":
     # base_directory = '../../'
     # pic_info = get_pic_info(base_directory)
     save_pic_info_json()
+    # list_pic_info_dir('../data/pic_info/')
