@@ -323,8 +323,12 @@ def read_pic_info(base_directory):
     x = np.arange(nx)*dxdi
     y = (np.arange(ny)-ny/2.0+0.5)*dydi
     z = (np.arange(nz)-nz/2.0+0.5)*dzdi
-    vthi, current_line = get_variable_value('vthi/c', current_line, content)
-    vthe, current_line = get_variable_value('vthe/c', current_line, content)
+    if 'vthi/c' in content:
+        vthi, current_line = get_variable_value('vthi/c', current_line, content)
+        vthe, current_line = get_variable_value('vthe/c', current_line, content)
+    else:
+        vthe = 1.0
+        vthi = 1.0
 
     pic_init_info = collections.namedtuple('pic_init_info',
             ['mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz',
