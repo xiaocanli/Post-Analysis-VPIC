@@ -18,6 +18,9 @@ import struct
 import collections
 import pic_information
 from contour_plots import read_2d_fields, plot_2d_contour
+import color_maps as cm
+import colormap.colormaps as cmaps
+import palettable
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -124,7 +127,7 @@ class Viewer2d(object):
         particle_list = np.arange(1, self.nptl)
         self.slider = DiscreteSlider(self.sliderax, 'Particle', 1, self.nptl,\
                 allowed_vals=particle_list, valinit=particle_list[self.iptl])
-        self.slider.on_changed(self.update_particle)
+        self.slider.on_changed(self.update_particle_slider)
 
         # Slider to choose time frames for fields
         self.field_sliderax = plt.axes([0.1, 0.05, 0.8, 0.03])
@@ -136,8 +139,11 @@ class Viewer2d(object):
         self._widgets=[self.slider, self.field_slider]
         self.save_figure()
 
-    def update_particle(self, val):
+    def update_particle_slider(self, val):
         self.iptl = self.slider.val - 1
+        self.update_particle()
+
+    def update_particle(self):
         group = file[self.particle_tags[self.iptl]]
         self.ptl = self.particle_info.get_particle_info(group)
         self.px = self.ptl.x / self.smime
@@ -200,9 +206,9 @@ class Viewer2d(object):
     def save_figure(self):
         if not os.path.isdir('../img/'):
             os.makedirs('../img/')
-        if not os.path.isdir('../img/img_traj2/'):
-            os.makedirs('../img/img_traj2/')
-        fname = '../img/img_traj2/traj_' + str(self.iptl) + '_' + \
+        if not os.path.isdir('../img/img_traj3/'):
+            os.makedirs('../img/img_traj3/')
+        fname = '../img/img_traj3/traj_' + str(self.iptl) + '_' + \
                 str(self.ct).zfill(3) + '_' + self.species + '.jpg'
         self.fig.savefig(fname, dpi=200)
 
@@ -269,19 +275,16 @@ class ParticleInfo(object):
         ptl = particles(x=self.x, y=self.y, z=self.z,
                 ux=self.ux, uy=self.uy, uz=self.uz)
         return ptl
-  
-if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
-    filepath = '/net/scratch1/guofan/share/ultra-sigma/'
-    filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
-    species = 'i'
-    if species == 'i':
-        fname = filepath + 'ions_2.h5p'
-    else:
-        fname = filepath + 'electrons_2.h5p'
-    file = h5py.File(fname, 'r')
-    ngroups = len(file)
+
+def plot_ptl_traj(file, species):
+    """Plot particle trajectorie.
+
+    Args:
+        file: the file ID for a HDF5 file.
+        species: particle species.
+    """
     init_ft = 40
+    ngroups = len(file)
     var_field = 'jy'
     var_name = '$j_y$'
     kwargs = {"current_time":init_ft, "xl":0, "xr":400, "zb":-100, "zt":100}
@@ -290,4 +293,292 @@ if __name__ == "__main__":
     fig_v = Viewer2d(file, ngroups, x, z, data, init_ft, var_field, var_name,
             species)
     plt.show()
+    # for iptl in range(fig_v.nptl):
+    #     print(iptl)
+    #     fig_v.iptl = iptl
+    #     fig_v.update_particle()
+    plt.close()
+
+
+def get_particle_info(fname, iptl):
+    """Get particle information from a file.
+
+    Args:
+        fname: file name for the HDF5 file.
+        iptl: particle index.
+    """
+    file = h5py.File(fname, 'r')
+    pic_info = pic_information.get_pic_info('../../')
+    particle_tags = []
+    for item in file:
+        particle_tags.append(item)
+    group = file[particle_tags[iptl]]
+    dset_ux = group['Ux']
+    sz, = dset_ux.shape
+    particle_info = ParticleInfo(sz)
+    ptl = particle_info.get_particle_info(group)
+    pic_info = pic_information.get_pic_info('../../')
+    smime = math.sqrt(pic_info.mime)
+    px = ptl.x / smime
+    py = ptl.y / smime
+    pz = ptl.z / smime
+    gama = np.sqrt(ptl.ux**2 + ptl.uy**2 + ptl.uz**2 + 1.0)
     file.close()
+    return (px, py, pz, gama)
+
+
+def plot_ptl_traj_direct():
+    """Plot multiple particle trajectories in the same file.
+
+    This is for direct acceleration.
+    """
+    filepath = '/net/scratch1/guofan/share/ultra-sigma/'
+    filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
+    fname = filepath + 'electrons.h5p'
+    iptl = 739
+    pxe, pye, pze, gamae = get_particle_info(fname, iptl)
+
+    filepath = '/net/scratch1/guofan/share/ultra-sigma/'
+    filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
+    fname = filepath + 'ions.h5p'
+    iptl = 202
+    pxi, pyi, pzi, gamai = get_particle_info(fname, iptl)
+
+    var_field = 'ey'
+    var_name = '$E_y$'
+    kwargs = {"current_time":40, "xl":200, "xr":400, "zb":-50, "zt":50}
+    fname = '../../data/' + var_field + '.gda'
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = '../../data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+
+    colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+    fig = plt.figure(figsize=(7, 6))
+
+    xs, ys = 0.15, 0.73
+    width, height = 0.75, 0.24
+    gap = 0.04
+
+    pxz_axis = fig.add_axes([xs, ys, width, height])
+    vmax = min(abs(np.min(fdata)), abs(np.max(fdata)))
+    vmax *= 0.2
+    im1 = pxz_axis.imshow(fdata, cmap=plt.cm.jet,
+            extent=[np.min(x), np.max(x), np.min(z), np.max(z)],
+            aspect='auto', origin='lower',
+            vmin = -vmax, vmax = vmax,
+            interpolation='bicubic')
+    # im1.set_cmap('seismic')
+    divider = make_axes_locatable(pxz_axis)
+    cax = divider.append_axes("right", size="2%", pad=0.05)
+    cbar = fig.colorbar(im1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.set_ticks(np.arange(-60, 70, 30))
+    pxz_axis.contour(x, z, Ay, colors='black', linewidths=0.5)
+    pxz_axis.tick_params(labelsize=16)
+    pxz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    pxz_axis.tick_params(axis='x', labelbottom='off')
+    pxz_axis.autoscale(1,'both',1)
+    pxz_axis.text(0.05, 0.8, var_name, color='black', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = pxz_axis.transAxes)
+
+    # xz plot
+    tmax_e = 1100
+    tmax_i = 1000
+    pxze, = pxz_axis.plot(pxe[:tmax_e], pze[:tmax_e], linewidth=2,
+            color='r')
+    pxzi, = pxz_axis.plot(pxi[:tmax_i], pzi[:tmax_i], linewidth=2,
+            color='b')
+
+    # x-energy
+    ys -= height + gap
+    w1, h1 = fig.get_size_inches()
+    width1 = width * 0.98 - 0.05 / w1
+    xe_axis = fig.add_axes([xs, ys, width1, height])
+    xe_axis.tick_params(labelsize=16)
+    pxe, = xe_axis.plot(pxe[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
+            linewidth=2, color='r')
+    xe_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
+            fontsize=20, color='r')
+    xe_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    xe_axis.set_xlim([np.min(x), np.max(x)])
+    for tl in xe_axis.get_yticklabels():
+        tl.set_color('r')
+    ax1 = xe_axis.twinx()
+    pene, = ax1.plot(pxi[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
+            linewidth=2, color='b')
+    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlim([np.min(x), np.max(x)])
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+
+    # Energy plot
+    nt, = gamae.shape
+    # This is not general
+    tptl = np.arange(nt) * pic_info.fields_interval / 20 * pic_info.dtwpe
+    gap = 0.1
+    ys -= height + gap
+    ene_axis = fig.add_axes([xs, ys, width1, height])
+    pene, = ene_axis.plot(tptl[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
+            linewidth=2, color='r')
+    ene_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
+            fontsize=20, color='r')
+    ene_axis.set_xlabel(r'$t\Omega_{pe}$', fontdict=font, fontsize=20)
+    ene_axis.tick_params(labelsize=16)
+    for tl in ene_axis.get_yticklabels():
+        tl.set_color('r')
+
+    ax1 = ene_axis.twinx()
+    pene, = ax1.plot(tptl[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
+            linewidth=2, color='b')
+    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
+    ax1.tick_params(labelsize=16)
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fname = '../img/traj_direct.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def plot_ptl_traj_fermi():
+    """Plot multiple particle trajectories in the same file.
+
+    This is for Fermi acceleration.
+    """
+    filepath = '/net/scratch1/guofan/share/ultra-sigma/'
+    filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
+    fname = filepath + 'electrons_2.h5p'
+    iptl = 330
+    pxe, pye, pze, gamae = get_particle_info(fname, iptl)
+
+    filepath = '/net/scratch1/guofan/share/ultra-sigma/'
+    filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
+    fname = filepath + 'ions_2.h5p'
+    # iptl = 478
+    iptl = 659
+    pxi, pyi, pzi, gamai = get_particle_info(fname, iptl)
+
+    var_field = 'vx'
+    var_name = '$v_x$'
+    kwargs = {"current_time":45, "xl":50, "xr":200, "zb":-50, "zt":50}
+    fname = '../../data/' + var_field + '.gda'
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = '../../data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+
+    colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+    fig = plt.figure(figsize=(7, 6))
+
+    xs, ys = 0.15, 0.73
+    width, height = 0.75, 0.24
+    gap = 0.04
+
+    pxz_axis = fig.add_axes([xs, ys, width, height])
+    vmax = 1.0
+    im1 = pxz_axis.imshow(fdata, cmap=plt.cm.jet,
+            extent=[np.min(x), np.max(x), np.min(z), np.max(z)],
+            aspect='auto', origin='lower',
+            vmin = -vmax, vmax = vmax,
+            interpolation='bicubic')
+    # im1.set_cmap(cmaps.viridis)
+    # im1.set_cmap('seismic')
+    divider = make_axes_locatable(pxz_axis)
+    cax = divider.append_axes("right", size="2%", pad=0.05)
+    cbar = fig.colorbar(im1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.set_ticks(np.arange(-0.8, 1.0, 0.4))
+    pxz_axis.contour(x, z, Ay, colors='black', linewidths=0.5)
+    pxz_axis.tick_params(labelsize=16)
+    pxz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    pxz_axis.tick_params(axis='x', labelbottom='off')
+    pxz_axis.autoscale(1,'both',1)
+    pxz_axis.text(0.05, 0.8, var_name, color='black', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = pxz_axis.transAxes)
+    pxz_axis.set_xlim([np.min(x), np.max(x)])
+    pxz_axis.set_ylim([np.min(z), np.max(z)])
+
+    # xz plot
+    nt, = pxe.shape
+    tmax_e = 1600
+    tmax_i = 1500
+    pxze, = pxz_axis.plot(pxe[:tmax_e], pze[:tmax_e], linewidth=2,
+            color='r')
+    pxzi, = pxz_axis.plot(pxi[:tmax_i], pzi[:tmax_i], linewidth=2,
+            color='b')
+
+    # x-energy
+    ys -= height + gap
+    w1, h1 = fig.get_size_inches()
+    width1 = width * 0.98 - 0.05 / w1
+    xe_axis = fig.add_axes([xs, ys, width1, height])
+    xe_axis.tick_params(labelsize=16)
+    pxe, = xe_axis.plot(pxe[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
+            linewidth=2, color='r')
+    xe_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
+            fontsize=20, color='r')
+    xe_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    xe_axis.set_xlim([np.min(x), np.max(x)])
+    for tl in xe_axis.get_yticklabels():
+        tl.set_color('r')
+    ax1 = xe_axis.twinx()
+    pene, = ax1.plot(pxi[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
+            linewidth=2, color='b')
+    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlim([np.min(x), np.max(x)])
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+
+    # Energy plot
+    nt, = gamae.shape
+    # This is not general
+    tptl = np.arange(nt) * pic_info.fields_interval / 20 * pic_info.dtwpe
+    gap = 0.1
+    ys -= height + gap
+    ene_axis = fig.add_axes([xs, ys, width1, height])
+    pene, = ene_axis.plot(tptl[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
+            linewidth=2, color='r')
+    ene_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
+            fontsize=20, color='r')
+    ene_axis.set_xlabel(r'$t\Omega_{pe}$', fontdict=font, fontsize=20)
+    ene_axis.tick_params(labelsize=16)
+    for tl in ene_axis.get_yticklabels():
+        tl.set_color('r')
+
+    ax1 = ene_axis.twinx()
+    pene, = ax1.plot(tptl[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
+            linewidth=2, color='b')
+    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
+    ax1.tick_params(labelsize=16)
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fname = '../img/traj_fermi.eps'
+    fig.savefig(fname)
+
+    plt.show()
+  
+if __name__ == "__main__":
+    pic_info = pic_information.get_pic_info('../../')
+    # filepath = '/net/scratch1/guofan/share/ultra-sigma/'
+    # filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
+    # species = 'i'
+    # if species == 'i':
+    #     fname = filepath + 'ions.h5p'
+    # else:
+    #     fname = filepath + 'electrons.h5p'
+    # file = h5py.File(fname, 'r')
+    # plot_ptl_traj(file, species)
+    # file.close()
+    # plot_ptl_traj_direct()
+    plot_ptl_traj_fermi()
