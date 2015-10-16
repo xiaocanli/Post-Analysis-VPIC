@@ -11,6 +11,7 @@ import simplejson as json
 from serialize_json import data_to_json, json_to_data
 from os import listdir
 from os.path import isfile, join
+from runs_name_path import ApJ_long_paper_runs
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.
@@ -409,61 +410,13 @@ def save_pic_info_json():
     if not os.path.isdir(dir):
         os.makedirs(dir)
 
-    base_dir = '/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta02.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta007.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/sigma1-mime25-beta001/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/sigma1-mime25-beta0003-npc200/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta0007.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/sigma1-mime100-beta001-mustang/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime100_beta002.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/mime25-guide0-beta001-200-100/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002_sigma01.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/mime25-guide0-beta001-200-100-sigma033/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002_sigma033.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002_noperturb.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        pic_info = get_pic_info(base_dir)
+        pic_info_json = data_to_json(pic_info)
+        fname = dir + 'pic_info_' + run_name + '.json'
+        with open(fname, 'w') as f:
+            json.dump(pic_info_json, f)
 
 
 def list_pic_info_dir(filepath):
