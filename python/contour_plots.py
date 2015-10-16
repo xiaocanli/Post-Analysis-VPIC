@@ -796,6 +796,7 @@ def plot_ux(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, ux, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.get_cmap('seismic'))
+    # p1.set_cmap(cmaps.inferno)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
@@ -824,6 +825,7 @@ def plot_ux(pic_info, species, current_time):
     ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax2.set_ylabel(r'$u_x/V_A$', fontdict=font, fontsize=24)
     ax2.tick_params(labelsize=20)
+    ax2.set_ylim([-1, 1])
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
@@ -848,7 +850,7 @@ if __name__ == "__main__":
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
     # plot_jy(pic_info, 'e', 120)
-    plot_ux(pic_info, 'e', 14)
+    plot_ux(pic_info, 'e', 40)
     # plot_diff_fields(pic_info, 'e', 120)
     # plot_jpara_perp(pic_info, 'e', 120)
     # plot_Ey(pic_info, 'e', 40)
