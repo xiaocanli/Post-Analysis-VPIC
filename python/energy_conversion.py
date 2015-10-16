@@ -17,6 +17,7 @@ import pic_information
 from pic_information import list_pic_info_dir
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
+from runs_name_path import ApJ_long_paper_runs
 import palettable
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
@@ -401,6 +402,7 @@ def plot_jdotes_evolution(species):
     fig.savefig(fname)
     plt.show()
 
+
 def plot_jpara_perp_dote():
     """Plot the parallel and perpendicular heating using the simulation data.
 
@@ -627,6 +629,27 @@ def plot_energy_evolution_multi():
         plt.close()
 
 
+def save_jdote_json(species):
+    """Save jdote data for different runs as json
+
+    Args:
+        species: particle species
+    """
+    if not os.path.isdir('../data/'):
+        os.makedirs('../data/')
+    dir = '../data/jdote_data/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        jdote = read_jdote_data(species, base_dir)
+        jdote_json = data_to_json(jdote)
+        fname = dir + 'jdote_' + run_name + '.json'
+        with open(fname, 'w') as f:
+            json.dump(jdote_json, f)
+
+
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
     # jdote = read_jdote_data('e')
@@ -636,4 +659,5 @@ if __name__ == "__main__":
     # plot_jpara_perp_dote()
     # plot_jtot_dote()
     # calc_energy_gain_multi()
-    plot_energy_evolution_multi()
+    # plot_energy_evolution_multi()
+    # save_jdote_json('i')
