@@ -37,6 +37,9 @@ def plot_energy_evolution(pic_info):
 
     Plot time evolution of magnetic, electric, electron and ion kinetic
     energies. 
+
+    Args:
+        pic_info: the PIC simulation information.
     """
     tenergy = pic_info.tenergy
     ene_electric = pic_info.ene_electric
@@ -196,17 +199,20 @@ def plot_particle_energy_gain():
             rotation=0, fontsize=16)
     plt.show()
 
-def read_jdote_data(species):
+def read_jdote_data(species, rootpath='../../'):
     """Read j.E data.
 
     Args:
         species: particle species. 'e' for electron, 'h' for ion.
+        rootpath: rootpath of this run
+        fpath_jdote: filepath of the jdote file.
     """
-    pic_info = pic_information.get_pic_info('../../')
+    pic_info = pic_information.get_pic_info(rootpath)
     ntf = pic_info.ntf
     dt_fields = pic_info.dt_fields
     dtf_wpe = dt_fields * pic_info.dtwpe / pic_info.dtwci
-    fname = "../data/jdote00_" + species + ".gda"
+    fpath_jdote = rootpath + 'pic_analysis/data/'
+    fname = fpath_jdote + "jdote00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
