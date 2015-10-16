@@ -14,12 +14,16 @@ import os.path
 import struct
 import collections
 import pic_information
+from pic_information import list_pic_info_dir
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
+import palettable
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
+
+colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
 font = {'family' : 'serif',
         #'color'  : 'darkred',
@@ -43,46 +47,64 @@ def plot_energy_evolution(pic_info):
     ene_by = pic_info.ene_by
     ene_bz = pic_info.ene_bz
 
-    enorm = ene_bx[0] + ene_by[0]
+    enorm = ene_magnetic[0]
 
-    fig = plt.figure(figsize=[3.5,2.5])
-    ax = fig.add_axes([0.22, 0.22, 0.75, 0.73])
-    p1, = ax.plot(tenergy, (ene_bx+ene_by)/enorm, linewidth=2, 
-            label=r'$B_x^2(t)$', color='b')
-    p2, = ax.plot(tenergy, kene_i/enorm, linewidth=2, 
-            color='g', label=r'$\Delta K_i$')
-    p3, = ax.plot(tenergy, kene_e/enorm, linewidth=2, 
-            color='r', label=r'$\Delta K_e$')
-    p4, = ax.plot(tenergy, ene_electric/enorm, linewidth=2, 
-            color='m', label='$E^2$')
-    # ax.set_xlim([0, 1190])
-    # ax.set_ylim([0, 1.05])
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.13
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    p1, = ax.plot(tenergy, ene_magnetic/enorm, linewidth=2, 
+            label=r'$\varepsilon_{b}$')
+    p2, = ax.plot(tenergy, kene_i/enorm, linewidth=2, label=r'$K_i$')
+    p3, = ax.plot(tenergy, kene_e/enorm, linewidth=2, label=r'$K_e$')
+    p4, = ax.plot(tenergy, 100*ene_electric/enorm, linewidth=2,
+            label=r'$100\varepsilon_{e}$')
+    ax.set_xlim([0, np.max(tenergy)])
+    ax.set_ylim([0, 1.05])
 
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
-    ax.set_ylabel(r'Energy/$\varepsilon_{bx}(0)$', fontdict=font, fontsize=20)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'Energy/$\varepsilon_{b0}$', fontdict=font, fontsize=24)
+    leg = ax.legend(loc=1, prop={'size':20}, ncol=2,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors, leg.get_texts()):
+            text.set_color(color)
 
-    ax.text(500, 1.1, r'$\varepsilon_{bx}(t) + \varepsilon_{by}(t)$',
-            color='blue', fontsize=24)
-    ax.text(500, 0.65, r'$\varepsilon_e$', color='m', fontsize=24)
-    ax.text(1300, 0.65, r'$K_e$', color='red', fontsize=24)
-    ax.text(900, 0.65, r'$K_i$', color='green', fontsize=24)
+    # ax.text(0.5, 0.8, r'$\varepsilon_{b}$',
+    #         color='blue', fontsize=24,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform = ax.transAxes)
+    # ax.text(0.7, 0.8, r'$\varepsilon_e$', color='m', fontsize=24,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform = ax.transAxes)
+    # ax.text(0.5, 0.5, r'$K_e$', color='red', fontsize=24,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform = ax.transAxes)
+    # ax.text(0.7, 0.5, r'$K_i$', color='green', fontsize=24,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform = ax.transAxes)
    
-    plt.tick_params(labelsize=16)
+    plt.tick_params(labelsize=20)
     #plt.savefig('pic_ene.eps')
 
-    print 'The final fraction of ebx: ', ene_bx[-1]/enorm
-    print 'The ratio of energy gain to the initial ebx: ', \
-            (kene_e[-1]-kene_e[0])/enorm, (kene_i[-1]-kene_i[0])/enorm 
-    print 'The ratio of the initial kene_e and kene_i to the initial ebx: ',\
-            kene_e[0]/enorm, kene_i[0]/enorm
-    print 'The ratio of the final kene_e and kene_i to the initial ebx: ',\
-            kene_e[-1]/enorm, kene_i[-1]/enorm
+    print('The dissipated magnetic energy: %5.3f' % (1.0 - ene_magnetic[-1]/enorm))
+    print('Energy gain to the initial magnetic energy: %5.3f, %5.3f' %
+            ((kene_e[-1]-kene_e[0])/enorm, (kene_i[-1]-kene_i[0])/enorm))
+    print('Initial kene_e and kene_i to the initial magnetic energy: %5.3f, %5.3f' %
+            (kene_e[0]/enorm, kene_i[0]/enorm))
+    print('Final kene_e and kene_i to the initial magnetic energy: %5.3f, %5.3f' %
+            (kene_e[-1]/enorm, kene_i[-1]/enorm))
     init_ene = pic_info.ene_electric[0] + pic_info.ene_magnetic[0] + \
                kene_e[0] + kene_i[0]
     final_ene = pic_info.ene_electric[-1] + pic_info.ene_magnetic[-1] + \
                kene_e[-1] + kene_i[-1]
-    print 'Energy conservation: ', final_ene / init_ene
-    plt.show()
+    print('Energy conservation: %5.3f' % (final_ene / init_ene))
+    # plt.show()
+
 
 def plot_particle_energy_gain():
     """Plot particle energy gain for cases with different beta.
@@ -541,15 +563,25 @@ def plot_jtot_dote():
     plt.show()
 
 
-def calc_energy_gain_single(fname):
-    """Calculate the particle energy gain for a single run.
+def read_pic_info_from_json(fname):
+    """Read pic_info from a json file
 
     Args:
         fname: file name of the json file of PIC information.
     """
     with open(fname, 'r') as json_file:
         pic_info = json_to_data(json.load(json_file))
-    print('Reading ', fname)
+    print("Reading %s" % fname)
+    return pic_info
+
+
+def calc_energy_gain_single(fname):
+    """Calculate the particle energy gain for a single run.
+
+    Args:
+        fname: file name of the json file of PIC information.
+    """
+    pic_info = read_pic_info_from_json(fname)
     kene_e = pic_info.kene_e
     kene_i = pic_info.kene_i
     dke_e = (kene_e[-1] - kene_e[0]) / kene_e[0]
@@ -562,22 +594,31 @@ def calc_energy_gain_multi():
     """Calculate the particle energy gain for different runs.
     """
     dir = '../data/pic_info/'
-    fname = dir + 'pic_info_mime25_beta02.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime25_beta007.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime25_beta002.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime25_beta0007.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime100_beta002.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime25_beta002_sigma01.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime25_beta002_sigma033.json'
-    calc_energy_gain_single(fname)
-    fname = dir + 'pic_info_mime25_beta002_noperturb.json'
-    calc_energy_gain_single(fname)
+    fnames = list_pic_info_dir(dir)
+    for fname in fnames:
+        fname = dir + fname
+        calc_energy_gain_single(fname)
+
+
+def plot_energy_evolution_multi():
+    """Plot energy evolution for multiple runs.
+    """
+    dir = '../data/pic_info/'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    odir = '../img/ene_evolution/'
+    if not os.path.isdir(odir):
+        os.makedirs(odir)
+    fnames = list_pic_info_dir(dir)
+    for fname in fnames:
+        rname = fname.replace(".json", ".eps")
+        oname = rname.replace("pic_info", "enes")
+        oname = odir + oname
+        fname = dir + fname
+        pic_info = read_pic_info_from_json(fname)
+        plot_energy_evolution(pic_info)
+        plt.savefig(oname)
+        plt.close()
 
 
 if __name__ == "__main__":
@@ -588,4 +629,5 @@ if __name__ == "__main__":
     # plot_jdotes_evolution('e')
     # plot_jpara_perp_dote()
     # plot_jtot_dote()
-    calc_energy_gain_multi()
+    # calc_energy_gain_multi()
+    plot_energy_evolution_multi()
