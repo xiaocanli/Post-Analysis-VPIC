@@ -43,10 +43,14 @@ program parspec
 
     mp_elapsed = MPI_WTIME()
 
-    do ct = 1, 4
+    do ct = 1, nt
         call calc_energy_spectra(ct, 'e')
         call set_energy_spectra_zero
-        ! call calc_particle_spectrum(ct, 'h')
+    enddo
+
+    do ct = 1, nt
+        call calc_energy_spectra(ct, 'h')
+        call set_energy_spectra_zero
     enddo
 
     mp_elapsed = MPI_WTIME() - mp_elapsed
