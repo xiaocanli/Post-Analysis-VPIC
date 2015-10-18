@@ -324,7 +324,7 @@ def read_pic_info(base_directory):
     x = np.arange(nx)*dxdi
     y = (np.arange(ny)-ny/2.0+0.5)*dydi
     z = (np.arange(nz)-nz/2.0+0.5)*dzdi
-    if 'vthi/c' in content:
+    if any('vthi/c' in s for s in content):
         vthi, current_line = get_variable_value('vthi/c', current_line, content)
         vthe, current_line = get_variable_value('vthe/c', current_line, content)
     else:
@@ -433,7 +433,7 @@ def list_pic_info_dir(filepath):
 
 
 if __name__ == "__main__":
-    # base_directory = '../../'
-    # pic_info = get_pic_info(base_directory)
-    save_pic_info_json()
+    base_directory = '../../'
+    pic_info = get_pic_info(base_directory)
+    # save_pic_info_json()
     # list_pic_info_dir('../data/pic_info/')
