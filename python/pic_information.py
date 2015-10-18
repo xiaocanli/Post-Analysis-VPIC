@@ -9,6 +9,9 @@ import collections
 import cPickle as pickle
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
+from os import listdir
+from os.path import isfile, join
+from runs_name_path import ApJ_long_paper_runs
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.
@@ -321,8 +324,12 @@ def read_pic_info(base_directory):
     x = np.arange(nx)*dxdi
     y = (np.arange(ny)-ny/2.0+0.5)*dydi
     z = (np.arange(nz)-nz/2.0+0.5)*dzdi
-    vthi, current_line = get_variable_value('vthi/c', current_line, content)
-    vthe, current_line = get_variable_value('vthe/c', current_line, content)
+    if 'vthi/c' in content:
+        vthi, current_line = get_variable_value('vthi/c', current_line, content)
+        vthe, current_line = get_variable_value('vthe/c', current_line, content)
+    else:
+        vthe = 1.0
+        vthi = 1.0
 
     pic_init_info = collections.namedtuple('pic_init_info',
             ['mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz',
@@ -403,64 +410,30 @@ def save_pic_info_json():
     if not os.path.isdir(dir):
         os.makedirs(dir)
 
-    base_dir = '/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta02.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        pic_info = get_pic_info(base_dir)
+        pic_info_json = data_to_json(pic_info)
+        fname = dir + 'pic_info_' + run_name + '.json'
+        with open(fname, 'w') as f:
+            json.dump(pic_info_json, f)
 
-    base_dir = '/net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta007.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
 
-    base_dir = '/scratch3/xiaocanli/sigma1-mime25-beta001/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
+def list_pic_info_dir(filepath):
+    """List all of the json files of the PIC information
 
-    base_dir = '/scratch3/xiaocanli/sigma1-mime25-beta0003-npc200/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta0007.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
+    Args:
+        filepath: the filepath saving the json files.
 
-    base_dir = '/scratch3/xiaocanli/sigma1-mime100-beta001-mustang/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime100_beta002.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/mime25-guide0-beta001-200-100/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002_sigma01.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/scratch3/xiaocanli/mime25-guide0-beta001-200-100-sigma033/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002_sigma033.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-
-    base_dir = '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/'
-    pic_info = get_pic_info(base_dir)
-    pic_info_json = data_to_json(pic_info)
-    fname = dir + 'pic_info_mime25_beta002_noperturb.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
+    Returns:
+        pic_infos: the list of filenames.
+    """
+    pic_infos = [f for f in listdir(filepath) if isfile(join(filepath,f))]
+    return pic_infos
 
 
 if __name__ == "__main__":
     # base_directory = '../../'
     # pic_info = get_pic_info(base_directory)
     save_pic_info_json()
+    # list_pic_info_dir('../data/pic_info/')
