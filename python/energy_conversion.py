@@ -295,27 +295,29 @@ def cumulate_with_time(f, dt, ntf):
     return f_cumulative
 
 
-def plot_jdotes_evolution(species):
+def plot_jdotes_evolution(pic_info, jdote, species):
     """
     Plot the time evolution of the energy conversion due to different currents.
 
     Args:
+        pic_info: PIC simulation information.
+        jdote: the jdote data.
         species: particle species. 'e' for electron, 'h' for ion.
     """
-    jdote = read_jdote_data(species)
-    pic_info = pic_information.get_pic_info('../../')
     jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote \
             + jdote.jmag_dote \
-            + jdote.jqnupara_dote \
-            + jdote.jdivu_dote \
-            + jdote.jagy_dote \
-            + jdote.jpolar_dote
+            + jdote.jagy_dote
+            # + jdote.jpolar_dote \
+            # + jdote.jqnupara_dote \
+            # + jdote.jdivu_dote \
+
     jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int \
             + jdote.jmag_dote_int \
-            + jdote.jqnupara_dote_int \
-            + jdote.jdivu_dote_int \
-            + jdote.jagy_dote_int \
-            + jdote.jpolar_dote_int
+            + jdote.jagy_dote_int
+            # + jdote.jpolar_dote_int \
+            # + jdote.jqnupara_dote_int \
+            # + jdote.jdivu_dote_int \
+
     if species == 'e':
         dkene = pic_info.dkene_e
         kene = pic_info.kene_e
@@ -343,6 +345,7 @@ def plot_jdotes_evolution(species):
     ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
     ax1.tick_params(reset=True, labelsize=16)
     ax1.tick_params(axis='x', labelbottom='off')
+    ax1.set_xlim([np.min(tfields), np.max(tfields)])
 
     enorm = pic_info.ene_magnetic[0]
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -356,6 +359,7 @@ def plot_jdotes_evolution(species):
     ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax2.set_ylabel(r'$\varepsilon_c$', fontdict=font, fontsize=20)
     ax2.tick_params(labelsize=16)
+    ax2.set_xlim(ax1.get_xlim())
 
     ax1.text(0.05, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
@@ -380,9 +384,9 @@ def plot_jdotes_evolution(species):
     print 'The fraction of perpendicular heating (simulation): ', \
             jdote.jqnuperp_dote_int[-1]/(kene[-1]-kene[0])
 
-    fname = '../img/jdrifts_dote_' + species + '.eps'
-    fig.savefig(fname)
-    plt.show()
+    # fname = '../img/jdrifts_dote_' + species + '.eps'
+    # fig.savefig(fname)
+    # plt.show()
 
 
 def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
@@ -447,6 +451,12 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
 
+    jpara_dote_int = jdote_e.jqnupara_dote_int
+    jperp_dote_int = jdote_e.jqnuperp_dote_int
+    jtot_dote_int = jpara_dote_int + jperp_dote_int
+    print("The ratio of parallel and perpendicular acceleration for electrons: %5.3f" %
+            (jpara_dote_int[-1] / jtot_dote_int[-1]))
+
     jtot_dote = jdote_i.jqnupara_dote + jdote_i.jqnuperp_dote
     jtot_dote_int = jdote_i.jqnupara_dote_int + jdote_i.jqnuperp_dote_int
     dkene = pic_info.dkene_i
@@ -478,6 +488,12 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     ax2.text(0.8, 0.85, r'$dK_i/dt$', color='black', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax2.transAxes)
+
+    jpara_dote_int = jdote_i.jqnupara_dote_int
+    jperp_dote_int = jdote_i.jqnuperp_dote_int
+    jtot_dote_int = jpara_dote_int + jperp_dote_int
+    print("The ratio of parallel and perpendicular acceleration for ions: %5.3f" %
+            (jpara_dote_int[-1] / jtot_dote_int[-1]))
 
     # if not os.path.isdir('../img/'):
     #     os.makedirs('../img/')
@@ -658,15 +674,45 @@ def plot_jpara_jperp_dote_multi():
         plt.close()
 
 
+def plot_jdotes_evolution_multi(species):
+    """Plot jdote evolution for multiple runs.
+
+    Args:
+        species: particle species.
+    """
+    dir = '../data/jdote_data/'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    odir = '../img/jdote/'
+    if not os.path.isdir(odir):
+        os.makedirs(odir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        jdote_fname = '../data/jdote_data/jdote_' + \
+                run_name + '_' + species + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        jdote = read_data_from_json(jdote_fname)
+        plot_jdotes_evolution(pic_info, jdote, species)
+        suffix = 'wjagy'
+        oname = odir + 'jdrifts_dote_' + run_name + '_' + suffix + '.eps'
+        plt.savefig(oname)
+        plt.close()
+
+
 if __name__ == "__main__":
+    species = 'e'
     # pic_info = pic_information.get_pic_info('../../')
-    # jdote = read_jdote_data('e')
+    # jdote = read_jdote_data(species)
+    # jdote_e = read_jdote_data('e')
+    # jdote_i = read_jdote_data('i')
     # plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
-    # plot_jdotes_evolution('e')
-    # plot_jpara_perp_dote()
+    # plot_jdotes_evolution(pic_info, jdote, species)
+    # plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
     # save_jdote_json('i')
-    plot_jpara_jperp_dote_multi()
+    # plot_jpara_jperp_dote_multi()
+    plot_jdotes_evolution_multi(species)
