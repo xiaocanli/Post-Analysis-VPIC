@@ -352,6 +352,17 @@ def plot_ptl_traj_direct():
     fname = '../../data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
 
+    # Change from di to de
+    smime = math.sqrt(pic_info.mime)
+    x *= smime
+    z *= smime
+    pxi *= smime
+    pyi *= smime
+    pzi *= smime
+    pxe *= smime
+    pye *= smime
+    pze *= smime
+
     colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
     fig = plt.figure(figsize=(7, 6))
 
@@ -367,7 +378,7 @@ def plot_ptl_traj_direct():
             aspect='auto', origin='lower',
             vmin = -vmax, vmax = vmax,
             interpolation='bicubic')
-    # im1.set_cmap('seismic')
+    im1.set_cmap('coolwarm')
     divider = make_axes_locatable(pxz_axis)
     cax = divider.append_axes("right", size="2%", pad=0.05)
     cbar = fig.colorbar(im1, cax=cax)
@@ -375,7 +386,7 @@ def plot_ptl_traj_direct():
     cbar.set_ticks(np.arange(-60, 70, 30))
     pxz_axis.contour(x, z, Ay, colors='black', linewidths=0.5)
     pxz_axis.tick_params(labelsize=16)
-    pxz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    pxz_axis.set_ylabel(r'$z/d_e$', fontdict=font, fontsize=20)
     pxz_axis.tick_params(axis='x', labelbottom='off')
     pxz_axis.autoscale(1,'both',1)
     pxz_axis.text(0.05, 0.8, var_name, color='black', fontsize=24, 
@@ -398,21 +409,33 @@ def plot_ptl_traj_direct():
     xe_axis = fig.add_axes([xs, ys, width1, height])
     xe_axis.tick_params(labelsize=16)
     pxe, = xe_axis.plot(pxe[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
-            linewidth=2, color='r')
-    xe_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
-            fontsize=20, color='r')
-    xe_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+            linewidth=2, color='r', label='electron')
+    xe_axis.set_ylabel(r'$E_k/(10^4m_ec^2)$', fontdict=font,
+            fontsize=20)
+    xe_axis.set_xlabel(r'$x/d_e$', fontdict=font, fontsize=20)
     xe_axis.set_xlim([np.min(x), np.max(x)])
-    for tl in xe_axis.get_yticklabels():
-        tl.set_color('r')
-    ax1 = xe_axis.twinx()
-    pene, = ax1.plot(pxi[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
-            linewidth=2, color='b')
-    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
-    ax1.tick_params(labelsize=16)
-    ax1.set_xlim([np.min(x), np.max(x)])
-    for tl in ax1.get_yticklabels():
-        tl.set_color('b')
+    # for tl in xe_axis.get_yticklabels():
+    #     tl.set_color('r')
+    # ax1 = xe_axis.twinx()
+    pene, = xe_axis.plot(pxi[:tmax_i], (gamai[:tmax_i] - 1.0)*pic_info.mime/1E4,
+            linewidth=2, color='b', label='ion')
+    # xe_axis.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20)
+    xe_axis.tick_params(labelsize=16)
+    xe_axis.set_xlim([np.min(x), np.max(x)])
+    # for tl in ax1.get_yticklabels():
+    #     tl.set_color('b')
+    # leg = xe_axis.legend(loc=2, prop={'size':20}, ncol=1,
+    #         shadow=False, fancybox=False, frameon=False)
+    xe_axis.text(0.05, 0.8, 'Electron',
+            color='red', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = xe_axis.transAxes)
+    xe_axis.text(0.05, 0.6, 'Ion',
+            color='blue', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = xe_axis.transAxes)
 
     # Energy plot
     nt, = gamae.shape
@@ -423,20 +446,20 @@ def plot_ptl_traj_direct():
     ene_axis = fig.add_axes([xs, ys, width1, height])
     pene, = ene_axis.plot(tptl[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
             linewidth=2, color='r')
-    ene_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
-            fontsize=20, color='r')
-    ene_axis.set_xlabel(r'$t\Omega_{pe}$', fontdict=font, fontsize=20)
+    ene_axis.set_ylabel(r'$E_k/(10^4m_ec^2)$', fontdict=font,
+            fontsize=20)
+    ene_axis.set_xlabel(r'$t\omega_{pe}$', fontdict=font, fontsize=20)
     ene_axis.tick_params(labelsize=16)
-    for tl in ene_axis.get_yticklabels():
-        tl.set_color('r')
+    # for tl in ene_axis.get_yticklabels():
+    #     tl.set_color('r')
 
-    ax1 = ene_axis.twinx()
-    pene, = ax1.plot(tptl[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
-            linewidth=2, color='b')
-    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
-    ax1.tick_params(labelsize=16)
-    for tl in ax1.get_yticklabels():
-        tl.set_color('b')
+    # ax1 = ene_axis.twinx()
+    pene, = ene_axis.plot(tptl[:tmax_i], (gamai[:tmax_i] - 1.0)*pic_info.mime/1E4,
+            linewidth=2)
+    # ax1.set_ylabel(r'$E_k/(10^4m_ec^2)$', fontdict=font, fontsize=20)
+    ene_axis.tick_params(labelsize=16)
+    # for tl in ax1.get_yticklabels():
+    #     tl.set_color('b')
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
@@ -451,10 +474,13 @@ def plot_ptl_traj_fermi():
 
     This is for Fermi acceleration.
     """
+    # Ratio of fields interval to particle tracking interval
+    ratio_interval_fields_track = 20
     filepath = '/net/scratch1/guofan/share/ultra-sigma/'
     filepath += 'sigma1e4-mime100-4000-track/pic_analysis/vpic-sorter/data/'
-    fname = filepath + 'electrons_2.h5p'
-    iptl = 330
+    fname = filepath + 'electrons.h5p'
+    # iptl = 330
+    iptl = 68
     pxe, pye, pze, gamae = get_particle_info(fname, iptl)
 
     filepath = '/net/scratch1/guofan/share/ultra-sigma/'
@@ -464,13 +490,29 @@ def plot_ptl_traj_fermi():
     iptl = 659
     pxi, pyi, pzi, gamai = get_particle_info(fname, iptl)
 
+    # var_field = 'ey'
+    # var_name = '$E_y$'
     var_field = 'vx'
     var_name = '$v_x$'
-    kwargs = {"current_time":45, "xl":50, "xr":200, "zb":-50, "zt":50}
+    ct = 49
+    ct_wpe = pic_info.fields_interval * ct * pic_info.dtwpe
+    ct_track = ct * ratio_interval_fields_track
+    kwargs = {"current_time":ct, "xl":100, "xr":200, "zb":-50, "zt":50}
     fname = '../../data/' + var_field + '.gda'
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs) 
     fname = '../../data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+
+    # Change from di to de
+    smime = math.sqrt(pic_info.mime)
+    x *= smime
+    z *= smime
+    pxi *= smime
+    pyi *= smime
+    pzi *= smime
+    pxe *= smime
+    pye *= smime
+    pze *= smime
 
     colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
     fig = plt.figure(figsize=(7, 6))
@@ -480,14 +522,15 @@ def plot_ptl_traj_fermi():
     gap = 0.04
 
     pxz_axis = fig.add_axes([xs, ys, width, height])
-    vmax = 1.0
+    vmax = min(abs(np.min(fdata)), abs(np.max(fdata)))
+    # vmax = 1.0
     im1 = pxz_axis.imshow(fdata, cmap=plt.cm.jet,
             extent=[np.min(x), np.max(x), np.min(z), np.max(z)],
             aspect='auto', origin='lower',
             vmin = -vmax, vmax = vmax,
             interpolation='bicubic')
     # im1.set_cmap(cmaps.viridis)
-    # im1.set_cmap('seismic')
+    im1.set_cmap('coolwarm')
     divider = make_axes_locatable(pxz_axis)
     cax = divider.append_axes("right", size="2%", pad=0.05)
     cbar = fig.colorbar(im1, cax=cax)
@@ -495,7 +538,7 @@ def plot_ptl_traj_fermi():
     cbar.set_ticks(np.arange(-0.8, 1.0, 0.4))
     pxz_axis.contour(x, z, Ay, colors='black', linewidths=0.5)
     pxz_axis.tick_params(labelsize=16)
-    pxz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    pxz_axis.set_ylabel(r'$z/d_e$', fontdict=font, fontsize=20)
     pxz_axis.tick_params(axis='x', labelbottom='off')
     pxz_axis.autoscale(1,'both',1)
     pxz_axis.text(0.05, 0.8, var_name, color='black', fontsize=24, 
@@ -507,12 +550,17 @@ def plot_ptl_traj_fermi():
 
     # xz plot
     nt, = pxe.shape
-    tmax_e = 1600
+    # tmax_e = 1600
+    tmax_e = 1200
     tmax_i = 1500
     pxze, = pxz_axis.plot(pxe[:tmax_e], pze[:tmax_e], linewidth=2,
             color='r')
     pxzi, = pxz_axis.plot(pxi[:tmax_i], pzi[:tmax_i], linewidth=2,
             color='b')
+    pdot_e, = pxz_axis.plot(pxe[ct_track], pze[ct_track], marker='x',
+            markersize=10, linestyle='None', color='r')
+    pdot_i, = pxz_axis.plot(pxi[ct_track], pzi[ct_track], marker='x',
+            markersize=10, linestyle='None', color='b')
 
     # x-energy
     ys -= height + gap
@@ -520,50 +568,69 @@ def plot_ptl_traj_fermi():
     width1 = width * 0.98 - 0.05 / w1
     xe_axis = fig.add_axes([xs, ys, width1, height])
     xe_axis.tick_params(labelsize=16)
-    pxe, = xe_axis.plot(pxe[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
-            linewidth=2, color='r')
-    xe_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
-            fontsize=20, color='r')
-    xe_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    kee = (gamae - 1.0)/1E4
+    px_ene_e, = xe_axis.plot(pxe[:tmax_e], kee[:tmax_e], linewidth=2, color='r')
+    xe_axis.set_ylabel(r'$E_k/(10^4m_ec^2)$', fontdict=font,
+            fontsize=20)
+    xe_axis.set_xlabel(r'$x/d_e$', fontdict=font, fontsize=20)
     xe_axis.set_xlim([np.min(x), np.max(x)])
-    for tl in xe_axis.get_yticklabels():
-        tl.set_color('r')
-    ax1 = xe_axis.twinx()
-    pene, = ax1.plot(pxi[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
-            linewidth=2, color='b')
-    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
-    ax1.tick_params(labelsize=16)
-    ax1.set_xlim([np.min(x), np.max(x)])
-    for tl in ax1.get_yticklabels():
-        tl.set_color('b')
+    # for tl in xe_axis.get_yticklabels():
+    #     tl.set_color('r')
+    # ax1 = xe_axis.twinx()
+    kei = (gamai - 1.0) * pic_info.mime / 1E4
+    px_ene_i, = xe_axis.plot(pxi[:tmax_i], kei[:tmax_i], linewidth=2, color='b')
+    # xe_axis.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20)
+    xe_axis.tick_params(labelsize=16)
+    xe_axis.set_xlim([np.min(x), np.max(x)])
+    # for tl in ax1.get_yticklabels():
+    #     tl.set_color('b')
+    xe_axis.text(0.05, 0.8, 'Electron',
+            color='red', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = xe_axis.transAxes)
+    xe_axis.text(0.05, 0.6, 'Ion',
+            color='blue', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = xe_axis.transAxes)
+    pxe_e, = xe_axis.plot(pxe[ct_track], kee[ct_track], marker='x',
+            markersize=10, linestyle='None', color='r')
+    pxe_i, = xe_axis.plot(pxi[ct_track], kei[ct_track], marker='x',
+            markersize=10, linestyle='None', color='b')
 
     # Energy plot
     nt, = gamae.shape
     # This is not general
-    tptl = np.arange(nt) * pic_info.fields_interval / 20 * pic_info.dtwpe
+    tptl = np.arange(nt) * pic_info.fields_interval * pic_info.dtwpe 
+    tptl /= ratio_interval_fields_track
     gap = 0.1
     ys -= height + gap
     ene_axis = fig.add_axes([xs, ys, width1, height])
-    pene, = ene_axis.plot(tptl[:tmax_e], (gamae[:tmax_e] - 1.0)/1E4,
+    pene_e, = ene_axis.plot(tptl[:tmax_e], kee[:tmax_e],
             linewidth=2, color='r')
-    ene_axis.set_ylabel(r'$(\gamma_e - 1)/10^4$', fontdict=font,
-            fontsize=20, color='r')
-    ene_axis.set_xlabel(r'$t\Omega_{pe}$', fontdict=font, fontsize=20)
+    ene_axis.set_ylabel(r'$E_k/(10^4m_ec^2)$', fontdict=font,
+            fontsize=20)
+    ene_axis.set_xlabel(r'$t\omega_{pe}$', fontdict=font, fontsize=20)
     ene_axis.tick_params(labelsize=16)
-    for tl in ene_axis.get_yticklabels():
-        tl.set_color('r')
+    # for tl in ene_axis.get_yticklabels():
+    #     tl.set_color('r')
 
-    ax1 = ene_axis.twinx()
-    pene, = ax1.plot(tptl[:tmax_i], (gamai[:tmax_i] - 1.0)/1E2,
+    # ax1 = ene_axis.twinx()
+    pene_i, = ene_axis.plot(tptl[:tmax_i], kei[:tmax_i],
             linewidth=2, color='b')
-    ax1.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
-    ax1.tick_params(labelsize=16)
-    for tl in ax1.get_yticklabels():
-        tl.set_color('b')
+    # ene_axis.set_ylabel(r'$(\gamma_i - 1)/10^2$', fontdict=font, fontsize=20, color='b')
+    ene_axis.tick_params(labelsize=16)
+    # for tl in ene_axis.get_yticklabels():
+    #     tl.set_color('b')
+    pene_e_dot, = ene_axis.plot(tptl[ct_track], kee[ct_track], marker='x',
+            markersize=10, linestyle='None', color='r')
+    pene_i_dot, = ene_axis.plot(tptl[ct_track], kei[ct_track], marker='x',
+            markersize=10, linestyle='None', color='b')
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
-    fname = '../img/traj_fermi.eps'
+    fname = '../img/traj_fermi_vx.eps'
     fig.savefig(fname)
 
     plt.show()
@@ -580,5 +647,5 @@ if __name__ == "__main__":
     # file = h5py.File(fname, 'r')
     # plot_ptl_traj(file, species)
     # file.close()
-    # plot_ptl_traj_direct()
-    plot_ptl_traj_fermi()
+    plot_ptl_traj_direct()
+    # plot_ptl_traj_fermi()
