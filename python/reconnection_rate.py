@@ -162,6 +162,7 @@ def plot_multi_reconnection_rate():
     dir = '../img/rate/'
     if not os.path.isdir(dir):
         os.makedirs(dir)
+    # Compare different density
     fig = plt.figure(figsize=[7, 5])
     ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
     colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
@@ -179,6 +180,7 @@ def plot_multi_reconnection_rate():
     fname = dir + 'rate_low_density.eps'
     fig.savefig(fname)
 
+    # Compare different temperature
     fig = plt.figure(figsize=[7, 5])
     ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
     ax.set_color_cycle(colors)
@@ -197,6 +199,7 @@ def plot_multi_reconnection_rate():
     fname = dir + 'rate_low_temp.eps'
     fig.savefig(fname)
 
+    # Compare different mass ratio
     fig = plt.figure(figsize=[7, 5])
     ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
     ax.set_color_cycle(colors)
@@ -210,6 +213,22 @@ def plot_multi_reconnection_rate():
     ax.legend(loc=1, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
     fname = dir + 'rate_mass.eps'
+    fig.savefig(fname)
+
+    # Compare different initial condition
+    fig = plt.figure(figsize=[7, 5])
+    ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
+    ax.set_color_cycle(colors)
+    ax.plot(tf1, rate1, linewidth=2, label='R1')
+    ax.plot(tf4, rate4, linewidth=2, label='R4')
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    ax.set_xlim([0, 1200])
+    ax.set_ylim([0, 0.12])
+    ax.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    fname = dir + 'rate_initial.eps'
     fig.savefig(fname)
 
     plt.show()
