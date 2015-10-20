@@ -26,7 +26,7 @@ def get_pic_info(base_directory):
     dtwpi = dtwpe / math.sqrt(pic_initial_info.mime)
     ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
-    fields_interval, particle_interval = \
+    fields_interval, particle_interval, trace_interval = \
             get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
@@ -38,11 +38,12 @@ def get_pic_info(base_directory):
     pic_ene = read_pic_energies(dt_energy, dte_wpe, base_directory)
     pic_times = collections.namedtuple("pic_times", 
             ['ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 
-                'tparticles', 'dt_energy', 'fields_interval', 'particle_interval'])
+             'tparticles', 'dt_energy', 'fields_interval', 'particle_interval',
+             'trace_interval'])
     pic_times_info = pic_times(ntf=ntf, dt_fields=dt_fields,
             dt_particles=dt_particles, tfields=tfields, dt_energy=dt_energy,
             ntp=ntp, tparticles=tparticles, fields_interval=fields_interval,
-            particle_interval=particle_interval)
+            particle_interval=particle_interval, trace_interval=trace_interval)
     pic_topology = get_pic_topology(base_directory)
     pic_information = collections.namedtuple("pic_information", 
             pic_initial_info._fields + pic_times_info._fields +
@@ -239,10 +240,13 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
                 cond2 = '//' in content[current_line]  # commented out
             interval = get_time_interval(content[current_line], dtwpe, dtwce,
                     dtwpi, dtwci)
+            # We assume the interval if trace_interval
+            trace_interval = interval
             interval = int(interval * time_ratio)
         else:
             interval = get_time_interval(content[current_line], dtwpe, dtwce,
                     dtwpi, dtwci)
+            trace_interval = 0
         
         fields_interval = interval
 
@@ -253,7 +257,7 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
         word_splits = line_splits[1].split("*")
         particle_interval = int(word_splits[0]) * interval
 
-    return (fields_interval, particle_interval)
+    return (fields_interval, particle_interval, trace_interval)
 
 def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
     """Get time interval from a line
