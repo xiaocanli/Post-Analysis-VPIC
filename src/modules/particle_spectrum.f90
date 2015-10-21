@@ -180,6 +180,7 @@ module particle_energy_spectrum
         character(len=50) :: cid
         logical :: isrange
         integer :: np, iptl
+        integer :: IOstatus
 
         ! Read particle data in parallel to generate distributions
         do np = 0, domain%nproc-numprocs, numprocs
@@ -190,7 +191,8 @@ module particle_energy_spectrum
             if (isrange) then
                 ! Loop over particles
                 do iptl = 1, pheader%dim, 1
-                    call single_particle_energy(fh)
+                    IOstatus = single_particle_energy(fh)
+                    if (IOstatus /= 0) exit
                 enddo
             endif
 
@@ -217,6 +219,7 @@ module particle_energy_spectrum
         character(len=50) :: cid
         integer :: np, iptl
         integer :: ix, iy, iz
+        integer :: IOstatus
 
         ! Read particle data and update the spectra
         do iz = corners_mpi(1,3), corners_mpi(2,3)
@@ -228,7 +231,8 @@ module particle_energy_spectrum
 
                     ! Loop over particles
                     do iptl = 1, pheader%dim, 1
-                        call single_particle_energy(fh)
+                        IOstatus = single_particle_energy(fh)
+                        if (IOstatus /= 0) exit
                     enddo
 
                     call close_particle_file
@@ -243,27 +247,33 @@ module particle_energy_spectrum
     ! calculate its energy and put it into the flux arrays.
     ! Input:
     !   fh: file handler.
+    ! Returns:
+    !   IOstatus: '0' is OK. 'negative' indicates the end of a file.
+    !             'positive' indicates something is wrong.
     !---------------------------------------------------------------------------
-    subroutine single_particle_energy(fh)
+    function single_particle_energy(fh) result(IOstatus)
         use particle_module, only: ptl, calc_particle_energy, px, py, pz, &
                                    calc_ptl_coord
         use spectrum_config, only: spatial_range
         use constants, only: fp
         implicit none
         integer, intent(in) :: fh
+        integer :: IOstatus
 
-        read(fh) ptl
-        call calc_ptl_coord
+        read(fh, IOSTAT=IOstatus) ptl
+        if (IOstatus == 0) then
+            call calc_ptl_coord
 
-        if ((px >= spatial_range(1, 1)) .and. (px <= spatial_range(2, 1)) .and. &
-            (py >= spatial_range(1, 2)) .and. (py <= spatial_range(2, 2)) .and. &
-            (pz >= spatial_range(1, 3)) .and. (pz <= spatial_range(2, 3))) then
+            if ((px >= spatial_range(1, 1)) .and. (px <= spatial_range(2, 1)) .and. &
+                (py >= spatial_range(1, 2)) .and. (py <= spatial_range(2, 2)) .and. &
+                (pz >= spatial_range(1, 3)) .and. (pz <= spatial_range(2, 3))) then
 
-            call calc_particle_energy
-            call update_energy_spectrum
+                call calc_particle_energy
+                call update_energy_spectrum
+            endif
         endif
 
-    end subroutine single_particle_energy
+    end function single_particle_energy
 
     !---------------------------------------------------------------------------
     ! Update particle energy spectrum.
