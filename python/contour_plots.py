@@ -20,6 +20,8 @@ import collections
 import pic_information
 import color_maps as cm
 import colormap.colormaps as cmaps
+from runs_name_path import ApJ_long_paper_runs
+from energy_conversion import read_data_from_json
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -328,6 +330,40 @@ def plot_number_density(pic_info, species, current_time):
     plt.show()
     #plt.close()
 
+
+def get_anisotropy_data(pic_info, species, ct, rootpath='../../'):
+    """
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct: current time frame.
+        rootpath: the root path of a run.
+    """
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-40, "zt":40}
+    fname = rootpath + 'data/p' + species + '-xx.gda'
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = rootpath + 'data/p' + species + '-yy.gda'
+    x, z, pyy = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = rootpath + 'data/p' + species + '-zz.gda'
+    x, z, pzz = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = rootpath + 'data/p' + species + '-xy.gda'
+    x, z, pxy = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = rootpath + 'data/p' + species + '-xz.gda'
+    x, z, pxz = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = rootpath + 'data/p' + species + '-yz.gda'
+    x, z, pyz = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, bx = read_2d_fields(pic_info, rootpath + "data/bx.gda", **kwargs) 
+    x, z, by = read_2d_fields(pic_info, rootpath + "data/by.gda", **kwargs) 
+    x, z, bz = read_2d_fields(pic_info, rootpath + "data/bz.gda", **kwargs) 
+    x, z, absB = read_2d_fields(pic_info, rootpath + "data/absB.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, rootpath + "data/Ay.gda", **kwargs) 
+    ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + \
+            pxy*bx*by*2.0 + pxz*bx*bz*2.0 + pyz*by*bz*2.0
+    ppara /= absB * absB
+    pperp = 0.5 * (pxx+pyy+pzz-ppara)
+    return (ppara, pperp, Ay, x, z)
+
+
 def plot_anisotropy(pic_info, species, ct):
     """Plot pressure anisotropy.
 
@@ -336,31 +372,9 @@ def plot_anisotropy(pic_info, species, ct):
         species: 'e' for electrons, 'i' for ions.
         ct: current time frame.
     """
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-40, "zt":40}
-    fname = '../../data/p' + species + '-xx.gda'
-    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../../data/p' + species + '-yy.gda'
-    x, z, pyy = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../../data/p' + species + '-zz.gda'
-    x, z, pzz = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../../data/p' + species + '-xy.gda'
-    x, z, pxy = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../../data/p' + species + '-xz.gda'
-    x, z, pxz = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = '../../data/p' + species + '-yz.gda'
-    x, z, pyz = read_2d_fields(pic_info, fname, **kwargs) 
-    x, z, bx = read_2d_fields(pic_info, "../../data/bx.gda", **kwargs) 
-    x, z, by = read_2d_fields(pic_info, "../../data/by.gda", **kwargs) 
-    x, z, bz = read_2d_fields(pic_info, "../../data/bz.gda", **kwargs) 
-    x, z, absB = read_2d_fields(pic_info, "../../data/absB.gda", **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
-    ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + \
-            pxy*bx*by*2.0 + pxz*bx*bz*2.0 + pyz*by*bz*2.0
-    ppara /= absB * absB
-    pperp = 0.5 * (pxx+pyy+pzz-ppara)
+    ppara, pperp, Ay, x, z = get_anisotropy_data(pic_info, species, ct)
     nx, = x.shape
     nz, = z.shape
-    beta_e = (pxx+pyy+pzz)*2/(3*absB**2)
     width = 0.8
     height = 0.63
     xs = 0.12
@@ -377,6 +391,43 @@ def plot_anisotropy(pic_info, species, ct):
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
 
     plt.show()
+
+
+def plot_anisotropy_multi(species):
+    """Plot pressure anisotropy for multiple runs.
+
+    Args:
+        species: 'e' for electrons, 'i' for ions.
+    """
+    width = 0.8
+    height = 0.1
+    xs = 0.12
+    ys = 0.92 - height
+    gap = 0.02
+    fig = plt.figure(figsize=[7,12])
+
+    ct = 20
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        ppara, pperp, Ay, x, z = \
+                get_anisotropy_data(pic_info, species, ct, base_dir)
+        nx, = x.shape
+        nz, = z.shape
+        ax1 = fig.add_axes([xs, ys, width, height])
+        kwargs_plot = {"xstep":2, "zstep":2, "is_log":True, "vmin":0.1, "vmax":10}
+        xstep = kwargs_plot["xstep"]
+        zstep = kwargs_plot["zstep"]
+        p1, cbar1 = plot_2d_contour(x, z, ppara/pperp, ax1, fig, **kwargs_plot)
+        p1.set_cmap(plt.cm.seismic)
+        ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+                colors='black', linewidths=0.5)
+        ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+        ys -= height + gap
+
+    plt.show()
+
 
 def plot_beta_rho(pic_info):
     """Plot plasma beta and number density.
@@ -1032,11 +1083,11 @@ def plot_uy(pic_info, current_time):
 
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
-    ntp = pic_info.ntp
+    # pic_info = pic_information.get_pic_info('../../')
+    # ntp = pic_info.ntp
     # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
-    plot_anisotropy(pic_info, 'e', 160)
+    # plot_anisotropy(pic_info, 'e', 160)
     # plot_phi_parallel(pic_info)
     # maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
     # nmaps = len(maps) + 1
@@ -1061,3 +1112,4 @@ if __name__ == "__main__":
     #     plot_jy_Ey(pic_info, 'e', i)
     # plot_jpolar_dote(pic_info, 'e', 30)
     # plot_epara(pic_info, 'e', 20)
+    plot_anisotropy_multi('e')
