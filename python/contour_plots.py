@@ -188,6 +188,80 @@ def plot_jy(pic_info, species, current_time):
     plt.show()
     # plt.close()
 
+def plot_absB_jy(pic_info, species, current_time):
+    """Plot magnetic field strength and out-of-plane current density.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-30, "zt":30}
+    x, z, jy = read_2d_fields(pic_info, "../../data/jy.gda", **kwargs) 
+    x, z, absB = read_2d_fields(pic_info, "../../data/absB.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.8
+    height = 0.37
+    xs = 0.12
+    ys = 0.92 - height
+    gap = 0.05
+    fig = plt.figure(figsize=[7, 5])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":0, "vmax":2.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, absB, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(plt.cm.get_cmap('seismic'))
+    p1.set_cmap(cmaps.plasma)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    ax1.tick_params(axis='x', labelbottom='off')
+    # cbar1.set_ticks(np.arange(0, 1.0, 0.2))
+    cbar1.ax.tick_params(labelsize=16)
+    ax1.text(0.02, 0.8, r'$|\mathbf{B}|$', color='w', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+
+    ys -= height + gap
+    ax2 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p2, cbar2 = plot_2d_contour(x, z, jy, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.get_cmap('seismic'))
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
+    cbar2.set_ticks(np.arange(-0.4, 0.5, 0.2))
+    cbar2.ax.tick_params(labelsize=16)
+    ax2.text(0.02, 0.8, r'$j_y$', color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
+    
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_absB_jy/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'absB_jy_' + str(current_time).zfill(3) + '.jpg'
+    fig.savefig(fname, dpi=200)
+
+    # plt.show()
+    plt.close()
+
 def plot_by(pic_info, species):
     """Plot out-of-plane magnetic field.
 
@@ -217,7 +291,7 @@ def plot_by(pic_info, species):
     fig = plt.figure(figsize=[w1, h1])
 
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1.0, "vmax":1.0}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-1.0, "vmax":1.0}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1 = plot_2d_contour(x, z, by1, ax1, fig, is_cbar=0, **kwargs_plot)
@@ -274,11 +348,15 @@ def plot_by(pic_info, species):
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform = ax3.transAxes)
+
+    # minor_ticks = np.arange(0, 200, 5)
+    # ax3.set_xticks(minor_ticks, minor=True)
+    # ax3.grid(which='both')
     
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
-    fname = '../img/by_time.jpg'
-    fig.savefig(fname, dpi=200)
+    fname = '../img/by_time.eps'
+    fig.savefig(fname)
 
     plt.show()
     # plt.close()
@@ -339,7 +417,7 @@ def get_anisotropy_data(pic_info, species, ct, rootpath='../../'):
         ct: current time frame.
         rootpath: the root path of a run.
     """
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-40, "zt":40}
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-20, "zt":20}
     fname = rootpath + 'data/p' + species + '-xx.gda'
     x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
     fname = rootpath + 'data/p' + species + '-yy.gda'
@@ -364,33 +442,65 @@ def get_anisotropy_data(pic_info, species, ct, rootpath='../../'):
     return (ppara, pperp, Ay, x, z)
 
 
-def plot_anisotropy(pic_info, species, ct):
+def plot_anisotropy(pic_info, ct):
     """Plot pressure anisotropy.
 
     Args:
         pic_info: namedtuple for the PIC simulation information.
-        species: 'e' for electrons, 'i' for ions.
         ct: current time frame.
     """
-    ppara, pperp, Ay, x, z = get_anisotropy_data(pic_info, species, ct)
+    ppara_e, pperp_e, Ay, x, z = get_anisotropy_data(pic_info, 'e', ct)
+    ppara_i, pperp_i, Ay, x, z = get_anisotropy_data(pic_info, 'i', ct)
     nx, = x.shape
     nz, = z.shape
     width = 0.8
-    height = 0.63
+    height = 0.37
     xs = 0.12
     ys = 0.92 - height
-    fig = plt.figure(figsize=[7,2])
+    gap = 0.05
+
+    fig = plt.figure(figsize=[7,5])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":2, "zstep":2, "is_log":True, "vmin":0.1, "vmax":10}
+    kwargs_plot = {"xstep":1, "zstep":1, "is_log":True, "vmin":0.1, "vmax":10}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
-    p1, cbar1 = plot_2d_contour(x, z, ppara/pperp, ax1, fig, **kwargs_plot)
+    p1, cbar1 = plot_2d_contour(x, z, ppara_e/pperp_e, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.seismic)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
-    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.text(0.1, 0.9, r'$p_{e\parallel}/p_{e\perp}$', color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
 
-    plt.show()
+    ys -= height + gap
+    ax2 = fig.add_axes([xs, ys, width, height])
+    p2, cbar2 = plot_2d_contour(x, z, ppara_i/pperp_i, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.seismic)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax2.text(0.1, 0.9, r'$p_{i\parallel}/p_{i\perp}$', color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
+
+    t_wci = ct * pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/anisotropy/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'anisotropy_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname, dpi=200)
+    plt.close()
+
+    # plt.show()
 
 
 def plot_anisotropy_multi(species):
@@ -761,19 +871,20 @@ def plot_epara(pic_info, species, current_time):
 
     nx, = x.shape
     nz, = z.shape
-    width = 0.78
-    height = 0.35
+    width = 0.79
+    height = 0.37
     xs = 0.12
-    ys = 0.95 - height
-    gap = 0.06
+    ys = 0.92 - height
+    gap = 0.05
 
-    fig = plt.figure(figsize=[7, 3])
+    fig = plt.figure(figsize=[7, 5])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":0, "vmax":0.05}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":0, "vmax":0.1}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, eperp, ax1, fig, **kwargs_plot)
-    p1.set_cmap(cmaps.inferno)
+    # p1.set_cmap(cmaps.inferno)
+    p1.set_cmap(plt.cm.get_cmap('hot'))
     Ay_min = np.min(Ay)
     Ay_max = np.max(Ay)
     levels = np.linspace(Ay_min, Ay_max, 10)
@@ -784,7 +895,7 @@ def plot_epara(pic_info, species, current_time):
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.tick_params(labelsize=16)
     # cbar1.ax.set_ylabel(r'$E_\perp$', fontdict=font, fontsize=20)
-    cbar1.set_ticks(np.arange(0, 0.06, 0.01))
+    cbar1.set_ticks(np.arange(0, 0.1, 0.03))
     cbar1.ax.tick_params(labelsize=16)
     ax1.text(0.02, 0.8, r'$E_\perp$', color='w', fontsize=20, 
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
@@ -809,14 +920,20 @@ def plot_epara(pic_info, species, current_time):
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform = ax2.transAxes)
+
+    t_wci = current_time*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
     
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_epara/'
     if not os.path.isdir(dir):
         os.makedirs(dir)
-    fname = dir + 'epara_perp' + '_' + str(current_time).zfill(3) + '.jpg'
-    fig.savefig(fname, dpi=200)
+    # fname = dir + 'epara_perp' + '_' + str(current_time).zfill(3) + '.jpg'
+    # fig.savefig(fname, dpi=200)
+    fname = dir + 'epara_perp' + '_' + str(current_time).zfill(3) + '.eps'
+    fig.savefig(fname)
 
     plt.show()
     # plt.close()
@@ -944,13 +1061,18 @@ def plot_ux(pic_info, species, current_time):
     ux /= va
     nx, = x.shape
     nz, = z.shape
-    width = 0.75
-    height = 0.4
-    xs = 0.15
+    width = 0.79
+    height = 0.37
+    xs = 0.13
     ys = 0.92 - height
+    gap = 0.05
+    # width = 0.75
+    # height = 0.4
+    # xs = 0.15
+    # ys = 0.92 - height
     fig = plt.figure(figsize=[7,5])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1.0, "vmax":1.0}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-1.0, "vmax":1.0}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, ux, ax1, fig, **kwargs_plot)
@@ -958,12 +1080,12 @@ def plot_ux(pic_info, species, current_time):
     # p1.set_cmap(cmaps.inferno)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
             colors='black', linewidths=0.5)
-    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
-    ax1.tick_params(labelsize=20)
+    ax1.tick_params(labelsize=16)
     cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
-    cbar1.ax.tick_params(labelsize=20)
-    ax1.text(0.02, 0.8, r'$u_x/V_A$', color='k', fontsize=24, 
+    cbar1.ax.tick_params(labelsize=16)
+    ax1.text(0.02, 0.8, r'$u_x/V_A$', color='k', fontsize=20, 
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
@@ -971,7 +1093,7 @@ def plot_ux(pic_info, species, current_time):
     
     t_wci = current_time*pic_info.dt_fields
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
-    ax1.set_title(title, fontdict=font, fontsize=24)
+    ax1.set_title(title, fontdict=font, fontsize=20)
 
     gap = 0.06
     ys0 = 0.15
@@ -981,9 +1103,9 @@ def plot_ux(pic_info, species, current_time):
     ax2 = fig.add_axes([xs, ys0, width0, height0])
     ax2.plot(x, ux[nz/2, :], color='k', linewidth=1)
     ax2.plot([np.min(x), np.max(x)], [0, 0], linestyle='--', color='k')
-    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
-    ax2.set_ylabel(r'$u_x/V_A$', fontdict=font, fontsize=24)
-    ax2.tick_params(labelsize=20)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'$u_x/V_A$', fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
     ax2.set_ylim([-1, 1])
 
     if not os.path.isdir('../img/'):
@@ -1005,7 +1127,7 @@ def plot_uy(pic_info, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-40, "zt":40}
+    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
     fname = "../../data/vey.gda"
     if not os.path.isfile(fname):
         fname = "../../data/uey.gda"
@@ -1021,14 +1143,14 @@ def plot_uy(pic_info, current_time):
     uiy /= va
     nx, = x.shape
     nz, = z.shape
-    width = 0.8
+    width = 0.79
     height = 0.37
-    xs = 0.12
+    xs = 0.13
     ys = 0.92 - height
     gap = 0.05
     fig = plt.figure(figsize=[7,5])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-0.5, "vmax":0.5}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, uey, ax1, fig, **kwargs_plot)
@@ -1083,21 +1205,24 @@ def plot_uy(pic_info, current_time):
 
 
 if __name__ == "__main__":
-    # pic_info = pic_information.get_pic_info('../../')
+    pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
     # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
-    # plot_anisotropy(pic_info, 'e', 160)
+    # plot_anisotropy(pic_info, 80)
     # plot_phi_parallel(pic_info)
     # maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
     # nmaps = len(maps) + 1
     # print nmaps
-    # for i in range(pic_info.ntf):
+    # for i in range(200):
     #     # plot_number_density(pic_info, 'e', i)
     #     # plot_jy(pic_info, 'e', i)
-    #     plot_Ey(pic_info, 'e', i)
+    #     # plot_Ey(pic_info, 'e', i)
+    #     plot_anisotropy(pic_info, i)
     # plot_number_density(pic_info, 'e', 40)
     # plot_jy(pic_info, 'e', 120)
+    # for i in range(90, 170, 10):
+    #     plot_absB_jy(pic_info, 'e', i)
     # plot_by(pic_info, 'e')
     # plot_ux(pic_info, 'e', 160)
     # plot_uy(pic_info, 160)
@@ -1111,5 +1236,5 @@ if __name__ == "__main__":
     # for i in range(pic_info.ntf):
     #     plot_jy_Ey(pic_info, 'e', i)
     # plot_jpolar_dote(pic_info, 'e', 30)
-    # plot_epara(pic_info, 'e', 20)
-    plot_anisotropy_multi('e')
+    plot_epara(pic_info, 'e', 35)
+    # plot_anisotropy_multi('e')
