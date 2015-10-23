@@ -262,13 +262,127 @@ def plot_absB_jy(pic_info, species, current_time):
     # plt.show()
     plt.close()
 
-def plot_by(pic_info, species):
-    """Plot out-of-plane magnetic field.
 
-    Args:
-        pic_info: namedtuple for the PIC simulation information.
-        species: 'e' for electrons, 'i' for ions.
-        current_time: current time frame.
+def plot_by_multi():
+    """Plot out-of-plane magnetic field for multiple runs.
+    """
+    base_dirs, run_names = ApJ_long_paper_runs()
+    print run_names
+    ct1, ct2, ct3 = 20, 21, 11
+    kwargs = {"current_time":ct1, "xl":0, "xr":200, "zb":-10, "zt":10}
+    base_dir = base_dirs[2]
+    run_name = run_names[2]
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    fname1 = base_dir + 'data/jy.gda'
+    fname2 = base_dir + 'data/Ay.gda'
+    x, z, by1 = read_2d_fields(pic_info, fname1, **kwargs) 
+    x, z, Ay1 = read_2d_fields(pic_info, fname2, **kwargs) 
+    kwargs["current_time"] = ct2
+    base_dir = base_dirs[5]
+    run_name = run_names[5]
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    fname1 = base_dir + 'data/by.gda'
+    fname2 = base_dir + 'data/Ay.gda'
+    x, z, by2 = read_2d_fields(pic_info, fname1, **kwargs) 
+    x, z, Ay2 = read_2d_fields(pic_info, fname2, **kwargs) 
+    kwargs["current_time"] = ct3
+    base_dir = base_dirs[6]
+    run_name = run_names[6]
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    fname1 = base_dir + 'data/by.gda'
+    fname2 = base_dir + 'data/Ay.gda'
+    x, z, by3 = read_2d_fields(pic_info, fname1, **kwargs) 
+    x, z, Ay3 = read_2d_fields(pic_info, fname2, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.75
+    height = 0.24
+    gap = 0.05
+    xs = 0.12
+    ys = 0.96 - height
+    w1, h1 = 7, 5
+    fig = plt.figure(figsize=[w1, h1])
+
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-1.0, "vmax":1.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1 = plot_2d_contour(x, z, by1, ax1, fig, is_cbar=0, **kwargs_plot)
+    xs1 = xs + width*1.02
+    ys1 = ys - 2*(height + gap)
+    width1 = width*0.04
+    height1 = 3*height + 2*gap
+    cax = fig.add_axes([xs1, ys1, width1, height1])
+    cbar1 = fig.colorbar(p1, cax=cax)
+    cbar1.ax.tick_params(labelsize=16)
+    p1.set_cmap(plt.cm.get_cmap('bwr'))
+    levels = np.linspace(np.max(Ay1), np.min(Ay1), 10)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay1[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    ax1.tick_params(axis='x', labelbottom='off')
+    cbar1.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    cbar1.ax.tick_params(labelsize=16)
+    t_wci = ct1*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.text(0.02, 0.8, title, color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+
+    ys -= height + gap
+    ax2 = fig.add_axes([xs, ys, width, height])
+    p2 = plot_2d_contour(x, z, by2, ax2, fig, is_cbar=0, **kwargs_plot)
+    p2.set_cmap(plt.cm.get_cmap('bwr'))
+    levels = np.linspace(np.max(Ay2), np.min(Ay2), 10)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay2[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
+    ax2.tick_params(axis='x', labelbottom='off')
+    t_wci = ct2*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax2.text(0.02, 0.8, title, color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
+
+    ys -= height + gap
+    ax3 = fig.add_axes([xs, ys, width, height])
+    p3 = plot_2d_contour(x, z, by3, ax3, fig, is_cbar=0, **kwargs_plot)
+    p3.set_cmap(plt.cm.get_cmap('bwr'))
+    levels = np.linspace(np.max(Ay3), np.min(Ay3), 10)
+    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay3[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax3.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax3.tick_params(labelsize=16)
+    t_wci = ct3*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax3.text(0.02, 0.8, title, color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax3.transAxes)
+
+    # minor_ticks = np.arange(0, 200, 5)
+    # ax3.set_xticks(minor_ticks, minor=True)
+    # ax3.grid(which='both')
+    
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # fname = '../img/by_time.eps'
+    # fig.savefig(fname)
+
+    plt.show()
+    # plt.close()
+
+
+def plot_by(pic_info):
+    """Plot out-of-plane magnetic field.
     """
     ct1, ct2, ct3 = 10, 20, 35
     kwargs = {"current_time":ct1, "xl":0, "xr":200, "zb":-10, "zt":10}
@@ -1205,7 +1319,7 @@ def plot_uy(pic_info, current_time):
 
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
+    # pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
     # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
@@ -1223,7 +1337,8 @@ if __name__ == "__main__":
     # plot_jy(pic_info, 'e', 120)
     # for i in range(90, 170, 10):
     #     plot_absB_jy(pic_info, 'e', i)
-    # plot_by(pic_info, 'e')
+    # plot_by(pic_info)
+    plot_by_multi()
     # plot_ux(pic_info, 'e', 160)
     # plot_uy(pic_info, 160)
     # plot_diff_fields(pic_info, 'e', 120)
@@ -1236,5 +1351,5 @@ if __name__ == "__main__":
     # for i in range(pic_info.ntf):
     #     plot_jy_Ey(pic_info, 'e', i)
     # plot_jpolar_dote(pic_info, 'e', 30)
-    plot_epara(pic_info, 'e', 35)
+    # plot_epara(pic_info, 'e', 35)
     # plot_anisotropy_multi('e')
