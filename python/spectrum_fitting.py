@@ -11,6 +11,7 @@ import os.path
 import pic_information
 import fitting_funcs
 import palettable
+from runs_name_path import ApJ_long_paper_runs
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -569,10 +570,26 @@ def plot_maximum_energy(ntp, pic_info):
     plt.show()
 
 
+def move_energy_spectra():
+    if not os.path.isdir('../data/'):
+        os.makedirs('../data/')
+    dir = '../data/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        fpath = dir + run_name
+        if not os.path.isdir(fpath):
+            os.makedirs(fpath)
+        command = "cp " + base_dir + "/pic_analysis/spectrum/* " + fpath
+        os.system(command)
+
+
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
-    ntp = pic_info.ntp
-    vthe = pic_info.vthe
+    # pic_info = pic_information.get_pic_info('../../')
+    # ntp = pic_info.ntp
+    # vthe = pic_info.vthe
     # plot_spectrum_series(ntp, 'e', pic_info)
     # plot_spectrum_bulk(ntp, 'e', pic_info)
-    plot_maximum_energy(ntp, pic_info)
+    # plot_maximum_energy(ntp, pic_info)
+    move_energy_spectra()
