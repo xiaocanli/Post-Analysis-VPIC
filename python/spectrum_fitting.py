@@ -8,13 +8,19 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 from scipy.optimize import curve_fit
 import os.path
+import collections
 import pic_information
 import fitting_funcs
+import palettable
+from runs_name_path import ApJ_long_paper_runs
+from energy_conversion import read_data_from_json
 import palettable
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
+
+colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
 font = {'family': 'serif',
         #'color'  : 'darkred',
@@ -97,7 +103,10 @@ def fit_thermal_core(ene, f):
     """
     print 'Fitting to get the thermal core of the particle distribution.'
     estart = 0
-    eend = np.argmax(f) + 10  # 10 grids shift for fitting thermal core.
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    fnew = np.convolve(f, kernel, 'same')
+    eend = np.argmax(fnew) + 10  # 10 grids shift for fitting thermal core.
     popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
                            ene[estart:eend], f[estart:eend])
     fthermal = fitting_funcs.func_maxwellian(ene, popt[0], popt[1])
@@ -496,20 +505,22 @@ def read_spectrum_data(fname):
         f.close()
         return data
 
-def maximum_energy(ntp, species, pic_info):
+
+def maximum_energy(ntp, species, pic_info, fpath='../spectrum/'):
     """Plot a series of energy spectra.
 
     Args:
         ntp: total number of time frames.
         species: particle species. 'e' for electron, 'h' for ion.
         pic_info: namedtuple for the PIC simulation information.
+        fpath: the file path for the spectra data.
     Return:
         max_ene: the maximum energy at each time step.
     """
     max_ene = np.zeros(ntp)
     for ct in range(1, ntp, 1):
         # Get particle spectra energy bins and flux
-        fname = "../spectrum/spectrum-" + species + "." + str(ct).zfill(len(str(ct)))
+        fname = fpath + "spectrum-" + species + "." + str(ct).zfill(len(str(ct)))
         nx = pic_info.nx
         ny = pic_info.ny
         nz = pic_info.nz
@@ -537,15 +548,16 @@ def maximum_energy(ntp, species, pic_info):
     return max_ene/eth
 
 
-def plot_maximum_energy(ntp, pic_info):
+def plot_maximum_energy(ntp, pic_info, dir):
     """Plot a series of energy spectra.
 
     Args:
         ntp: total number of time frames.
         pic_info: namedtuple for the PIC simulation information.
+        dir: the directory that contains the particle spectra data.
     """
-    max_ene_e = maximum_energy(ntp, 'e', pic_info)
-    max_ene_i = maximum_energy(ntp, 'h', pic_info)
+    max_ene_e = maximum_energy(ntp, 'e', pic_info, dir)
+    max_ene_i = maximum_energy(ntp, 'h', pic_info, dir)
 
     fig = plt.figure(figsize=[7, 5])
     width = 0.69
@@ -554,25 +566,610 @@ def plot_maximum_energy(ntp, pic_info):
     ys = 0.95 - height
     ax = fig.add_axes([xs, ys, width, height])
     tparticles = pic_info.tparticles
-    p1 = ax.plot(tparticles, max_ene_e, color='r', linewidth=2)
+    p1 = ax.plot(tparticles, max_ene_e, color=colors[0], linewidth=2)
     ax.set_xlabel('$t\Omega_{ci}$', fontdict=font)
-    ax.set_ylabel('$E_{maxe}/E_{the}$', fontdict=font, color='r')
+    ax.set_ylabel(r'$\varepsilon_\text{emax}/\varepsilon_\text{the}$',
+            fontdict=font, color=colors[0])
     for tl in ax.get_yticklabels():
-        tl.set_color('r')
+        tl.set_color(colors[0])
     ax.tick_params(labelsize=20)
     ax1 = ax.twinx()
-    p2 = ax1.plot(tparticles, max_ene_i, color='b', linewidth=2)
+    p2 = ax1.plot(tparticles, max_ene_i, color=colors[1], linewidth=2)
     ax1.tick_params(labelsize=20)
-    ax1.set_ylabel('$E_{maxi}/E_{thi}$', fontdict=font, color='b')
+    ax1.set_ylabel(r'$\varepsilon_\text{imax}/\varepsilon_\text{thi}$',
+            fontdict=font, color=colors[1])
     for tl in ax1.get_yticklabels():
-        tl.set_color('b')
+        tl.set_color(colors[1])
+    # plt.show()
+
+
+def move_energy_spectra():
+    if not os.path.isdir('../data/'):
+        os.makedirs('../data/')
+    dir = '../data/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        fpath = dir + run_name
+        if not os.path.isdir(fpath):
+            os.makedirs(fpath)
+        command = "cp " + base_dir + "/pic_analysis/spectrum/* " + fpath
+        os.system(command)
+
+
+def plot_nonthernal_fraction(nnth, enth, pic_info):
+    """Plot nonthermal fractions for particle number and energy.
+
+    Args:
+        nnth: nonthermal fraction for particle number.
+        enth: nonthermal fraction for particle energy.
+        pic_info: particle information namedtuple.
+    """
+    tptl = np.zeros(pic_info.ntp+1)
+    tptl[1:] = pic_info.tparticles + pic_info.dt_particles
+    nt = min(tptl.shape, len(nnth))
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.13
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    p1, = ax.plot(tptl[:nt], nnth[:nt], linewidth=2, label=r'$N_\text{nth}/N_0$')
+    p2, = ax.plot(tptl[:nt], enth[:nt], linewidth=2,
+            label=r'$\varepsilon_\text{nth}/\varepsilon_\text{tot}$')
+    ax.set_xlim([0, np.max(tptl)])
+    ax.set_ylim([0, 1.0])
+
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'Non-thermal fraction', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=4, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors, leg.get_texts()):
+            text.set_color(color)
+
+
+def calc_nonthermal_fraction(species):
+    """Calculate nonthermal fraction.
+
+    Args:
+        species: particle species.
+    """
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/nonthermal/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    nnth_fraction = []
+    enth_fraction = []
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        nnth_time = [0]
+        enth_time = [0]
+        while file_exist:
+            elin, flin, elog, flog = get_energy_distribution(fname, n0)
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+            fthermal = fit_thermal_core(elog, flog)
+            fnonthermal = flog - fthermal
+            ntot, etot = accumulated_particle_info(elog, flog)
+            nnth, enth = accumulated_particle_info(elog, fnonthermal)
+            nnth_time.append(nnth[-1] / ntot[-1])
+            enth_time.append(enth[-1] / etot[-1])
+        plot_nonthernal_fraction(nnth_time, enth_time, pic_info)
+        fname = img_dir + 'nth_' + run_name + '_' + species + '.eps'
+        plt.savefig(fname)
+        plt.close()
+        nnth_fraction.append(nnth[-1] / ntot[-1])
+        enth_fraction.append(enth[-1] / etot[-1])
+    for i in range(nruns):
+        print("%s %5.2f %5.2f" % (run_names[i], 
+            nnth_fraction[i], enth_fraction[i]))
+
+
+def power_law_fit(ene, f, offset, extend):
+    """Power-law fitting for the power-law part of the spectrum.
+
+    Args:
+        ene: the energy bins array.
+        f: the particle flux array.
+        species: particle species. 'e' for electron, 'h' for ion.
+        offset: offset energy bins from the energy with the maximum f.
+        extend: the extend of the power-law part.
+
+    Returns:
+        fpower: the power-law fitting of the non-thermal part of the
+            particle distribution.
+    """
+    estart = np.argmax(f) + offset
+    print("Energy bin index with maximum flux: %d" % np.argmax(f))
+    eend = estart + extend
+    popt, pcov = curve_fit(fitting_funcs.func_line,
+                           np.log10(ene[estart:eend]),
+                           np.log10(f[estart:eend]))
+    print 'Starting and ending energies for fitting: ', ene[estart], ene[eend]
+    print 'Power-law fitting coefficients for all particles: '
+    print popt
+    print '---------------------------------------------------------------'
+    fpower = fitting_funcs.func_line(np.log10(ene), popt[0], popt[1])
+    fpower = np.power(10, fpower)
+    npower, epower = accumulated_particle_info(ene[estart:eend],
+                                               fpower[estart:eend])
+    ntot, etot = accumulated_particle_info(ene, f)
+    nfraction = npower[-1] / ntot[-1]
+    efraction = epower[-1] / etot[-1]
+    power_fitting = collections.namedtuple("power_fitting",
+            ['fpower', 'es', 'ee', 'params', 'nfraction', 'efraction'])
+    power_fit = power_fitting(fpower=fpower, es=estart, ee=eend,
+            params=popt, nfraction=nfraction, efraction=efraction)
+    return power_fit
+
+
+def plot_spectra_beta_electron():
+    """Plot spectra for multiple runs with different beta.
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [50, 80, 50, 50]
+    extent = [10, 40, 100, 110]
+    run = 0
+    e_extend = 20
+    colors_plot = []
+    for run_name in run_names[:4]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        power_fit = power_law_fit(elog, flog, offset[run], extent[run])
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        color = p1.get_color()
+        es -= e_extend
+        ee += e_extend
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = '$\sim E^{' + powerIndex + '}$'
+        if run > 0:
+            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                    linestyle='--', linewidth=2, label=pname)
+            colors_plot.append(color)
+        # # Help for fitting
+        # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([1E-1, 1E3])
+        ax.set_ylim([1E-3, 1E4])
+        shift *= 5
+        run += 1
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.5, 0.05, 'R8', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.6, 0.05, 'R7', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.7, 0.05, 'R1', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.85, 0.05, 'R6', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'spect_beta_electron.eps'
+    fig.savefig(fname)
+
     plt.show()
 
 
+def plot_spectra_multi_electron():
+    """Plot spectra for multiple runs with the same beta for electron.
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [80, 65, 65, 65]
+    extent = [40, 60, 70, 60]
+    shift = [0.1, 10, 4, 1]
+    run = 0
+    e_extend = 40
+    colors_plot = []
+    for run_name in run_names[4:]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift[run]
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        power_fit = power_law_fit(elog, flog, offset[run], extent[run])
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        color = p1.get_color()
+        es -= e_extend
+        ee += e_extend
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = '$\sim E^{' + powerIndex + '}$'
+        p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                linestyle='--', linewidth=2, label=pname)
+        colors_plot.append(color)
+        # # Help for fitting
+        # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([1E-1, 3E2])
+        ax.set_ylim([1E-4, 1E4])
+        shift *= 5
+        run += 1
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.05, 0.62, 'R5', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.88, 'R3', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.8, 'R2', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.73, 'R4', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'spect_multi_electron.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def plot_spectra_beta_ion():
+    """Plot spectra for multiple runs with different beta.
+
+    """
+    species = 'h'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [50, 90, 40, 35]
+    extent = [10, 30, 25, 70]
+    shift = [1, 10, 500, 10000]
+    run = 0
+    e_extend = 40
+    colors_plot = []
+    e_nth = 50
+    for run_name in run_names[:4]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift[run]
+        fthermal = fit_thermal_core(elog, flog)
+        fnonthermal = flog - fthermal
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        color = p1.get_color()
+        if run > 1:
+            p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
+
+        if run < 2:
+            power_fit = power_law_fit(elog, flog, offset[run], extent[run])
+        else:
+            power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
+        # power_fit = power_law_fit(elog, flog, 90, 30)
+        # power_fit = power_law_fit(elog, fnonthermal, 35, 70)
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        es -= e_extend
+        ee += e_extend
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = '$\sim E^{' + powerIndex + '}$'
+        if run > 0:
+            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                    linestyle='--', linewidth=2, label=pname)
+            colors_plot.append(color)
+        # # Help for fitting
+        # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p21, = ax.loglog(elog_norm[es], fnonthermal[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], fnonthermal[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([2E-1, 4E3])
+        ax.set_ylim([1E-3, 5E7])
+        # shift *= 5
+        run += 1
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.45, 0.05, 'R8', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.59, 0.05, 'R7', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.78, 0.05, 'R1', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.92, 0.05, 'R6', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'spect_beta_ion.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def plot_spectra_multi_ion():
+    """Plot spectra for multiple runs with the same beta for electron.
+
+    """
+    species = 'h'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [235, 220, 270, 310]
+    extent = [80, 50, 50, 50]
+    shift = [1, 10, 500, 10000]
+    run = 0
+    e_extend = 40
+    colors_plot = []
+    e_nth = [200, 150, 200, 250]
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    for run_name in run_names[4:]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift[run]
+        flog = np.convolve(flog, kernel, 'same')
+        fthermal = fit_thermal_core(elog, flog)
+        fnonthermal = flog - fthermal
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        color = p1.get_color()
+        p11, = ax.loglog(elog_norm[e_nth[run]:], fnonthermal[e_nth[run]:],
+                color=color)
+        # power_fit = power_law_fit(elog, fnonthermal, 310, 50)
+        power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = '$\sim E^{' + powerIndex + '}$'
+        es -= e_extend
+        ee += e_extend
+        p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                linestyle='--', linewidth=2, label=pname)
+        colors_plot.append(color)
+        # # Help for fitting
+        # p12, = ax.loglog(elog_norm, fthermal, color=color)
+        # p21, = ax.loglog(elog_norm[es], fnonthermal[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], fnonthermal[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([1E-1, 2E3])
+        ax.set_ylim([1E-3, 5E7])
+        # shift *= 5
+        run += 1
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.05, 0.58, 'R5', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.7, 'R3', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.83, 'R2', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.91, 'R4', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'spect_multi_ion.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def get_maximum_energy_multi(species):
+    """Get the maximum energy for multiple runs.
+    """
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    emax = np.zeros(nruns)
+    run = 0
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        ntp = pic_info.ntp
+        emax_time = maximum_energy(ntp, species, pic_info, dir)
+        emax[run] = np.max(emax_time)
+        run += 1
+    for i in range(nruns):
+        print("%s %6.2f" % (run_names[i], emax[i]))
+
+
+def plot_maximum_energy_multi():
+    """Plot the evolution of the maximum energy for multiple runs
+    """
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/emax/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    emax = np.zeros(nruns)
+    run = 0
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        ntp = pic_info.ntp
+        plot_maximum_energy(ntp, pic_info, dir)
+        fname = img_dir + 'emax_' + run_name + '.eps'
+        plt.savefig(fname)
+        plt.close()
+
+
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
-    ntp = pic_info.ntp
-    vthe = pic_info.vthe
+    # pic_info = pic_information.get_pic_info('../../')
+    # ntp = pic_info.ntp
+    # vthe = pic_info.vthe
     # plot_spectrum_series(ntp, 'e', pic_info)
     # plot_spectrum_bulk(ntp, 'e', pic_info)
-    plot_maximum_energy(ntp, pic_info)
+    # plot_maximum_energy(ntp, pic_info)
+    # move_energy_spectra()
+    # calc_nonthermal_fraction('h')
+    # plot_spectra_beta_electron()
+    # plot_spectra_multi_electron()
+    # plot_spectra_beta_ion()
+    # plot_spectra_multi_ion()
+    # get_maximum_energy_multi('h')
+    plot_maximum_energy_multi()
