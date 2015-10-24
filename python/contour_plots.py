@@ -391,22 +391,24 @@ def plot_jdote_2d(pic_info):
 
     plt.show()
 
-def plot_phi_parallel(pic_info):
+def plot_phi_parallel(ct, pic_info):
     """Plot parallel potential.
     Args:
+        ct: current time frame.
         pic_info: namedtuple for the PIC simulation information.
     """
-    kwargs = {"current_time":37, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-20, "zt":20}
     x, z, phi_para = read_2d_fields(pic_info, 
             "../../data1/phi_para.gda", **kwargs) 
-    #x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
 
-    #phi_para_new = phi_para
-    phi_para_new = signal.medfilt2d(phi_para, kernel_size=(9,9))
-    #phi_para_new = signal.wiener(phi_para, mysize=5)
-    #ng = 9
-    #kernel = np.ones((ng,ng)) / float(ng*ng)
-    #phi_para_new = signal.convolve2d(phi_para, kernel)
+    # phi_para_new = phi_para
+    nk = 7
+    phi_para_new = signal.medfilt2d(phi_para, kernel_size=(nk, nk))
+    # phi_para_new = signal.wiener(phi_para, mysize=5)
+    # ng = 9
+    # kernel = np.ones((ng,ng)) / float(ng*ng)
+    # phi_para_new = signal.convolve2d(phi_para, kernel)
 
     # fft_transform = np.fft.fft2(phi_para)
     # power_spectrum = np.abs(fft_transform)**2
@@ -446,10 +448,10 @@ def plot_phi_parallel(pic_info):
     #im1 = plt.imshow(data.real, vmin=-0.1, vmax=0.1)
     im1.set_cmap(plt.cm.seismic)
     
-    #ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-    #        colors='black', linewidths=0.5, 
-    #        levels=np.arange(np.min(Ay), np.max(Ay), 15))
-    cbar1.set_ticks(np.arange(-0.2, 0.2, 0.05))
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, 
+            levels=np.arange(np.min(Ay), np.max(Ay), 15))
+    # cbar1.set_ticks(np.arange(-0.2, 0.2, 0.05))
     #ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$y/d_i$', fontdict=font, fontsize=20)
@@ -840,7 +842,7 @@ if __name__ == "__main__":
     # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
     # plot_anistropy(pic_info, 'e')
-    # plot_phi_parallel(pic_info)
+    plot_phi_parallel(29, pic_info)
     # maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
     # nmaps = len(maps) + 1
     # print nmaps
@@ -850,7 +852,7 @@ if __name__ == "__main__":
     #     plot_Ey(pic_info, 'e', i)
     # plot_number_density(pic_info, 'e', 40)
     # plot_jy(pic_info, 'e', 120)
-    plot_ux(pic_info, 'e', 40)
+    # plot_ux(pic_info, 'e', 40)
     # plot_diff_fields(pic_info, 'e', 120)
     # plot_jpara_perp(pic_info, 'e', 120)
     # plot_Ey(pic_info, 'e', 40)
