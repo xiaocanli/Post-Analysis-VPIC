@@ -548,15 +548,16 @@ def maximum_energy(ntp, species, pic_info, fpath='../spectrum/'):
     return max_ene/eth
 
 
-def plot_maximum_energy(ntp, pic_info):
+def plot_maximum_energy(ntp, pic_info, dir):
     """Plot a series of energy spectra.
 
     Args:
         ntp: total number of time frames.
         pic_info: namedtuple for the PIC simulation information.
+        dir: the directory that contains the particle spectra data.
     """
-    max_ene_e = maximum_energy(ntp, 'e', pic_info)
-    max_ene_i = maximum_energy(ntp, 'h', pic_info)
+    max_ene_e = maximum_energy(ntp, 'e', pic_info, dir)
+    max_ene_i = maximum_energy(ntp, 'h', pic_info, dir)
 
     fig = plt.figure(figsize=[7, 5])
     width = 0.69
@@ -565,19 +566,21 @@ def plot_maximum_energy(ntp, pic_info):
     ys = 0.95 - height
     ax = fig.add_axes([xs, ys, width, height])
     tparticles = pic_info.tparticles
-    p1 = ax.plot(tparticles, max_ene_e, color='r', linewidth=2)
+    p1 = ax.plot(tparticles, max_ene_e, color=colors[0], linewidth=2)
     ax.set_xlabel('$t\Omega_{ci}$', fontdict=font)
-    ax.set_ylabel('$E_{maxe}/E_{the}$', fontdict=font, color='r')
+    ax.set_ylabel(r'$\varepsilon_\text{emax}/\varepsilon_\text{the}$',
+            fontdict=font, color=colors[0])
     for tl in ax.get_yticklabels():
-        tl.set_color('r')
+        tl.set_color(colors[0])
     ax.tick_params(labelsize=20)
     ax1 = ax.twinx()
-    p2 = ax1.plot(tparticles, max_ene_i, color='b', linewidth=2)
+    p2 = ax1.plot(tparticles, max_ene_i, color=colors[1], linewidth=2)
     ax1.tick_params(labelsize=20)
-    ax1.set_ylabel('$E_{maxi}/E_{thi}$', fontdict=font, color='b')
+    ax1.set_ylabel(r'$\varepsilon_\text{imax}/\varepsilon_\text{thi}$',
+            fontdict=font, color=colors[1])
     for tl in ax1.get_yticklabels():
-        tl.set_color('b')
-    plt.show()
+        tl.set_color(colors[1])
+    # plt.show()
 
 
 def move_energy_spectra():
@@ -1132,6 +1135,29 @@ def get_maximum_energy_multi(species):
         print("%s %6.2f" % (run_names[i], emax[i]))
 
 
+def plot_maximum_energy_multi():
+    """Plot the evolution of the maximum energy for multiple runs
+    """
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/emax/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    emax = np.zeros(nruns)
+    run = 0
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        ntp = pic_info.ntp
+        plot_maximum_energy(ntp, pic_info, dir)
+        fname = img_dir + 'emax_' + run_name + '.eps'
+        plt.savefig(fname)
+        plt.close()
+
+
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
@@ -1146,3 +1172,4 @@ if __name__ == "__main__":
     # plot_spectra_beta_ion()
     # plot_spectra_multi_ion()
     # get_maximum_energy_multi('h')
+    plot_maximum_energy_multi()
