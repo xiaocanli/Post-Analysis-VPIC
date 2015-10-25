@@ -56,9 +56,12 @@ program vdistribution
     call read_magnetic_fields(ct_field)
 
     call calc_vdist_2d(tframe, 'e')
-    ! call set_vdist_2d_zero
+    call set_vdist_2d_zero
+    call calc_vdist_2d(tframe, 'h')
+
     call calc_vdist_1d(tframe, 'e')
-    ! call set_vdist_1d_zero
+    call set_vdist_1d_zero
+    call calc_vdist_1d(tframe, 'h')
 
     call free_magnetic_fields
 
