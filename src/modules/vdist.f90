@@ -299,7 +299,7 @@ module velocity_distribution
         use mpi_module
         use picinfo, only: domain
         use file_header, only: pheader
-        use spectrum_config, only: spatial_range
+        use spectrum_config, only: spatial_range, tot_pic_mpi, pic_mpi_ranks
         use particle_file, only: open_particle_file, check_particle_in_range, &
                 close_particle_file, fh
         implicit none
@@ -310,8 +310,8 @@ module velocity_distribution
         integer :: np, iptl
 
         ! Read particle data in parallel to generate distributions
-        do np = 0, domain%nproc-numprocs, numprocs
-            write(cid, "(I0)") myid + np
+        do np = 0, tot_pic_mpi-numprocs, numprocs
+            write(cid, "(I0)") myid + pic_mpi_ranks(np+1)
             call open_particle_file(tindex, species, cid)
             isrange = check_particle_in_range(spatial_range)
 
@@ -483,7 +483,7 @@ module velocity_distribution
         use mpi_module
         use picinfo, only: domain
         use file_header, only: pheader
-        use spectrum_config, only: spatial_range
+        use spectrum_config, only: spatial_range, tot_pic_mpi, pic_mpi_ranks
         use particle_file, only: open_particle_file, check_particle_in_range, &
                 close_particle_file, fh
         implicit none
@@ -494,8 +494,8 @@ module velocity_distribution
         integer :: np, iptl
 
         ! Read particle data in parallel to generate distributions
-        do np = 0, domain%nproc-numprocs, numprocs
-            write(cid, "(I0)") myid + np
+        do np = 0, tot_pic_mpi-numprocs, numprocs
+            write(cid, "(I0)") myid + pic_mpi_ranks(np+1)
             call open_particle_file(tindex, species, cid)
             isrange = check_particle_in_range(spatial_range)
 
