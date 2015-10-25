@@ -260,7 +260,7 @@ module velocity_distribution
     !---------------------------------------------------------------------------
     subroutine save_vdist_2d(ct, species)
         use mpi_module
-        use spectrum_config, only: nbins_vdist
+        use spectrum_config, only: nbins_vdist, center, sizes, vmin, vmax
         implicit none
         integer, intent(in) :: ct
         character(len=1), intent(in) :: species
@@ -281,7 +281,8 @@ module velocity_distribution
                                          species, ".", ct
             open(unit=10, file=trim(fname), access='stream', &
                  status='unknown', form='unformatted', action='write')
-            write(10) nbins_vdist
+            write(10) center, sizes
+            write(10) vmin, vmax, nbins_vdist
             write(10) vbins_short, vbins_long
             write(10) fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum
             close(10)
@@ -444,7 +445,7 @@ module velocity_distribution
     !---------------------------------------------------------------------------
     subroutine save_vdist_1d(ct, species)
         use mpi_module
-        use spectrum_config, only: nbins_vdist
+        use spectrum_config, only: nbins_vdist, center, sizes, vmin, vmax
         implicit none
         integer, intent(in) :: ct
         character(len=1), intent(in) :: species
@@ -465,7 +466,8 @@ module velocity_distribution
                                          species, ".", ct
             open(unit=10, file=trim(fname), access='stream', &
                  status='unknown', form='unformatted', action='write')
-            write(10) nbins_vdist
+            write(10) center, sizes
+            write(10) vmin, vmax, nbins_vdist
             write(10) vbins_short, vbins_long
             write(10) fvel_para_sum, fvel_perp_sum
             close(10)
