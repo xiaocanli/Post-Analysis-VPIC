@@ -7,7 +7,9 @@ program parspec
     use path_info, only: get_file_paths
     use picinfo, only: read_domain, broadcast_pic_info
     use particle_frames, only: get_particle_frames, nt, tinterval
-    use spectrum_config, only: read_spectrum_config, set_spatial_range_de
+    use spectrum_config, only: read_spectrum_config, set_spatial_range_de, &
+            calc_pic_mpi_ids, tframe, init_pic_mpi_ranks, free_pic_mpi_ranks, &
+            calc_pic_mpi_ranks
     use particle_energy_spectrum, only: init_energy_spectra, &
             free_energy_spectra, calc_energy_spectra, &
             set_energy_spectra_zero
@@ -38,6 +40,9 @@ program parspec
     call get_relativistic_flag
     call read_spectrum_config
     call set_spatial_range_de
+    call calc_pic_mpi_ids
+    call init_pic_mpi_ranks
+    call calc_pic_mpi_ranks
 
     call init_energy_spectra
 
@@ -59,6 +64,7 @@ program parspec
         write(*,'(A, F6.1)') " Total time used (s): ", mp_elapsed
     endif
 
+    call free_pic_mpi_ranks
     call free_energy_spectra
     call MPI_FINALIZE(ierr)
 end program parspec
