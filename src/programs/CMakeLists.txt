@@ -59,6 +59,10 @@ add_executable(particle_based_jdote particle_based_jdote.f90)
 target_link_libraries(particle_based_jdote ${MPI_Fortran_LIBRARIES}
     particle_drift interp_emf get_info translate_module)
 
+add_executable(particle_spectrum_box particle_spectrum_box.f90)
+target_link_libraries(particle_spectrum_box ${MPI_Fortran_LIBRARIES}
+    particle_spectrum get_info)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -74,3 +78,4 @@ install (TARGETS bulk_internal_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS compression DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS jdote_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_based_jdote DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS particle_spectrum_box DESTINATION ${CMAKE_INSTALL_PREFIX})
