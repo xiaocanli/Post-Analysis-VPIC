@@ -16,6 +16,7 @@ program vdistribution
             get_relativistic_flag
     use magnetic_field, only: init_magnetic_fields, free_magnetic_fields, &
             read_magnetic_fields
+    use particle_info, only: species, get_ptl_mass_charge
     implicit none
     integer :: ct, ct_field, ratio_particle_field
     ! Initialize Message Passing
@@ -55,12 +56,16 @@ program vdistribution
     ct_field = ratio_particle_field * tframe
     call read_magnetic_fields(ct_field)
 
+    species = 'e'
+    call get_ptl_mass_charge(species)
     call calc_vdist_2d(tframe, 'e')
-    call set_vdist_2d_zero
-    call calc_vdist_2d(tframe, 'h')
-
     call calc_vdist_1d(tframe, 'e')
+    call set_vdist_2d_zero
     call set_vdist_1d_zero
+
+    species = 'i'
+    call get_ptl_mass_charge(species)
+    call calc_vdist_2d(tframe, 'h')
     call calc_vdist_1d(tframe, 'h')
 
     call free_magnetic_fields
