@@ -27,7 +27,7 @@ program parallel_potential
     !call Cash_Karp_parameters
     call Dormand_Prince_parameters
 
-    do ct = 1, 100
+    do ct = 30, 30
         if (myid == master) then
             print*, ct
         endif
@@ -39,6 +39,8 @@ program parallel_potential
     call free_electric_fields
     call end_fieldline_tracing
     call end_calculation
+
+    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
     call end_analysis
 
     contains
@@ -66,6 +68,7 @@ program parallel_potential
     ! Finish the calculation.
     !---------------------------------------------------------------------------
     subroutine end_calculation
+        use mpi_module
         implicit none
         deallocate(phi_para)
     end subroutine end_calculation
@@ -84,21 +87,30 @@ program parallel_potential
         implicit none
         integer, intent(in) :: ct
         integer :: i, k
-        real(fp) :: x, z, h, hmax
+        real(fp) :: x, z, h, hinit, phi_parallel1, phi_parallel2
 
-        hmax = gdx
+        hinit = gdx
         phi_para = 0.0
         do k = 1, nz
             !print*, k
             do i = 1, nx_local
-                h = hmax
-                x = (nx_offset+i-1)*gdx
+                phi_parallel1 = 0.0
+                phi_parallel2 = 0.0
+                h = hinit
+                x = (nx_offset+i-0.5)*gdx
                 z = (k-1)*gdz
-                call tracing(x, z, h, phi_para(i, k))
+                call tracing(x, z, h, phi_parallel1, 1)   ! Forward
+
+                h = hinit
+                x = (nx_offset+i-0.5)*gdx
+                z = (k-1)*gdz
+                call tracing(x, z, h, phi_parallel2, -1)  ! Backward
+                phi_para(i, k) = (phi_parallel1 + phi_parallel2) * 0.5
             enddo ! x loop
         enddo ! z loop
 
-        !print*, "__________________", myid
+        call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+        ! print*, "__________________", myid
 
         call save_phi_parallel(ct)
 
@@ -112,13 +124,16 @@ program parallel_potential
     ! Inputs & Outputs:
     !   x, z: the coordinates of current point.
     !   phi_parallel: parallel potential at current point.
+    !   direction_flag: 1 for forward, -1 for backward to the local B field.
     !---------------------------------------------------------------------------
-    subroutine tracing(x, z, htry, phi_parallel)
+    subroutine tracing(x, z, htry, phi_parallel, direction_flag)
         use fieldline_tracing, only: push, derivs, get_crossing_point, &
-                controller, Cash_Karp_parameters, Dormand_Prince_parameters, lx, lz
+                controller, Cash_Karp_parameters, Dormand_Prince_parameters, &
+                lx, lz, gdx, hmax
         implicit none
         real(fp), intent(inout) :: x, z, phi_parallel
         real(fp), intent(in) :: htry
+        integer, intent(in) :: direction_flag
         real(fp), dimension(0:6) :: kx, ky, kz
         real(fp) :: arc_length, xout, zout, xold, zold
         real(fp) :: dxds, dyds, dzds, dxdsnew, dydsnew, dzdsnew
@@ -132,12 +147,13 @@ program parallel_potential
         h_old = h
         errold = 1.0e-4
         is_accept = .false.
-        call derivs(x, z, dxds, dyds, dzds)
+        call derivs(x, z, direction_flag, dxds, dyds, dzds)
         do while (x > 0 .and. x < lx .and. z > 0 .and. z < lz .and. &
                   arc_length < 2*lx)
-            call push(dxds, dyds, dzds, x, z, h, kx, ky, kz, &
-                      xout, zout, dxdsnew, dydsnew, dzdsnew)
-            call controller(h, hnext, x, z, xout, zout, kx, kz, is_accept, errold)
+            call push(dxds, dyds, dzds, direction_flag, x, z, h, kx, ky, kz, &
+                    xout, zout, dxdsnew, dydsnew, dzdsnew)
+            call controller(h, hmax, hnext, x, z, xout, zout, &
+                    kx, kz, is_accept, errold)
             if (is_accept) then
                 arc_length = arc_length + h
                 xold = x
@@ -162,7 +178,7 @@ program parallel_potential
             call get_crossing_point(x, z, xold, zold, lx, lz, xcross, zcross)
             h = sqrt((xcross-xold)**2 + (zcross-zold)**2)
             arc_length = arc_length + h
-            call push(dxds, dyds, dzds, x, z, h, kx, ky, kz, &
+            call push(dxds, dyds, dzds, direction_flag, x, z, h, kx, ky, kz, &
                       xout, zout, dxdsnew, dydsnew, dzdsnew)
             call update_phi_parallel(xold, zold, kx, ky, kz, h, phi_parallel)
         endif
