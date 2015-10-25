@@ -7,9 +7,11 @@ module spectrum_config
     use constants, only: fp
     implicit none
     private
-    public nbins, emax, emin, dve, dlogve, spatial_range, center, sizes
+    public nbins, emax, emin, dve, dlogve, spatial_range, center, sizes, &
+           tot_pic_mpi, pic_mpi_ranks
     public read_spectrum_config, set_spatial_range_de, calc_pic_mpi_ids, &
-           calc_energy_interval
+           calc_energy_interval, init_pic_mpi_ranks, free_pic_mpi_ranks, &
+           calc_pic_mpi_ranks
     public corners_mpi, vmax, vmin, dv, nbins_vdist, tframe
     public calc_velocity_interval
     integer :: nbins
@@ -21,6 +23,8 @@ module spectrum_config
     real(fp), dimension(3) :: sizes             ! In number of cells.
     real(fp), dimension(2,3) :: spatial_range   ! In electron skin length (de).
     integer, dimension(2,3) :: corners_mpi      ! MPI IDs of the corners.
+    integer :: tot_pic_mpi                      ! Total number of PIC MPI process.
+    integer, allocatable, dimension(:) :: pic_mpi_ranks  ! PIC MPI rank in 1D.
 
     contains
 
@@ -28,6 +32,7 @@ module spectrum_config
     ! Read the setup information from file.
     !---------------------------------------------------------------------------
     subroutine read_spectrum_config
+        use mpi_module
         use read_config, only: get_variable
         implicit none
         integer :: fh
@@ -59,6 +64,23 @@ module spectrum_config
         close(fh)
 
         call calc_energy_interval
+
+        if (myid == 0) then
+            ! Echo this information
+            print *, "---------------------------------------------------"
+            write(*, "(A)") " Spectrum and velocity distribution information."
+            write(*, "(A,I0)") " Number of energy bins = ", nbins
+            write(*, "(A,E14.6,E14.6)") " Minimum and maximum energy(gamma) = ", &
+                emin, emax
+            write(*, "(A,3F6.2)") " Center of the box (de) = ", center
+            write(*, "(A,3F10.2)") " Sizes of the box (cells) = ", sizes
+            write(*, "(A,I0)") " Number of velocity bins = ", nbins_vdist
+            write(*, "(A,F6.2,F6.2)") " Minimum and maximum velocity(gamma) = ", &
+                vmin, vmax
+            write(*, "(A,I0)") " Time frame of velocity distribution = ", tframe
+            print *, "---------------------------------------------------"
+        endif
+
     end subroutine read_spectrum_config
 
     !---------------------------------------------------------------------------
@@ -77,6 +99,44 @@ module spectrum_config
         implicit none
         dv = (vmax - vmin) / nbins_vdist
     end subroutine calc_velocity_interval
+
+    !---------------------------------------------------------------------------
+    ! Initialize the pic_mpi_ranks 1D array.
+    !---------------------------------------------------------------------------
+    subroutine init_pic_mpi_ranks
+        implicit none
+        allocate(pic_mpi_ranks(tot_pic_mpi))
+        pic_mpi_ranks = 0
+    end subroutine init_pic_mpi_ranks
+
+    !---------------------------------------------------------------------------
+    ! Calculate the pic_mpi_ranks 1D array.
+    !---------------------------------------------------------------------------
+    subroutine calc_pic_mpi_ranks
+        use picinfo, only: domain
+        implicit none
+        integer :: i, j, k, tx, ty, tz, index1
+        tx = domain%pic_tx
+        ty = domain%pic_ty
+        tz = domain%pic_tz
+        index1 = 0
+        do k = corners_mpi(1, 3), corners_mpi(2, 3)
+            do j = corners_mpi(1, 2), corners_mpi(2, 2)
+                do i = corners_mpi(1, 1), corners_mpi(2, 1)
+                    index1 = index1 + 1
+                    pic_mpi_ranks(index1) = i + j*tx + k*tx*ty
+                enddo
+            enddo
+        enddo
+    end subroutine calc_pic_mpi_ranks
+
+    !---------------------------------------------------------------------------
+    ! Free the pic_mpi_ranks 1D array.
+    !---------------------------------------------------------------------------
+    subroutine free_pic_mpi_ranks
+        implicit none
+        deallocate(pic_mpi_ranks)
+    end subroutine free_pic_mpi_ranks
 
     !---------------------------------------------------------------------------
     ! As the xsize, ysize, zsize are in number of cell, we shall set the spatial
@@ -134,6 +194,9 @@ module spectrum_config
         if (corners_mpi(2, 1) > domain%pic_tx-1) corners_mpi(2, 1) = domain%pic_tx-1
         if (corners_mpi(2, 2) > domain%pic_ty-1) corners_mpi(2, 2) = domain%pic_ty-1
         if (corners_mpi(2, 3) > domain%pic_tz-1) corners_mpi(2, 3) = domain%pic_tz-1
+        tot_pic_mpi = (corners_mpi(2, 1) - corners_mpi(1, 1) + 1) * &
+                      (corners_mpi(2, 2) - corners_mpi(1, 2) + 1) * &
+                      (corners_mpi(2, 3) - corners_mpi(1, 3) + 1)
     end subroutine calc_pic_mpi_ids
 
 end module spectrum_config
