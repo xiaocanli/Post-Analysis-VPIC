@@ -6,7 +6,9 @@ program vdistribution
     use path_info, only: get_file_paths
     use picinfo, only: read_domain, broadcast_pic_info
     use particle_frames, only: get_particle_frames, nt, tinterval
-    use spectrum_config, only: read_spectrum_config, set_spatial_range_de
+    use spectrum_config, only: read_spectrum_config, set_spatial_range_de, &
+            calc_pic_mpi_ids, tframe, init_pic_mpi_ranks, free_pic_mpi_ranks, &
+            calc_pic_mpi_ranks
     use velocity_distribution, only: init_velocity_bins, free_velocity_bins, &
             init_vdist_2d, set_vdist_2d_zero, free_vdist_2d, init_vdist_1d, &
             set_vdist_1d_zero, free_vdist_1d, calc_vdist_2d, calc_vdist_1d
@@ -35,20 +37,22 @@ program vdistribution
     call get_relativistic_flag
     call read_spectrum_config
     call set_spatial_range_de
+    call calc_pic_mpi_ids
+    call init_pic_mpi_ranks
+    call calc_pic_mpi_ranks
 
     call init_velocity_bins
     call init_vdist_2d
     call init_vdist_1d
 
-    do ct = 1, 1
-        call calc_vdist_2d(ct, 'e')
-        call set_vdist_2d_zero
-        ! call calc_vdist_1d(ct, 'e')
-        ! call set_vdist_1d_zero
-    enddo
+    call calc_vdist_2d(tframe, 'e')
+    ! call set_vdist_2d_zero
+    call calc_vdist_1d(tframe, 'e')
+    ! call set_vdist_1d_zero
 
     call free_vdist_1d
     call free_vdist_2d
     call free_velocity_bins
+    call free_pic_mpi_ranks
     call MPI_FINALIZE(ierr)
 end program vdistribution
