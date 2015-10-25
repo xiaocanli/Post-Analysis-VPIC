@@ -1,5 +1,7 @@
 !*******************************************************************************
-! Module for velocity distribution.
+! Module for velocity distribution. The velocity here is actually 4-velocity
+! multiplied by the sqrt(mass of particle). So that it can be used for both
+! electrons and ions without changing vmin, vmax.
 !*******************************************************************************
 module velocity_distribution
     use constants, only: fp, dp
@@ -611,9 +613,10 @@ module velocity_distribution
     subroutine calc_bin_offset_para_perp
         use particle_module, only: vpara, vperp
         use spectrum_config, only: vmax, vmin, dv
+        use particle_info, only: sqrt_ptl_mass
         implicit none
-        call calc_bin_offset(vpara, -vmax, dv, ibin_para, offset_para)
-        call calc_bin_offset(vperp, vmin, dv, ibin_perp, offset_perp)
+        call calc_bin_offset(vpara*sqrt_ptl_mass, -vmax, dv, ibin_para, offset_para)
+        call calc_bin_offset(vperp*sqrt_ptl_mass, vmin, dv, ibin_perp, offset_perp)
     end subroutine calc_bin_offset_para_perp
 
     !---------------------------------------------------------------------------
@@ -623,10 +626,11 @@ module velocity_distribution
     subroutine calc_bin_offset_xyz
         use particle_module, only: ptl
         use spectrum_config, only: vmax, dv
+        use particle_info, only: sqrt_ptl_mass
         implicit none
-        call calc_bin_offset(ptl%vx, -vmax, dv, ibinx, offsetx)
-        call calc_bin_offset(ptl%vy, -vmax, dv, ibiny, offsety)
-        call calc_bin_offset(ptl%vz, -vmax, dv, ibinz, offsetz)
+        call calc_bin_offset(ptl%vx*sqrt_ptl_mass, -vmax, dv, ibinx, offsetx)
+        call calc_bin_offset(ptl%vy*sqrt_ptl_mass, -vmax, dv, ibiny, offsety)
+        call calc_bin_offset(ptl%vz*sqrt_ptl_mass, -vmax, dv, ibinz, offsetz)
     end subroutine calc_bin_offset_xyz
 
     !---------------------------------------------------------------------------
