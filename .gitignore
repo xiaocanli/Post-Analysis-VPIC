@@ -36,3 +36,4 @@ vpic-sorter/attribute
 python/colormap/*.pyc
 particle_based_jdote
 particle_spectrum_box
+particle_spectrum_vdist_box
