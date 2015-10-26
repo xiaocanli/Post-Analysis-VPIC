@@ -18,7 +18,9 @@ module velocity_distribution
            set_vdist_1d_zero, free_vdist_1d, init_vdist_1d_single, &
            set_vdist_1d_zero_single, free_vdist_1d_single, &
            calc_vdist_2d, calc_vdist_1d, calc_vdist_2d_single, &
-           calc_vdist_1d_single
+           calc_vdist_1d_single, sum_vdist_1d_over_mpi, &
+           sum_vdist_2d_over_mpi, save_vdist_1d, save_vdist_2d, &
+           update_vdist_1d, update_vdist_2d
 
     real(dp), allocatable, dimension(:, :) :: fvel_2d, fvel_xy, fvel_xz, fvel_yz
     real(dp), allocatable, dimension(:) :: fvel_para, fvel_perp
