@@ -11,7 +11,8 @@ module particle_energy_spectrum
     public init_energy_spectra, free_energy_spectra, calc_energy_spectra, &
            set_energy_spectra_zero, set_energy_spectra_zero_single, &
            calc_energy_bins, init_energy_spectra_single, &
-           free_energy_spectra_single, calc_energy_spectrum_single
+           free_energy_spectra_single, calc_energy_spectrum_single, &
+           sum_spectra_over_mpi, save_particle_spectra, update_energy_spectrum
     real(dp), allocatable, dimension(:) :: f, fsum, flog, flogsum
     real(dp), allocatable, dimension(:) :: ebins_lin, ebins_log
 
@@ -115,7 +116,6 @@ module particle_energy_spectrum
     subroutine calc_energy_spectra(ct, species)
         use mpi_module
         use constants, only: fp
-        use spectrum_config, only: nbins
         use particle_frames, only: tinterval
         use particle_file, only: check_existence
         implicit none
@@ -131,16 +131,26 @@ module particle_energy_spectrum
         call check_existence(tindex, species, is_exist)
         if (is_exist) then
             call calc_energy_spectrum_mpi(tindex, species)
-            ! Sum over all nodes to get the total energy spectrum
-            call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
-                    MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-            call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
-                    MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            call sum_spectra_over_mpi
             if (myid == master) then
                 call save_particle_spectra(ct, species)
             endif
         endif
     end subroutine calc_energy_spectra
+
+    !---------------------------------------------------------------------------
+    ! Sum particle energy spectrum over all MPI process.
+    !---------------------------------------------------------------------------
+    subroutine sum_spectra_over_mpi
+        use mpi_module
+        use spectrum_config, only: nbins
+        implicit none
+        ! Sum over all nodes to get the total energy spectrum
+        call MPI_REDUCE(f, fsum, nbins, MPI_DOUBLE_PRECISION, &
+                MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
+                MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    end subroutine sum_spectra_over_mpi
 
     !---------------------------------------------------------------------------
     ! Save particle energy spectrum to file.
