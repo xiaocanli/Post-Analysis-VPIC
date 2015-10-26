@@ -4,7 +4,7 @@
 ! logarithmic), the center of the box (de), the sizes of the box (cells).
 !*******************************************************************************
 module spectrum_config
-    use constants, only: fp
+    use constants, only: fp, dp
     implicit none
     private
     public nbins, emax, emin, dve, dlogve, spatial_range, center, sizes, &
@@ -177,20 +177,20 @@ module spectrum_config
     subroutine calc_pic_mpi_ids
         use picinfo, only: domain
         implicit none
-        real(fp) :: cx, cy, cz
+        real(dp) :: cx, cy, cz
         cx = center(1) * domain%idx
-        cy = center(2) * domain%idy
-        cz = center(3) * domain%idz
-        corners_mpi(1, 1) = floor((cx-sizes(1))/domain%pic_nx)
-        corners_mpi(1, 2) = floor((cy-sizes(2))/domain%pic_ny)
-        corners_mpi(1, 3) = floor((cz-sizes(3))/domain%pic_nz)
+        cy = (center(2) + domain%ly_de*0.5) * domain%idy
+        cz = (center(3) + domain%lz_de*0.5) * domain%idz
+        corners_mpi(1, 1) = floor((cx-sizes(1)*0.5)/domain%pic_nx)
+        corners_mpi(1, 2) = floor((cy-sizes(2)*0.5)/domain%pic_ny)
+        corners_mpi(1, 3) = floor((cz-sizes(3)*0.5)/domain%pic_nz)
         if (corners_mpi(1, 1) < 0) corners_mpi(1, 1) = 0
         if (corners_mpi(1, 2) < 0) corners_mpi(1, 2) = 0
         if (corners_mpi(1, 3) < 0) corners_mpi(1, 3) = 0
 
-        corners_mpi(2, 1) = ceiling((cx+sizes(1))/domain%pic_nx)
-        corners_mpi(2, 2) = ceiling((cy+sizes(2))/domain%pic_ny)
-        corners_mpi(2, 3) = ceiling((cz+sizes(3))/domain%pic_nz)
+        corners_mpi(2, 1) = floor((cx+sizes(1)*0.5)/domain%pic_nx)
+        corners_mpi(2, 2) = floor((cy+sizes(2)*0.5)/domain%pic_ny)
+        corners_mpi(2, 3) = floor((cz+sizes(3)*0.5)/domain%pic_nz)
         if (corners_mpi(2, 1) > domain%pic_tx-1) corners_mpi(2, 1) = domain%pic_tx-1
         if (corners_mpi(2, 2) > domain%pic_ty-1) corners_mpi(2, 2) = domain%pic_ty-1
         if (corners_mpi(2, 3) > domain%pic_tz-1) corners_mpi(2, 3) = domain%pic_tz-1
