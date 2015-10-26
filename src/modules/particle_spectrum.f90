@@ -185,7 +185,6 @@ module particle_energy_spectrum
         ! Read particle data in parallel to generate distributions
         do np = 0, tot_pic_mpi-numprocs, numprocs
             write(cid, "(I0)") myid + pic_mpi_ranks(np+1)
-            write(cid, "(I0)") myid + np
             call open_particle_file(tindex, species, cid)
             isrange = check_particle_in_range(spatial_range)
 
