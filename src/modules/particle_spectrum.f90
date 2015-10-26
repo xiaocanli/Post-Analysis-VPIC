@@ -115,22 +115,14 @@ module particle_energy_spectrum
     subroutine calc_energy_spectra(ct, species)
         use mpi_module
         use constants, only: fp
-        use particle_frames, only: tinterval
         use spectrum_config, only: nbins
+        use particle_frames, only: tinterval
         use particle_file, only: check_existence
         implicit none
         integer, intent(in) :: ct
         character(len=1), intent(in) :: species
-        character(len=100) :: fname
-        integer :: i, tindex
-        logical :: is_exist, dir_e
-
-        if (myid == master) then
-            inquire(file='./spectrum/.', exist=dir_e)
-            if (.not. dir_e) then
-                call system('mkdir spectrum')
-            endif
-        endif
+        integer :: tindex
+        logical :: is_exist
 
         call calc_energy_bins
 
@@ -144,21 +136,37 @@ module particle_energy_spectrum
                     MPI_SUM, 0, MPI_COMM_WORLD, ierr)
             call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
                     MPI_SUM, 0, MPI_COMM_WORLD, ierr)
-
-            !  Now output the distribution on the master node
-            if (myid==master) then
-                !print *," *** Finished Creating Spectrum ***"
-                write(fname, "(A,A1,A1,I0)") "spectrum/spectrum-", &
-                                             species, ".", ct
-                open(unit=10, file=trim(fname), status='unknown')
-                do i=1, nbins
-                    write(10, "(4e12.4)") ebins_lin(i), fsum(i), &
-                            ebins_log(i), flogsum(i)
-                enddo
-                close(10)
+            if (myid == master) then
+                call save_particle_spectra(ct, species)
             endif
         endif
     end subroutine calc_energy_spectra
+
+    !---------------------------------------------------------------------------
+    ! Save particle energy spectrum to file.
+    !---------------------------------------------------------------------------
+    subroutine save_particle_spectra(ct, species)
+        use spectrum_config, only: nbins
+        implicit none
+        integer, intent(in) :: ct
+        character(len=1), intent(in) :: species
+        logical :: dir_e
+        character(len=100) :: fname
+        integer :: i
+        inquire(file='./spectrum/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir spectrum')
+        endif
+        !print *," *** Finished Creating Spectrum ***"
+        write(fname, "(A,A1,A1,I0)") "spectrum/spectrum-", &
+                                     species, ".", ct
+        open(unit=10, file=trim(fname), status='unknown')
+        do i=1, nbins
+            write(10, "(4e12.4)") ebins_lin(i), fsum(i), &
+                    ebins_log(i), flogsum(i)
+        enddo
+        close(10)
+    end subroutine save_particle_spectra
 
     !---------------------------------------------------------------------------
     ! Read particle data and calculate the energy spectrum for one time frame.
