@@ -167,7 +167,7 @@ module particle_energy_spectrum
         if (.not. dir_e) then
             call system('mkdir spectrum')
         endif
-        !print *," *** Finished Creating Spectrum ***"
+        ! print *," *** Finished Creating Spectrum ***"
         write(fname, "(A,A1,A1,I0)") "spectrum/spectrum-", &
                                      species, ".", ct
         open(unit=10, file=trim(fname), status='unknown')
