@@ -68,13 +68,13 @@ program particle_spectrum_vdist_box
     species = 'e'
     call get_ptl_mass_charge(species)
     call calc_spectrum_vdist(tframe, 'e')
-    ! call set_energy_spectra_zero
-    ! call set_vdist_2d_zero
-    ! call set_vdist_1d_zero
+    call set_energy_spectra_zero
+    call set_vdist_2d_zero
+    call set_vdist_1d_zero
 
-    ! species = 'i'
-    ! call get_ptl_mass_charge(species)
-    ! call calc_spectrum_vdist(tframe, 'h')
+    species = 'i'
+    call get_ptl_mass_charge(species)
+    call calc_spectrum_vdist(tframe, 'h')
 
     mp_elapsed = MPI_WTIME() - mp_elapsed
 
