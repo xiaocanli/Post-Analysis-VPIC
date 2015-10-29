@@ -62,18 +62,20 @@ add_library(particle_module particle_module.f90 particle_info.f90)
 target_link_libraries(particle_module get_info file_header interp_emf
     magnetic_field)
 
-add_library(particle_spectrum particle_frames.f90
-    particle_spectrum.f90 particle_file.f90)
+add_library(particle_file particle_file.f90)
+
+add_library(particle_spectrum particle_frames.f90 particle_spectrum.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field
-    spectrum_config particle_module)
+    spectrum_config particle_module particle_file)
 
-add_library(vdist vdist.f90 particle_frames.f90 particle_file.f90)
+add_library(vdist vdist.f90 particle_frames.f90)
 target_link_libraries(vdist file_header get_info magnetic_field
-    spectrum_config particle_module)
+    spectrum_config particle_module particle_file)
 
-add_library(particle_fieldline particle_fieldline.f90 particle_file.f90
-    particle_frames.f90 mpi_setup.f90)
-target_link_libraries(particle_fieldline get_info fieldline_tracing)
+add_library(particle_fieldline particle_fieldline.f90 particle_frames.f90
+    mpi_setup.f90)
+target_link_libraries(particle_fieldline get_info fieldline_tracing
+    particle_file)
 
 add_library(pressure_tensor pressure_tensor.f90 neighbors.f90 global.f90)
 target_link_libraries(pressure_tensor get_info fields)
@@ -88,7 +90,9 @@ target_link_libraries(jdote_energy_band read_config analysis_config)
 add_library(interp_emf interpolation_emf.f90 neighbors.f90)
 target_link_libraries(interp_emf get_info)
 
-add_library(particle_drift particle_drift.f90 particle_frames.f90
-    particle_file.f90)
+add_library(particle_drift particle_drift.f90 particle_frames.f90)
 target_link_libraries(particle_drift file_header magnetic_field interp_emf
-    particle_module translate_module)
+    particle_module translate_module particle_file)
+
+add_library(particle_spectrum_vdist particle_spectrum_vdist.f90 global.f90)
+target_link_libraries(particle_spectrum_vdist particle_spectrum vdist get_info)
