@@ -85,7 +85,7 @@ module particle_drift
     subroutine init_jdote_sum
         use picinfo, only: nbands, nt, domain
         implicit none
-        ntp = (nt * domain.fields_interval) / domain.particle_interval + 1
+        ntp = (nt * domain%fields_interval) / domain%particle_interval + 1
         allocate(jdote_sum_local(ntp, nbands, nvar))
         if (myid == master) then
             allocate(jdote_sum_global(ntp, nbands, nvar))
