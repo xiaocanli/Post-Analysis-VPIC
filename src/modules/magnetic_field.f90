@@ -98,15 +98,18 @@ module magnetic_field
     !   Make sure that x, z, dx, dz are in the same unit (di or de).
     !---------------------------------------------------------------------------
     subroutine calc_grid_indices(x, z, dx, dz)
+        use picinfo, only: domain
         implicit none
         real(fp), intent(in) :: x, z, dx, dz
+        real(fp) :: izf
 
+        izf = (z + domain%lz_de*0.5) / dz
         ix1 = floor(x / dx)
-        iz1 = floor(z / dz)
+        iz1 = floor(izf)
         ix2 = ix1 + 1
         iz2 = iz1 + 1
         shiftx = x/dx - ix1
-        shiftz = z/dz - iz1
+        shiftz = izf - iz1
     end subroutine calc_grid_indices
 
     !---------------------------------------------------------------------------
