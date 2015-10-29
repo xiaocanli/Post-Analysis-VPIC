@@ -12,6 +12,7 @@ import numpy as np
 import scipy
 from scipy import interpolate, signal
 import math
+import os
 import os.path
 import struct
 import collections
@@ -20,6 +21,8 @@ import color_maps as cm
 import colormap.colormaps as cmaps
 import subprocess
 from spectrum_fitting import get_energy_distribution
+from mpi4py import MPI
+# import particle_spectrum_vdist as psv
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -31,6 +34,19 @@ font = {'family' : 'serif',
         'weight' : 'normal',
         'size'   : 24,
         }
+
+class cd:
+    """Context manager for changing the current working directory"""
+    def __init__(self, newPath):
+        self.newPath = os.path.expanduser(newPath)
+
+    def __enter__(self):
+        self.savedPath = os.getcwd()
+        os.chdir(self.newPath)
+
+    def __exit__(self, etype, value, traceback):
+        os.chdir(self.savedPath)
+
 
 def read_boilerplate(fh):
     """Read boilerplate of a file
@@ -347,12 +363,15 @@ def get_spectrum_vdist(pic_info, dir='../',
     """
     fname = dir + config_name
     generate_spectrum_vdist_config(fname, **kwargs)
-    cmd = './particle_spectrum_vdist_box ' + config_name
-    p1 = subprocess.Popen([cmd], cwd='../', shell=True)
-    # cmd = 'mpirun -np 16 ./particle_spectrum_vdist_box ' + config_name
-    # p1 = subprocess.Popen([cmd], cwd='../', stdout=subprocess.PIPE, shell=True)
+    # cmd = './particle_spectrum_vdist_box ' + config_name
+    # p1 = subprocess.Popen([cmd], cwd='../', shell=True)
+    # cmd = 'mpirun -np 16 python particle_spectrum_vdist.py ' + config_name
+    cmd = 'mpirun -np 16 particle_spectrum_vdist_box ' + config_name
+    p1 = subprocess.Popen([cmd], cwd='../', stdout=open('outfile.out', 'w'),
+            stderr=subprocess.STDOUT, shell=True)
     p1.wait()
-
+    # with cd('../'):
+    #     psv.particle_spectrum_vdist_box()
 
 def read_velocity_distribution(species, tframe, pic_info,
         fpath='../vdistributions/'):
