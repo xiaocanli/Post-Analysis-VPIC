@@ -25,7 +25,7 @@ if (Fortran_COMPILER_NAME MATCHES "gfortran.*")
   # set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -fno-f2c -O3")
   # set (CMAKE_Fortran_FLAGS_DEBUG   "-fno-f2c -O0 -g")
   set (CMAKE_Fortran_FLAGS_RELEASE "-O3 -march=native -fimplicit-none \
-    -Wline-truncation -fwhole-file -std=f2008 -fall-intrinsics")
+    -Wline-truncation -fwhole-file -std=f2008 -fall-intrinsics -fPIC")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g -fimplicit-none -Wall \
     -Wline-truncation -Wcharacter-truncation -Wsurprising -Waliasing \
     -Wimplicit-interface -Wunused-parameter -fwhole-file -fcheck=all \
@@ -34,7 +34,7 @@ elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
   # ifort (untested)
   #set (CMAKE_Fortran_FLAGS_RELEASE "-f77rtl -O3")
   # set (CMAKE_Fortran_FLAGS_DEBUG   "-f77rtl -O0 -g")
-  set (CMAKE_Fortran_FLAGS_RELEASE "-xHost -O3 -no-prec-div")
+  set (CMAKE_Fortran_FLAGS_RELEASE "-xHost -O3 -no-prec-div -fPIC")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g -traceback -check all \
     -check bounds -check uninit -debug all -check arg_temp_created \
     -fpe0 -ftrapuv")
