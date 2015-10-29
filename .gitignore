@@ -37,3 +37,5 @@ python/colormap/*.pyc
 particle_based_jdote
 particle_spectrum_box
 particle_spectrum_vdist_box
+python/outfile.out
+python/particle_spectrum_vdist.so
