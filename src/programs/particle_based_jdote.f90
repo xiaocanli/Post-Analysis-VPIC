@@ -63,7 +63,6 @@ program particle_based_jdote
         call get_start_end_time_points
         call get_relativistic_flag
         call get_energy_band_number
-        call get_energy_band_number
         call read_thermal_params
         if (nbands > 0) then
             call calc_energy_interval
