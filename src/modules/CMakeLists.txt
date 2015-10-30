@@ -96,3 +96,5 @@ target_link_libraries(particle_drift file_header magnetic_field interp_emf
 
 add_library(particle_spectrum_vdist particle_spectrum_vdist.f90 global.f90)
 target_link_libraries(particle_spectrum_vdist particle_spectrum vdist get_info)
+
+add_library(cla cla.f90 kinds.f90)
