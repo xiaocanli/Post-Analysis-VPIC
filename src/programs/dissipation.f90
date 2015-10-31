@@ -5,6 +5,7 @@ program dissipation
     use mpi_module
     use particle_info, only: species, ibtag, get_ptl_mass_charge
     use analysis_management, only: init_analysis, end_analysis
+    use commandline_arguments, only: is_species
     implicit none
     integer :: ct
 
@@ -13,13 +14,18 @@ program dissipation
 
     call init_analysis
 
-    species = 'e'
-    call commit_analysis
+    if (is_species) then
+        ! The particle species is given by the command line argument
+        call commit_analysis
+    else
+        species = 'e'
+        call commit_analysis
 
-    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+        call MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
-    species = 'i'
-    call commit_analysis
+        species = 'i'
+        call commit_analysis
+    endif
 
     call end_analysis
 
