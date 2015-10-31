@@ -315,7 +315,7 @@ module velocity_distribution
         integer :: np, iptl
 
         ! Read particle data in parallel to generate distributions
-        do np = 0, tot_pic_mpi-numprocs, numprocs
+        do np = 0, tot_pic_mpi-1, numprocs
             write(cid, "(I0)") myid + pic_mpi_ranks(np+1)
             call open_particle_file(tindex, species, cid)
             isrange = check_particle_in_range(spatial_range)
@@ -500,7 +500,7 @@ module velocity_distribution
         integer :: np, iptl
 
         ! Read particle data in parallel to generate distributions
-        do np = 0, tot_pic_mpi-numprocs, numprocs
+        do np = 0, tot_pic_mpi-1, numprocs
             write(cid, "(I0)") myid + pic_mpi_ranks(np+1)
             call open_particle_file(tindex, species, cid)
             isrange = check_particle_in_range(spatial_range)

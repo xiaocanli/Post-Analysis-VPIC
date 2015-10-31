@@ -165,8 +165,9 @@ module particle_spectrum_vdist_module
         integer :: np, iptl
         integer :: IOstatus
 
+        print*, tot_pic_mpi, numprocs
         ! Read particle data in parallel to generate distributions
-        do np = 0, tot_pic_mpi-numprocs, numprocs
+        do np = 0, tot_pic_mpi-1, numprocs
             write(cid, "(I0)") myid + pic_mpi_ranks(np+1)
             call open_particle_file(tindex, species, cid)
             isrange = check_particle_in_range(spatial_range)
