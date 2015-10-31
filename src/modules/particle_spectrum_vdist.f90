@@ -29,6 +29,7 @@ module particle_spectrum_vdist_module
     contains
 
     subroutine particle_spectrum_vdist_main
+        use commandline_arguments, only: is_species, get_cmdline_arguments
         implicit none
         integer :: ct, ct_field, ratio_particle_field
         real(dp) :: mp_elapsed
@@ -38,6 +39,7 @@ module particle_spectrum_vdist_module
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
         call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
+        call get_cmdline_arguments
         call get_file_paths
         if (myid==master) then
             call get_particle_frames
@@ -72,16 +74,26 @@ module particle_spectrum_vdist_module
         ct_field = ratio_particle_field * tframe
         call read_magnetic_fields(ct_field)
 
-        species = 'e'
-        call get_ptl_mass_charge(species)
-        call calc_spectrum_vdist(tframe, 'e')
-        call set_energy_spectra_zero
-        call set_vdist_2d_zero
-        call set_vdist_1d_zero
+        if (is_species) then
+            ! The particle species is given by the command line argument
+            call get_ptl_mass_charge(species)
+            if (species == 'i') then
+                call calc_spectrum_vdist(tframe, 'h')
+            else
+                call calc_spectrum_vdist(tframe, 'e')
+            endif
+        else
+            species = 'e'
+            call get_ptl_mass_charge(species)
+            call calc_spectrum_vdist(tframe, 'e')
+            call set_energy_spectra_zero
+            call set_vdist_2d_zero
+            call set_vdist_1d_zero
 
-        species = 'i'
-        call get_ptl_mass_charge(species)
-        call calc_spectrum_vdist(tframe, 'h')
+            species = 'i'
+            call get_ptl_mass_charge(species)
+            call calc_spectrum_vdist(tframe, 'h')
+        endif
 
         mp_elapsed = MPI_WTIME() - mp_elapsed
 

@@ -96,10 +96,10 @@ target_link_libraries(particle_drift file_header magnetic_field interp_emf
     particle_module translate_module particle_file)
 
 add_library(particle_spectrum_vdist particle_spectrum_vdist.f90 global.f90)
-target_link_libraries(particle_spectrum_vdist particle_spectrum vdist get_info)
+target_link_libraries(particle_spectrum_vdist particle_spectrum vdist
+    get_info commandline_arguments)
 
 add_library(cla cla.f90 kinds.f90)
 
 add_library(commandline_arguments commandline_arguments.f90 global.f90)
 target_link_libraries(commandline_arguments cla spectrum_config parameters)
-
