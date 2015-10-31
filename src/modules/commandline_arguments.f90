@@ -7,6 +7,7 @@ module commandline_arguments
     use cla
     implicit none
     private
+    public is_species, is_config_dist
     public get_cmdline_arguments
     logical :: is_species, is_config_dist
     
