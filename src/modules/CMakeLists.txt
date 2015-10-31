@@ -23,7 +23,8 @@ target_link_libraries(parameters read_config)
 add_library(analysis_config STATIC analysis_config.f90 mpi_setup.f90
     mpi_io_fields.f90 particle_info.f90 translate_config.f90
     get_info_translate.f90)
-target_link_libraries(analysis_config get_info mpi_io parameters)
+target_link_libraries(analysis_config get_info mpi_io parameters
+    commandline_arguments)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
 target_link_libraries(magnetic_field get_info parameters)
@@ -98,3 +99,7 @@ add_library(particle_spectrum_vdist particle_spectrum_vdist.f90 global.f90)
 target_link_libraries(particle_spectrum_vdist particle_spectrum vdist get_info)
 
 add_library(cla cla.f90 kinds.f90)
+
+add_library(commandline_arguments commandline_arguments.f90 global.f90)
+target_link_libraries(commandline_arguments cla spectrum_config parameters)
+

@@ -29,6 +29,7 @@ module analysis_management
                 tp2, get_relativistic_flag
         use configuration_translate, only: read_configuration
         use time_info, only: get_nout
+        use commandline_arguments, only: get_cmdline_arguments
 
         implicit none
 
@@ -36,6 +37,7 @@ module analysis_management
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
         call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
+        call get_cmdline_arguments
         call get_file_paths
         if (myid == master) then
             call read_domain

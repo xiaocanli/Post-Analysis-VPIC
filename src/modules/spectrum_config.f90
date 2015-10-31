@@ -8,7 +8,7 @@ module spectrum_config
     implicit none
     private
     public nbins, emax, emin, dve, dlogve, spatial_range, center, sizes, &
-           tot_pic_mpi, pic_mpi_ranks
+           tot_pic_mpi, pic_mpi_ranks, config_name
     public read_spectrum_config, set_spatial_range_de, calc_pic_mpi_ids, &
            calc_energy_interval, init_pic_mpi_ranks, free_pic_mpi_ranks, &
            calc_pic_mpi_ranks
@@ -25,6 +25,7 @@ module spectrum_config
     integer, dimension(2,3) :: corners_mpi      ! MPI IDs of the corners.
     integer :: tot_pic_mpi                      ! Total number of PIC MPI process.
     integer, allocatable, dimension(:) :: pic_mpi_ranks  ! PIC MPI rank in 1D.
+    character(len=64) :: config_name
 
     contains
 
@@ -37,14 +38,8 @@ module spectrum_config
         implicit none
         integer :: fh
         real(fp) :: temp
-        character(len=32) :: fname
         fh = 10
-        if (iargc() > 0) then
-            call getarg(1, fname)
-        else
-            fname = 'config_files/spectrum_config.dat'
-        endif
-        open(unit=fh, file=fname, status='old')
+        open(unit=fh, file=config_name, status='old')
         temp = get_variable(fh, 'nbins', '=')   ! Number of energy bins
         nbins = int(temp)
         emax = get_variable(fh, 'emax', '=')    ! Maximum energy
