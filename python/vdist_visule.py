@@ -83,7 +83,8 @@ class EspectrumVdist(object):
         """Get arguments for getting particle distributions
         """
         self.kwargs_dist = {'center':center, 'sizes':sizes, 'nbins':self.nbins,
-                'vmin':self.vmin, 'vmax':self.vmax, 'tframe':self.ct_ptl}
+                'vmin':self.vmin, 'vmax':self.vmax, 'tframe':self.ct_ptl,
+                'species':self.species}
 
     def read_distributions(self):
         """Read velocity and energy distributions
@@ -315,6 +316,7 @@ class EspectrumVdist(object):
         if event.inaxes==self.xz_axis:
             xpos = event.xdata
             ypos = event.ydata
+            print xpos, ypos
             pos = np.asarray([xpos, 0.0, ypos]) * self.smime
             if event.button==1:
                 self.kwargs_dist['center'] = pos 
@@ -357,14 +359,14 @@ if __name__ == "__main__":
     var_field = 'ey'
     var_name = '$E_y$'
     field_range = [0, 200, -20, 20]
-    ct_ptl = 3
+    ct_ptl = 16
 
     smime = math.sqrt(pic_info.mime)
     lx_de = pic_info.lx_di * smime
 
     species = 'e'
     center = [0.5*lx_de, 0.0, 0.0]
-    sizes = [256, 1, 256]
+    sizes = [128, 1, 256]
     center = np.asarray(center)
     sizes = np.asarray(sizes)
     nbins = 64
