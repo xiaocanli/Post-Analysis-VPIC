@@ -366,7 +366,9 @@ def get_spectrum_vdist(pic_info, dir='../',
     # cmd = './particle_spectrum_vdist_box ' + config_name
     # p1 = subprocess.Popen([cmd], cwd='../', shell=True)
     # cmd = 'mpirun -np 16 python particle_spectrum_vdist.py ' + config_name
-    cmd = 'mpirun -np 16 particle_spectrum_vdist_box ' + config_name
+    cmd = 'mpirun -np 64 particle_spectrum_vdist_box ' + \
+            '-c ' + config_name + ' -s ' + kwargs['species']
+    print cmd
     p1 = subprocess.Popen([cmd], cwd='../', stdout=open('outfile.out', 'w'),
             stderr=subprocess.STDOUT, shell=True)
     p1.wait()
@@ -527,9 +529,9 @@ if __name__ == "__main__":
     smime = math.sqrt(pic_info.mime)
     lx_de = pic_info.lx_di * smime
     center = [0.5*lx_de, 0, 0]
-    sizes = [50, 1, 8]
+    sizes = [256, 1, 256]
     kwargs = {'center':center, 'sizes':sizes, 'nbins':64, 'vmax':2.0,
-            'vmin':0, 'tframe':10}
+            'vmin':0, 'tframe':10, 'species':'e'}
     get_spectrum_vdist(pic_info, **kwargs)
     # fpath = '../vdistributions/'
     # fvel = read_velocity_distribution(fpath, 'e', 10)
