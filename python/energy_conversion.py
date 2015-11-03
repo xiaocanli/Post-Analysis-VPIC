@@ -18,7 +18,9 @@ from pic_information import list_pic_info_dir
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
 from runs_name_path import ApJ_long_paper_runs
+from scipy.interpolate import interp1d
 import palettable
+import re
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -64,6 +66,7 @@ def plot_energy_evolution(pic_info):
     p3, = ax.plot(tenergy, kene_e/enorm, linewidth=2, label=r'$K_e$')
     p4, = ax.plot(tenergy, 100*ene_electric/enorm, linewidth=2,
             label=r'$100\varepsilon_{e}$')
+    # ax.set_xlim([0, np.max(tenergy)])
     ax.set_xlim([0, np.max(tenergy)])
     ax.set_ylim([0, 1.05])
 
@@ -426,7 +429,8 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=24)
     ax1.tick_params(reset=True, labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
-    ax1.set_xlim([np.min(tenergy), np.max(tenergy)])
+    # ax1.set_xlim([np.min(tenergy), np.max(tenergy)])
+    ax1.set_xlim([0, 800])
     dmax = np.max([jdote_e.jqnuperp_dote, jdote_e.jqnupara_dote, jtot_dote])
     dmin = np.min([jdote_e.jqnuperp_dote[2:], jdote_e.jqnupara_dote[2:], jtot_dote[2:]])
     ax1.set_ylim([dmin*1.1, dmax*1.1])
@@ -700,8 +704,61 @@ def plot_jdotes_evolution_multi(species):
         plt.close()
 
 
+def calc_jdotes_fraction_multi(species):
+    """Calculate the fractions for jdotes due to different drift.
+
+    Args:
+        species: particle species.
+    """
+    dir = '../data/jdote_data/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'jdotes_fraction_' + species + '.dat'
+    f = open(fname, 'w')
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    for irun in range(nruns):
+        run_name = run_names[irun]
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        jdote_fname = dir + 'jdote_' + run_name + '_' + species + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        tenergy = pic_info.tenergy
+        tfields = pic_info.tfields
+        tmax = min(tenergy[-1], tfields[-1])
+        jdote_data = read_data_from_json(jdote_fname)
+        kene = pic_info.kene_e if species == 'e' else pic_info.kene_i
+        nf = len(jdote_data)
+        jdote_names = jdote_data._fields
+        f1 = interp1d(tenergy, kene-kene[0], 'cubic')
+        jdote_drifts_int = []
+        names = []
+        for name in jdote_names:
+            if 'int' in name:
+                names.append(name)
+                jdote_int = getattr(jdote_data, name)
+                f2 = interp1d(tfields, jdote_int, 'cubic')
+                jdote_last = f2(tmax)
+                jdote_drifts_int.append(jdote_last)
+        jdote_drifts_np = np.asarray(jdote_drifts_int/f1(tmax))
+        nj = len(jdote_drifts_np)
+        if irun == 0:
+            f.write("%25s" % ' ')
+            for i in range(nj):
+                name = names[i]
+                name_head = name[:-9]
+                length = len(name_head)
+                # name_head.ljust(10)
+                f.write("%10s" % name_head)
+            f.write("\n")
+        f.write("%25s" % run_name)
+        for i in range(nj):
+            f.write("%10.4f" % jdote_drifts_np[i])
+        f.write("\n")
+    f.close()
+
+
 if __name__ == "__main__":
-    species = 'e'
+    species = 'i'
     # pic_info = pic_information.get_pic_info('../../')
     # jdote = read_jdote_data(species)
     # jdote_e = read_jdote_data('e')
@@ -713,6 +770,7 @@ if __name__ == "__main__":
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
-    # save_jdote_json('i')
+    # save_jdote_json('e')
     # plot_jpara_jperp_dote_multi()
-    plot_jdotes_evolution_multi(species)
+    # plot_jdotes_evolution_multi(species)
+    calc_jdotes_fraction_multi(species)
