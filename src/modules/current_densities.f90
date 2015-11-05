@@ -302,7 +302,8 @@ module current_densities
         use mpi_module
         use constants, only: fp
         use saving_flags, only: save_jtot, save_jagy, save_jperp1, &
-                save_jperp2, save_jagy
+                save_jperp2, save_jagy, save_jtot_dote, save_jagy_dote, &
+                save_jperp1_dote, save_jperp2_dote, save_jagy_dote
         use jdote_module, only: jdote_tot
         use mpi_io_fields, only: save_field
         use parameters, only: tp1
@@ -339,7 +340,7 @@ module current_densities
             jdote_tot(8,t), jdote_tot(9,t))
 
         call calc_jdote(jx, jy, jz, jdote_tot(15,t))
-        if (save_jtot==1) then
+        if (save_jtot_dote==1) then
             call save_field(jdote, 'jdote', ct)
         endif
 
@@ -347,11 +348,15 @@ module current_densities
         call calc_jdote(jperpx1, jperpy1, jperpz1, jdote_tot(10,t))
         if (save_jperp1==1) then
             call save_current_density('jperp1', jperpx1, jperpy1, jperpz1, ct)
+        endif
+        if (save_jperp1_dote==1) then
             call save_field(jdote, 'jperp1_dote', ct)
         endif
         call calc_jdote(jperpx2, jperpy2, jperpz2, jdote_tot(11,t))
         if (save_jperp2==1) then
             call save_current_density('jperp2', jperpx2, jperpy2, jperpz2, ct)
+        endif
+        if (save_jperp2_dote==1) then
             call save_field(jdote, 'jperp2_dote', ct)
         endif
         call calc_averaged_currents(jx1, jy1, jz1, javg(:,10,t))
@@ -368,6 +373,8 @@ module current_densities
         call calc_jdote(jagyx, jagyy, jagyz, jdote_tot(14,t))
         if (save_jagy==1) then
             call save_current_density('jagy', jagyx, jagyy, jagyz, ct)
+        endif
+        if (save_jagy_dote==1) then
             call save_field(jdote, 'jagy_dote', ct)
         endif
 
@@ -454,7 +461,8 @@ module current_densities
     !---------------------------------------------------------------------------
     subroutine calc_curvature_drift_current(ct, jcpara_avg, jcperp_avg, &
                                             jcpara_dote, jcperp_dote)
-        use saving_flags, only: save_jcpara, save_jcperp
+        use saving_flags, only: save_jcpara, save_jcperp, save_jcpara_dote, &
+                save_jcperp_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), intent(out) :: jcpara_dote, jcperp_dote
@@ -524,11 +532,15 @@ module current_densities
         call calc_jdote(jx1, jy1, jz1, jcpara_dote)
         if (save_jcpara==1) then
             call save_current_density('jcpara', jx1, jy1, jz1, ct)
+        endif
+        if (save_jcpara_dote==1) then
             call save_field(jdote, 'jcpara_dote', ct)
         endif
         call calc_jdote(jx2, jy2, jz2, jcperp_dote)
         if (save_jcperp==1) then
             call save_current_density('jcperp', jx2, jy2, jz2, ct)
+        endif
+        if (save_jcperp_dote==1) then
             call save_field(jdote, 'jcperp_dote', ct)
         endif
         call calc_averaged_currents(jx1, jy1, jz1, jcpara_avg)
@@ -546,7 +558,7 @@ module current_densities
     !   jmag_dote: the total j dot E in the box.
     !---------------------------------------------------------------------------
     subroutine calc_perp_magnetization_current(ct, jmag_avg, jmag_dote)
-        use saving_flags, only: save_jmag
+        use saving_flags, only: save_jmag, save_jmag_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3), intent(out) :: jmag_avg
@@ -597,6 +609,8 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jmag_avg)
         if (save_jmag==1) then
             call save_current_density('jmag', jx1, jy1, jz1, ct)
+        endif
+        if (save_jmag_dote==1) then
             call save_field(jdote, 'jmag_dote', ct)
         endif
     end subroutine calc_perp_magnetization_current
@@ -611,7 +625,7 @@ module current_densities
     !   jgrad_dote the total j dot E in the box.
     !---------------------------------------------------------------------------
     subroutine calc_gradientB_drift_current(ct, jgrad_avg, jgrad_dote)
-        use saving_flags, only: save_jgrad
+        use saving_flags, only: save_jgrad, save_jgrad_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3), intent(out) :: jgrad_avg
@@ -649,6 +663,8 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jgrad_avg)
         if (save_jgrad==1) then
             call save_current_density('jgrad', jx1, jy1, jz1, ct)
+        endif
+        if (save_jgrad_dote==1) then
             call save_field(jdote, 'jgrad_dote', ct)
         endif
     end subroutine calc_gradientB_drift_current
@@ -663,7 +679,7 @@ module current_densities
     !   jdiagm_dote the total j dot E in the box.
     !---------------------------------------------------------------------------
     subroutine calc_diamagnetic_drift_current(ct, jdiagm_avg, jdiagm_dote)
-        use saving_flags, only: save_jdiagm
+        use saving_flags, only: save_jdiagm, save_jdiagm_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3), intent(out) :: jdiagm_avg
@@ -704,6 +720,8 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jdiagm_avg)
         if (save_jdiagm==1) then
             call save_current_density('jdiagm', jx1, jy1, jz1, ct)
+        endif
+        if (save_jdiagm_dote==1) then
             call save_field(jdote, 'jdiagm_dote', ct)
         endif
     end subroutine calc_diamagnetic_drift_current
@@ -724,7 +742,7 @@ module current_densities
     subroutine calc_polarization_drift_current(ct, jpolar_avg, jpolar_dote)
         use previous_post_velocities, only: vdx1, vdy1, vdz1, vdx2, vdy2, vdz2
         use previous_post_density, only: nrho1, nrho2
-        use saving_flags, only: save_jpolar
+        use saving_flags, only: save_jpolar, save_jpolar_dote
         use particle_info, only: ptl_mass
         use parameters, only: tp1, tp2
         implicit none
@@ -865,6 +883,8 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jpolar_avg)
         if (save_jpolar==1) then
             call save_current_density('jpolar', jx1, jy1, jz1, ct)
+        endif
+        if (save_jpolar_dote==1) then
             call save_field(jdote, 'jpolar_dote', ct)
         endif
     end subroutine calc_polarization_drift_current
@@ -880,7 +900,7 @@ module current_densities
     !---------------------------------------------------------------------------
     subroutine calc_exb_drift_current(ct, jexb_avg, jexb_dote)
         use particle_info, only: ptl_charge
-        use saving_flags, only: save_jexb
+        use saving_flags, only: save_jexb, save_jexb_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3), intent(out) :: jexb_avg
@@ -921,6 +941,8 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jexb_avg)
         if (save_jexb==1) then
             call save_current_density('jexb', jx1, jy1, jz1, ct)
+        endif
+        if (save_jexb_dote==1) then
             call save_field(jdote, 'jexb_dote', ct)
         endif
     end subroutine calc_exb_drift_current
@@ -938,7 +960,8 @@ module current_densities
     !---------------------------------------------------------------------------
     subroutine calc_current_single_fluid(ct, jpara_avg, jperp_avg, &
                                          jpara_dote, jperp_dote)
-        use saving_flags, only: save_jpara, save_jperp
+        use saving_flags, only: save_jpara, save_jperp, save_jpara_dote, &
+                save_jperp_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), intent(out) :: jpara_dote, jperp_dote
@@ -959,11 +982,15 @@ module current_densities
         call calc_jdote(jx1, jy1, jz1, jpara_dote)
         if (save_jpara==1) then
             call save_current_density('jpara', jx1, jy1, jz1, ct)
+        endif
+        if (save_jpara_dote==1) then
             call save_field(jdote, 'jpara_dote', ct)
         endif
         call calc_jdote(jx2, jy2, jz2, jperp_dote)
         if (save_jperp==1) then
             call save_current_density('jperp', jx2, jy2, jz2, ct)
+        endif
+        if (save_jperp_dote==1) then
             call save_field(jdote, 'jperp_dote', ct)
         endif
         call calc_averaged_currents(jx1, jy1, jz1, jpara_avg)
@@ -983,7 +1010,8 @@ module current_densities
     subroutine calc_qnv_current(ct, jqnvpara_avg, jqnvperp_avg, &
                                 jqnvpara_dote, jqnvperp_dote)
         use particle_info, only: ptl_charge
-        use saving_flags, only: save_jqnvpara, save_jqnvperp
+        use saving_flags, only: save_jqnvpara, save_jqnvperp, &
+                save_jqnvpara_dote, save_jqnvperp_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), intent(out) :: jqnvpara_dote, jqnvperp_dote
@@ -1010,11 +1038,15 @@ module current_densities
         call calc_jdote(jx1, jy1, jz1, jqnvpara_dote)
         if (save_jqnvpara==1) then
             call save_current_density('jqnvpara', jx1, jy1, jz1, ct)
+        endif
+        if (save_jqnvpara_dote==1) then
             call save_field(jdote, 'jqnvpara_dote', ct)
         endif
         call calc_jdote(jx2, jy2, jz2, jqnvperp_dote)
         if (save_jqnvperp==1) then
             call save_current_density('jqnvperp', jx2, jy2, jz2, ct)
+        endif
+        if (save_jqnvperp_dote==1) then
             call save_field(jdote, 'jqnvperp_dote', ct)
         endif
         call calc_averaged_currents(jx1, jy1, jz1, jqnvpara_avg)
@@ -1034,7 +1066,7 @@ module current_densities
     subroutine calc_compression_current(ct, jdivv_avg, jdivv_dote)
         use particle_info, only: ptl_mass
         use compression_shear, only: div_v, calc_div_v
-        use saving_flags, only: save_jdivv
+        use saving_flags, only: save_jdivv, save_jdivv_dote
         implicit none
         integer, intent(in) :: ct
         real(fp), dimension(3), intent(out) :: jdivv_avg
@@ -1057,6 +1089,8 @@ module current_densities
         call calc_averaged_currents(jx1, jy1, jz1, jdivv_avg)
         if (save_jdivv==1) then
             call save_current_density('jdivv', jx1, jy1, jz1, ct)
+        endif
+        if (save_jdivv_dote==1) then
             call save_field(jdote, 'jdivv_dote', ct)
         endif
     end subroutine calc_compression_current
