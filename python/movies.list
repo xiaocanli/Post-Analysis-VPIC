@@ -1,0 +1,107 @@
+python fields_movie.py mime25_beta02 ../img/ 1
+python fields_movie.py mime25_beta007 ../img/ 1
+python fields_movie.py mime25_beta002 ../img/ 1
+python fields_movie.py mime25_beta0007 ../img/ 1
+python fields_movie.py mime100_beta002 ../img/ 1
+python fields_movie.py mime25_beta002_sigma01 ../img/ 1
+python fields_movie.py mime25_beta002_sigma033 ../img/ 1
+python fields_movie.py mime25_beta002_noperturb ../img/ 1
+
+python fields_movie.py mime25_beta02 ../img/ 2
+python fields_movie.py mime25_beta007 ../img/ 2
+python fields_movie.py mime25_beta002 ../img/ 2
+python fields_movie.py mime25_beta0007 ../img/ 2
+python fields_movie.py mime100_beta002 ../img/ 2
+python fields_movie.py mime25_beta002_sigma01 ../img/ 2
+python fields_movie.py mime25_beta002_sigma033 ../img/ 2
+python fields_movie.py mime25_beta002_noperturb ../img/ 2
+
+python fields_movie.py mime25_beta02 ../img/ 3
+python fields_movie.py mime25_beta007 ../img/ 3
+python fields_movie.py mime25_beta002 ../img/ 3
+python fields_movie.py mime25_beta0007 ../img/ 3
+python fields_movie.py mime100_beta002 ../img/ 3
+python fields_movie.py mime25_beta002_sigma01 ../img/ 3
+python fields_movie.py mime25_beta002_sigma033 ../img/ 3
+python fields_movie.py mime25_beta002_noperturb ../img/ 3
+
+python fields_movie.py mime25_beta02 ../img/ 4
+python fields_movie.py mime25_beta007 ../img/ 4
+python fields_movie.py mime25_beta002 ../img/ 4
+python fields_movie.py mime25_beta0007 ../img/ 4
+python fields_movie.py mime100_beta002 ../img/ 4
+python fields_movie.py mime25_beta002_sigma01 ../img/ 4
+python fields_movie.py mime25_beta002_sigma033 ../img/ 4
+python fields_movie.py mime25_beta002_noperturb ../img/ 4
+
+python fields_movie.py mime25_beta02 ../img/ 5
+python fields_movie.py mime25_beta007 ../img/ 5
+python fields_movie.py mime25_beta002 ../img/ 5
+python fields_movie.py mime25_beta0007 ../img/ 5
+python fields_movie.py mime100_beta002 ../img/ 5
+python fields_movie.py mime25_beta002_sigma01 ../img/ 5
+python fields_movie.py mime25_beta002_sigma033 ../img/ 5
+python fields_movie.py mime25_beta002_noperturb ../img/ 5
+
+python fields_movie.py mime25_beta02 ../img/ 6
+python fields_movie.py mime25_beta007 ../img/ 6
+python fields_movie.py mime25_beta002 ../img/ 6
+python fields_movie.py mime25_beta0007 ../img/ 6
+python fields_movie.py mime100_beta002 ../img/ 6
+python fields_movie.py mime25_beta002_sigma01 ../img/ 6
+python fields_movie.py mime25_beta002_sigma033 ../img/ 6
+python fields_movie.py mime25_beta002_noperturb ../img/ 6
+
+python fields_movie.py mime25_beta02 ../img/ 7
+python fields_movie.py mime25_beta007 ../img/ 7
+python fields_movie.py mime25_beta002 ../img/ 7
+python fields_movie.py mime25_beta0007 ../img/ 7
+python fields_movie.py mime100_beta002 ../img/ 7
+python fields_movie.py mime25_beta002_sigma01 ../img/ 7
+python fields_movie.py mime25_beta002_sigma033 ../img/ 7
+python fields_movie.py mime25_beta002_noperturb ../img/ 7
+
+python fields_movie.py mime25_beta02 ../img/ 8
+python fields_movie.py mime25_beta007 ../img/ 8
+python fields_movie.py mime25_beta002 ../img/ 8
+python fields_movie.py mime25_beta0007 ../img/ 8
+python fields_movie.py mime100_beta002 ../img/ 8
+python fields_movie.py mime25_beta002_sigma01 ../img/ 8
+python fields_movie.py mime25_beta002_sigma033 ../img/ 8
+python fields_movie.py mime25_beta002_noperturb ../img/ 8
+
+python fields_movie.py mime25_beta02 ../img/ 9
+python fields_movie.py mime25_beta007 ../img/ 9
+python fields_movie.py mime25_beta002 ../img/ 9
+python fields_movie.py mime25_beta0007 ../img/ 9
+python fields_movie.py mime100_beta002 ../img/ 9
+python fields_movie.py mime25_beta002_sigma01 ../img/ 9
+python fields_movie.py mime25_beta002_sigma033 ../img/ 9
+python fields_movie.py mime25_beta002_noperturb ../img/ 9
+
+python fields_movie.py mime25_beta02 ../img/ 10
+python fields_movie.py mime25_beta007 ../img/ 10
+python fields_movie.py mime25_beta002 ../img/ 10
+python fields_movie.py mime25_beta0007 ../img/ 10
+python fields_movie.py mime100_beta002 ../img/ 10
+python fields_movie.py mime25_beta002_sigma01 ../img/ 10
+python fields_movie.py mime25_beta002_sigma033 ../img/ 10
+python fields_movie.py mime25_beta002_noperturb ../img/ 10
+
+python fields_movie.py mime25_beta02 ../img/ 11
+python fields_movie.py mime25_beta007 ../img/ 11
+python fields_movie.py mime25_beta002 ../img/ 11
+python fields_movie.py mime25_beta0007 ../img/ 11
+python fields_movie.py mime100_beta002 ../img/ 11
+python fields_movie.py mime25_beta002_sigma01 ../img/ 11
+python fields_movie.py mime25_beta002_sigma033 ../img/ 11
+python fields_movie.py mime25_beta002_noperturb ../img/ 11
+
+python fields_movie.py mime25_beta02 ../img/ 12
+python fields_movie.py mime25_beta007 ../img/ 12
+python fields_movie.py mime25_beta002 ../img/ 12
+python fields_movie.py mime25_beta0007 ../img/ 12
+python fields_movie.py mime100_beta002 ../img/ 12
+python fields_movie.py mime25_beta002_sigma01 ../img/ 12
+python fields_movie.py mime25_beta002_sigma033 ../img/ 12
+python fields_movie.py mime25_beta002_noperturb ../img/ 12
