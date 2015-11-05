@@ -13,6 +13,7 @@ module path_info
     contains
 
     subroutine get_file_paths
+        use mpi_module
         implicit none
         integer :: status1, getcwd, index1
         status1 = getcwd(rootpath)
@@ -20,5 +21,26 @@ module path_info
         rootpath = rootpath(1:index1)
         filepath = trim(rootpath)//'data/'
         outputpath = trim(rootpath)//'data1/'
+        if (myid == master) then
+            call create_directories
+        endif
     end subroutine get_file_paths
+
+    subroutine create_directories
+        implicit none
+        logical :: dir_e
+        character(len=256) :: fname
+        dir_e = .false.
+        inquire(file=filepath, exist=dir_e)
+        if (.not. dir_e) then
+            fname = 'mkdir '//filepath
+            call system(fname)
+        endif
+
+        inquire(file=outputpath, exist=dir_e)
+        if (.not. dir_e) then
+            fname = 'mkdir '//outputpath
+            call system(fname)
+        endif
+    end subroutine create_directories
 end module path_info

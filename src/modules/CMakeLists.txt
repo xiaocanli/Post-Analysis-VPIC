@@ -4,7 +4,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Add libraries.
 add_library(read_config read_config.f90 global.f90)
 
-add_library(path_info path_info.f90)
+add_library(path_info path_info.f90 global.f90)
 
 add_library(get_info STATIC get_info.f90 get_info_translate.f90
     translate_config.f90 global.f90)
