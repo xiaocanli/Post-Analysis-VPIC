@@ -1024,7 +1024,7 @@ module current_densities
 
     !---------------------------------------------------------------------------
     ! Calculate current density due to the compressibility.
-    ! [-(\nabla\times\vect{u})\vect{u}\times\vect{B}/B^2]\cdot\vect{E}
+    ! [-(\nabla\cdot\vect{u})\vect{u}\times\vect{B}/B^2]\cdot\vect{E}
     ! Input:
     !   ct: current time frame.
     ! Output:
