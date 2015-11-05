@@ -57,7 +57,7 @@ add_library(translate_module translate_config.f90 emfields.f90
 target_link_libraries(translate_module file_header get_info mpi_io parameters)
 
 add_library(spectrum_config spectrum_config.f90)
-target_link_libraries(spectrum_config read_config)
+target_link_libraries(spectrum_config read_config get_info)
 
 add_library(particle_module particle_module.f90 particle_info.f90)
 target_link_libraries(particle_module get_info file_header interp_emf
@@ -101,5 +101,6 @@ target_link_libraries(particle_spectrum_vdist particle_spectrum vdist
 
 add_library(cla cla.f90 kinds.f90)
 
-add_library(commandline_arguments commandline_arguments.f90 global.f90)
+add_library(commandline_arguments commandline_arguments.f90 global.f90
+    particle_info.f90)
 target_link_libraries(commandline_arguments cla spectrum_config parameters)
