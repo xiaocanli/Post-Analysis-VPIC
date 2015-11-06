@@ -12,9 +12,12 @@ program parspec
             calc_pic_mpi_ranks
     use particle_energy_spectrum, only: init_energy_spectra, &
             free_energy_spectra, calc_energy_spectra, &
-            set_energy_spectra_zero
+            set_energy_spectra_zero, init_maximum_energy, free_maximum_energy, &
+            set_maximum_energy_zero, get_maximum_energy_global, &
+            save_maximum_energy
     use parameters, only: get_start_end_time_points, get_inductive_flag, &
             get_relativistic_flag
+    use commandline_arguments, only: get_cmdline_arguments
     implicit none
     integer :: ct
     real(dp) :: mp_elapsed
@@ -24,6 +27,7 @@ program parspec
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
     call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
+    call get_cmdline_arguments
     call get_file_paths
     if (myid==master) then
         call get_particle_frames
@@ -45,6 +49,7 @@ program parspec
     call calc_pic_mpi_ranks
 
     call init_energy_spectra
+    call init_maximum_energy(nt)
 
     mp_elapsed = MPI_WTIME()
 
@@ -52,11 +57,20 @@ program parspec
         call calc_energy_spectra(ct, 'e')
         call set_energy_spectra_zero
     enddo
+    call get_maximum_energy_global(nt)
+    if (myid == master) then
+        call save_maximum_energy(nt, 'e')
+    endif
+    call set_maximum_energy_zero
 
     do ct = 1, nt
         call calc_energy_spectra(ct, 'h')
         call set_energy_spectra_zero
     enddo
+    call get_maximum_energy_global(nt)
+    if (myid == master) then
+        call save_maximum_energy(nt, 'h')
+    endif
 
     mp_elapsed = MPI_WTIME() - mp_elapsed
 
@@ -65,6 +79,7 @@ program parspec
     endif
 
     call free_pic_mpi_ranks
+    call free_maximum_energy
     call free_energy_spectra
     call MPI_FINALIZE(ierr)
 end program parspec

@@ -23,7 +23,7 @@ target_link_libraries(translate ${MPI_Fortran_LIBRARIES} translate_module)
 
 add_executable(parspec parspec.f90)
 target_link_libraries(parspec ${MPI_Fortran_LIBRARIES} particle_spectrum
-    get_info)
+    get_info commandline_arguments)
 
 add_executable(spectrum_along_fieldline spectrum_along_fieldline.f90)
 target_link_libraries(spectrum_along_fieldline ${MPI_Fortran_LIBRARIES}

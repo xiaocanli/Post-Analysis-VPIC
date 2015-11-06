@@ -12,9 +12,13 @@ module particle_energy_spectrum
            set_energy_spectra_zero, set_energy_spectra_zero_single, &
            calc_energy_bins, init_energy_spectra_single, &
            free_energy_spectra_single, calc_energy_spectrum_single, &
-           sum_spectra_over_mpi, save_particle_spectra, update_energy_spectrum
+           sum_spectra_over_mpi, save_particle_spectra, update_energy_spectrum, &
+           init_maximum_energy, set_maximum_energy_zero, update_maximum_energy, &
+           get_maximum_energy_global, save_maximum_energy, free_maximum_energy
     real(dp), allocatable, dimension(:) :: f, fsum, flog, flogsum
     real(dp), allocatable, dimension(:) :: ebins_lin, ebins_log
+    real(fp), allocatable, dimension(:) :: emax_local, emax_global
+    real(fp) :: emax_tmp
 
     contains
 
@@ -73,6 +77,44 @@ module particle_energy_spectrum
     end subroutine set_energy_spectra_zero_single
 
     !---------------------------------------------------------------------------
+    ! Initialize array of maximum energy.
+    !---------------------------------------------------------------------------
+    subroutine init_maximum_energy(nt)
+        use mpi_module
+        implicit none
+        integer, intent(in) :: nt
+        allocate(emax_local(nt))
+        if (myid == master) then
+            allocate(emax_global(nt))
+        endif
+        call set_maximum_energy_zero
+    end subroutine init_maximum_energy
+
+    !---------------------------------------------------------------------------
+    ! Set the maximum energy to zeros.
+    !---------------------------------------------------------------------------
+    subroutine set_maximum_energy_zero
+        use mpi_module
+        implicit none
+        emax_local = 0.0
+        if (myid == master) then
+            emax_global = 0.0
+        endif
+    end subroutine set_maximum_energy_zero
+
+    !---------------------------------------------------------------------------
+    ! Free the array of the maximum energy.
+    !---------------------------------------------------------------------------
+    subroutine free_maximum_energy
+        use mpi_module
+        implicit none
+        deallocate(emax_local)
+        if (myid == master) then
+            deallocate(emax_global)
+        endif
+    end subroutine free_maximum_energy
+
+    !---------------------------------------------------------------------------
     ! Free the memory used by the particle energy flux.
     !---------------------------------------------------------------------------
     subroutine free_energy_spectra
@@ -129,8 +171,10 @@ module particle_energy_spectrum
         tindex = ct * tinterval
         call set_energy_spectra_zero
         call check_existence(tindex, species, is_exist)
+        emax_tmp = emax_local(ct)
         if (is_exist) then
             call calc_energy_spectrum_mpi(tindex, species)
+            emax_local(ct) = emax_tmp  ! emax_tmp has been updated
             call sum_spectra_over_mpi
             if (myid == master) then
                 call save_particle_spectra(ct, species)
@@ -151,6 +195,17 @@ module particle_energy_spectrum
         call MPI_REDUCE(flog, flogsum, nbins, MPI_DOUBLE_PRECISION, &
                 MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     end subroutine sum_spectra_over_mpi
+
+    !---------------------------------------------------------------------------
+    ! Update the global array of maximum energy.
+    !---------------------------------------------------------------------------
+    subroutine get_maximum_energy_global(nt)
+        use mpi_module
+        implicit none
+        integer, intent(in) :: nt
+        call MPI_REDUCE(emax_local, emax_global, nt, MPI_FLOAT, MPI_MAX, &
+            master, MPI_COMM_WORLD, ierr)
+    end subroutine get_maximum_energy_global
 
     !---------------------------------------------------------------------------
     ! Save particle energy spectrum to file.
@@ -177,6 +232,29 @@ module particle_energy_spectrum
         enddo
         close(10)
     end subroutine save_particle_spectra
+
+    !---------------------------------------------------------------------------
+    ! Save the array of the maximum energy.
+    !---------------------------------------------------------------------------
+    subroutine save_maximum_energy(nt, species)
+        implicit none
+        integer, intent(in) :: nt
+        character(len=1), intent(in) :: species
+        logical :: dir_e
+        character(len=100) :: fname
+        integer :: i
+        inquire(file='./spectrum/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir spectrum')
+        endif
+        ! print *," *** Finished Creating Spectrum ***"
+        write(fname, "(A,A1,A)") "spectrum/emax-", species, ".dat"
+        open(unit=10, file=trim(fname), status='unknown')
+        do i=1, nt
+            write(10, "(e12.4)") emax_global(i)
+        enddo
+        close(10)
+    end subroutine save_maximum_energy
 
     !---------------------------------------------------------------------------
     ! Read particle data and calculate the energy spectrum for one time frame.
@@ -288,6 +366,7 @@ module particle_energy_spectrum
 
                 call calc_particle_energy
                 call update_energy_spectrum
+                call update_maximum_energy
             endif
         endif
 
@@ -327,4 +406,15 @@ module particle_energy_spectrum
         endif
     end subroutine update_energy_spectrum
     
+    !---------------------------------------------------------------------------
+    ! Update particle maximum energy.
+    !---------------------------------------------------------------------------
+    subroutine update_maximum_energy
+        use particle_module, only: ke
+        implicit none
+        if (ke > emax_tmp) then
+            emax_tmp = ke
+        endif
+    end subroutine update_maximum_energy
+
 end module particle_energy_spectrum
