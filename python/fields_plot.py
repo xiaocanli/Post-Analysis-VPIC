@@ -70,6 +70,8 @@ class PlotMultiplePanels(object):
         if "bottom_panel" in kwargs:
             self.bottom_panel = kwargs["bottom_panel"]
             self.fdata_1d = kwargs["fdata_1d"]
+        else:
+            self.bottom_panel = False
 
         self.fig = plt.figure(figsize=self.fig_sizes)
         self.ax = []
@@ -281,6 +283,8 @@ def plot_electric_fields(run_name, root_dir, pic_info):
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     fname2 = root_dir + 'data/ex.gda'
     x, z, ex = read_2d_fields(pic_info, fname2, **kwargs) 
@@ -290,6 +294,9 @@ def plot_electric_fields(run_name, root_dir, pic_info):
     x, z, ez = read_2d_fields(pic_info, fname4, **kwargs) 
     fname5 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+    ex = signal.convolve2d(ex, kernel, 'same')
+    ey = signal.convolve2d(ey, kernel, 'same')
+    ez = signal.convolve2d(ez, kernel, 'same')
     fdata = [ex, ey, ez]
     fname = 'efields'
     # Change with different runs
@@ -311,6 +318,9 @@ def plot_electric_fields(run_name, root_dir, pic_info):
         x, z, ey = read_2d_fields(pic_info, fname3, **kwargs) 
         x, z, ez = read_2d_fields(pic_info, fname4, **kwargs) 
         x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+        ex = signal.convolve2d(ex, kernel, 'same')
+        ey = signal.convolve2d(ey, kernel, 'same')
+        ez = signal.convolve2d(ez, kernel, 'same')
         fdata = [ex, ey, ez]
         efields_plot.update_fields(ct, fdata, Ay)
 
@@ -362,8 +372,10 @@ def plot_current_densities(run_name, root_dir, pic_info):
     fdata = [absJ, jx, jy, jz]
     # Change with different runs
     b0 = pic_info.b0
-    vmin = np.asarray(vmin) * b0
-    vmax = np.asarray(vmax) * b0
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    vmin = np.asarray(vmin) * va / 0.2
+    vmax = np.asarray(vmax) * va / 0.2
     fname = 'jfields'
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
             'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
@@ -531,6 +543,12 @@ def plot_pressure_tensor(run_name, root_dir, pic_info, species):
     contour_color = ['w', 'k', 'k', 'w', 'k', 'w']
     vmin = [0, -0.1, -0.1, 0, -0.1, 0]
     vmax = [0.5, 0.1, 0.1, 0.5, 0.1, 0.5]
+    # Change with different runs
+    b0 = pic_info.b0
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    vmin = np.asarray(vmin) * va*va / (0.2*0.2)
+    vmax = np.asarray(vmax) * va*va / (0.2*0.2)
     xs, ys = 0.10, 0.7
     w1, h1 = 0.364, 0.26
     fig_sizes = (10, 7)
@@ -726,6 +744,10 @@ def plot_fields_cmdline():
         plot_velocity_fields(run_name, root_dir, pic_info, 'e')
     elif type_plot == 10:
         plot_velocity_fields(run_name, root_dir, pic_info, 'i')
+    elif type_plot == 11:
+        plot_jdote_fields(run_name, root_dir, pic_info, 'e')
+    elif type_plot == 12:
+        plot_jdote_fields(run_name, root_dir, pic_info, 'i')
 
 def plot_fields_multi():
     """Plot fields for multiple runs
@@ -864,5 +886,5 @@ if __name__ == "__main__":
     # pic_info = read_data_from_json(picinfo_fname)
     # plot_jdote_fields(run_name, root_dir, pic_info, 'e')
     # plot_fields_multi()
-    # plot_fields_cmdline()
-    plot_jdotes_cmdline()
+    plot_fields_cmdline()
+    # plot_jdotes_cmdline()
