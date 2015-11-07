@@ -12,6 +12,8 @@ import collections
 import pic_information
 import fitting_funcs
 import palettable
+import color_maps as cm
+import colormap.colormaps as cmaps
 from runs_name_path import ApJ_long_paper_runs
 from energy_conversion import read_data_from_json
 import palettable
@@ -245,55 +247,62 @@ def fit_powerlaw_whole(ene, f, species):
     return (fpower, estart, eend, popt, nportion, eportion)
 
 
-def plot_spectrum(it, species, pic_info, ax, is_power, is_thermal):
+def plot_spectrum(ct, species, ax, pic_info, **kwargs):
     """Plotting the energy spectrum.
     Args:
-        it: the time point index.
+        ct: the time point index.
         species: particle species. 'e' for electron, 'h' for ion.
         pic_info: namedtuple for the PIC simulation information.
-        ax: axes object.
-        is_power: whether to plot power-law spectrum fitting.
-        is_thermal: whether to plot the thermal core.
+        ax: axes object for the plot.
     """
-    # Get particle spectra energy bins and flux
-    fname = "../spectrum/spectrum-" + species + "." + str(it).zfill(len(str(it)))
-    nx = pic_info.nx
-    ny = pic_info.ny
-    nz = pic_info.nz
-    nppc = pic_info.nppc
-    if species == 'e':
-        ptl_mass = 1.0
+    if "fpath" in kwargs:
+        fpath = kwargs["fpath"]
     else:
-        ptl_mass = pic_info.mime
-    fnorm = nx * ny * nz * nppc * ptl_mass
+        fpath = '../spectrum/'
+    fname = fpath + "spectrum-" + species + "." + str(ct)
+    fnorm = pic_info.nx * pic_info.ny  * pic_info.nz * pic_info.nppc
     if (os.path.isfile(fname)):
-        ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
+        elin, flin, elog, flog = get_energy_distribution(fname, fnorm)
     else:
         print "ERROR: the spectrum data file doesn't exist."
         return
-    ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
-    # The whole the energy spectrum.
-    p1, = ax.loglog(ene_log_norm, flog, linewidth=2)
+    # Ions have lower Lorentz factor due to higher mass
+    if (species == 'h'):
+        flog /= pic_info.mime
+    elog_norm = get_normalized_energy(species, elog, pic_info)
+    ps = []
+    p1, = ax.loglog(elog_norm, flog, linewidth=2)
+    if "color" in kwargs:
+        p1.set_color(kwargs["color"])
+    ps.append(p1)
 
     color = p1.get_color()
-    # Fit the thermal core and plot thermal distribution.
-    fthermal = fit_thermal_core(ene_log, flog)
+    fthermal = fit_thermal_core(elog, flog)
     fnonthermal = flog - fthermal
-    if is_thermal:
-        p2, = ax.loglog(ene_log_norm, fthermal, linewidth=2,
+    # Plot thermal core
+    if "is_thermal" in kwargs and kwargs["is_thermal"] == True:
+        p2, = ax.loglog(elog_norm, fthermal, linewidth=2,
                         color='k', linestyle='--', label='Thermal')
-    if is_power:
-        # Fit the high energy part as a power-law distribution.
-        fpower_whole, estart, eend, popt, nportion, \
-            eportion = fit_powerlaw_whole(ene_log, flog, species)
-        plot_powerlaw_whole(ene_log_norm, fpower_whole, estart,
-                            eend, popt, color)
-    if (species == 'e'):
-        ax.set_xlim([5E-2, 2E2])
-        ax.set_ylim([1E-5, 2E2])
-    else:
-        ax.set_xlim([np.min(ene_log_norm), 1E3])
-        ax.set_ylim([1E-5, 2E2])
+        ps.append(p2)
+    # Plot Power-law spectrum
+    if "is_power" in kwargs and kwargs["is_power"] == True:
+        offset = kwargs["offset"]
+        extent = kwargs["extent"]
+        power_fit = power_law_fit(elog, fnonthermal, offset, extent)
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = '$\sim E^{' + powerIndex + '}$'
+        es -= e_extend
+        ee += e_extend
+        p3, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                linestyle='--', linewidth=2, label=pname)
+        ps.append(p3)
+
+    if "xlim" in kwargs:
+        ax.set_xlim(kwargs["xlim"])
+    if "ylim" in kwargs:
+        ax.set_ylim(kwargs["ylim"])
 
 
 def plot_powerlaw_whole(ene, fpower_whole, es, ee, popt, color):
@@ -360,49 +369,6 @@ def get_energy_distribution(fname, fnorm):
     flog = data[:, 3]     # Flux using Logarithm scale bins
     flog /= fnorm         # Normalized by the maximum value.
     return (ene_lin, flin, ene_log, flog)
-
-
-def plot_spectrum_series(ntp, species, pic_info):
-    """Plot a series of energy spectra.
-
-    Args:
-        ntp: total number of time frames.
-        species: particle species. 'e' for electron, 'h' for ion.
-        pic_info: namedtuple for the PIC simulation information.
-    """
-    fig, ax = plt.subplots(figsize=[7, 5])
-    for current_time in range(1, ntp-1, 2):
-        plot_spectrum(current_time, species, pic_info, ax, False, False)
-    plot_spectrum(ntp, species, pic_info, ax, True, False)
-
-    if (species == 'e'):
-        vth = pic_info.vthe
-    else:
-        vth = pic_info.vthi
-    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
-    eth = gama - 1.0
-    fname = "../spectrum/whole/spectrum-" + species + \
-            "." + str(1).zfill(len(str(1)))
-    nx = pic_info.nx
-    ny = pic_info.ny
-    nz = pic_info.nz
-    nppc = pic_info.nppc
-    fnorm = nx * ny * nz * nppc
-    ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
-    ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
-
-    f_intial = fitting_funcs.func_maxwellian(ene_log, fnorm, 1.5/eth)
-    nacc_ene, eacc_ene = accumulated_particle_info(ene_log, f_intial)
-    p41, = ax.loglog(ene_log_norm, f_intial/nacc_ene[-1], linewidth=2, 
-            color='k', linestyle='--', label=r'Initial')
-    ax.set_xlabel('$E/E_{th}$', fontdict=font)
-    ax.set_ylabel('$f(E)/N_0$', fontdict=font)
-    ax.tick_params(labelsize=20)
-    plt.tight_layout()
-    if not os.path.isdir('../img/'):
-        os.makedirs('../img/')
-    fig.savefig('../img/spect_time.eps')
-    plt.show()
 
 
 def plot_spectrum_bulk(ntp, species, pic_info):
@@ -506,8 +472,8 @@ def read_spectrum_data(fname):
         return data
 
 
-def maximum_energy(ntp, species, pic_info, fpath='../spectrum/'):
-    """Plot a series of energy spectra.
+def maximum_energy_spectra(ntp, species, pic_info, fpath='../spectrum/'):
+    """Get the maximum energy from a energy spectra.
 
     Args:
         ntp: total number of time frames.
@@ -548,16 +514,39 @@ def maximum_energy(ntp, species, pic_info, fpath='../spectrum/'):
     return max_ene/eth
 
 
-def plot_maximum_energy(ntp, pic_info, dir):
+def maximum_energy_particle(species, pic_info, fpath='../spectrum/'):
+    """Get the actual maximum energy from particle data
+
+    Args:
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: namedtuple for the PIC simulation information.
+        fpath: the file path for the spectra data.
+    Return:
+        max_ene: the maximum energy at each time step.
+    """
+    max_ene = np.zeros(pic_info.ntp)
+    fname = fpath + "emax-" + species + ".dat"
+    with open(fname, 'r') as f:
+        max_ene = np.genfromtxt(f)
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
+    eth = gama - 1.0
+
+    return max_ene/eth
+
+
+def plot_maximum_energy(pic_info, dir):
     """Plot a series of energy spectra.
 
     Args:
-        ntp: total number of time frames.
         pic_info: namedtuple for the PIC simulation information.
         dir: the directory that contains the particle spectra data.
     """
-    max_ene_e = maximum_energy(ntp, 'e', pic_info, dir)
-    max_ene_i = maximum_energy(ntp, 'h', pic_info, dir)
+    max_ene_e = maximum_energy_particle('e', pic_info, dir)
+    max_ene_i = maximum_energy_particle('h', pic_info, dir)
 
     fig = plt.figure(figsize=[7, 5])
     width = 0.69
@@ -566,7 +555,11 @@ def plot_maximum_energy(ntp, pic_info, dir):
     ys = 0.95 - height
     ax = fig.add_axes([xs, ys, width, height])
     tparticles = pic_info.tparticles
-    p1 = ax.plot(tparticles, max_ene_e, color=colors[0], linewidth=2)
+    ntp, = tparticles.shape
+    nt1, = max_ene_e.shape
+    nt = min(nt1, ntp)
+    p1 = ax.plot(tparticles[:nt], max_ene_e[:nt], color=colors[0],
+            linewidth=2)
     ax.set_xlabel('$t\Omega_{ci}$', fontdict=font)
     ax.set_ylabel(r'$\varepsilon_\text{emax}/\varepsilon_\text{the}$',
             fontdict=font, color=colors[0])
@@ -574,7 +567,8 @@ def plot_maximum_energy(ntp, pic_info, dir):
         tl.set_color(colors[0])
     ax.tick_params(labelsize=20)
     ax1 = ax.twinx()
-    p2 = ax1.plot(tparticles, max_ene_i, color=colors[1], linewidth=2)
+    p2 = ax1.plot(tparticles[:nt], max_ene_i[:nt], color=colors[1],
+            linewidth=2)
     ax1.tick_params(labelsize=20)
     ax1.set_ylabel(r'$\varepsilon_\text{imax}/\varepsilon_\text{thi}$',
             fontdict=font, color=colors[1])
@@ -1128,7 +1122,7 @@ def get_maximum_energy_multi(species):
         pic_info = read_data_from_json(picinfo_fname)
         dir = '../data/spectra/' + run_name + '/'
         ntp = pic_info.ntp
-        emax_time = maximum_energy(ntp, species, pic_info, dir)
+        emax_time = maximum_energy_particle(species, pic_info, dir)
         emax[run] = np.max(emax_time)
         run += 1
     for i in range(nruns):
@@ -1151,9 +1145,134 @@ def plot_maximum_energy_multi():
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         pic_info = read_data_from_json(picinfo_fname)
         dir = '../data/spectra/' + run_name + '/'
-        ntp = pic_info.ntp
-        plot_maximum_energy(ntp, pic_info, dir)
+        plot_maximum_energy(pic_info, dir)
         fname = img_dir + 'emax_' + run_name + '.eps'
+        plt.savefig(fname)
+        plt.close()
+
+
+def plot_spectrum_series(species, pic_info, fpath, **kwargs):
+    """Plot a series of energy spectra for one run.
+
+    Args:
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: namedtuple for the PIC simulation information.
+        fpath: file path that has the particle spectra data.
+    """
+    ntp = pic_info.ntp
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.16, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"fpath":fpath, "is_thermal":False, "is_power":False,
+            "xlim":kwargs["xlim"], "ylim":kwargs["ylim"], "color":'k'}
+    for ct in range(1, ntp+1):
+        color = plt.cm.jet(ct/float(ntp), 1)
+        kwargs_plot["color"] = color
+        plot_spectrum(ct, species, ax, pic_info, **kwargs_plot)
+
+    if (species == 'e'):
+        vth = pic_info.vthe
+        ptl_mass = 1.0
+    else:
+        vth = pic_info.vthi
+        ptl_mass = pic_info.mime
+    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
+    eth = gama - 1.0
+    fname = fpath + "spectrum-" + species + "." + str(1).zfill(len(str(1)))
+    nx = pic_info.nx
+    ny = pic_info.ny
+    nz = pic_info.nz
+    nppc = pic_info.nppc
+    fnorm = nx * ny * nz * nppc
+    ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
+    ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
+    f_intial = fitting_funcs.func_maxwellian(ene_log, fnorm, 1.5/eth)
+    nacc_ene, eacc_ene = accumulated_particle_info(ene_log, f_intial)
+    p41, = ax.loglog(ene_log_norm, f_intial/nacc_ene[-1]/ptl_mass,
+            linewidth=2, color='k', linestyle='--', label=r'Initial')
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_{th}$', fontdict=font)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font)
+    ax.tick_params(labelsize=20)
+
+    # ebbed maximum energy plot
+    emax_time = maximum_energy_particle(species, pic_info, fpath)
+    tparticles = pic_info.tparticles
+    xs, ys = 0.26, 0.26
+    w1, h1 = 0.3, 0.3
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    nt1, = emax_time.shape
+    nt2, = tparticles.shape
+    nt = min(nt1, nt2)
+    tparticles /= 100
+    ax1.plot(tparticles[:nt], emax_time[:nt], linewidth=2,
+            color=colors[2])
+    ax1.set_xlabel(r'$t\Omega_{ci}/100$', fontdict=font, fontsize=16)
+    ax1.set_ylabel(r'$\varepsilon_\text{max}/\varepsilon_{th}$',
+            fontdict=font, fontsize=16)
+    ax1.tick_params(labelsize=12)
+
+
+def plot_spectra_time_multi(species):
+    """Plot time evolution of the particle energy spectra
+
+    Args:
+        species: particle species. 'e' for electron, 'h' for ion.
+    """
+    base_dirs, run_names = ApJ_long_paper_runs()
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fig_dir = '../img/spectra/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    nrun = len(run_names)
+    xlims = np.zeros((nrun, 2))
+    ylims = np.zeros((nrun, 2))
+    if species == 'e':
+        xlims[0,:] = [5E-2, 2E2]
+        ylims[0,:] = [1E-5, 2E2]
+        xlims[1,:] = [5E-2, 2E2]
+        ylims[1,:] = [1E-5, 2E2]
+        xlims[2,:] = [5E-2, 2E2]
+        ylims[2,:] = [1E-5, 2E2]
+        xlims[3,:] = [5E-2, 6E2]
+        ylims[3,:] = [1E-5, 2E2]
+        xlims[4,:] = [5E-2, 2E2]
+        ylims[4,:] = [1E-5, 2E2]
+        xlims[5,:] = [5E-2, 3E2]
+        ylims[5,:] = [1E-5, 2E3]
+        xlims[6,:] = [5E-2, 3E2]
+        ylims[6,:] = [1E-5, 5E2]
+        xlims[7,:] = [5E-2, 3E2]
+        ylims[7,:] = [1E-5, 2E2]
+    else:
+        xlims[0,:] = [5E-2, 2E2]
+        ylims[0,:] = [1E-5, 2E2]
+        xlims[1,:] = [5E-2, 2E2]
+        ylims[1,:] = [1E-5, 2E2]
+        xlims[2,:] = [2E-1, 7E2]
+        ylims[2,:] = [1E-5, 2E2]
+        xlims[3,:] = [2E-1, 2E3]
+        ylims[3,:] = [1E-5, 2E2]
+        xlims[4,:] = [5E-2, 7E2]
+        ylims[4,:] = [1E-5, 2E2]
+        xlims[5,:] = [5E-2, 6E2]
+        ylims[5,:] = [1E-5, 2E3]
+        xlims[6,:] = [5E-2, 7E2]
+        ylims[6,:] = [1E-5, 5E2]
+        xlims[7,:] = [5E-2, 7E2]
+        ylims[7,:] = [1E-5, 2E2]
+    for i in range(nrun):
+        run_name = run_names[i]
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        kwargs = {"xlim":xlims[i], "ylim":ylims[i]}
+        plot_spectrum_series(species, pic_info, dir, **kwargs)
+        fname = fig_dir + 'spect_time_' + run_name + '_' + species + '.eps'
+        # plt.show()
         plt.savefig(fname)
         plt.close()
 
@@ -1172,4 +1291,5 @@ if __name__ == "__main__":
     # plot_spectra_beta_ion()
     # plot_spectra_multi_ion()
     # get_maximum_energy_multi('h')
-    plot_maximum_energy_multi()
+    # plot_maximum_energy_multi()
+    plot_spectra_time_multi('e')
