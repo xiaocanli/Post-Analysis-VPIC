@@ -1246,6 +1246,8 @@ def plot_spectra_time_multi(species):
         ylims[6,:] = [1E-5, 5E2]
         xlims[7,:] = [5E-2, 3E2]
         ylims[7,:] = [1E-5, 2E2]
+        xlims[8,:] = [5E-2, 3E2]
+        ylims[8,:] = [1E-5, 2E2]
     else:
         xlims[0,:] = [5E-2, 2E2]
         ylims[0,:] = [1E-5, 2E2]
@@ -1263,6 +1265,8 @@ def plot_spectra_time_multi(species):
         ylims[6,:] = [1E-5, 5E2]
         xlims[7,:] = [5E-2, 7E2]
         ylims[7,:] = [1E-5, 2E2]
+        xlims[8,:] = [2E-1, 3E2]
+        ylims[8,:] = [1E-5, 2E2]
     for i in range(nrun):
         run_name = run_names[i]
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -1272,8 +1276,8 @@ def plot_spectra_time_multi(species):
         kwargs = {"xlim":xlims[i], "ylim":ylims[i]}
         plot_spectrum_series(species, pic_info, dir, **kwargs)
         fname = fig_dir + 'spect_time_' + run_name + '_' + species + '.eps'
-        # plt.show()
         plt.savefig(fname)
+        # plt.show()
         plt.close()
 
 
@@ -1292,4 +1296,4 @@ if __name__ == "__main__":
     # plot_spectra_multi_ion()
     # get_maximum_energy_multi('h')
     # plot_maximum_energy_multi()
-    plot_spectra_time_multi('e')
+    plot_spectra_time_multi('h')
