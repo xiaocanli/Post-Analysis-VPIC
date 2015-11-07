@@ -15,6 +15,7 @@ def ApJ_long_paper_runs():
     base_dirs.append('/scratch3/xiaocanli/mime25-guide0-beta001-200-100/')
     base_dirs.append('/scratch3/xiaocanli/mime25-guide0-beta001-200-100-sigma033/')
     base_dirs.append('/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/')
+    base_dirs.append('/net/scratch2/xiaocanli/mime25-sigma1-beta002-guide1-200-100/')
     run_names = []
     run_names.append('mime25_beta02')
     run_names.append('mime25_beta007')
@@ -24,6 +25,7 @@ def ApJ_long_paper_runs():
     run_names.append('mime25_beta002_sigma01')
     run_names.append('mime25_beta002_sigma033')
     run_names.append('mime25_beta002_noperturb')
+    run_names.append('mime25_beta002_guide1')
     return (base_dirs, run_names)
 
 if __name__ == "__main__":
