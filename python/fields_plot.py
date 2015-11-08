@@ -546,9 +546,11 @@ def plot_pressure_tensor(run_name, root_dir, pic_info, species):
     # Change with different runs
     b0 = pic_info.b0
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
-    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
-    vmin = np.asarray(vmin) * va*va / (0.2*0.2)
-    vmax = np.asarray(vmax) * va*va / (0.2*0.2)
+    mime = pic_info.mime
+    va = wpe_wce / math.sqrt(mime)  # Alfven speed of inflow region
+    # The standard va is 0.2, and the standard mi/me=25
+    vmin = np.asarray(vmin) * va**2 * mime / (0.2**2 * 25)
+    vmax = np.asarray(vmax) * va**2 * mime/ (0.2**2 * 25)
     xs, ys = 0.10, 0.7
     w1, h1 = 0.364, 0.26
     fig_sizes = (10, 7)
@@ -685,6 +687,101 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     # plt.show()
 
 
+def plot_thermal_temperature(run_name, root_dir, pic_info):
+    """Plot thermal temperature one both species
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    ct = 0
+    contour_color = ['w', 'w']
+    vmin = [0, 0]
+    vmax = [0.3, 0.3]
+    # Change with different runs
+    b0 = pic_info.b0
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    mime = pic_info.mime
+    va = wpe_wce / math.sqrt(mime)  # Alfven speed of inflow region
+    # The standard va is 0.2, and the standard mi/me=25
+    vmin = np.asarray(vmin) * va**2 * mime / (0.2**2 * 25)
+    vmax = np.asarray(vmax) * va**2 * mime/ (0.2**2 * 25)
+    xs, ys = 0.15, 0.60
+    w1, h1 = 0.72, 0.36
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.06]
+    fig_sizes = (6, 5)
+    nxp, nzp = 1, 2
+    var_names = [r'$T_e$', r'$T_i$']
+    colormaps = ['gist_heat', 'gist_heat']
+    text_colors = ['w', 'w']
+    xstep, zstep = 2, 2
+    is_logs = [False, False]
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_temperature/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    fnames_e = ['pe-xx', 'pe-yy', 'pe-zz', 'ne']
+    fnames_i = ['pi-xx', 'pi-yy', 'pi-zz', 'ni']
+    pe = 0.0
+    pi = 0.0
+    for name in fnames_e[0:3]:
+        fname = root_dir + 'data/' + name + '.gda'
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        pe += data
+    fname = root_dir + 'data/' + fnames_e[3] + '.gda'
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    te = pe / nrho / 3.0
+    for name in fnames_i[0:3]:
+        fname = root_dir + 'data/' + name + '.gda'
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        pi += data
+    fname = root_dir + 'data/' + fnames_i[3] + '.gda'
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    ti = pi / nrho / 3.0
+    fdata = [te, ti]
+    fname2 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    fname = 'temp'
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir}
+    pfields_plot = PlotMultiplePanels(**kwargs_plots)
+    for ct in range(1, pic_info.ntf):
+        kwargs["current_time"] = ct
+        pe = 0.0
+        pi = 0.0
+        for name in fnames_e[0:3]:
+            fname = root_dir + 'data/' + name + '.gda'
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            pe += data
+        fname = root_dir + 'data/' + fnames_e[3] + '.gda'
+        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+        te = pe / nrho / 3.0
+        for name in fnames_i[0:3]:
+            fname = root_dir + 'data/' + name + '.gda'
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            pi += data
+        fname = root_dir + 'data/' + fnames_i[3] + '.gda'
+        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+        ti = pi / nrho / 3.0
+        fdata = [te, ti]
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        pfields_plot.update_fields(ct, fdata, Ay)
+
+    # plt.show()
+
+
 def plot_fields_single(run_name, root_dir, pic_info):
     """Plot fields for a single run
 
@@ -748,6 +845,10 @@ def plot_fields_cmdline():
         plot_jdote_fields(run_name, root_dir, pic_info, 'e')
     elif type_plot == 12:
         plot_jdote_fields(run_name, root_dir, pic_info, 'i')
+    elif type_plot == 13:
+        plot_thermal_temperature(run_name, root_dir, pic_info)
+    plt.close()
+
 
 def plot_fields_multi():
     """Plot fields for multiple runs
