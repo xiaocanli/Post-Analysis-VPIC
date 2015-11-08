@@ -98,6 +98,10 @@ def fields_movie_cmdline():
         fig_dir = root_dir + 'img_jdotes/' + run_name + '/'
         fname = fig_dir + 'jdotes_i_%3d' + '.jpg'
         movie_name = 'jdotes_i_' + run_name + '.mp4'
+    elif type_plot == 13:
+        fig_dir = root_dir + 'img_temperature/' + run_name + '/'
+        fname = fig_dir + 'temp_%3d' + '.jpg'
+        movie_name = 'temp_' + run_name + '.mp4'
 
     cmd = 'ffmpeg -r 20 -f image2 -i ' + fname + \
             ' -f mp4 -q:v 0 -vcodec mpeg4 -r 20 ' + \
