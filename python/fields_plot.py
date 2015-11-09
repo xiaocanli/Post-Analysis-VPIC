@@ -782,6 +782,83 @@ def plot_thermal_temperature(run_name, root_dir, pic_info):
     # plt.show()
 
 
+def plot_maximum_energy(run_name, root_dir, pic_info):
+    """Plot particle maximum energy in each cell
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    ct = 0
+    contour_color = ['w', 'w']
+    vmin = [2, 2]
+    vmax = [1E2, 4E2]
+    b0 = pic_info.b0
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    mime = pic_info.mime
+    va = wpe_wce / math.sqrt(mime)  # Alfven speed of inflow region
+    # The standard plasma beta = 2*vthi^2 / va^2, vthi=\sqrt{kT/m}
+    vthi = pic_info.vthi
+    vmin = np.asarray(vmin) * 0.02 / (2*vthi**2/va**2)
+    vmax = np.asarray(vmax) * 0.02 / (2*vthi**2/va**2)
+    xs, ys = 0.18, 0.60
+    w1, h1 = 0.72, 0.36
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.06]
+    fig_sizes = (5, 5)
+    nxp, nzp = 1, 2
+    var_names = [r'$\varepsilon_\text{emax}$',
+            r'$\varepsilon_\text{imax}$']
+    colormaps = ['nipy_spectral'] * 2
+    text_colors = ['w', 'w']
+    xstep, zstep = 2, 2
+    is_logs = [True] * 2
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_emax/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    tratio = pic_info.particle_interval / pic_info.fields_interval
+    kwargs1 = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs2 = {"current_time":(ct+1)*tratio, "xl":0, "xr":200, "zb":-50, "zt":50}
+    fname1 = root_dir + 'data1/emax_e.gda'
+    vthe = pic_info.vthe
+    gama = 1.0 / math.sqrt(1.0 - 3*vthe**2)
+    eth = gama - 1.0
+    ieth = 1.0 / eth
+    x, z, emax_e = read_2d_fields(pic_info, fname1, **kwargs1) 
+    fname2 = root_dir + 'data1/emax_h.gda'
+    emax_e *= ieth
+    x, z, emax_i = read_2d_fields(pic_info, fname2, **kwargs1) 
+    emax_i *= pic_info.mime * ieth
+    fname3 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs2) 
+    fdata = [emax_e, emax_i]
+    fname = 'emax'
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir}
+    nfields_plot = PlotMultiplePanels(**kwargs_plots)
+    for ct in range(1, pic_info.ntp):
+        kwargs1["current_time"] = ct
+        kwargs2["current_time"] = (ct+1) * tratio
+        x, z, emax_e = read_2d_fields(pic_info, fname1, **kwargs1) 
+        x, z, emax_i = read_2d_fields(pic_info, fname2, **kwargs1) 
+        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs2) 
+        emax_e *= ieth
+        emax_i *= pic_info.mime * ieth
+        fdata = [emax_e, emax_i]
+        nfields_plot.update_fields(ct, fdata, Ay)
+
+    # plt.show()
+
 def plot_fields_single(run_name, root_dir, pic_info):
     """Plot fields for a single run
 
@@ -981,11 +1058,12 @@ def plot_jdotes_cmdline():
 
 
 if __name__ == "__main__":
-    # run_name = "mime25_beta002"
-    # root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
-    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    # pic_info = read_data_from_json(picinfo_fname)
+    run_name = "mime25_beta002"
+    root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    plot_maximum_energy(run_name, root_dir, pic_info)
     # plot_jdote_fields(run_name, root_dir, pic_info, 'e')
     # plot_fields_multi()
-    plot_fields_cmdline()
+    # plot_fields_cmdline()
     # plot_jdotes_cmdline()
