@@ -14,10 +14,13 @@ program parspec
             free_energy_spectra, calc_energy_spectra, &
             set_energy_spectra_zero, init_maximum_energy, free_maximum_energy, &
             set_maximum_energy_zero, get_maximum_energy_global, &
-            save_maximum_energy
+            save_maximum_energy, init_emax_pic_mpi, free_emax_pic_mpi
+    use particle_maximum_energy, only: distribute_pic_mpi, init_emax_array, &
+            free_emax_array, set_emax_datatype, free_emax_datatype
     use parameters, only: get_start_end_time_points, get_inductive_flag, &
             get_relativistic_flag
-    use commandline_arguments, only: get_cmdline_arguments
+    use commandline_arguments, only: get_cmdline_arguments, is_emax_cell
+    use mpi_info_module, only: set_mpi_info
     implicit none
     integer :: ct
     real(dp) :: mp_elapsed
@@ -51,6 +54,15 @@ program parspec
     call init_energy_spectra
     call init_maximum_energy(nt)
 
+    ! Get the maximum energy in each cell
+    if (is_emax_cell) then
+        call distribute_pic_mpi
+        call init_emax_array
+        call set_emax_datatype
+        call init_emax_pic_mpi
+        call set_mpi_info
+    endif
+
     mp_elapsed = MPI_WTIME()
 
     do ct = 1, nt
@@ -76,6 +88,12 @@ program parspec
 
     if (myid==master) then
         write(*,'(A, F6.1)') " Total time used (s): ", mp_elapsed
+    endif
+
+    if (is_emax_cell) then
+        call free_emax_datatype
+        call free_emax_pic_mpi
+        call free_emax_array
     endif
 
     call free_pic_mpi_ranks

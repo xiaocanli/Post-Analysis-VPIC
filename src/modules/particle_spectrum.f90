@@ -14,10 +14,12 @@ module particle_energy_spectrum
            free_energy_spectra_single, calc_energy_spectrum_single, &
            sum_spectra_over_mpi, save_particle_spectra, update_energy_spectrum, &
            init_maximum_energy, set_maximum_energy_zero, update_maximum_energy, &
-           get_maximum_energy_global, save_maximum_energy, free_maximum_energy
+           get_maximum_energy_global, save_maximum_energy, free_maximum_energy, &
+           init_emax_pic_mpi, free_emax_pic_mpi, set_emax_pic_mpi_zero
     real(dp), allocatable, dimension(:) :: f, fsum, flog, flogsum
     real(dp), allocatable, dimension(:) :: ebins_lin, ebins_log
     real(fp), allocatable, dimension(:) :: emax_local, emax_global
+    real(fp), allocatable, dimension(:, :, :) :: emax_pic_mpi
     real(fp) :: emax_tmp
 
     contains
@@ -137,6 +139,33 @@ module particle_energy_spectrum
     end subroutine free_energy_spectra_single
 
     !---------------------------------------------------------------------------
+    ! Initialize the maximum energy array for one PIC MPI process
+    !---------------------------------------------------------------------------
+    subroutine init_emax_pic_mpi
+        use picinfo, only: domain
+        implicit none
+        allocate(emax_pic_mpi(domain%pic_nx, domain%pic_ny, domain%pic_nz))
+        call set_emax_pic_mpi_zero
+    end subroutine init_emax_pic_mpi
+
+    !---------------------------------------------------------------------------
+    ! Set the maximum energy array to zeros
+    !---------------------------------------------------------------------------
+    subroutine set_emax_pic_mpi_zero
+        implicit none
+        emax_pic_mpi = 0.0
+    end subroutine set_emax_pic_mpi_zero
+
+    !---------------------------------------------------------------------------
+    ! Free the maximum energy array for one PIC MPI process
+    !---------------------------------------------------------------------------
+    subroutine free_emax_pic_mpi
+        use picinfo, only: domain
+        implicit none
+        deallocate(emax_pic_mpi)
+    end subroutine free_emax_pic_mpi
+
+    !---------------------------------------------------------------------------
     ! Calculate the energy bins for linear and logarithmic cases.
     !---------------------------------------------------------------------------
     subroutine calc_energy_bins
@@ -160,6 +189,8 @@ module particle_energy_spectrum
         use constants, only: fp
         use particle_frames, only: tinterval
         use particle_file, only: check_existence
+        use commandline_arguments, only: is_emax_cell
+        use particle_maximum_energy, only: write_emax
         implicit none
         integer, intent(in) :: ct
         character(len=1), intent(in) :: species
@@ -173,7 +204,12 @@ module particle_energy_spectrum
         call check_existence(tindex, species, is_exist)
         emax_tmp = emax_local(ct)
         if (is_exist) then
-            call calc_energy_spectrum_mpi(tindex, species)
+            if (is_emax_cell) then
+                call calc_energy_spectrum_mpi_con(tindex, species)
+                call write_emax(ct, species)
+            else
+                call calc_energy_spectrum_mpi(tindex, species)
+            endif
             emax_local(ct) = emax_tmp  ! emax_tmp has been updated
             call sum_spectra_over_mpi
             if (myid == master) then
@@ -258,7 +294,8 @@ module particle_energy_spectrum
 
     !---------------------------------------------------------------------------
     ! Read particle data and calculate the energy spectrum for one time frame.
-    ! This subroutine is used in parallel procedures.
+    ! This subroutine is used in parallel procedures. This routine assigns not
+    ! continuous jobs for each process. The job index jumps numprocs each time.
     ! Input:
     !   tindex: the time index, indicating the time step numbers in PIC simulation.
     !   species: 'e' for electron. 'h' for others.
@@ -295,6 +332,60 @@ module particle_energy_spectrum
             call close_particle_file
         enddo
     end subroutine calc_energy_spectrum_mpi
+
+    !---------------------------------------------------------------------------
+    ! This routine distribute jobs in a way that they are continuous.
+    ! Input:
+    !   tindex: the time index, indicating the time step numbers in PIC simulation.
+    !   species: 'e' for electron. 'h' for others.
+    !---------------------------------------------------------------------------
+    subroutine calc_energy_spectrum_mpi_con(tindex, species)
+        use mpi_module
+        use picinfo, only: domain
+        use file_header, only: pheader
+        use spectrum_config, only: spatial_range, tot_pic_mpi, pic_mpi_ranks
+        use particle_file, only: open_particle_file, check_particle_in_range, &
+                close_particle_file, fh
+        use particle_maximum_energy, only: txs, tys, tzs, txe, tye, tze, &
+                update_emax_array
+        use commandline_arguments, only: is_emax_cell
+        implicit none
+        character(len=1), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=50) :: cid
+        logical :: isrange
+        integer :: np, iptl
+        integer :: IOstatus, ix, iy, iz, otx, oty, otz
+
+        ! Read particle data in parallel to generate distributions
+        do iz = tzs, tze
+            do iy = tys, tye
+                do ix = txs, txe
+                    np = ix + iy*domain%pic_tx + iz*domain%pic_tx*domain%pic_ty
+                    write(cid, "(I0)") pic_mpi_ranks(np+1)
+                    call open_particle_file(tindex, species, cid)
+                    isrange = check_particle_in_range(spatial_range)
+
+                    if (isrange) then
+                        ! Loop over particles
+                        do iptl = 1, pheader%dim, 1
+                            IOstatus = single_particle_energy(fh)
+                            if (IOstatus /= 0) exit
+                        enddo
+                        if (is_emax_cell) then
+                            otx = ix - txs
+                            oty = iy - tys
+                            otz = iz - tzs
+                            call update_emax_array(emax_pic_mpi, otx, oty, otz)
+                        endif
+                    endif
+                    call close_particle_file
+                    ! Set to zeros, so it is not accumulated
+                    call set_emax_pic_mpi_zero
+                enddo
+            enddo
+        enddo
+    end subroutine calc_energy_spectrum_mpi_con
 
     !---------------------------------------------------------------------------
     ! Read particle data and calculate the energy spectrum for one time frame.
@@ -352,6 +443,7 @@ module particle_energy_spectrum
                                    calc_ptl_coord
         use spectrum_config, only: spatial_range
         use constants, only: fp
+        use commandline_arguments, only: is_emax_cell
         implicit none
         integer, intent(in) :: fh
         integer :: IOstatus
@@ -367,10 +459,24 @@ module particle_energy_spectrum
                 call calc_particle_energy
                 call update_energy_spectrum
                 call update_maximum_energy
+                if (is_emax_cell) then
+                    call update_emax_pic_mpi
+                endif
             endif
         endif
 
     end function single_particle_energy
+
+    !---------------------------------------------------------------------------
+    ! Update maximum energy array for each cell.
+    !---------------------------------------------------------------------------
+    subroutine update_emax_pic_mpi
+        use particle_module, only: ke, ci, cj, ck
+        implicit none
+        if (ke > emax_pic_mpi(ci, cj, ck)) then
+            emax_pic_mpi(ci, cj, ck) = ke
+        endif
+    end subroutine update_emax_pic_mpi
 
     !---------------------------------------------------------------------------
     ! Update particle energy spectrum.

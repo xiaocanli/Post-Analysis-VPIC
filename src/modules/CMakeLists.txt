@@ -67,7 +67,8 @@ add_library(particle_file particle_file.f90)
 
 add_library(particle_spectrum particle_frames.f90 particle_spectrum.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field
-    spectrum_config particle_module particle_file)
+    spectrum_config particle_module particle_file maximum_energy
+    commandline_arguments)
 
 add_library(vdist vdist.f90 particle_frames.f90)
 target_link_libraries(vdist file_header get_info magnetic_field
@@ -104,3 +105,7 @@ add_library(cla cla.f90 kinds.f90)
 add_library(commandline_arguments commandline_arguments.f90 global.f90
     particle_info.f90)
 target_link_libraries(commandline_arguments cla spectrum_config parameters)
+
+add_library(maximum_energy maximum_energy.f90 global.f90 mpi_setup.f90)
+target_link_libraries(maximum_energy get_info spectrum_config mpi_io
+    path_info)
