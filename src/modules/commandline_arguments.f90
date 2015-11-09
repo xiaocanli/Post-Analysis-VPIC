@@ -7,9 +7,9 @@ module commandline_arguments
     use cla
     implicit none
     private
-    public is_species, is_config_dist
+    public is_species, is_config_dist, is_emax_cell
     public get_cmdline_arguments
-    logical :: is_species, is_config_dist
+    logical :: is_species, is_config_dist, is_emax_cell
     
     contains
 
@@ -22,6 +22,7 @@ module commandline_arguments
         call cla_init
         call get_particle_species
         call get_config_dist
+        call get_emax_cell_flag
     end subroutine get_cmdline_arguments
 
     !---------------------------------------------------------------------------
@@ -83,4 +84,24 @@ module commandline_arguments
             write(*, '(A,A)') ' distributions is ', config_name
         endif
     end subroutine get_config_dist
+
+    !---------------------------------------------------------------------------
+    ! Get flag on whether to get the maximum energy for each cell.
+    !---------------------------------------------------------------------------
+    subroutine get_emax_cell_flag
+        implicit none
+        logical :: log1, log2
+        is_emax_cell = .False.
+        call cla_register('-e', '--emax', 'character', cla_flag, 'f')
+        log1 = cla_key_present('-e')
+        log2 = cla_key_present('--emax')
+        is_emax_cell = log1 .or. log2
+        if (is_emax_cell) then
+            if (myid == master) then
+                print *,"---------------------------------------------------"
+                write(*, '(A)') ' Get the maximum energy for each cell'
+            endif
+        endif
+    end subroutine get_emax_cell_flag
+
 end module commandline_arguments
