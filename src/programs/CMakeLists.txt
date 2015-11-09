@@ -70,6 +70,10 @@ target_link_libraries(particle_spectrum_vdist_box ${MPI_Fortran_LIBRARIES}
 add_executable(cla_test cla_test.f90)
 target_link_libraries(cla_test ${MPI_Fortran_LIBRARIES} cla)
 
+add_executable(parspec_cpu_based parspec_cpu_based.f90)
+target_link_libraries(parspec_cpu_based ${MPI_Fortran_LIBRARIES}
+    get_info commandline_arguments particle_spectrum)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -87,3 +91,4 @@ install (TARGETS jdote_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_based_jdote DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_box DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_vdist_box DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS parspec_cpu_based DESTINATION ${CMAKE_INSTALL_PREFIX})
