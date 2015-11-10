@@ -13,7 +13,7 @@ program parspec_cpu_based
     use mpi_info_module, only: set_mpi_info
     use particle_energy_spectrum, only: init_energy_spectra, &
             free_energy_spectra, set_energy_spectra_zero, &
-            sum_spectra_over_mpi, save_particle_spectra
+            sum_spectra_over_mpi, save_particle_spectra, calc_energy_bins
     implicit none
     real(dp) :: mp_elapsed
     integer :: ct
@@ -38,14 +38,20 @@ program parspec_cpu_based
     call broadcast_pic_info
     call get_spectra_config
     call init_energy_spectra
+    call calc_energy_bins
     call init_spectrum_one_core
 
     mp_elapsed = MPI_WTIME()
 
     do ct = 1, nt
-        print*, "electron", ct
+        if (myid == master) then
+            print*, "electron", ct
+        endif
         call get_energy_spectrum(ct, 'e')
         call sum_spectra_over_mpi
+        if (myid == master) then
+            call differentiate_spectrum
+        endif
         if (myid == master) then
             call save_particle_spectra(ct, 'e')
         endif
@@ -53,9 +59,14 @@ program parspec_cpu_based
     enddo
 
     do ct = 1, nt
-        print*, "ion", ct
+        if (myid == master) then
+            print*, "ion", ct
+        endif
         call get_energy_spectrum(ct, 'h')
         call sum_spectra_over_mpi
+        if (myid == master) then
+            call differentiate_spectrum
+        endif
         if (myid == master) then
             call save_particle_spectra(ct, 'h')
         endif
@@ -163,4 +174,18 @@ program parspec_cpu_based
         implicit none
         deallocate(fcore)
     end subroutine free_spectrum_one_core
+
+    !---------------------------------------------------------------------------
+    ! Differentiate the spectra w.r.t the energy.
+    !---------------------------------------------------------------------------
+    subroutine differentiate_spectrum
+        use spectrum_config, only: nbins
+        use particle_energy_spectrum, only: ebins_log, flogsum
+        implicit none
+        integer :: i
+        flogsum(1) = flogsum(1) / ebins_log(1)
+        do i = 2, nbins
+            flogsum(i) = flogsum(i) / (ebins_log(i)-ebins_log(i-1))
+        enddo
+    end subroutine differentiate_spectrum
 end program parspec_cpu_based
