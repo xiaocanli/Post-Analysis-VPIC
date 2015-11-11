@@ -35,8 +35,12 @@ module read_config
         enddo
         var_value = -1.0
         if (IOStatus == 0) then
-            len1 = len(trim(single_line))
-            read(single_line(index(single_line, delimiter)+1:len1), *) var_value
+            len1 = len(trim(single_line)) + 1
+            ! For C or C++ code
+            if (index(single_line, ";") /= 0) then
+                len1 = index(single_line, ";")
+            endif
+            read(single_line(index(single_line, delimiter)+1:len1-1), *) var_value
         endif
     end function
 
