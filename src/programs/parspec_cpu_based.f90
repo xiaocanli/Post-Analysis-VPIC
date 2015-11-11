@@ -125,7 +125,7 @@ program parspec_cpu_based
         character(len=256) :: fpath, dataset, fname
         character(len=16) :: cid, ctindex
         character(len=1) :: ptl
-        integer :: np, fh, tindex, stat
+        integer :: np, fh, tindex, stat, access
         if (species == 'e') then
             ptl = 'e'
         else
