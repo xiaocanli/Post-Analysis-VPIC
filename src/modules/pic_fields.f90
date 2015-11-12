@@ -626,13 +626,25 @@ module pic_fields
         integer, intent(in) :: tindex
         character(len=100) :: fname
         character(len=16) :: cfname
+        character(len=1) :: vel
+        logical :: ex
+        integer :: file_size
+
         write(cfname, "(I0)") tindex
         vfields_fh = 0
-        fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
+        ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
+        fname = trim(adjustl(filepath))//'v'//species//'x.gda'
+        inquire(file=fname, exist=ex, size=file_size)
+        if (ex .and. file_size .ne. 0) then
+            vel = 'v'
+        else
+            vel = 'u'
+        endif
+        fname = trim(adjustl(filepath))//vel//species//'x_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
-        fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(cfname)//'.gda'
+        fname = trim(adjustl(filepath))//vel//species//'y_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
-        fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(cfname)//'.gda'
+        fname = trim(adjustl(filepath))//vel//species//'z_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
         if (is_rel == 1) then
             fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'.gda'
