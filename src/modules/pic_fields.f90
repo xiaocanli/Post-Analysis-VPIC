@@ -633,7 +633,7 @@ module pic_fields
         write(cfname, "(I0)") tindex
         vfields_fh = 0
         ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
-        fname = trim(adjustl(filepath))//'v'//species//'x.gda'
+        fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
         inquire(file=fname, exist=ex, size=file_size)
         if (ex .and. file_size .ne. 0) then
             vel = 'v'
