@@ -419,11 +419,11 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     #mpl.rc('text', usetex=False)
     ax1 = fig.add_axes([xs, ys, width, height])
     ax1.plot(tfields, jdote_e.jqnupara_dote, lw=2, color='b', 
-            label=r'$\mathbf{j}_{e\parallel}\cdot\mathbf{E}$')
+            label=r'$\boldsymbol{j}_{e\parallel}\cdot\boldsymbol{E}$')
     ax1.plot(tfields, jdote_e.jqnuperp_dote, lw=2, color='g',
-            label=r'$\mathbf{j}_{e\perp}\cdot\mathbf{E}$')
+            label=r'$\boldsymbol{j}_{e\perp}\cdot\boldsymbol{E}$')
     ax1.plot(tfields, jtot_dote, lw=2, color='r',
-            label=r'$\mathbf{j}\cdot\mathbf{E}$')
+            label=r'$\boldsymbol{j}\cdot\boldsymbol{E}$')
     ax1.plot(tenergy, dkene, lw=2, color='k', label=kename)
     ax1.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
     ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=24)
@@ -442,15 +442,15 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     ax1.text(0.8, 0.85, r'$dK_e/dt$', color='black', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.5, 0.85, r'$\mathbf{j}_{\parallel}\cdot\mathbf{E}$',
+    ax1.text(0.45, 0.85, r'$\boldsymbol{j}_{\parallel}\cdot\boldsymbol{E}$',
             color='blue', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.5, 0.65, r'$\mathbf{j}_{\perp}\cdot\mathbf{E}$',
+    ax1.text(0.62, 0.85, r'$\boldsymbol{j}_{\perp}\cdot\boldsymbol{E}$',
             color='green', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.7, 0.65, r'$(\mathbf{j}_{\parallel}+\mathbf{j}_\perp)\cdot\mathbf{E}$',
+    ax1.text(0.5, 0.7, r'$(\boldsymbol{j}_{\parallel}+\boldsymbol{j}_\perp)\cdot\boldsymbol{E}$',
             color='red', fontsize=24,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
@@ -717,6 +717,7 @@ def calc_jdotes_fraction_multi(species):
     f = open(fname, 'w')
     base_dirs, run_names = ApJ_long_paper_runs()
     nruns = len(run_names)
+    jdote_drifts_fraction = []
     for irun in range(nruns):
         run_name = run_names[irun]
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -754,11 +755,13 @@ def calc_jdotes_fraction_multi(species):
         for i in range(nj):
             f.write("%10.4f" % jdote_drifts_np[i])
         f.write("\n")
+        jdote_drifts_fraction.append(jdote_drifts_np)
     f.close()
+    return jdote_drifts_fraction
 
 
 if __name__ == "__main__":
-    species = 'i'
+    species = 'e'
     # pic_info = pic_information.get_pic_info('../../')
     # jdote = read_jdote_data(species)
     # jdote_e = read_jdote_data('e')
@@ -771,6 +774,6 @@ if __name__ == "__main__":
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
     # save_jdote_json('e')
-    # plot_jpara_jperp_dote_multi()
+    plot_jpara_jperp_dote_multi()
     # plot_jdotes_evolution_multi(species)
-    calc_jdotes_fraction_multi(species)
+    # calc_jdotes_fraction_multi(species)
