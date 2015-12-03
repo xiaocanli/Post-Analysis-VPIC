@@ -73,6 +73,12 @@ class PlotMultiplePanels(object):
         else:
             self.bottom_panel = False
 
+        # Whether to use multiple Ay
+        if "is_multi_Ay" in kwargs:
+            self.is_multi_Ay = kwargs["is_multi_Ay"]
+        else:
+            self.is_multi_Ay = False
+
         self.fig = plt.figure(figsize=self.fig_sizes)
         self.ax = []
         self.im = []
@@ -82,29 +88,36 @@ class PlotMultiplePanels(object):
         for j in range(self.nzp):
             ys = self.axis_pos[1] - (h1 + self.gaps[1])*j
             for i in range(self.nxp):
-                np = self.nxp*j + i
+                ip = self.nxp*j + i
                 xs = self.axis_pos[0] + (w1 + self.gaps[0])*i
                 self.ax1 = self.fig.add_axes([xs, ys, w1, h1])
                 self.ax.append(self.ax1)
                 self.kwargs_plot = {"xstep":self.xstep, "zstep":self.zstep,
-                        "is_log":self.is_logs[np], "vmin":self.vmin[np],
-                        "vmax":self.vmax[np]}
-                im1, cbar1 = plot_2d_contour(self.x, self.z, self.fdata[np],
+                        "is_log":self.is_logs[ip], "vmin":self.vmin[ip],
+                        "vmax":self.vmax[ip]}
+                im1, cbar1 = plot_2d_contour(self.x, self.z, self.fdata[ip],
                         self.ax1, self.fig, **self.kwargs_plot)
                 self.im.append(im1)
-                im1.set_cmap(plt.cm.get_cmap(self.colormaps[np]))
-                co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
-                        self.z[0:self.nz:self.zstep],
-                        self.Ay[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
-                        colors=self.contour_color[np], linewidths=0.5)
+                im1.set_cmap(plt.cm.get_cmap(self.colormaps[ip]))
+                if not self.is_multi_Ay:
+                    co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                            self.z[0:self.nz:self.zstep],
+                            self.Ay[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
+                            colors=self.contour_color[ip], linewidths=0.5)
+                else:
+                    Ay1 = self.Ay[ip]
+                    co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                            self.z[0:self.nz:self.zstep],
+                            Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
+                            colors=self.contour_color[ip], linewidths=0.5)
                 self.co.append(co1)
                 self.ax1.tick_params(labelsize=16)
                 self.ax1.tick_params(axis='x', labelbottom='off')
                 self.ax1.autoscale(1,'both',1)
-                self.ax1.text(0.1, 0.8, self.var_names[np],
-                        color=self.text_colors[np], fontsize=24, 
+                self.ax1.text(0.05, 0.8, self.var_names[ip],
+                        color=self.text_colors[ip], fontsize=24, 
                         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                            pad=10.0), horizontalalignment='center',
+                            pad=10.0), horizontalalignment='left',
                         verticalalignment='center',
                         transform=self.ax1.transAxes)
 
@@ -118,17 +131,17 @@ class PlotMultiplePanels(object):
                 ax1.set_ylim(self.zlim)
 
         for j in range(self.nzp):
-            np = self.nxp * j
-            self.ax[np].set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+            ip = self.nxp * j
+            self.ax[ip].set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
             for i in range(1, self.nxp):
-                self.ax[np+i].set_ylabel('')
-                self.ax[np+i].tick_params(axis='y', labelleft='off')
+                self.ax[ip+i].set_ylabel('')
+                self.ax[ip+i].tick_params(axis='y', labelleft='off')
 
         if not self.bottom_panel:
-            np = self.nxp * (self.nzp - 1)
+            ip = self.nxp * (self.nzp - 1)
             for i in range(self.nxp):
-                self.ax[np+i].tick_params(axis='x', labelbottom='on')
-                self.ax[np+i].set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+                self.ax[ip+i].tick_params(axis='x', labelbottom='on')
+                self.ax[ip+i].set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
 
         # Use bottom panel for line plots
         if self.bottom_panel:
@@ -136,13 +149,15 @@ class PlotMultiplePanels(object):
             w2 = w1 * 0.98 - 0.05 / self.fig_sizes[0]
             xs = self.axis_pos[0]
             self.ax1d = self.fig.add_axes([xs, ys, w2, h1])
-            self.ax1d.set_color_cycle(colors)
+            self.ax1d.set_color_cycle(self.text_colors)
             self.p1d = []
             for j in range(self.nzp):
                 for i in range(self.nxp):
-                    np = self.nxp*j + i
-                    p1, = self.ax1d.plot(self.x, self.fdata_1d[np], linewidth=2)
+                    ip = self.nxp*j + i
+                    p1, = self.ax1d.plot(self.x, self.fdata_1d[ip], linewidth=2)
                     self.p1d.append(p1)
+            self.ax1d.plot([np.min(self.x), np.max(self.x)], [0,0],
+                    linestyle='--', color='k')
             self.ax1d.tick_params(labelsize=16)
             self.ax1d.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
             self.ax1d.set_ylabel(r'Accumulation', fontdict=font, fontsize=20)
@@ -924,6 +939,14 @@ def plot_fields_cmdline():
         plot_jdote_fields(run_name, root_dir, pic_info, 'i')
     elif type_plot == 13:
         plot_thermal_temperature(run_name, root_dir, pic_info)
+    elif type_plot == 14:
+        plot_compression_fields(run_name, root_dir, pic_info, 'e')
+    elif type_plot == 15:
+        plot_compression_fields(run_name, root_dir, pic_info, 'i')
+    elif type_plot == 16:
+        plot_bulk_internal_energy(run_name, root_dir, pic_info, 'e')
+    elif type_plot == 17:
+        plot_bulk_internal_energy(run_name, root_dir, pic_info, 'i')
     plt.close()
 
 
@@ -1042,6 +1065,152 @@ def plot_jdote_fields(run_name, root_dir, pic_info, species):
     # plt.show()
 
 
+def plot_compression_fields(run_name, root_dir, pic_info, species):
+    """Plot fields to fluid compression or shear
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        species: particle species.
+    """
+    ct = 0
+    nj = 6
+    contour_color = ['k'] * nj
+    vmin = [-1.0] * nj
+    vmax = [1.0] * nj
+    xs, ys = 0.11, 0.87
+    w1, h1 = 0.8, 0.115
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.02]
+    fig_sizes = (8, 14)
+    nxp, nzp = 1, nj
+    var_names = []
+    fname1 = r'$-p\nabla\cdot\boldsymbol{u}$'
+    var_names.append(fname1)
+    fname2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
+    var_names.append(fname2)
+    fname3 = r'$\nabla\cdot(\boldsymbol{u}\cdot\mathcal{P})$'
+    var_names.append(fname3)
+    var_names.append(fname3 + fname1 + fname2)
+    var_names.append(r'$\boldsymbol{u}\cdot(\nabla\cdot\mathcal{P})$')
+    fname = r'$' + r'\boldsymbol{j}_' + species + r'\cdot\boldsymbol{E}' + '$'
+    var_names.append(fname)
+    colormaps = ['seismic'] * nj
+    text_colors = colors[0:nj]
+    xstep, zstep = 2, 2
+    is_logs = [False] * nj
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    b0 = pic_info.b0
+    j0 = 0.1 * va**2 * b0
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_comp/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    fnames = []
+    fname = root_dir + 'data1/pdiv_v00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/pshear00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/div_vdot_ptensor00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/vdot_div_ptensor00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/jqnvpara_dote00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/jqnvperp_dote00_' + species + '.gda'
+    fnames.append(fname)
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    fdata = []
+    fdata_1d = []
+    for fname in fnames[0:3]:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+        fdata_1d.append(fdata_cum)
+        data_new = signal.convolve2d(data, kernel, 'same')
+        fdata.append(data_new)
+    fdata.append(fdata[0] + fdata[1] + fdata[2])
+    fdata_1d.append(fdata_1d[0] + fdata_1d[1] + fdata_1d[2])
+    for fname in fnames[3:4]:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+        fdata_1d.append(fdata_cum)
+        data_new = signal.convolve2d(data, kernel, 'same')
+        fdata.append(data_new)
+    jdote = 0
+    jdote_cum = 0
+    for fname in fnames[4:6]:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+        jdote_cum += fdata_cum
+        data_new = signal.convolve2d(data, kernel, 'same')
+        jdote += data_new
+    fdata.append(jdote)
+    fdata_1d.append(jdote_cum)
+    fdata = np.asarray(fdata)
+    fdata_1d = np.asarray(fdata_1d)
+    fdata /= j0  # Normalization
+    fname2 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    fname = 'comp_' + species
+    bottom_panel = True
+    xlim = [0, 200]
+    zlim = [-25, 25]
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
+            'fdata_1d':fdata_1d, 'xlim':xlim, 'zlim':zlim}
+    jdote_plot = PlotMultiplePanels(**kwargs_plots)
+    for ct in range(1, pic_info.ntf):
+        kwargs["current_time"] = ct
+        fdata = []
+        fdata_1d = []
+        for fname in fnames[0:3]:
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+            fdata_1d.append(fdata_cum)
+            data_new = signal.convolve2d(data, kernel, 'same')
+            fdata.append(data_new)
+        fdata.append(fdata[0] + fdata[1] + fdata[2])
+        fdata_1d.append(fdata_1d[0] + fdata_1d[1] + fdata_1d[2])
+        for fname in fnames[3:4]:
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+            fdata_1d.append(fdata_cum)
+            data_new = signal.convolve2d(data, kernel, 'same')
+            fdata.append(data_new)
+        jdote = 0
+        jdote_cum = 0
+        for fname in fnames[4:6]:
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+            jdote_cum += fdata_cum
+            data_new = signal.convolve2d(data, kernel, 'same')
+            jdote += data_new
+        fdata.append(jdote)
+        fdata_1d.append(jdote_cum)
+        fdata = np.asarray(fdata)
+        fdata_1d = np.asarray(fdata_1d)
+        fdata /= j0  # Normalization
+        fname2 = root_dir + 'data/Ay.gda'
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        jdote_plot.update_plot_1d(fdata_1d)
+        jdote_plot.update_fields(ct, fdata, Ay)
+
+    # plt.show()
+
+
 def plot_jdotes_cmdline():
     """Plot jdote fields for one run with command line arguments
     """
@@ -1057,13 +1226,126 @@ def plot_jdotes_cmdline():
         plot_jdote_fields(run_name, root_dir, pic_info, 'i')
 
 
+def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
+    """Plot bulk and interval energy
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        species: particle species.
+    """
+    ct = 0
+    contour_color = ['w', 'w', 'w']
+    vmin = [0.1, 0, 0]
+    vmax = [10, 0.2, 0.8]
+    xs, ys = 0.15, 0.70
+    w1, h1 = 0.7, 0.2625
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.04]
+    fig_sizes = (6, 8)
+    nxp, nzp = 1, 3
+    fname1 = r'$K_' + species + '$'
+    fname2 = r'$U_' + species + '$'
+    var_names = [fname1 + '/' + fname2, fname1, fname2]
+    colormaps = ['seismic', 'nipy_spectral', 'nipy_spectral']
+    text_colors = ['w', 'w', 'w']
+    xstep, zstep = 2, 2
+    is_logs = [True, False, False]
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_bulk_internal/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    # Check if it is v or u
+    fname = root_dir + "data/v" + species + "x.gda"
+    if os.path.isfile(fname):
+        vel = 'v'
+    else:
+        vel = 'u'
+    fnames = []
+    fnames.append(root_dir + "data/" + vel + species + "x.gda")
+    fnames.append(root_dir + "data/" + vel + species + "y.gda")
+    fnames.append(root_dir + "data/" + vel + species + "z.gda")
+    fnames.append(root_dir + "data/n" + species + ".gda")
+    fnames.append(root_dir + "data/p" + species + "-xx.gda")
+    fnames.append(root_dir + "data/p" + species + "-yy.gda")
+    fnames.append(root_dir + "data/p" + species + "-zz.gda")
+    fname2 = root_dir + "data/Ay.gda"
+
+    gama = 0.0
+    for fname in fnames[0:3]:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        gama += data**2
+    gama = 1.0 / np.sqrt(1.0 - gama)
+    x, z, ne = read_2d_fields(pic_info, fnames[3], **kwargs) 
+    if species == 'e':
+        ptl_mass = 1.0
+    else:
+        ptl_mass = pic_info.mime
+    bulk_ene = (gama - 1.0) * ne * ptl_mass
+    internal_ene = 0.0
+    for fname in fnames[4:7]:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        internal_ene += data
+    internal_ene *= 0.5
+    fdata = [bulk_ene/internal_ene, bulk_ene, internal_ene]
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+
+    fname = 'bulk_internal_' + species
+    # Change with different runs
+    b0 = pic_info.b0
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    mime = pic_info.mime
+    va = wpe_wce / math.sqrt(mime)  # Alfven speed of inflow region
+    # The standard va is 0.2, and the standard mi/me=25
+    vmin = np.asarray(vmin) * va**2 * mime / (0.2**2 * 25)
+    vmax = np.asarray(vmax) * va**2 * mime/ (0.2**2 * 25)
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir}
+    bulk_plot = PlotMultiplePanels(**kwargs_plots)
+    for ct in range(1, pic_info.ntf):
+        kwargs["current_time"] = ct
+        gama = 0.0
+        for fname in fnames[0:3]:
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            gama += data**2
+        gama = 1.0 / np.sqrt(1.0 - gama)
+        x, z, ne = read_2d_fields(pic_info, fnames[3], **kwargs) 
+        if species == 'e':
+            ptl_mass = 1.0
+        else:
+            ptl_mass = pic_info.mime
+        bulk_ene = (gama - 1.0) * ne * ptl_mass
+        internal_ene = 0.0
+        for fname in fnames[4:7]:
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            internal_ene += data
+        internal_ene *= 0.5
+        fdata = [bulk_ene/internal_ene, bulk_ene, internal_ene]
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        bulk_plot.update_fields(ct, fdata, Ay)
+
+    # plt.show()
+
+
 if __name__ == "__main__":
     run_name = "mime25_beta002"
     root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    plot_maximum_energy(run_name, root_dir, pic_info)
+    # plot_maximum_energy(run_name, root_dir, pic_info)
     # plot_jdote_fields(run_name, root_dir, pic_info, 'e')
+    # plot_compression_fields(run_name, root_dir, pic_info, 'e')
+    # plot_bulk_internal_energy(run_name, root_dir, pic_info, 'e')
     # plot_fields_multi()
-    # plot_fields_cmdline()
+    plot_fields_cmdline()
     # plot_jdotes_cmdline()
