@@ -102,6 +102,22 @@ def fields_movie_cmdline():
         fig_dir = root_dir + 'img_temperature/' + run_name + '/'
         fname = fig_dir + 'temp_%3d' + '.jpg'
         movie_name = 'temp_' + run_name + '.mp4'
+    elif type_plot == 14:
+        fig_dir = root_dir + 'img_bulk_internal/' + run_name + '/'
+        fname = fig_dir + 'bulk_internal_e_%3d' + '.jpg'
+        movie_name = 'bulk_e_' + run_name + '.mp4'
+    elif type_plot == 15:
+        fig_dir = root_dir + 'img_bulk_internal/' + run_name + '/'
+        fname = fig_dir + 'bulk_internal_i_%3d' + '.jpg'
+        movie_name = 'bulk_i_' + run_name + '.mp4'
+    elif type_plot == 16:
+        fig_dir = root_dir + 'img_comp/' + run_name + '/'
+        fname = fig_dir + 'comp_e_%3d' + '.jpg'
+        movie_name = 'comp_e_' + run_name + '.mp4'
+    elif type_plot == 17:
+        fig_dir = root_dir + 'img_comp/' + run_name + '/'
+        fname = fig_dir + 'comp_i_%3d' + '.jpg'
+        movie_name = 'comp_i_' + run_name + '.mp4'
 
     cmd = 'ffmpeg -r 20 -f image2 -i ' + fname + \
             ' -f mp4 -q:v 0 -vcodec mpeg4 -r 20 ' + \
