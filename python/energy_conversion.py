@@ -309,14 +309,14 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     """
     jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote \
             + jdote.jmag_dote \
-            + jdote.jagy_dote
+            + jdote.jagy_dote \
             # + jdote.jpolar_dote \
             # + jdote.jqnupara_dote \
             # + jdote.jdivu_dote \
 
     jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int \
             + jdote.jmag_dote_int \
-            + jdote.jagy_dote_int
+            + jdote.jagy_dote_int \
             # + jdote.jpolar_dote_int \
             # + jdote.jqnupara_dote_int \
             # + jdote.jdivu_dote_int \
@@ -332,13 +332,11 @@ def plot_jdotes_evolution(pic_info, jdote, species):
 
     tfields = pic_info.tfields
     tenergy = pic_info.tenergy
-    fig = plt.figure(figsize=[7, 4])
+    fig = plt.figure(figsize=[7, 5])
    
-    width = 0.82
-    height = 0.4
-    xs = 0.14
-    ys = 0.15
-    ax1 = fig.add_axes([xs, ys+height, width, height])
+    w1, h1 = 0.8, 0.4
+    xs, ys = 0.96-w1, 0.96-h1
+    ax1 = fig.add_axes([xs, ys, w1, h1])
     ax1.plot(tfields, jdote.jcpara_dote, lw=2, color='b')
     ax1.plot(tfields, jdote.jgrad_dote, lw=2, color='g')
     ax1.plot(tfields, jdote.jmag_dote, lw=2, color='r')
@@ -348,10 +346,12 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
     ax1.tick_params(reset=True, labelsize=16)
     ax1.tick_params(axis='x', labelbottom='off')
-    ax1.set_xlim([np.min(tfields), np.max(tfields)])
+    tmax = min(800, np.max(tfields))
+    ax1.set_xlim([0, tmax])
 
     enorm = pic_info.ene_magnetic[0]
-    ax2 = fig.add_axes([xs, ys, width, height])
+    ys -= h1 + 0.05
+    ax2 = fig.add_axes([xs, ys, w1, h1])
     ax2.plot(tfields, jdote.jcpara_dote_int/enorm, lw=2, color='b')
     ax2.plot(tfields, jdote.jgrad_dote_int/enorm, lw=2, color='g')
     ax2.plot(tfields, jdote.jmag_dote_int/enorm, lw=2, color='r')
@@ -364,20 +364,20 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     ax2.tick_params(labelsize=16)
     ax2.set_xlim(ax1.get_xlim())
 
-    ax1.text(0.05, 0.85, r'$\mathbf{j}_g\cdot\mathbf{E}$', color='g', fontsize=20,
+    ax1.text(0.5, 0.85, r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$', color='g', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.2, 0.85, r'$\mathbf{j}_m\cdot\mathbf{E}$', color='r', fontsize=20,
+    ax1.text(0.65, 0.85, r'$\boldsymbol{j}_m\cdot\boldsymbol{E}$', color='r', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.05, 0.65, r'$\mathbf{j}_c\cdot\mathbf{E}$', color='b', fontsize=20,
+    ax1.text(0.8, 0.85, r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$', color='b', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
     fname = r'$dK_' + species + '/dt$'
-    ax1.text(0.05, 0.15, fname, color='k', fontsize=20,
+    ax1.text(0.6, 0.65, fname, color='k', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.2, 0.15, r"$\mathbf{j}_\perp\cdot\mathbf{E}$", color='m',
+    ax1.text(0.8, 0.65, r"$\boldsymbol{j}_\perp\cdot\boldsymbol{E}$", color='m',
             fontsize=20, horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
 
@@ -426,8 +426,8 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
             label=r'$\boldsymbol{j}\cdot\boldsymbol{E}$')
     ax1.plot(tenergy, dkene, lw=2, color='k', label=kename)
     ax1.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
-    ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=24)
-    ax1.tick_params(reset=True, labelsize=20)
+    ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
+    ax1.tick_params(reset=True, labelsize=16)
     ax1.tick_params(axis='x', labelbottom='off')
     # ax1.set_xlim([np.min(tenergy), np.max(tenergy)])
     ax1.set_xlim([0, 800])
@@ -439,19 +439,19 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
     #         horizontalalignment='left', verticalalignment='center',
     #         transform = ax1.transAxes)
-    ax1.text(0.8, 0.85, r'$dK_e/dt$', color='black', fontsize=24,
+    ax1.text(0.8, 0.85, r'$dK_e/dt$', color='black', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
     ax1.text(0.45, 0.85, r'$\boldsymbol{j}_{\parallel}\cdot\boldsymbol{E}$',
-            color='blue', fontsize=24,
+            color='blue', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
     ax1.text(0.62, 0.85, r'$\boldsymbol{j}_{\perp}\cdot\boldsymbol{E}$',
-            color='green', fontsize=24,
+            color='green', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.5, 0.7, r'$(\boldsymbol{j}_{\parallel}+\boldsymbol{j}_\perp)\cdot\boldsymbol{E}$',
-            color='red', fontsize=24,
+    ax1.text(0.55, 0.7, r'$(\boldsymbol{j}_{\parallel}+\boldsymbol{j}_\perp)\cdot\boldsymbol{E}$',
+            color='red', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
 
@@ -477,9 +477,9 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
             label=r'$\mathbf{j}\cdot\mathbf{E}$')
     ax2.plot(tenergy, dkene, lw=2, color='k', label=kename)
     ax2.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
-    ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
-    ax2.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=24)
-    ax2.tick_params(reset=True, labelsize=20)
+    ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
+    ax2.tick_params(reset=True, labelsize=16)
     ax2.set_xlim(ax1.get_xlim())
     dmax = np.max([jdote_i.jqnuperp_dote, jdote_i.jqnupara_dote, jtot_dote])
     dmin = np.min([jdote_i.jqnuperp_dote[2:], jdote_i.jqnupara_dote[2:], jtot_dote[2:]])
@@ -489,7 +489,7 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
     #         horizontalalignment='left', verticalalignment='center',
     #         transform = ax2.transAxes)
-    ax2.text(0.8, 0.85, r'$dK_i/dt$', color='black', fontsize=24,
+    ax2.text(0.8, 0.85, r'$dK_i/dt$', color='black', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax2.transAxes)
 
@@ -698,10 +698,12 @@ def plot_jdotes_evolution_multi(species):
         pic_info = read_data_from_json(picinfo_fname)
         jdote = read_data_from_json(jdote_fname)
         plot_jdotes_evolution(pic_info, jdote, species)
-        suffix = 'wjagy'
-        oname = odir + 'jdrifts_dote_' + run_name + '_' + suffix + '.eps'
+        suffix = 'no_jpolar'
+        oname = odir + 'jdrifts_dote_' + run_name + '_' + \
+                suffix + '_' + species + '.eps'
         plt.savefig(oname)
         plt.close()
+    # plt.show()
 
 
 def calc_jdotes_fraction_multi(species):
@@ -761,7 +763,7 @@ def calc_jdotes_fraction_multi(species):
 
 
 if __name__ == "__main__":
-    species = 'e'
+    species = 'i'
     # pic_info = pic_information.get_pic_info('../../')
     # jdote = read_jdote_data(species)
     # jdote_e = read_jdote_data('e')
@@ -774,6 +776,6 @@ if __name__ == "__main__":
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
     # save_jdote_json('e')
-    plot_jpara_jperp_dote_multi()
-    # plot_jdotes_evolution_multi(species)
+    # plot_jpara_jperp_dote_multi()
+    plot_jdotes_evolution_multi(species)
     # calc_jdotes_fraction_multi(species)
