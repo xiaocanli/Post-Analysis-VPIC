@@ -21,6 +21,9 @@ import collections
 import pic_information
 from contour_plots import read_2d_fields, plot_2d_contour
 from energy_conversion import read_jdote_data
+from runs_name_path import ApJ_long_paper_runs
+import simplejson as json
+from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -234,14 +237,14 @@ def bulk_energy_change_rate(pic_info, species, current_time):
     # plt.close()
 
 
-def plot_bulk_energy(pic_info, species):
+def plot_bulk_energy(pic_info, species, root_dir='../data/'):
     """Plot energy time evolution.
 
     Plot time evolution of bulk and internal energies. 
     """
     tfields = pic_info.tfields
 
-    fname = '../data/bulk_internal_energy_' + species + '.dat'
+    fname = root_dir + 'bulk_internal_energy_' + species + '.dat'
     f = open(fname, 'r')
     content = np.genfromtxt(f)
     ux2 = content[:, 0]
@@ -288,16 +291,16 @@ def plot_bulk_energy(pic_info, species):
     ax3.set_ylabel(r'Bulk/Internal', fontdict=font, fontsize=20)
     ax3.tick_params(labelsize=16)
 
-    if not os.path.isdir('../img/'):
-        os.makedirs('../img/')
-    fname = '../img/bulk_internal_ene_' + species + '.eps'
-    fig.savefig(fname)
-    plt.show()
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # fname = '../img/bulk_internal_ene_' + species + '.eps'
+    # fig.savefig(fname)
+    # plt.show()
 
 
 def check_energy(pic_info, species):
     """
-    Check if the sum of bulk and internal energies is the same as the
+    heck if the sum of bulk and internal energies is the same as the
     particle energy.
 
     """
@@ -528,9 +531,96 @@ def plot_bulk_energy_rel(pic_info, species):
     plt.show()
 
 
+def move_bulk_internal_energy():
+    if not os.path.isdir('../data/'):
+        os.makedirs('../data/')
+    dir = '../data/bulk_internal/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for base_dir, run_name in zip(base_dirs, run_names):
+        fpath = dir + run_name
+        if not os.path.isdir(fpath):
+            os.makedirs(fpath)
+        command = "cp " + base_dir + "/pic_analysis/data/bulk* " + fpath
+        os.system(command)
+
+
+def read_data_from_json(fname):
+    """Read jdote data from a json file
+
+    Args:
+        fname: file name of the json file of the jdote data.
+    """
+    with open(fname, 'r') as json_file:
+        data = json_to_data(json.load(json_file))
+    print("Reading %s" % fname)
+    return data
+
+
+def plot_bulk_energy_single(pic_info, species, root_dir='../data/'):
+    """Plot bulk and internal energy for a single run
+
+    """
+    tfields = pic_info.tfields
+
+    fname = root_dir + 'bulk_internal_energy_' + species + '.dat'
+    f = open(fname, 'r')
+    content = np.genfromtxt(f)
+    bene = content[:, 3]
+    iene = content[:, 7]
+    f.close()
+
+    ratio_ene = bene / iene
+    fig = plt.figure(figsize=[7, 5])
+    w1, h1 = 0.8, 0.4
+    xs, ys = 0.15, 0.96 - h1
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    fname1 = r'$K_' + species + '$'
+    fname2 = r'$U_' + species + '$'
+    p1, = ax1.plot(tfields, bene, linewidth=3, color='r', label=fname1)
+    p2, = ax1.plot(tfields, iene, linewidth=3, color='b', label=fname2)
+    ax1.set_ylabel(r'Energy', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=16)
+    ax1.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+
+    ys -= h1 + 0.05
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    p3, = ax2.plot(tfields, ratio_ene, linewidth=3, color='k')
+    ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(fname1 + '$/$' + fname2, fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
+
+
+def plot_bulk_energy_multi(species):
+    """Plot bulk and internal energy for multiple runs
+
+    Args:
+        species: particle species
+    """
+    dir = '../data/bulk_internal/'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    odir = '../img/bulk_internal/'
+    if not os.path.isdir(odir):
+        os.makedirs(odir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        fpath_bulk = '../data/bulk_internal/' + run_name + '/'
+        plot_bulk_energy_single(pic_info, species, fpath_bulk)
+        oname = odir + 'bulk_internal_' + run_name + '_' + species + '.eps'
+        plt.savefig(oname)
+        # plt.show()
+        plt.close()
+
+
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
-    ntp = pic_info.ntp
+    # pic_info = pic_information.get_pic_info('../../')
+    # ntp = pic_info.ntp
     # bulk_energy(pic_info, 'i', 12)
     # bulk_energy_change_rate(pic_info, 'e', 17)
     # for ct in range(pic_info.ntf):
@@ -538,6 +628,8 @@ if __name__ == "__main__":
     # for ct in range(pic_info.ntf):
     #     bulk_energy(pic_info, 'i', ct)
     # plot_bulk_energy(pic_info, 'e')
-    plot_bulk_energy_rel(pic_info, 'e')
+    # plot_bulk_energy_rel(pic_info, 'e')
     # check_energy(pic_info, 'e')
     # plot_bulk_energy_distribution(pic_info, 'i')
+    # move_bulk_internal_energy()
+    plot_bulk_energy_multi('e')
