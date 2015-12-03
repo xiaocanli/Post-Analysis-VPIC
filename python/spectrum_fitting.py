@@ -669,6 +669,8 @@ def calc_nonthermal_fraction(species):
         print("%s %5.2f %5.2f" % (run_names[i], 
             nnth_fraction[i], enth_fraction[i]))
 
+    return (nnth_fraction, enth_fraction)
+
 
 def power_law_fit(ene, f, offset, extend):
     """Power-law fitting for the power-law part of the spectrum.
@@ -796,8 +798,8 @@ def plot_spectra_beta_electron():
     dir = '../img/spectra/'
     if not os.path.isdir(dir):
         os.makedirs(dir)
-    fname = dir + 'spect_beta_electron.eps'
-    fig.savefig(fname)
+    fname = dir + 'spect_beta_electron.pdf'
+    fig.savefig(fname, transparent=True)
 
     plt.show()
 
@@ -1290,10 +1292,10 @@ if __name__ == "__main__":
     # plot_maximum_energy(ntp, pic_info)
     # move_energy_spectra()
     # calc_nonthermal_fraction('h')
-    # plot_spectra_beta_electron()
+    plot_spectra_beta_electron()
     # plot_spectra_multi_electron()
     # plot_spectra_beta_ion()
     # plot_spectra_multi_ion()
     # get_maximum_energy_multi('h')
     # plot_maximum_energy_multi()
-    plot_spectra_time_multi('h')
+    # plot_spectra_time_multi('h')
