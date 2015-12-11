@@ -706,6 +706,104 @@ def plot_jdotes_evolution_multi(species):
     # plt.show()
 
 
+def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
+    """Plot jdotes for both species.
+
+    Args:
+        jdote_e: jdote data for electrons.
+        jdote_i: jdote data for ions.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    jdote_tot_drifts_e = jdote_e.jcpara_dote + jdote_e.jgrad_dote \
+            + jdote_e.jmag_dote + jdote_e.jagy_dote \
+            # + jdote_e.jpolar_dote \
+            # + jdote_e.jqnupara_dote \
+    jdote_tot_drifts_i = jdote_i.jcpara_dote + jdote_i.jgrad_dote \
+            + jdote_i.jmag_dote + jdote_i.jagy_dote \
+            # + jdote_i.jpolar_dote \
+            # + jdote_i.jqnupara_dote \
+
+    dkene_e = pic_info.dkene_e
+    dkene_i = pic_info.dkene_i
+
+    tfields = pic_info.tfields
+    tenergy = pic_info.tenergy
+    fig = plt.figure(figsize=[7, 5])
+   
+    w1, h1 = 0.8, 0.4
+    xs, ys = 0.96-w1, 0.96-h1
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.plot(tfields, jdote_e.jcpara_dote, lw=2, color='b')
+    ax1.plot(tfields, jdote_e.jgrad_dote, lw=2, color='g')
+    ax1.plot(tfields, jdote_e.jmag_dote, lw=2, color='r')
+    ax1.plot(tfields, jdote_tot_drifts_e, lw=2, color='m')
+    ax1.plot(tenergy, dkene_e, lw=2, color='k', label=r'$dK_e/dt$')
+    ax1.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
+    ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
+    ax1.tick_params(reset=True, labelsize=16)
+    ax1.tick_params(axis='x', labelbottom='off')
+    tmax = min(800, np.max(tfields))
+    ax1.set_xlim([0, tmax])
+
+    enorm = pic_info.ene_magnetic[0]
+    ys -= h1 + 0.05
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    ax2.plot(tfields, jdote_i.jcpara_dote, lw=2, color='b')
+    ax2.plot(tfields, jdote_i.jgrad_dote, lw=2, color='g')
+    ax2.plot(tfields, jdote_i.jmag_dote, lw=2, color='r')
+    ax2.plot(tfields, jdote_tot_drifts_i, lw=2, color='m')
+    ax2.plot(tenergy, dkene_i, lw=2, color='k', label=r'$dK_i/dt$')
+    ax2.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
+
+    ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'$\varepsilon_c$', fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
+    ax2.set_xlim(ax1.get_xlim())
+
+    ax1.text(0.55, 0.85, r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$', color='g', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.7, 0.85, r'$\boldsymbol{j}_m\cdot\boldsymbol{E}$', color='r', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.85, 0.85, r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$', color='b', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.65, 0.65, r"$\boldsymbol{j}_\perp\cdot\boldsymbol{E}$", color='m',
+            fontsize=20, horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax1.text(0.85, 0.65, r'$dK_e/dt$', color='k', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax2.text(0.85, 0.85, r'$dK_i/dt$', color='k', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
+
+
+def plot_jdotes_evolution_both_multi():
+    """Plot jdote evolution for multiple runs for both species.
+    """
+    dir = '../data/jdote_data/'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    odir = '../img/jdote/'
+    if not os.path.isdir(odir):
+        os.makedirs(odir)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        jdote_fname = '../data/jdote_data/jdote_' + run_name + '_e.json'
+        jdote_e = read_data_from_json(jdote_fname)
+        jdote_fname = '../data/jdote_data/jdote_' + run_name + '_i.json'
+        jdote_i = read_data_from_json(jdote_fname)
+        plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info)
+        oname = odir + 'jdrifts_dote_' + run_name + '.eps'
+        plt.savefig(oname)
+        plt.close()
+    # plt.show()
+
+
 def calc_jdotes_fraction_multi(species):
     """Calculate the fractions for jdotes due to different drift.
 
@@ -777,5 +875,6 @@ if __name__ == "__main__":
     # plot_energy_evolution_multi()
     # save_jdote_json('e')
     # plot_jpara_jperp_dote_multi()
-    plot_jdotes_evolution_multi(species)
+    # plot_jdotes_evolution_multi(species)
     # calc_jdotes_fraction_multi(species)
+    plot_jdotes_evolution_both_multi()
