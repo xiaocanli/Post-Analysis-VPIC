@@ -224,7 +224,7 @@ class ParticleTrajectory153(object):
         self.color_Ay = 'black'
         self.color_pxz = 'black'
 
-        xs, ys = 0.12, 0.7
+        xs, ys = 0.12, 0.72
         w1, h1 = 0.78, 0.25
         h2 = 0.52
         gap = 0.05
@@ -287,38 +287,39 @@ class ParticleTrajectory153(object):
                 color=self.color_pxz)
 
         # x-energy after periodic x correction
-        ys -= h2 + gap
+        ys -= h1 + gap
         width, height = self.fig_ene.get_size_inches()
         w2 = w1 * 0.98 - 0.05 / width
-        self.xeb_axis = self.fig_ene.add_axes([xs, ys, w2, h2])
+        self.xeb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xeb_axis.tick_params(labelsize=16)
         self.pxe_b, = self.xeb_axis.plot(self.pxb[::tst],
                 self.gama[::tst] - 1.0, color=colors[0])
         self.xeb_axis.tick_params(labelsize=16)
-        self.xeb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+        self.xeb_axis.tick_params(axis='x', labelbottom='off')
         self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font,
-                fontsize=20, color=colors[0])
+                fontsize=20)
         self.xeb_axis.set_ylim([self.emin, self.emax])
-        for tl in self.xeb_axis.get_yticklabels():
-            tl.set_color(colors[0])
+        # for tl in self.xeb_axis.get_yticklabels():
+        #     tl.set_color(colors[0])
         self.xmin_b, self.xmax_b = self.xeb_axis.get_xlim()
         self.xz_axis.set_xlim(self.xmin_b, self.xmax_b)
 
         # x-y plot after periodic x correction
-        ys -= h2 + gap
-        self.xyb_axis = self.xeb_axis.twinx()
+        ys -= h1 + gap
+        # self.xyb_axis = self.xeb_axis.twinx()
+        self.xyb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xyb_axis.tick_params(labelsize=16)
         self.pxy_b, = self.xyb_axis.plot(self.pxb[::tst], self.py[::tst],
                 color=colors[1])
-        for tl in self.xyb_axis.get_yticklabels():
-            tl.set_color(colors[1])
+        # for tl in self.xyb_axis.get_yticklabels():
+        #     tl.set_color(colors[1])
         self.xmin_b, self.xmax_b = self.xeb_axis.get_xlim()
         self.xyb_axis.set_xlim([self.xmin_b, self.xmax_b])
         # self.pxy_help_b, = self.xyb_axis.plot([self.xmin_b, self.xmax_b], [0, 0],
         #         color='r', linestyle='--')
         self.xyb_axis.tick_params(labelsize=16)
         self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font,
-                fontsize=20, color=colors[1])
+                fontsize=20)
         self.xyb_axis.set_ylim([self.ymin, self.ymax])
         self.xyb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
 
@@ -530,7 +531,7 @@ class ParticleTrajectory154(object):
         self.color_Ay = 'black'
         self.color_pxz = 'black'
 
-        xs, ys = 0.14, 0.7
+        xs, ys = 0.14, 0.72
         w1, h1 = 0.76, 0.25
         h2 = 0.52
         gap = 0.05
@@ -573,38 +574,41 @@ class ParticleTrajectory154(object):
                 color=self.color_pxz)
 
         # x-energy after periodic x correction
-        ys -= h2 + gap
+        ys -= h1 + gap
         width, height = self.fig_ene.get_size_inches()
         w2 = w1 * 0.98 - 0.05 / width
-        self.xeb_axis = self.fig_ene.add_axes([xs, ys, w2, h2])
+        self.xeb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xeb_axis.tick_params(labelsize=16)
         self.pxe_b, = self.xeb_axis.plot(self.pxb[::tst],
                 self.gama[::tst] - 1.0, color=colors[0])
         self.xeb_axis.tick_params(labelsize=16)
-        self.xeb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+        self.xeb_axis.tick_params(axis='x', labelbottom='off')
+        self.xz_axis.autoscale(1,'both',1)
+        # self.xeb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
         self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font,
-                fontsize=20, color=colors[0])
+                fontsize=20)
         self.xeb_axis.set_ylim([self.emin, self.emax])
-        for tl in self.xeb_axis.get_yticklabels():
-            tl.set_color(colors[0])
+        # for tl in self.xeb_axis.get_yticklabels():
+        #     tl.set_color(colors[0])
         self.xmin_b, self.xmax_b = self.xz_axis.get_xlim()
         self.xeb_axis.set_xlim(self.xmin_b, self.xmax_b)
 
         # x-y plot after periodic x correction
-        ys -= h2 + gap
-        self.xyb_axis = self.xeb_axis.twinx()
+        ys -= h1 + gap
+        # self.xyb_axis = self.xeb_axis.twinx()
+        self.xyb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xyb_axis.tick_params(labelsize=16)
         self.pxy_b, = self.xyb_axis.plot(self.pxb[::tst], self.py[::tst],
                 color=colors[1])
-        for tl in self.xyb_axis.get_yticklabels():
-            tl.set_color(colors[1])
+        # for tl in self.xyb_axis.get_yticklabels():
+        #     tl.set_color(colors[1])
         self.xmin_b, self.xmax_b = self.xz_axis.get_xlim()
         self.xyb_axis.set_xlim([self.xmin_b, self.xmax_b])
         # self.pxy_help_b, = self.xyb_axis.plot([self.xmin_b, self.xmax_b], [0, 0],
         #         color='r', linestyle='--')
         self.xyb_axis.tick_params(labelsize=16)
         self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font,
-                fontsize=20, color=colors[1])
+                fontsize=20)
         self.xyb_axis.set_ylim([self.ymin, self.ymax])
         self.xyb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
 
@@ -668,19 +672,23 @@ def plot_electron_trajectory(fnames, species, pic_info):
     """
     nptl = len(fnames)
 
-    iptl = 89
-    var_field = 'ey'
-    var_name = '$E_y$'
-    emin, emax = -2.5, 2.5
-    ymin, ymax = -50, 40
-    field_range = np.zeros((3, 4))
-    field_range[:, 2] = -10
-    field_range[:, 3] = 10
-    field_range[0, 0:2] = [80, 130]
-    field_range[1, 0:2] = [130, 165]
-    field_range[2, 0:2] = [165, 200]
-    ct = [61, 100, 170]
-    indicator_color = colors[2]
+    # iptl = 89
+    # var_field = 'ey'
+    # var_name = '$E_y$'
+    # emin, emax = 0, 2.5
+    # ymin, ymax = -50, 35
+    # field_range = np.zeros((3, 4))
+    # field_range[:, 2] = -10
+    # field_range[:, 3] = 10
+    # field_range[0, 0:2] = [80, 130]
+    # field_range[1, 0:2] = [130, 165]
+    # field_range[2, 0:2] = [165, 200]
+    # ct = [61, 100, 170]
+    # indicator_color = colors[2]
+    # ylims = []
+    # ylims.append(np.arange(-10, 12, 5))
+    # ylims.append(np.arange(0.0, 2.6, 0.5))
+    # ylims.append(np.arange(-40, 30, 20))
 
     # iptl = 153
     # var_field = 'ey'
@@ -695,20 +703,28 @@ def plot_electron_trajectory(fnames, species, pic_info):
     # field_range[2, 0:2] = [160, 200]
     # ct = [48, 92, 206]
     # indicator_color = colors[2]
+    # ylims = []
+    # ylims.append(np.arange(-20, 22, 10))
+    # ylims.append(np.arange(0.0, 2.1, 0.5))
+    # ylims.append(np.arange(-60, 10, 20))
 
-    # iptl = 382
-    # var_field = 'ey'
-    # var_name = '$E_y$'
-    # emin, emax = -1.0, 1.5
-    # ymin, ymax = -40, 200
-    # field_range = np.zeros((3, 4))
-    # field_range[:, 2] = -12
-    # field_range[:, 3] = 12
-    # field_range[0, 0:2] = [80, 130]
-    # field_range[1, 0:2] = [130, 165]
-    # field_range[2, 0:2] = [165, 200]
-    # ct = [55, 110, 200]
-    # indicator_color = colors[2]
+    iptl = 382
+    var_field = 'ey'
+    var_name = '$E_y$'
+    emin, emax = 0, 1.5
+    ymin, ymax = -40, 100
+    field_range = np.zeros((3, 4))
+    field_range[:, 2] = -12
+    field_range[:, 3] = 12
+    field_range[0, 0:2] = [80, 130]
+    field_range[1, 0:2] = [130, 165]
+    field_range[2, 0:2] = [165, 200]
+    ct = [55, 110, 200]
+    indicator_color = colors[2]
+    ylims = []
+    ylims.append(np.arange(-10, 12, 5))
+    ylims.append(np.arange(0.0, 1.6, 0.5))
+    ylims.append(np.arange(-40, 100, 40))
 
     species = 'e'
     kwargs = {'nptl':nptl, 'iptl':iptl, 'ct':ct, 'var_field':var_field,
@@ -716,6 +732,10 @@ def plot_electron_trajectory(fnames, species, pic_info):
             'field_range':field_range, 'emax':emax, 'emin':emin,
             'ymin':ymin, 'ymax':ymax, 'indicator_color':indicator_color}
     fig_v = ParticleTrajectory153(**kwargs)
+    fig_v.xz_axis.yaxis.set_ticks(ylims[0])
+    fig_v.xeb_axis.yaxis.set_ticks(ylims[1])
+    fig_v.xyb_axis.yaxis.set_ticks(ylims[2])
+    fig_v.save_figures()
     plt.show()
 
 
@@ -745,7 +765,7 @@ def plot_particle_energies(fnames, species, pic_info):
         py = ptl.y / smime
         pz = ptl.z / smime
         t = ptl.t * pic_info.dtwci / pic_info.dtwpe
-        p1, = ax.plot(t, gama - 1, color='k')
+        p1, = ax.plot(t, gama - 1, color='k', linewidth=2)
         color = p1.get_color()
         for j in range(3):
             ct_ptl = ct[i, j] * t_ratio
@@ -781,44 +801,60 @@ def plot_ion_trajectory(fnames, species, pic_info):
     """
     nptl = len(fnames)
 
-    # iptl = 58
-    # var_field = 'ey'
-    # var_name = '$E_y$'
-    # emin, emax = 0, 0.13
-    # ymin, ymax = 0, 170
-    # field_range = np.zeros((3, 4))
-    # field_range[:, 2] = -30
-    # field_range[:, 3] = 30
-    # field_range[0, 0:2] = [80, 100]
-    # field_range[1, 0:2] = [100, 150]
-    # field_range[2, 0:2] = [150, 200]
-    # ct = [40, 80, 220]
-    # indicator_color = colors[2]
+    iptl = 58
+    var_field = 'ey'
+    var_name = '$E_y$'
+    emin, emax = 0, 0.13
+    ymin, ymax = 0, 170
+    field_range = np.zeros((3, 4))
+    field_range[:, 2] = -30
+    field_range[:, 3] = 30
+    field_range[0, 0:2] = [80, 100]
+    field_range[1, 0:2] = [100, 150]
+    field_range[2, 0:2] = [150, 200]
+    ct = [40, 80, 220]
+    indicator_color = colors[2]
+    ylims = []
+    ylims.append(np.arange(-30, 32, 10))
+    ylims.append(np.arange(0, 0.13, 0.05))
+    ylims.append(np.arange(0, 170, 40))
 
     # iptl = 400
     # var_field = 'ey'
     # var_name = '$E_y$'
-    # emin, emax = -0.25, 0.25
-    # ymin, ymax = -60, 100
+    # emin, emax = 0, 0.25
+    # ymin, ymax = -60, 20
     # field_range = [120, 200, -30, 30]
     # ct = 109
     # indicator_color = colors[2]
+    # ylims = []
+    # ylims.append(np.arange(-30, 32, 10))
+    # ylims.append(np.arange(0, 0.25, 0.1))
+    # ylims.append(np.arange(-60, 30, 20))
 
-    iptl = 1239
-    var_field = 'ey'
-    var_name = '$E_y$'
-    emin, emax = -0.10, 0.14
-    ymin, ymax = 0, 100
-    field_range = [140, 200, -20, 20]
-    ct = 55
-    indicator_color = colors[2]
+    # iptl = 1239
+    # var_field = 'ey'
+    # var_name = '$E_y$'
+    # emin, emax = 0, 0.15
+    # ymin, ymax = 0, 60
+    # field_range = [140, 200, -20, 20]
+    # ct = 55
+    # indicator_color = colors[2]
+    # ylims = []
+    # ylims.append(np.arange(-20, 22, 10))
+    # ylims.append(np.arange(0.0, 0.16, 0.05))
+    # ylims.append(np.arange(0, 70, 20))
 
     species = 'i'
     kwargs = {'nptl':nptl, 'iptl':iptl, 'ct':ct, 'var_field':var_field,
             'var_name':var_name, 'species':species, 'traj_names':fnames,
             'field_range':field_range, 'emax':emax, 'emin':emin,
             'ymin':ymin, 'ymax':ymax, 'indicator_color':indicator_color}
-    fig_v = ParticleTrajectory154(**kwargs)
+    fig_v = ParticleTrajectory153(**kwargs)
+    fig_v.xz_axis.yaxis.set_ticks(ylims[0])
+    fig_v.xeb_axis.yaxis.set_ticks(ylims[1])
+    fig_v.xyb_axis.yaxis.set_ticks(ylims[2])
+    fig_v.save_figures()
     plt.show()
 
 
@@ -848,7 +884,7 @@ def plot_ions_energies(fnames, species, pic_info):
         py = ptl.y / smime
         pz = ptl.z / smime
         t = ptl.t * pic_info.dtwci / pic_info.dtwpe
-        p1, = ax.plot(t, gama - 1, color='k')
+        p1, = ax.plot(t, gama - 1, color='k', linewidth=2)
         color = p1.get_color()
         if i == 0:
             for j in range(3):
@@ -887,5 +923,5 @@ if __name__ == "__main__":
     fnames_e, fnames_i = get_file_names()
     # plot_electron_trajectory(fnames_e, 'e', pic_info)
     # plot_ion_trajectory(fnames_i, 'i', pic_info)
-    # plot_particle_energies(fnames_e, 'e', pic_info)
-    plot_ions_energies(fnames_i, 'i', pic_info)
+    plot_particle_energies(fnames_e, 'e', pic_info)
+    # plot_ions_energies(fnames_i, 'e', pic_info)
