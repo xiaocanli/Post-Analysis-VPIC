@@ -133,7 +133,7 @@ void get_particle_offset(char *fname, char *gname, double emax,
     *poffset = 0;
     while (ene > target_ene) {
         i = dims_out[0] - (*poffset) - 1;
-        ene = sqrt(ux[i]*ux[i] + uy[i]*uy[i] * uz[i]*uz[i] + 1.0) - 1.0;
+        ene = sqrt(ux[i]*ux[i] + uy[i]*uy[i] + uz[i]*uz[i] + 1.0) - 1.0;
         (*poffset)++;
     }
 
