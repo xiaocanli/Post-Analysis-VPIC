@@ -31,6 +31,7 @@ int main(int argc, char **argv){
         write_result, collect_data, weak_scale_test, weak_scale_test_length,
         local_sort_threaded, local_sort_threads_num, dataset_num,
         max_type_size, meta_data;
+    int tmax, tinterval; // Maximum time step and time interval
     char *filename, *group_name, *filename_sorted, *filename_attribute;
     char *filename_meta;
     hsize_t my_data_size, rest_size, my_offset;
@@ -45,6 +46,8 @@ int main(int argc, char **argv){
     filename_sorted = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filename_attribute = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filename_meta = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
+    tmax = 0;
+    tinterval = 1;
 
     t0 = MPI_Wtime();
     is_help = get_configuration(argc, argv, mpi_rank, &key_index,
@@ -52,7 +55,7 @@ int main(int argc, char **argv){
             &collect_data, &weak_scale_test, &weak_scale_test_length,
             &local_sort_threaded, &local_sort_threads_num, &meta_data,
             filename, group_name, filename_sorted, filename_attribute,
-            filename_meta);
+            filename_meta, &tmax, &tinterval);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {

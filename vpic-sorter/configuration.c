@@ -6,6 +6,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <math.h>
+#include <getopt.h>
 void print_help();
 
 /******************************************************************************
@@ -16,10 +17,18 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         int *collect_data, int *weak_scale_test, int *weak_scale_test_length,
         int *local_sort_threaded, int *local_sort_threads_num, int *meta_data,
         char *filename, char *group_name, char *filename_sorted,
-        char *filename_attribute, char *filename_meta)
+        char *filename_attribute, char *filename_meta, int *tmax, int *tinterval)
 {
     int c;
-    static const char *options="f:o:a:g:m:k:hsvewl:t:c";
+    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:";
+    static struct option long_options[] = 
+    {
+        {"tmax", required_argument, 0, 'b'},
+        {"tinterval", required_argument, 0, 'i'},
+        {0, 0, 0, 0},
+    };
+    /* getopt_long stores the option index here. */
+    int option_index = 0;
     extern char *optarg;
 
     /* Default values */
@@ -35,8 +44,8 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *local_sort_threads_num = 16;
     *meta_data = 0;
 
-    //opterr = 0;
-    while ((c = getopt (argc, argv, options)) != -1){
+    /* while ((c = getopt (argc, argv, options)) != -1){ */
+    while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
         switch (c){
             case 'f':
                 strcpy(filename, optarg);
@@ -88,6 +97,12 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 'c':
                 *collect_data = 0;
                 break;
+            case 'b':
+                *tmax = atoi(optarg);
+                break;
+            case 'i':
+                *tinterval = atoi(optarg);
+                break;
             case 'h':
                 if (mpi_rank == 0) {
                     print_help();
@@ -115,9 +130,10 @@ void print_help(){
                -m the meta data is used determine particle position \n\
                -s the data is in skew shape \n\
                -w won't write the sorted data \n\
+               -b the particle output maximum time step \n\
+               -i the particle output time interval \n\
                -e only sort the key  \n\
                -v verbose  \n\
                example: ./h5group-sorter -f testf.h5p  -g /testg  -o testg-sorted.h5p -a testf.attribute -k 0 \n";
     fprintf(stdout, msg, "h5group-sorter");
 }
-
