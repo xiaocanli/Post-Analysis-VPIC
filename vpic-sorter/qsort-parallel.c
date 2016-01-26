@@ -27,7 +27,8 @@ int skewed_data_partition(int mpi_rank, int mpi_size, char *data,
         int dest, double *cur_value, int *nelem, int *previous_ii);
 void check_load_balance(int mpi_rank, int mpi_size, unsigned long long rsize);
 void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
-        int64_t my_data_size, int row_size, int collect_data, int write_result);
+        int64_t my_data_size, int row_size, int collect_data, int write_result, 
+        char *final_buff, unsigned long long *rsize);
 
 /******************************************************************************
  * Compare the key in "long long" type
@@ -178,7 +179,8 @@ int phase1(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
  ******************************************************************************/
 int phase2(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         char *pivots, int rest_size, int row_size, int skew_data,
-        int collect_data, int write_result)
+        int collect_data, int write_result, char *final_buff,
+        unsigned long long *rsize)
 {
     int dest, k;
     double t1, t2; 
@@ -241,7 +243,7 @@ int phase2(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
 
     /* echange the data and sort it again. */
     exchange_data(mpi_rank, mpi_size, data, scount, my_data_size, row_size,
-            collect_data, write_result);
+            collect_data, write_result, final_buff, rsize);
 
     free(scount);
 
@@ -294,7 +296,7 @@ int master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         int dset_num, int key_data_type, int verbosity, int omp_threaded,
         int omp_threads_num, int skew_data, int collect_data, int write_result,
         char *gname, char *fname_sorted, char *fname_attribute,
-        dset_name_item *dataname_array)
+        dset_name_item *dataname_array, char *final_buff, unsigned long long *rsize)
 {
     char *all_samp, *temp_samp;
     char *pivots;
@@ -372,7 +374,7 @@ int master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
     //To sort and write sorted file
 
     phase2(0, mpi_size, data, my_data_size, pivots, rest_size, row_size,
-            skew_data, collect_data, write_result);
+            skew_data, collect_data, write_result, final_buff, rsize);
     free(pivots);
 
     free_external_variable();
@@ -388,7 +390,7 @@ int slave(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         int dset_num, int key_data_type, int verbosity, int omp_threaded,
         int omp_threads_num, int skew_data, int collect_data, int write_result,
         char *gname, char *fname_sorted, char *fname_attribute,
-        dset_name_item *dataname_array)
+        dset_name_item *dataname_array, char *final_buff, unsigned long long *rsize)
 {
     char  *pivots;
     set_external_variables(type_size_max, index_key, dset_num, key_data_type,
@@ -407,7 +409,7 @@ int slave(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
     MPI_Bcast(pivots, (mpi_size-1), OPIC_DATA_TYPE, 0, MPI_COMM_WORLD);
 
     phase2(mpi_rank, mpi_size, data, my_data_size, pivots, rest_size, row_size,
-            skew_data, collect_data, write_result);
+            skew_data, collect_data, write_result, final_buff, rsize);
     free(pivots);
 
     free_external_variable();
@@ -812,15 +814,17 @@ void check_load_balance(int mpi_rank, int mpi_size, unsigned long long rsize) {
  * Exchange the data among all processes.
  ******************************************************************************/
 void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
-        int64_t my_data_size, int row_size, int collect_data, int write_result)
+        int64_t my_data_size, int row_size, int collect_data, int write_result,
+        char *final_buff, unsigned long long *rsize)
 {
-    char *final_buff;
     int *sdisp, *rcount, *rdisp;
-    unsigned long long ssize = 0, rsize = 0;
+    unsigned long long ssize = 0;
     double t1, t2;
     int i;
 
     t1 = MPI_Wtime();
+
+    *rsize = 0;
 
     rcount = malloc(mpi_size * sizeof(int));
     sdisp  = malloc(mpi_size * sizeof(int));
@@ -845,7 +849,7 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
         rdisp[i] = rdisp[i-1] + rcount[i-1];
 
     for (i = 0; i < mpi_size; i++){
-        rsize = rsize + (unsigned long long)rcount[i];
+        *rsize = *rsize + (unsigned long long)rcount[i];
         ssize = ssize + (unsigned long long)scount[i];
     }
 
@@ -857,7 +861,7 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
     }
 
     if(collect_data == 1){
-        final_buff = malloc((rsize) * row_size);  
+        final_buff = malloc((*rsize) * row_size);  
         if(final_buff == NULL){
             printf("Allocation for final_buff fails !\n");
             exit(0);
@@ -871,7 +875,7 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
 
     if(mpi_rank == 0 || mpi_rank == (mpi_size -1)) {
         printf("Exchange data ends, my_rank %d, ", mpi_rank);
-        printf("orgi_size %ld, new_size %llu, ", my_data_size, rsize);
+        printf("orgi_size %ld, new_size %llu, ", my_data_size, *rsize);
         printf("taking [%f]s\n", (t2-t1));
     }
 
@@ -879,16 +883,16 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
     free(sdisp);
     free(rcount);
 
-    check_load_balance(mpi_rank, mpi_size, rsize);
+    check_load_balance(mpi_rank, mpi_size, *rsize);
 
     MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
 
     if(collect_data == 1){
         if(local_sort_threaded == 0){
-            qsort_type(final_buff, rsize, row_size);
+            qsort_type(final_buff, *rsize, row_size);
         }else{
-            openmp_sort(final_buff, rsize, local_sort_threads_num, row_size);
+            openmp_sort(final_buff, *rsize, local_sort_threads_num, row_size);
         }
     }
 
@@ -903,7 +907,7 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
 
     /* For test, we only consider the sorting time */
     if(write_result == 1) {
-        write_result_file(mpi_rank, mpi_size, final_buff, rsize, row_size,
+        write_result_file(mpi_rank, mpi_size, final_buff, *rsize, row_size,
                 dataset_num, max_type_size, key_index, group_name,
                 filename_sorted, filename_attribute, dname_array);
     }
@@ -912,10 +916,6 @@ void exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
     t2 = MPI_Wtime();
     if(mpi_rank == 0 ){
         printf("Write result file takes [%f]s)\n", (t2-t1));
-    }
-
-    if(collect_data == 1) {
-        free(final_buff);
     }
 }
 

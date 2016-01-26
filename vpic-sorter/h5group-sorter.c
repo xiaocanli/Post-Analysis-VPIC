@@ -20,6 +20,14 @@
 #include "get_data.h"
 #include "meta_data.h"
 
+char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
+        int sort_key_only, int skew_data, int verbose, int write_result,
+        int collect_data, int weak_scale_test, int weak_scale_test_length,
+        int local_sort_threaded, int local_sort_threads_num, int meta_data,
+        char *filename, char *group_name, char *filename_sorted,
+        char *filename_attribute, char *filename_meta,
+        unsigned long long *rsize);
+
 /******************************************************************************
  * Main of the parallel sampling sort
  ******************************************************************************/
@@ -34,6 +42,8 @@ int main(int argc, char **argv){
     int multi_tsteps;
     char *filename, *group_name, *filename_sorted, *filename_attribute;
     char *filename_meta, *filepath, *species;
+    char *final_buff;
+    unsigned long long rsize;
 
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Init(&argc, &argv);
@@ -74,18 +84,24 @@ int main(int argc, char **argv){
             snprintf(filename_attribute, MAX_FILENAME_LEN, "%s", "attribute");
             snprintf(filename_meta, MAX_FILENAME_LEN, "%s%s%d%s%s%s", filepath,
                     "/T.", tstep, "/grid_metadata_", species, "_tracer.h5p");
-            sorting_single_tstep(mpi_size, mpi_rank, key_index, sort_key_only,
-                    skew_data, verbose, write_result, collect_data,
+            final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
+                    sort_key_only, skew_data, verbose, write_result, collect_data,
                     weak_scale_test, weak_scale_test_length, local_sort_threaded,
                     local_sort_threads_num, meta_data, filename, group_name,
-                    filename_sorted, filename_attribute, filename_meta);
+                    filename_sorted, filename_attribute, filename_meta, &rsize);
+            if(collect_data == 1) {
+                free(final_buff);
+            }
         }
     } else {
-        sorting_single_tstep(mpi_size, mpi_rank, key_index, sort_key_only,
-                skew_data, verbose, write_result, collect_data, weak_scale_test,
-                weak_scale_test_length, local_sort_threaded,
+        final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
+                sort_key_only, skew_data, verbose, write_result, collect_data,
+                weak_scale_test, weak_scale_test_length, local_sort_threaded,
                 local_sort_threads_num, meta_data, filename, group_name,
-                filename_sorted, filename_attribute, filename_meta);
+                filename_sorted, filename_attribute, filename_meta, &rsize);
+        if(collect_data == 1) {
+            free(final_buff);
+        }
     }
 
     MPI_Barrier(MPI_COMM_WORLD);		
@@ -109,15 +125,16 @@ int main(int argc, char **argv){
  * Read the particle data and sort the data using one key. This is only for
  * a single time step.
  ******************************************************************************/
-void sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
+char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int sort_key_only, int skew_data, int verbose, int write_result,
         int collect_data, int weak_scale_test, int weak_scale_test_length,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
         char *filename, char *group_name, char *filename_sorted,
-        char *filename_attribute, char *filename_meta) {
+        char *filename_attribute, char *filename_meta,
+        unsigned long long *rsize) {
     int max_type_size, dataset_num, key_value_type, row_size;
     hsize_t my_data_size, rest_size, my_offset;
-    char *package_data;
+    char *package_data, *final_buff;
     dset_name_item *dname_array;
     dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
     package_data = get_vpic_data_h5(mpi_rank, mpi_size, filename, group_name,
@@ -142,16 +159,18 @@ void sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
                 max_type_size, key_index, dataset_num, key_value_type, verbose,
                 local_sort_threaded, local_sort_threads_num, skew_data,
                 collect_data, write_result, group_name, filename_sorted,
-                filename_attribute, dname_array);
+                filename_attribute, dname_array, final_buff, rsize);
     }else{
         slave(mpi_rank, mpi_size, package_data, my_data_size, rest_size, row_size,
                 max_type_size, key_index, dataset_num, key_value_type, verbose,
                 local_sort_threaded, local_sort_threads_num, skew_data,
                 collect_data, write_result, group_name, filename_sorted,
-                filename_attribute, dname_array);
+                filename_attribute, dname_array, final_buff, rsize);
     }
+
     free_opic_data_type();
 
     free(dname_array);
     free(package_data);
+    return final_buff;
 }
