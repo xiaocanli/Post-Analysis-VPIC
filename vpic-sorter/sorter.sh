@@ -16,6 +16,6 @@ do
     mpirun -np 64 ./h5group-sorter -f $filepath/T.$tstep/${particle}_tracer.h5p \
     -o $filepath/T.$tstep/${particle}_tracer_sorted.h5p \
     -g /Step\#$tstep -m $filepath/T.$tstep/grid_metadata_${particle}_tracer.h5p \
-    -k 7 -a attribute
+    -k 7 -a attribute -w --filepath=$filepath --species=${particle}
     # fi
 done

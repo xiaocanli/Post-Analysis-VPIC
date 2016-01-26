@@ -2,7 +2,7 @@
 
 # export filepath=/scratch3/guofan/open3d-h5tracer/tracer
 # export filepath=/net/scratch1/guofan/share/ultra-sigma/sigma1e4-mime100-4000-track/tracer
-export filepath=/net/scratch2/guofan/turbulent-sheet3D-mixing-trinity/tracer
+export filepath=/net/scratch2/guofan/VPIC-trinity/turbulent-sheet3D-mixing-trinity/tracer
 
 # Find the maximum time step
 export tstep_max=-1
