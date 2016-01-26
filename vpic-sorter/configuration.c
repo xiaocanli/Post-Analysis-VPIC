@@ -17,14 +17,17 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         int *collect_data, int *weak_scale_test, int *weak_scale_test_length,
         int *local_sort_threaded, int *local_sort_threads_num, int *meta_data,
         char *filename, char *group_name, char *filename_sorted,
-        char *filename_attribute, char *filename_meta, int *tmax, int *tinterval)
+        char *filename_attribute, char *filename_meta, char *filepath,
+        char *species, int *tmax, int *tinterval, int *multi_tsteps)
 {
     int c;
-    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:";
+    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:p";
     static struct option long_options[] = 
     {
         {"tmax", required_argument, 0, 'b'},
         {"tinterval", required_argument, 0, 'i'},
+        {"filepath", required_argument, 0, 1},
+        {"species", required_argument, 0, 2},
         {0, 0, 0, 0},
     };
     /* getopt_long stores the option index here. */
@@ -43,6 +46,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *local_sort_threaded = 0;
     *local_sort_threads_num = 16;
     *meta_data = 0;
+    *multi_tsteps = 0;
 
     /* while ((c = getopt (argc, argv, options)) != -1){ */
     while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
@@ -103,6 +107,15 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 'i':
                 *tinterval = atoi(optarg);
                 break;
+            case 1:
+                strcpy(filepath, optarg);
+                break;
+            case 2:
+                strcpy(species, optarg);
+                break;
+            case 'p':
+                *multi_tsteps = 1;
+                break;
             case 'h':
                 if (mpi_rank == 0) {
                     print_help();
@@ -132,6 +145,9 @@ void print_help(){
                -w won't write the sorted data \n\
                -b the particle output maximum time step \n\
                -i the particle output time interval \n\
+               -p run sorting for multiple time steps \n\
+               --filepath file path saving the particle tracing data \n\
+               --species  particle species for sorting \n\
                -e only sort the key  \n\
                -v verbose  \n\
                example: ./h5group-sorter -f testf.h5p  -g /testg  -o testg-sorted.h5p -a testf.attribute -k 0 \n";

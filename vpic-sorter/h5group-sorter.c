@@ -26,15 +26,14 @@
 int main(int argc, char **argv){
     int mpi_size, mpi_rank;
     double t0, t1;
-    int row_size, is_help;
-    int key_index, key_value_type, sort_key_only, skew_data, verbose,
-        write_result, collect_data, weak_scale_test, weak_scale_test_length,
-        local_sort_threaded, local_sort_threads_num, dataset_num,
-        max_type_size, meta_data;
+    int is_help;
+    int key_index, sort_key_only, skew_data, verbose, write_result,
+        collect_data, weak_scale_test, weak_scale_test_length,
+        local_sort_threaded, local_sort_threads_num, meta_data;
     int tmax, tinterval; // Maximum time step and time interval
+    int multi_tsteps;
     char *filename, *group_name, *filename_sorted, *filename_attribute;
-    char *filename_meta;
-    hsize_t my_data_size, rest_size, my_offset;
+    char *filename_meta, *filepath, *species;
 
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Init(&argc, &argv);
@@ -46,6 +45,8 @@ int main(int argc, char **argv){
     filename_sorted = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filename_attribute = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filename_meta = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
+    filepath = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
+    species = (char *)malloc(16 * sizeof(char));
     tmax = 0;
     tinterval = 1;
 
@@ -55,7 +56,7 @@ int main(int argc, char **argv){
             &collect_data, &weak_scale_test, &weak_scale_test_length,
             &local_sort_threaded, &local_sort_threads_num, &meta_data,
             filename, group_name, filename_sorted, filename_attribute,
-            filename_meta, &tmax, &tinterval);
+            filename_meta, filepath, species, &tmax, &tinterval, &multi_tsteps);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {
@@ -63,6 +64,59 @@ int main(int argc, char **argv){
         return 1;
     }
 
+    if (multi_tsteps) {
+        for (int tstep = 0; tstep <= tmax; tstep += tinterval) {
+            snprintf(group_name, MAX_FILENAME_LEN, "%s%d", "/Step#", tstep);
+            snprintf(filename, MAX_FILENAME_LEN, "%s%s%d%s%s%s", filepath,
+                    "/T.", tstep, "/", species, "_tracer.h5p");
+            snprintf(filename_sorted, MAX_FILENAME_LEN, "%s%s%d%s%s%s",
+                    filepath, "/T.", tstep, "/", species, "_tracer_sorted.h5p");
+            snprintf(filename_attribute, MAX_FILENAME_LEN, "%s", "attribute");
+            snprintf(filename_meta, MAX_FILENAME_LEN, "%s%s%d%s%s%s", filepath,
+                    "/T.", tstep, "/grid_metadata_", species, "_tracer.h5p");
+            sorting_single_tstep(mpi_size, mpi_rank, key_index, sort_key_only,
+                    skew_data, verbose, write_result, collect_data,
+                    weak_scale_test, weak_scale_test_length, local_sort_threaded,
+                    local_sort_threads_num, meta_data, filename, group_name,
+                    filename_sorted, filename_attribute, filename_meta);
+        }
+    } else {
+        sorting_single_tstep(mpi_size, mpi_rank, key_index, sort_key_only,
+                skew_data, verbose, write_result, collect_data, weak_scale_test,
+                weak_scale_test_length, local_sort_threaded,
+                local_sort_threads_num, meta_data, filename, group_name,
+                filename_sorted, filename_attribute, filename_meta);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);		
+    t1 = MPI_Wtime();
+    if(mpi_rank == 0) {
+        printf("Overall time is [%f]s \n", (t1 - t0));
+    }
+
+    free(filename);
+    free(group_name);
+    free(filename_sorted);
+    free(filename_attribute);
+    free(filename_meta);
+    free(filepath);
+    free(species);
+    MPI_Finalize();
+    return 0;
+}
+
+/******************************************************************************
+ * Read the particle data and sort the data using one key. This is only for
+ * a single time step.
+ ******************************************************************************/
+void sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
+        int sort_key_only, int skew_data, int verbose, int write_result,
+        int collect_data, int weak_scale_test, int weak_scale_test_length,
+        int local_sort_threaded, int local_sort_threads_num, int meta_data,
+        char *filename, char *group_name, char *filename_sorted,
+        char *filename_attribute, char *filename_meta) {
+    int max_type_size, dataset_num, key_value_type, row_size;
+    hsize_t my_data_size, rest_size, my_offset;
     char *package_data;
     dset_name_item *dname_array;
     dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
@@ -100,18 +154,4 @@ int main(int argc, char **argv){
 
     free(dname_array);
     free(package_data);
-
-    MPI_Barrier(MPI_COMM_WORLD);		
-    t1 = MPI_Wtime();
-    if(mpi_rank == 0) {
-        printf("Overall time is [%f]s \n", (t1 - t0));
-    }
-
-    free(filename);
-    free(group_name);
-    free(filename_sorted);
-    free(filename_attribute);
-    free(filename_meta);
-    MPI_Finalize();
-    return 0;
 }
