@@ -41,3 +41,5 @@ python/outfile.out
 python/particle_spectrum_vdist.so
 Debug/
 parspec_cpu_based
+particle_tracer/*.o
+binary_to_hdf5
