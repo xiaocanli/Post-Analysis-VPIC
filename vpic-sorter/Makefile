@@ -36,7 +36,7 @@ TRAJ = h5trajectory
 #
 .PHONY: depend clean
 
-all:	$(MAIN) $(TRAJ) lib/libh5sort.a
+all:	$(MAIN) $(TRAJ) lib/libh5sort.a lib/libtraj.a
 	@echo  Programs are successfully compiled!
 
 main:	$(MAIN)
@@ -52,6 +52,9 @@ $(TRAJ): $(OBJS_TRAJ)
 	$(CC) $(CFLAGS) $(INCLUDES) -o $(TRAJ) $(OBJS_TRAJ) $(LFLAGS) $(LIBS)
 
 lib/libh5sort.a: $(OBJS)
+	ar rc $@ $^ && ranlib $@
+
+lib/libtraj.a: $(OBJS_TRAJ)
 	ar rc $@ $^ && ranlib $@
 
 .c.o:
