@@ -129,7 +129,7 @@ void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
             group_name, &row_size, &my_data_size, &rest_size, &dataset_num,
             &max_type_size, &key_value_type, dname_array);
 
-    set_variable_data(max_type_size, 0, dataset_num, key_value_type);
+    set_variable_data(max_type_size, 0, dataset_num, key_value_type, 0);
     qindex = get_dataset_index("q", dname_array, dataset_num);
 
     tracked_particles = (char *)malloc(ntf * num_ptl * row_size);

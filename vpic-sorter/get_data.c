@@ -9,16 +9,19 @@ int max_type_size;
 int key_index;
 int dataset_num;
 int key_value_type;
+int ux_key_index;
 
 /******************************************************************************
  * Set the external variables
  ******************************************************************************/
-void set_variable_data(int type_size_max, int key, int dset_num, int key_data_type)
+void set_variable_data(int type_size_max, int key, int dset_num,
+        int key_data_type, int ux_kindex)
 {
     max_type_size = type_size_max;
     key_index = key;
     dataset_num = dset_num;
     key_value_type = key_data_type;
+    ux_key_index = ux_kindex;
 }
 
 /******************************************************************************
@@ -56,7 +59,7 @@ float getFloat32Value(int index, char *row_data){
         /* Using particle energy as the sorting key. */
         value = 0.0;
         // Ux
-        p_offset = 0;
+        p_offset = ux_key_index;
         u = (float *)(row_data + p_offset);
         value += (*u) * (*u);
         // Uy
@@ -85,7 +88,7 @@ double getFloat64Value(int index, char *row_data){
         /* Using particle energy as the sorting key. */
         value = 0.0;
         // Ux
-        p_offset = 0;
+        p_offset = ux_key_index;
         u = (float *)(row_data + p_offset);
         u1 = (double)(*u);
         value += u1 * u1;

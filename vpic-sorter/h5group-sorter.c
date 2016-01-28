@@ -24,7 +24,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int sort_key_only, int skew_data, int verbose, int write_result,
         int collect_data, int weak_scale_test, int weak_scale_test_length,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
-        char *filename, char *group_name, char *filename_sorted,
+        int ux_kindex, char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta,
         unsigned long long *rsize);
 
@@ -39,7 +39,7 @@ int main(int argc, char **argv){
         collect_data, weak_scale_test, weak_scale_test_length,
         local_sort_threaded, local_sort_threads_num, meta_data;
     int tmax, tinterval; // Maximum time step and time interval
-    int multi_tsteps;
+    int multi_tsteps, ux_kindex;
     char *filename, *group_name, *filename_sorted, *filename_attribute;
     char *filename_meta, *filepath, *species;
     char *final_buff;
@@ -66,7 +66,8 @@ int main(int argc, char **argv){
             &collect_data, &weak_scale_test, &weak_scale_test_length,
             &local_sort_threaded, &local_sort_threads_num, &meta_data,
             filename, group_name, filename_sorted, filename_attribute,
-            filename_meta, filepath, species, &tmax, &tinterval, &multi_tsteps);
+            filename_meta, filepath, species, &tmax, &tinterval,
+            &multi_tsteps, &ux_kindex);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {
@@ -87,8 +88,9 @@ int main(int argc, char **argv){
             final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
                     sort_key_only, skew_data, verbose, write_result, collect_data,
                     weak_scale_test, weak_scale_test_length, local_sort_threaded,
-                    local_sort_threads_num, meta_data, filename, group_name,
-                    filename_sorted, filename_attribute, filename_meta, &rsize);
+                    local_sort_threads_num, meta_data, ux_kindex, filename,
+                    group_name, filename_sorted, filename_attribute,
+                    filename_meta, &rsize);
             if(collect_data == 1) {
                 free(final_buff);
             }
@@ -97,8 +99,9 @@ int main(int argc, char **argv){
         final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
                 sort_key_only, skew_data, verbose, write_result, collect_data,
                 weak_scale_test, weak_scale_test_length, local_sort_threaded,
-                local_sort_threads_num, meta_data, filename, group_name,
-                filename_sorted, filename_attribute, filename_meta, &rsize);
+                local_sort_threads_num, meta_data, ux_kindex, filename,
+                group_name, filename_sorted, filename_attribute,
+                filename_meta, &rsize);
         if(collect_data == 1) {
             free(final_buff);
         }
@@ -129,7 +132,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int sort_key_only, int skew_data, int verbose, int write_result,
         int collect_data, int weak_scale_test, int weak_scale_test_length,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
-        char *filename, char *group_name, char *filename_sorted,
+        int ux_kindex, char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta,
         unsigned long long *rsize) {
     int max_type_size, dataset_num, key_value_type, row_size;
@@ -143,7 +146,8 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
             &key_value_type, dname_array, &my_offset);
 
     /* Set the variables for retrieving the data with actual datatypes. */
-    set_variable_data(max_type_size, key_index, dataset_num, key_value_type);
+    set_variable_data(max_type_size, key_index, dataset_num, key_value_type,
+            ux_kindex);
 
     calc_particle_positions(mpi_rank, my_offset, row_size, max_type_size,
             my_data_size, filename_meta, group_name, package_data);

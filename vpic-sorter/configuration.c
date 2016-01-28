@@ -18,10 +18,11 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         int *local_sort_threaded, int *local_sort_threads_num, int *meta_data,
         char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta, char *filepath,
-        char *species, int *tmax, int *tinterval, int *multi_tsteps)
+        char *species, int *tmax, int *tinterval, int *multi_tsteps,
+        int *ux_kindex)
 {
     int c;
-    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:p";
+    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:pu:";
     static struct option long_options[] = 
     {
         {"tmax", required_argument, 0, 'b'},
@@ -47,6 +48,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *local_sort_threads_num = 16;
     *meta_data = 0;
     *multi_tsteps = 0;
+    *ux_kindex = 0;
 
     /* while ((c = getopt (argc, argv, options)) != -1){ */
     while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
@@ -116,6 +118,9 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 'p':
                 *multi_tsteps = 1;
                 break;
+            case 'u':
+                *ux_kindex = atoi(optarg);
+                break;
             case 'h':
                 if (mpi_rank == 0) {
                     print_help();
@@ -146,6 +151,7 @@ void print_help(){
                -b the particle output maximum time step \n\
                -i the particle output time interval \n\
                -p run sorting for multiple time steps \n\
+               -u the key index of ux \n\
                --filepath file path saving the particle tracing data \n\
                --species  particle species for sorting \n\
                -e only sort the key  \n\
