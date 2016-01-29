@@ -13,4 +13,4 @@ static const double higest_double =  DBL_MAX;
 #define MAX_DATASET_NUM  48
 
 // Maximum length of filenames
-#define MAX_FILENAME_LEN 200
+#define MAX_FILENAME_LEN 256
