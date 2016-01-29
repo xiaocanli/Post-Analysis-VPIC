@@ -111,6 +111,7 @@ char* get_vpic_pure_data_h5(int mpi_rank, int mpi_size, char *filename,
         int *key_value_type, dset_name_item *dname_array)
 {
     int is_all_dset, key_index;
+    char *package_data;
 
     hid_t plist_id, file_id, gid;
     hsize_t dims_out[1];
@@ -149,14 +150,11 @@ char* get_vpic_pure_data_h5(int mpi_rank, int mpi_size, char *filename,
         printf("sizeof(MPI_CHAR)=%ld \n ", sizeof(MPI_CHAR));
     }
 
-    char *package_data;
     package_data = (char *)malloc(row_count * (*row_size) * sizeof(char));
 
     read_dataset_h5(row_count, *row_size, *max_type_size, *my_data_size,
             mpi_rank, mpi_size, *dataset_num, dname_array, my_offset,
             package_data);
-
-    /* free(package_data); */
 
     H5Pclose(plist_id);
     H5Gclose(gid);
