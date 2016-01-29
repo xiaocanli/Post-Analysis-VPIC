@@ -7,7 +7,7 @@
 #include <math.h>
 #include "hdf5.h"
 
-void read_data_serial_h5(int n, hsize_t offset, char *fname, char *gname,
+void read_data_h5(int n, hsize_t offset, char *fname, char *gname,
         char *dname, int data_type, void *data);
 void get_ene_max(char *fname, char *gname, double *emax);
 void get_particle_offset(char *fname, char *gname, double emax,
@@ -32,7 +32,7 @@ int get_int_len(int value)
  * Output:
  *  tags: particle tags.
  ******************************************************************************/
-void get_particle_tags(char *filename, int tstep, int ratio_emax,
+void get_particle_tags(char *filename, int tstep, float ratio_emax,
         int num_ptl, int *tags)
 {
     double emax;
@@ -42,7 +42,7 @@ void get_particle_tags(char *filename, int tstep, int ratio_emax,
     snprintf(gname, sizeof(gname), "%s%d", "Step#", tstep);
     get_ene_max(filename, gname, &emax);
     get_particle_offset(filename, gname, emax, ratio_emax, &poffset);
-    read_data_serial_h5(num_ptl, poffset, filename, gname, "q", H5T_NATIVE_INT, tags);
+    read_data_h5(num_ptl, poffset, filename, gname, "q", H5T_NATIVE_INT, tags);
     /* for (int i = 0; i < num_ptl; i++) { */
     /*     printf("%d\n", tags[i]); */
     /* } */
@@ -64,9 +64,9 @@ void get_ene_max(char *fname, char *gname, double *emax)
     int count, offset;
     count = 1;
     offset = 0;
-    read_data_serial_h5(count, offset, fname, gname, "Ux", H5T_NATIVE_FLOAT, ux);
-    read_data_serial_h5(count, offset, fname, gname, "Uy", H5T_NATIVE_FLOAT, uy);
-    read_data_serial_h5(count, offset, fname, gname, "Uz", H5T_NATIVE_FLOAT, uz);
+    read_data_h5(count, offset, fname, gname, "Ux", H5T_NATIVE_FLOAT, ux);
+    read_data_h5(count, offset, fname, gname, "Uy", H5T_NATIVE_FLOAT, uy);
+    read_data_h5(count, offset, fname, gname, "Uz", H5T_NATIVE_FLOAT, uz);
     *emax = sqrt(1.0 + ux[0]*ux[0] + uy[0]*uy[0] + uz[0]*uz[0]) - 1.0;
 }
 
@@ -163,7 +163,7 @@ void get_particle_offset(char *fname, char *gname, double emax,
  * Output:
  *  data: the read data from the file.
  ******************************************************************************/
-void read_data_serial_h5(int n, hsize_t offset, char *fname, char *gname,
+void read_data_h5(int n, hsize_t offset, char *fname, char *gname,
         char *dname, int data_type, void *data)
 {
     const int rank = 1;
