@@ -10,3 +10,4 @@ int CompareInt32Value (const void * a, const void * b);
 void save_tracked_particles(char *filename_out, char *tracked_particles,
         int ntf, int num_ptl, int row_size, int dataset_num, int max_type_size,
         dset_name_item *dname_array, int *tags);
+int get_dataset_index(char *dname, dset_name_item *dname_array, int dataset_num);
