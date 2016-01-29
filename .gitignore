@@ -43,3 +43,4 @@ Debug/
 parspec_cpu_based
 particle_tracer/*.o
 binary_to_hdf5
+vpic-sorter/*.a
