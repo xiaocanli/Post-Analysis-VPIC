@@ -19,16 +19,20 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta, char *filepath,
         char *species, int *tmax, int *tinterval, int *multi_tsteps,
-        int *ux_kindex)
+        int *ux_kindex, char *filename_traj, int *nptl_traj, float *ratio_emax,
+        int *tracking_traj)
 {
     int c;
-    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:pu:";
+    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:pu:q";
     static struct option long_options[] = 
     {
         {"tmax", required_argument, 0, 'b'},
         {"tinterval", required_argument, 0, 'i'},
         {"filepath", required_argument, 0, 1},
         {"species", required_argument, 0, 2},
+        {"filename_traj", required_argument, 0, 3},
+        {"nptl_traj", required_argument, 0, 4},
+        {"ratio_emax", required_argument, 0, 5},
         {0, 0, 0, 0},
     };
     /* getopt_long stores the option index here. */
@@ -49,6 +53,9 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *meta_data = 0;
     *multi_tsteps = 0;
     *ux_kindex = 0;
+    *nptl_traj = 10;
+    *ratio_emax = 1;
+    *tracking_traj = 0;
 
     /* while ((c = getopt (argc, argv, options)) != -1){ */
     while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
@@ -115,11 +122,23 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 2:
                 strcpy(species, optarg);
                 break;
+            case 3:
+                strcpy(filename_traj, optarg);
+                break;
+            case 4:
+                *nptl_traj = atoi(optarg);
+                break;
+            case 5:
+                *ratio_emax = atof(optarg);
+                break;
             case 'p':
                 *multi_tsteps = 1;
                 break;
             case 'u':
                 *ux_kindex = atoi(optarg);
+                break;
+            case 'q':
+                *tracking_traj = 1;
                 break;
             case 'h':
                 if (mpi_rank == 0) {
@@ -152,8 +171,12 @@ void print_help(){
                -i the particle output time interval \n\
                -p run sorting for multiple time steps \n\
                -u the key index of ux \n\
+               -q tracking the trajectories of particles\n\
                --filepath file path saving the particle tracing data \n\
-               --species  particle species for sorting \n\
+               --species particle species for sorting \n\
+               --filename_traj output file for particle trajectories \n\
+               --nptl_traj number of particles for trajectory tracking \n\
+               --ratio_emax ratio of Emax of all particles to that of tracked ones \n\
                -e only sort the key  \n\
                -v verbose  \n\
                example: ./h5group-sorter -f testf.h5p  -g /testg  -o testg-sorted.h5p -a testf.attribute -k 0 \n";
