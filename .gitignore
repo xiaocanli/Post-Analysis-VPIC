@@ -43,3 +43,5 @@ Debug/
 parspec_cpu_based
 particle_tracer/*.o
 binary_to_hdf5
+electron_tracer_sorted.h5p
+attribute

@@ -1,14 +1,16 @@
 # Edit the following variables as needed
 #HDF_INSTALL = $(HOME)/hdf5
+VPIC_SORTER_PATH = ../vpic-sorter
 #
-CC = gcc
+CC = mpicc
 # define any compile-time flags
 CFLAGS = -fopenmp -O3 -Wall -g -std=gnu99
 
-INCLUDES = -I$(HDF5_INCL)
+INCLUDES = -I$(HDF5_INCL) -I$(VPIC_SORTER_PATH)
 LFLAGS = 
 HDF5LIB = -L$(HDF5_ROOT)/lib -lhdf5
-LIBS = $(HDF5LIB) -ldl -lm
+H5SORTLIB = -L$(VPIC_SORTER_PATH)/lib -lh5sort -ltraj
+LIBS = $(HDF5LIB) $(H5SORTLIB) -ldl -lm
 
 # define the C source files
 SRCS = binary_to_hdf5.c
