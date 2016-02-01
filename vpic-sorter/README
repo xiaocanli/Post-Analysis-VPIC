@@ -1,0 +1,36 @@
+Run the following command to compile the program:
+source module.sh
+make
+
+There are three scripts: sorter.sh, energy_sorter.sh trajectory.sh
+
+sorter.sh: sort particles with different key
+* change filepath to the directory containing the tracked trajectories
+* particle: ion or electron
+* the rest of the script loops over all time frames
+  -- The configuration information is explained in configuration.c
+  -- -k changes the key:
+    0: Ux
+    1: Uy
+    2: Uz
+    3: dX
+    4: dY
+    5: dZ
+    6: i
+    7: q
+
+energy_sorter.sh: sort particles with energy as the key
+* change tstep to the last time step
+* the rest is similar as sorter.sh
+* -k argument must be 8, so it will sort the particles with energy as the key
+
+trajectory.sh: get high energy particle trajectories
+* -n 1000 indicates number of particles
+* -r argument can be modified. 10 indicates 1/10 of the maximum energy, while
+  100 indicates 1/100 of the maximum energy
+
+Then go to ../python
+module load python/2.7-anaconda-2.1.0
+* go to the bottom of trajectory.py.
+  -- plot_ptl_traj(file, species) display the trajectories interactively
+  -- plot_ptl_traj_direct and plot_ptl_traj_fermi are for the submitted paper
