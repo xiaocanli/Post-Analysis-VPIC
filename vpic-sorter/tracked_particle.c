@@ -203,6 +203,8 @@ void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
         for (j = 0; j < ntf*num_ptl*row_size; j++) {
             tracked_particles_sum[j] = 0;
         }
+    } else {
+        tracked_particles_sum = (char *)malloc(row_size);
     }
     get_tracked_particle_info(package_data, qindex, row_size,
             my_data_size, 0, ntf, tags, num_ptl, tracked_particles);

@@ -6,6 +6,7 @@
 #include <mpi.h>
 #include "particle_tags.h"
 #include "tracked_particle.h"
+#include "time_frame_info.h"
 
 /******************************************************************************
  * Main of the program to retrieve particle trajectory.

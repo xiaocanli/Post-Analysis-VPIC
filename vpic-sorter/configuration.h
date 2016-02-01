@@ -5,4 +5,5 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta, char *filepath,
         char *species, int *tmax, int *tinterval, int *multi_tsteps,
-        int *ux_kindex);
+        int *ux_kindex, char *filename_traj, int *nptl_traj, float *ratio_emax,
+        int *tracking_traj);
