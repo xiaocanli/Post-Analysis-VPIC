@@ -29,6 +29,18 @@ trajectory.sh: get high energy particle trajectories
 * -r argument can be modified. 10 indicates 1/10 of the maximum energy, while
   100 indicates 1/100 of the maximum energy
 
+********************************************************************************
+Use one one script to get the particle trajectory
+********************************************************************************
+time_steps.sh:
+* sort the particle in the step by energy
+* get particle tags for the particles you are interested in
+  --nptl_traj: number of particles you need
+  --ratio_emax: ration of th maximum energy of all particles over
+                that of tracked particles
+  -w: won't save the sorted particle in the middle steps. Removing it will save
+      all the sorted particles.
+
 Then go to ../python
 module load python/2.7-anaconda-2.1.0
 * go to the bottom of trajectory.py.
