@@ -10,6 +10,14 @@ add_definitions(${MPI_Fortran_COMPILE_FLAGS})
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 link_directories(${MPI_Fortran_LIBRARIES})
 
+set(HDF5_USE_STATIC_LIBRARIES ON)
+find_package(HDF5 COMPONENTS Fortran REQUIRED)
+#find_path(HDF5_INCLUDE include/hdf5.mod HINTS ${HDF5_ROOT})
+add_definitions(${HDF5_DEFINITIONS})
+include_directories($ENV{HDF5_INCL})
+link_directories(${HDF5_Fortran_LIBRARIES})
+#MESSAGE($ENV{HDF5_INCL})
+
 # make sure that the default is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE RELEASE CACHE STRING
