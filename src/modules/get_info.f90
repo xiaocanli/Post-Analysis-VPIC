@@ -52,7 +52,7 @@ module picinfo
     !---------------------------------------------------------------------------
     function get_main_fname() result(fname)
         implicit none
-        character(len=20) :: fname
+        character(len=64) :: fname
         character(len=256) :: buff
         integer :: fh, index1
         fh = 40
@@ -88,7 +88,7 @@ module picinfo
         integer, intent(out) :: fields_interval, hydro_interval, particle_interval
         integer :: fh, index1, index2, index3
         character(len=256) :: buff, code
-        character(len=20) :: fname, another_interval
+        character(len=64) :: fname, another_interval
         logical :: cond1, cond2
         integer :: interval, ratio, interval_base
         fh = 40
@@ -463,7 +463,7 @@ module picinfo
         implicit none
         integer :: fh, index1, index2
         character(len=256) :: buff, single_line
-        character(len=20) :: fname
+        character(len=64) :: fname
 
         fh = 40
         fname = get_main_fname()
@@ -515,7 +515,7 @@ module picinfo
                 write(*, "(A)") " Ti/Te is not defined. 1.0 is used."
                 Ti_Te = 1.0
             else
-                write(*, "(A, F4.2)") " The temperature ratio Ti/Te is: ", Ti_Te
+                write(*, "(A, F5.2)") " The temperature ratio Ti/Te is: ", Ti_Te
             endif
         endif
         vthi = get_variable(fh, 'vthi/c', '=')
