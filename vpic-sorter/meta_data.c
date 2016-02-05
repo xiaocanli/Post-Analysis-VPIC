@@ -156,7 +156,7 @@ void read_vpic_meta_data_h5(int dataset_num, hsize_t *dims_out,
  ******************************************************************************/
 void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
         int max_type_size, hsize_t my_data_size, char* filename_meta,
-        char *group_name, char *package_data)
+        char *group_name, char *package_data, int ux_kindex)
 {
     float cell_sizes[3];
     int grid_dims[3];
@@ -249,27 +249,35 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
     float px, py, pz;
     float x0c, y0c, z0c;
     int icell, ix, iy, iz, nxg, nyg;
+    int xindex, yindex, zindex, icell_index;
     offset = 0;
     nxg = grid_dims[0] + 2; // with ghost cells.
     nyg = grid_dims[1] + 2;
+    xindex = ux_kindex + 3;
+    yindex = ux_kindex + 4;
+    zindex = ux_kindex + 5;
+    icell_index = ux_kindex + 6;
     for (j = 0; j < endp - startp + 1; j++) {
         x0c = x0[j+startp];
         y0c = y0[j+startp];
         z0c = z0[j+startp];
         for (i = 0; i < nptl[j]; i++) {
-            deltax = getFloat32Value(3, package_data + offset*row_size);
-            deltay = getFloat32Value(4, package_data + offset*row_size);
-            deltaz = getFloat32Value(5, package_data + offset*row_size);
-            icell = getInt32Value(6, package_data + offset*row_size);
+            deltax = getFloat32Value(xindex, package_data + offset*row_size);
+            deltay = getFloat32Value(yindex, package_data + offset*row_size);
+            deltaz = getFloat32Value(zindex, package_data + offset*row_size);
+            icell = getInt32Value(icell_index, package_data + offset*row_size);
             iz = icell / (nxg*nyg);               // [1, nzg-2]
             iy = (icell - iz*nxg*nyg) / nxg;      // [1, nyg-2]
             ix = icell - iz*nxg*nyg - iy*nxg;     // [1, nxg-2]
             px = x0c + ((ix - 1) + (deltax + 1)*0.5) * cell_sizes[0];
             py = y0c + ((iy - 1) + (deltay + 1)*0.5) * cell_sizes[1];
             pz = z0c + ((iz - 1) + (deltaz + 1)*0.5) * cell_sizes[2];
-            memcpy(package_data + offset*row_size + max_type_size*3, &px, max_type_size);
-            memcpy(package_data + offset*row_size + max_type_size*4, &py, max_type_size);
-            memcpy(package_data + offset*row_size + max_type_size*5, &pz, max_type_size);
+            memcpy(package_data + offset*row_size + max_type_size*xindex,
+                    &px, max_type_size);
+            memcpy(package_data + offset*row_size + max_type_size*yindex,
+                    &py, max_type_size);
+            memcpy(package_data + offset*row_size + max_type_size*zindex,
+                    &pz, max_type_size);
             offset++;
         }
     }
