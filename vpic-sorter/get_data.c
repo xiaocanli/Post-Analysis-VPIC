@@ -59,15 +59,15 @@ float getFloat32Value(int index, char *row_data){
         /* Using particle energy as the sorting key. */
         value = 0.0;
         // Ux
-        p_offset = ux_key_index;
+        p_offset = ux_key_index * max_type_size;
         u = (float *)(row_data + p_offset);
         value += (*u) * (*u);
         // Uy
-        p_offset = max_type_size;
+        p_offset += max_type_size;
         u = (float *)(row_data + p_offset);
         value += (*u) * (*u);
         // Uz
-        p_offset = max_type_size * 2;
+        p_offset += max_type_size;
         u = (float *)(row_data + p_offset);
         value += (*u) * (*u);
     } else {
@@ -88,17 +88,17 @@ double getFloat64Value(int index, char *row_data){
         /* Using particle energy as the sorting key. */
         value = 0.0;
         // Ux
-        p_offset = ux_key_index;
+        p_offset = ux_key_index * max_type_size;
         u = (float *)(row_data + p_offset);
         u1 = (double)(*u);
         value += u1 * u1;
         // Uy
-        p_offset = max_type_size;
+        p_offset += max_type_size;
         u = (float *)(row_data + p_offset);
         u1 = (double)(*u);
         value += u1 * u1;
         // Uz
-        p_offset = max_type_size * 2;
+        p_offset += max_type_size;
         u = (float *)(row_data + p_offset);
         u1 = (double)(*u);
         value += u1 * u1;
