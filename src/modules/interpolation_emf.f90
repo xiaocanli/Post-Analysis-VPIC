@@ -10,7 +10,8 @@ module interpolation_emf
            calc_interp_weights, calc_emfields_derivatives, calc_b_norm, &
            calc_gradient_B, calc_curvature, trilinear_interp_bx,&
            trilinear_interp_by, trilinear_interp_bz, trilinear_interp_ex, &
-           trilinear_interp_ey, trilinear_interp_ez
+           trilinear_interp_ey, trilinear_interp_ez, trilinear_interp_only_bx, &
+           trilinear_interp_only_by, trilinear_interp_only_bz
     public bx0, by0, bz0, ex0, ey0, ez0, absB0, dbxdx0, dbxdy0, dbxdz0, &
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
@@ -359,6 +360,30 @@ module interpolation_emf
         dbzdy0 = sum(dbzdy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
         dbzdz0 = sum(dbzdz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_bz
+
+    subroutine trilinear_interp_only_bx(ix0, iy0, iz0, dx, dy, dz)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
+        bx0 = sum(bx(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+    end subroutine trilinear_interp_only_bx
+
+    subroutine trilinear_interp_only_by(ix0, iy0, iz0, dx, dy, dz)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
+        by0 = sum(by(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+    end subroutine trilinear_interp_only_by
+
+    subroutine trilinear_interp_only_bz(ix0, iy0, iz0, dx, dy, dz)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
+        bz0 = sum(bz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+    end subroutine trilinear_interp_only_bz
 
     !---------------------------------------------------------------------------
     ! Trilinear interpolation for Ex, Ey, Ez.
