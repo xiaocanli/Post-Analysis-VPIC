@@ -74,6 +74,12 @@ add_executable(parspec_cpu_based parspec_cpu_based.f90)
 target_link_libraries(parspec_cpu_based ${MPI_Fortran_LIBRARIES}
     get_info commandline_arguments particle_spectrum)
 
+add_executable(parallel_hdf5 parallel_hdf5.f90)
+#target_include_directories(parallel_hdf5)
+target_link_libraries(parallel_hdf5 ${MPI_Fortran_LIBRARIES}
+    ${HDF5_Fortran_LIBRARIES} particle_drift interp_emf get_info
+    translate_module)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -92,3 +98,4 @@ install (TARGETS particle_based_jdote DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_box DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_vdist_box DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS parspec_cpu_based DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS parallel_hdf5 DESTINATION ${CMAKE_INSTALL_PREFIX})
