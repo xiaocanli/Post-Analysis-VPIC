@@ -17,7 +17,6 @@ do
     tsteps[ct]=$tstep_tmp
     ct=$ct+1
 done
-
 tstep=$tstep_max
 
 # From http://stackoverflow.com/a/11789688
@@ -46,5 +45,5 @@ mpirun -np 16 ./h5group-sorter -f $filepath/T.$tstep/${particle}_tracer.h5p \
 -o $filepath/T.$tstep/${particle}_tracer_energy_sorted.h5p \
 -g /Step#$tstep -m $filepath/T.$tstep/grid_metadata_${particle}_tracer.h5p \
 -k $key_index -a attribute --tmax=$tstep_max --tinterval=$tinterval \
---filepath=$filepath --species=${particle} -p -q -w\
---filename_traj=data/${particle}s_2.h5p --nptl_traj=10 --ratio_emax=10
+--filepath=$filepath --species=${particle} -p -q -w \
+--filename_traj=data/${particle}s_2.h5p --nptl_traj=1000 --ratio_emax=1
