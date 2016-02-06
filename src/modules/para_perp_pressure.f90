@@ -4,6 +4,7 @@
 !*******************************************************************************
 module para_perp_pressure
     use constants, only: fp
+    use parameters, only: is_rel
     implicit none
     private
     public ppara, pperp, init_para_perp_pressure, free_para_perp_pressure
@@ -80,8 +81,8 @@ module para_perp_pressure
     subroutine calc_para_perp_pressure(ct)
         use constants, only: fp
         use parameters, only: tp1
-        use pic_fields, only: bx, by, bz, absB, ux, uy, uz, num_rho, &
-                pxx, pxy, pxz, pyy, pyz, pzz
+        use pic_fields, only: bx, by, bz, absB, vx, vy, vz, ux, uy, uz, &
+                num_rho, pxx, pxy, pxz, pyy, pyz, pzz, pyx, pzx, pzy
         use statistics, only: get_average_and_total
         use particle_info, only: ptl_mass
         use mpi_topology, only: htg
@@ -102,15 +103,30 @@ module para_perp_pressure
         allocate(prezz(nx, ny, nz))
 
         bsquare = bx*bx + by*by + bz*bz
-        prexx = pxx + ux*ux*num_rho*ptl_mass
-        preyy = pyy + uy*uy*num_rho*ptl_mass
-        prezz = pzz + uz*uz*num_rho*ptl_mass
-        ppara = prexx * bx * bx + &
-                preyy * by * by + &
-                prezz * bz * bz + &
-                (pxy + ux*uy*num_rho*ptl_mass) * bx * by * 2.0 + &
-                (pxz + ux*uz*num_rho*ptl_mass) * bx * bz * 2.0 + &
-                (pyz + uy*uz*num_rho*ptl_mass) * by * bz * 2.0
+        if (is_rel == 1) then
+            prexx = pxx + vx*ux*num_rho*ptl_mass
+            preyy = pyy + vy*uy*num_rho*ptl_mass
+            prezz = pzz + vz*uz*num_rho*ptl_mass
+            ppara = prexx * bx * bx + &
+                    preyy * by * by + &
+                    prezz * bz * bz + &
+                    (pxy + vx*uy*num_rho*ptl_mass) * bx * by + &
+                    (pyx + vy*ux*num_rho*ptl_mass) * bx * by + &
+                    (pxz + vx*uz*num_rho*ptl_mass) * bx * bz + &
+                    (pzx + vz*ux*num_rho*ptl_mass) * bx * bz + &
+                    (pyz + vy*uz*num_rho*ptl_mass) * by * bz + &
+                    (pzy + vz*uy*num_rho*ptl_mass) * by * bz
+        else
+            prexx = pxx + vx*vx*num_rho*ptl_mass
+            preyy = pyy + vy*vy*num_rho*ptl_mass
+            prezz = pzz + vz*vz*num_rho*ptl_mass
+            ppara = prexx * bx * bx + &
+                    preyy * by * by + &
+                    prezz * bz * bz + &
+                    (pxy + vx*vy*num_rho*ptl_mass) * bx * by * 2.0 + &
+                    (pxz + vx*vz*num_rho*ptl_mass) * bx * bz * 2.0 + &
+                    (pyz + vy*vz*num_rho*ptl_mass) * by * bz * 2.0
+        endif
         ppara = ppara / bsquare
         pperp = 0.5 * (prexx + preyy + prezz - ppara)
 
@@ -132,8 +148,8 @@ module para_perp_pressure
     subroutine calc_real_para_perp_pressure(ct)
         use constants, only: fp
         use parameters, only: tp1
-        use pic_fields, only: bx, by, bz, absB, ux, uy, uz, num_rho, &
-                pxx, pxy, pxz, pyy, pyz, pzz
+        use pic_fields, only: bx, by, bz, absB, num_rho, &
+                pxx, pxy, pxz, pyy, pyz, pzz, pyx, pzx, pzy
         use statistics, only: get_average_and_total
         use mpi_topology, only: htg
         use saving_flags, only: save_pre
@@ -150,9 +166,15 @@ module para_perp_pressure
         allocate(bsquare(nx, ny, nz))
 
         bsquare = bx*bx + by*by + bz*bz
-        ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + &
-                (pxy * bx * by * 2.0) + (pxz * bx * bz * 2.0) + &
-                (pyz * by * bz * 2.0)
+        if (is_rel == 1) then
+            ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + &
+                    (pxy + pyx) * bx * by + (pxz + pzx) * bx * bz + &
+                    (pyz + pzy) * by * bz
+        else
+            ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + &
+                    (pxy * bx * by * 2.0) + (pxz * bx * bz * 2.0) + &
+                    (pyz * by * bz * 2.0)
+        endif
         ppara = ppara / bsquare
         pperp = 0.5 * (pxx + pyy + pzz - ppara)
 

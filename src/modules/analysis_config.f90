@@ -23,8 +23,13 @@ module analysis_management
         use mpi_datatype_fields, only: set_mpi_datatype_fields
         use mpi_info_module, only: fileinfo, set_mpi_info
         use picinfo, only: read_domain, broadcast_pic_info, &
-                get_total_time_frames, get_energy_band_number
-        use parameters, only: get_start_end_time_points, get_inductive_flag, tp2
+                get_total_time_frames, get_energy_band_number, &
+                read_thermal_params, calc_energy_interval, nbands
+        use parameters, only: get_start_end_time_points, get_inductive_flag, &
+                tp2, get_relativistic_flag
+        use configuration_translate, only: read_configuration
+        use time_info, only: get_nout
+        use commandline_arguments, only: get_cmdline_arguments
 
         implicit none
 
@@ -32,6 +37,7 @@ module analysis_management
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
         call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
+        call get_cmdline_arguments
         call get_file_paths
         if (myid == master) then
             call read_domain
@@ -39,8 +45,14 @@ module analysis_management
         call broadcast_pic_info
         call get_start_end_time_points
         call get_inductive_flag
+        call get_relativistic_flag
+        call read_configuration
         call get_total_time_frames(tp2)
         call get_energy_band_number
+        call read_thermal_params
+        if (nbands > 0) then
+            call calc_energy_interval
+        endif
         call set_mpi_topology   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info

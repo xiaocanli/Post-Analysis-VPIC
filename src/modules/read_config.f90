@@ -26,10 +26,22 @@ module read_config
         character(*), intent(in) :: var_name, delimiter
         real(fp) :: var_value
         character(len=150) :: single_line
+        integer :: len1, IOstatus
         do while (index(single_line, var_name) == 0)
-            read(fh, '(A)') single_line
+            read(fh, '(A)', IOSTAT=IOstatus) single_line
+            if (IOStatus < 0) then
+                exit
+            endif
         enddo
-        read(single_line(index(single_line, delimiter)+1:), *) var_value
+        var_value = -1.0
+        if (IOStatus == 0) then
+            len1 = len(trim(single_line)) + 1
+            ! For C or C++ code
+            if (index(single_line, ";") /= 0) then
+                len1 = index(single_line, ";")
+            endif
+            read(single_line(index(single_line, delimiter)+1:len1-1), *) var_value
+        endif
     end function
 
     !---------------------------------------------------------------------------

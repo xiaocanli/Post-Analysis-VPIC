@@ -41,7 +41,7 @@ program vdist_1d_along_fieldline
     !   species: 'e' for electron; 'i' for ion.
     !---------------------------------------------------------------------------
     subroutine calc_vdist_1d_fieldline(species)
-        use spectrum_config, only: umax, umin, center, sizes
+        use spectrum_config, only: vmax, vmin, center, sizes
         use spectrum_config, only: set_spatial_range_de, &
                 calc_velocity_interval, calc_pic_mpi_ids
         use velocity_distribution, only: fvel_para, fvel_perp, &
@@ -56,8 +56,8 @@ program vdist_1d_along_fieldline
         character(len=1), intent(in) :: species
         integer :: i
 
-        umax = 2.0
-        umin = 0.0
+        vmax = 2.0
+        vmin = 0.0
         call calc_velocity_interval
         call init_vdist_1d_single
         call init_velocity_bins
@@ -102,7 +102,7 @@ program vdist_1d_along_fieldline
         use mpi_io_module, only: open_data_mpi_io, write_data_mpi_io
         use mpi_datatype_module, only: set_mpi_datatype
         use mpi_info_module, only: fileinfo
-        use velocity_distribution, only: ubins_short, ubins_long
+        use velocity_distribution, only: vbins_short, vbins_long
         use particle_fieldline, only: nptot, np, startp
         use spectrum_config, only: nbins_vdist
         implicit none
@@ -139,7 +139,7 @@ program vdist_1d_along_fieldline
             pos1 = 1
             write(41, pos=pos1) nbins, nptot
             pos1 = 2*sizeof(fp) + pos1
-            write(41, pos=pos1) ubins_short, ubins_long
+            write(41, pos=pos1) vbins_short, vbins_long
             close(41)
         endif
         call MPI_BCAST(pos1, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)

@@ -7,7 +7,7 @@ module fieldline_tracing
 
     implicit none
     private
-    public nx, nz, gdx, gdz, lx, lz, a, b, c, dc, xarr, zarr, npoints
+    public nx, nz, gdx, gdz, lx, lz, a, b, c, dc, xarr, zarr, npoints, hmax
     public init_fieldline_tracing, end_fieldline_tracing, tracing, &
            get_crossing_point, controller, push, derivs, &
            Cash_Karp_parameters, Dormand_Prince_parameters, &
@@ -15,9 +15,11 @@ module fieldline_tracing
     
     integer :: nx, nz
     real(fp) :: gdx, gdz, lx, lz    ! Grid sizes and lengths in di.
+    real(fp) :: hmax                ! Maximum step allowed
     real(fp), allocatable, dimension(:) :: xarr, zarr
     ! Maximum number of points along one field line.
     integer, parameter :: np_max = 1E3
+    real(fp), parameter :: hmax_gdx = 10.0  ! Maximum step in gdx
     integer :: npoints   ! The actual number of points along one filed line.
     ! Adaptive Runge-Kutta parameters.
     real(fp), dimension(0:6) :: a, c, dc
@@ -40,6 +42,8 @@ module fieldline_tracing
         gdz = domain%dz / sqrt(mime)
         lx = domain%lx_de / sqrt(mime)
         lz = domain%lz_de / sqrt(mime)
+
+        hmax = hmax_gdx * gdx  ! Maximum step allowed
     end subroutine set_grid_info
 
     !---------------------------------------------------------------------------
@@ -87,14 +91,16 @@ module fieldline_tracing
     ! Inputs:
     !   htry: the first-try step size.
     !   x0, z0: the coordinates of current point.
+    !   direction_flag: 1 for forward, -1 for backward.
     ! References:
     !   Press, William H. Numerical recipes 3rd edition: The art of scientific
     !   computing. Cambridge university press, 2007. Chapter 17.2.
     !---------------------------------------------------------------------------
-    subroutine tracing(x0, z0, htry)
+    subroutine tracing(x0, z0, htry, direction_flag)
         use constants, only: fp
         implicit none
         real(fp), intent(in) :: x0, z0, htry
+        integer, intent(in) :: direction_flag
         real(fp), dimension(0:6) :: kx, ky, kz
         real(fp) :: arc_length, xout, zout, xold, zold
         real(fp) :: x, z, xcross, zcross
@@ -113,12 +119,13 @@ module fieldline_tracing
         xarr(npoints) = x
         zarr(npoints) = z
 
-        call derivs(x, z, dxds, dyds, dzds)
+        call derivs(x, z, direction_flag, dxds, dyds, dzds)
         do while (x > 0 .and. x < lx .and. z > 0 .and. z < lz .and. &
                   arc_length < 2*lx)
-            call push(dxds, dyds, dzds, x, z, h, kx, ky, kz, &
-                      xout, zout, dxdsnew, dydsnew, dzdsnew)
-            call controller(h, hnext, x, z, xout, zout, kx, kz, is_accept, errold)
+            call push(dxds, dyds, dzds, direction_flag, x, z, h, kx, ky, kz, &
+                    xout, zout, dxdsnew, dydsnew, dzdsnew)
+            call controller(h, hmax, hnext, x, z, xout, zout, &
+                    kx, kz, is_accept, errold)
             if (is_accept) then
                 arc_length = arc_length + h
                 xold = x
@@ -143,7 +150,7 @@ module fieldline_tracing
             call get_crossing_point(x, z, xold, zold, lx, lz, xcross, zcross)
             h = sqrt((xcross-xold)**2 + (zcross-zold)**2)
             arc_length = arc_length + h
-            call push(dxds, dyds, dzds, x, z, h, kx, ky, kz, &
+            call push(dxds, dyds, dzds, direction_flag, x, z, h, kx, ky, kz, &
                       xout, zout, dxdsnew, dydsnew, dzdsnew)
             npoints = npoints + 1
             xarr(npoints) = x
@@ -163,8 +170,10 @@ module fieldline_tracing
         implicit none
         real(fp), intent(in) :: x0, z0
         real(fp) :: htry
+        integer :: direction_flag
         htry = gdx
-        call tracing(x0, z0, htry)
+        direction_flag = 1  ! Forward along the magnetic field
+        call tracing(x0, z0, htry, direction_flag)
         xarr = xarr * sqrt(mime)    ! di -> de
         zarr = zarr * sqrt(mime)
     end subroutine trace_field_line
@@ -239,10 +248,11 @@ module fieldline_tracing
     !---------------------------------------------------------------------------
     ! Controller of the step size update the points.
     !---------------------------------------------------------------------------
-    subroutine controller(h, hnext, x, z, xout, zout, kx, kz, is_accept, errold)
+    subroutine controller(h, hmax, hnext, x, z, xout, zout, kx, kz, &
+            is_accept, errold)
         use constants, only: fp
         implicit none
-        real(fp), intent(in) :: x, z, xout, zout
+        real(fp), intent(in) :: x, z, xout, zout, hmax
         real(fp), intent(in), dimension(0:6) :: kx, kz
         real(fp), intent(out) :: hnext
         logical, intent(inout) :: is_accept
@@ -290,6 +300,7 @@ module fieldline_tracing
             h = h * sscale
             is_accept = .false.
         endif
+        if (hnext > hmax) hnext = hmax
     end subroutine controller
 
     !---------------------------------------------------------------------------
@@ -298,16 +309,18 @@ module fieldline_tracing
     !   dxds, dyds, dzds: the direction of the field line.
     !   x, z: current position.
     !   h: the step size.
+    !   direction_flag: 1 for forward, -1 for backward.
     ! Outputs:
     !   kx, ky, kz: the dxds, dyds, dzds at the middle points.
     !   exs, eys, ezs: the electric fields at the middle points.
     !   xout, zout: the updated position.
     !---------------------------------------------------------------------------
-    subroutine push(dxds, dyds, dzds, x, z, h, kx, ky, kz, &
+    subroutine push(dxds, dyds, dzds, direction_flag, x, z, h, kx, ky, kz, &
                     xout, zout, dxdsnew, dydsnew, dzdsnew)
         use constants, only: fp
         implicit none
         real(fp), intent(in) :: dxds, dyds, dzds, x, z, h
+        integer, intent(in) :: direction_flag
         real(fp), dimension(0:6), intent(out) :: kx, ky, kz
         real(fp), intent(out) :: xout, zout, dxdsnew, dydsnew, dzdsnew
         real(fp) :: xtemp, ztemp
@@ -320,12 +333,12 @@ module fieldline_tracing
         do i = 1, 5
             xtemp = x + h*dot_product(kx(0:i-1), b(0:i-1,i))
             ztemp = z + h*dot_product(kz(0:i-1), b(0:i-1,i))
-            call derivs(xtemp, ztemp, kx(i), ky(i), kz(i))
+            call derivs(xtemp, ztemp, direction_flag, kx(i), ky(i), kz(i))
         enddo
         xout = x + h*dot_product(kx(2:5), b(2:5,6)) + h*kx(0)*b(0,6)
         zout = z + h*dot_product(kz(2:5), b(2:5,6)) + h*kz(0)*b(0,6)
 
-        call derivs(xout, zout, dxdsnew, dydsnew, dzdsnew)
+        call derivs(xout, zout, direction_flag, dxdsnew, dydsnew, dzdsnew)
 
         kx(6) = dxdsnew
         ky(6) = dydsnew
@@ -336,14 +349,16 @@ module fieldline_tracing
     ! Get the direction of the filed line at current point.
     ! Input:
     !   x, z: the coordinates of the this point.
+    !   direction_flag: 1 for forward, -1 for backward.
     ! Return:
     !   deltax, deltay, deltaz: the 3 directions of the field.
     !---------------------------------------------------------------------------
-    subroutine derivs(x, z, deltax, deltay, deltaz)
+    subroutine derivs(x, z, direction_flag, deltax, deltay, deltaz)
         use magnetic_field, only: get_magnetic_field_at_point, bx0, by0, bz0
         use constants, only: fp
         implicit none
         real(fp), intent(in) :: x, z
+        integer, intent(in) :: direction_flag
         real(fp), intent(out) :: deltax, deltay, deltaz
         real(fp) :: absB
 
@@ -352,6 +367,9 @@ module fieldline_tracing
         deltax = bx0 / absB
         deltaz = bz0 / absB
         deltay = by0 * sqrt(deltax**2+deltaz**2) / absB
+        deltax = deltax * direction_flag
+        deltay = deltay * direction_flag
+        deltaz = deltaz * direction_flag
     end subroutine derivs
 
     !---------------------------------------------------------------------------

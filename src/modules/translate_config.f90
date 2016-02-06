@@ -51,7 +51,7 @@ module configuration_translate
         if (myid == master) then
             ! Echo this information
             print *, "---------------------------------------------------"
-            print *, "Configuration for current analysis"
+            print *, "Configuration to translate data"
             write(*, "(A,I0,A,I0,A,I0)") " Topology tx, ty, tz = ", &
                 httx, ', ', htty, ', ', httz
             write(*, "(A,I0,A,I0)") " tindex_start, tindex_stop = ", &

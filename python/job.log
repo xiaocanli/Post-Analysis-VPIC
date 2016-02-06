@@ -1,0 +1,17 @@
+Seq	Host	Starttime	JobRuntime	Send	Receive	Exitval	Signal	Command
+7	:	1447286781.917	  3074.280	0	0	1	0	python fields_plot.py mime25_beta002_sigma033 /scratch3/xiaocanli/mime25-guide0-beta001-200-100-sigma033/ 14
+16	:	1447286781.927	  3074.297	0	0	1	0	python fields_plot.py mime25_beta002_sigma033 /scratch3/xiaocanli/mime25-guide0-beta001-200-100-sigma033/ 15
+14	:	1447286781.925	  3451.276	0	0	1	0	python fields_plot.py mime100_beta002 /scratch3/xiaocanli/sigma1-mime100-beta001-mustang/ 15
+5	:	1447286781.915	  3451.814	0	0	1	0	python fields_plot.py mime100_beta002 /scratch3/xiaocanli/sigma1-mime100-beta001-mustang/ 14
+6	:	1447286781.916	  5201.823	0	0	1	0	python fields_plot.py mime25_beta002_sigma01 /scratch3/xiaocanli/mime25-guide0-beta001-200-100/ 14
+15	:	1447286781.926	  5201.820	0	0	1	0	python fields_plot.py mime25_beta002_sigma01 /scratch3/xiaocanli/mime25-guide0-beta001-200-100/ 15
+10	:	1447286781.921	  6545.611	0	0	1	0	python fields_plot.py mime25_beta02 /net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/ 15
+1	:	1447286781.911	  6545.648	0	0	1	0	python fields_plot.py mime25_beta02 /net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/ 14
+8	:	1447286781.918	  8107.733	0	0	1	0	python fields_plot.py mime25_beta002_noperturb /net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/ 14
+4	:	1447286781.914	  8227.760	0	0	1	0	python fields_plot.py mime25_beta0007 /net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/ 14
+13	:	1447286781.924	  8227.756	0	0	1	0	python fields_plot.py mime25_beta0007 /net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/ 15
+2	:	1447286781.912	  8234.572	0	0	1	0	python fields_plot.py mime25_beta007 /net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/ 14
+11	:	1447286781.922	  8234.571	0	0	1	0	python fields_plot.py mime25_beta007 /net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/ 15
+3	:	1447286781.913	  8347.353	0	0	1	0	python fields_plot.py mime25_beta002 /scratch3/xiaocanli/sigma1-mime25-beta001/ 14
+12	:	1447286781.923	  8352.315	0	0	1	0	python fields_plot.py mime25_beta002 /scratch3/xiaocanli/sigma1-mime25-beta001/ 15
+9	:	1447286781.920	  8376.714	0	0	1	0	python fields_plot.py mime25_beta002_guide1 /net/scratch2/xiaocanli/mime25-sigma1-beta002-guide1-200-100/ 14

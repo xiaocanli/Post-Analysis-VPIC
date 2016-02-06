@@ -69,7 +69,7 @@ module jdote_module
             call system('mkdir ./data')
         endif
 
-        print*, "Saving j.E", ct
+        print*, "Saving j.E"
         if (inductive == 0) then
             open(unit=41, &
                 file='data/jdote'//ibtag//'_'//species//'.gda',access='stream',&

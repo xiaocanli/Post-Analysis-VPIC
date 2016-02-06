@@ -23,7 +23,7 @@ target_link_libraries(translate ${MPI_Fortran_LIBRARIES} translate_module)
 
 add_executable(parspec parspec.f90)
 target_link_libraries(parspec ${MPI_Fortran_LIBRARIES} particle_spectrum
-    get_info)
+    get_info commandline_arguments maximum_energy)
 
 add_executable(spectrum_along_fieldline spectrum_along_fieldline.f90)
 target_link_libraries(spectrum_along_fieldline ${MPI_Fortran_LIBRARIES}
@@ -52,6 +52,28 @@ add_executable(compression compression.f90)
 target_link_libraries(compression ${MPI_Fortran_LIBRARIES} analysis_config
     fields compression_shear)
 
+add_executable(jdote_eband jdote_eband.f90)
+target_link_libraries(jdote_eband ${MPI_Fortran_LIBRARIES} jdote_energy_band)
+
+add_executable(particle_based_jdote particle_based_jdote.f90)
+target_link_libraries(particle_based_jdote ${MPI_Fortran_LIBRARIES}
+    particle_drift interp_emf get_info translate_module)
+
+add_executable(particle_spectrum_box particle_spectrum_box.f90)
+target_link_libraries(particle_spectrum_box ${MPI_Fortran_LIBRARIES}
+    particle_spectrum get_info)
+
+add_executable(particle_spectrum_vdist_box particle_spectrum_vdist_box.f90)
+target_link_libraries(particle_spectrum_vdist_box ${MPI_Fortran_LIBRARIES}
+    particle_spectrum_vdist)
+
+add_executable(cla_test cla_test.f90)
+target_link_libraries(cla_test ${MPI_Fortran_LIBRARIES} cla)
+
+add_executable(parspec_cpu_based parspec_cpu_based.f90)
+target_link_libraries(parspec_cpu_based ${MPI_Fortran_LIBRARIES}
+    get_info commandline_arguments particle_spectrum)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -65,3 +87,8 @@ install (TARGETS vdist_1d_along_fieldline DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS nrho_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS bulk_internal_energy DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS compression DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS jdote_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS particle_based_jdote DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS particle_spectrum_box DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS particle_spectrum_vdist_box DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS parspec_cpu_based DESTINATION ${CMAKE_INSTALL_PREFIX})

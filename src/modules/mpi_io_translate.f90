@@ -15,7 +15,7 @@ module mpi_io_translate
     !---------------------------------------------------------------------------
     subroutine set_mpi_io
         use mpi_module
-        use topology, only: ht
+        use topology_translate, only: ht
         use picinfo, only: domain
         use mpi_datatype_module, only: set_mpi_datatype
         use mpi_info_module, only: set_mpi_info
@@ -47,7 +47,7 @@ module mpi_io_translate
     subroutine write_data(fname, fdata, tindex, output_record)
         use mpi_module
         use constants, only: fp, dp
-        use topology, only: ht
+        use topology_translate, only: ht
         use mpi_info_module, only: fileinfo
         use configuration_translate, only: output_format
         implicit none

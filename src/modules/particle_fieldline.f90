@@ -29,7 +29,8 @@ module particle_fieldline
         use fieldline_tracing, only: init_fieldline_tracing, &
                 Dormand_Prince_parameters, init_fieldline_points
         use magnetic_field, only: read_magnetic_fields
-        use parameters, only: get_start_end_time_points, get_inductive_flag
+        use parameters, only: get_start_end_time_points, get_inductive_flag, &
+                get_relativistic_flag
         implicit none
         integer, intent(in) :: ct
 
@@ -49,6 +50,7 @@ module particle_fieldline
         call broadcast_pic_info
         call get_start_end_time_points
         call get_inductive_flag
+        call get_relativistic_flag
 
         ! Get the information for field line tracing.
         call init_fieldline_tracing

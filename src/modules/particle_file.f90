@@ -77,12 +77,13 @@ module particle_file
     ! range. The method is to check the bottom-left and top-right corners.
     !---------------------------------------------------------------------------
     function check_particle_in_range(spatial_range) result(isrange)
-        use constants, only: fp
+        use constants, only: fp, dp
         use picinfo, only: domain
         use file_header, only: v0
         implicit none
         real(fp), dimension(2,3), intent(in) :: spatial_range
         real(fp) :: x0, y0, z0, x1, y1, z1
+        real(fp) :: dx, dy, dz
         logical :: isrange, isrange1, isrange2
 
         ! Corners of this MPI process's domain
@@ -93,20 +94,25 @@ module particle_file
         y1 = v0%y0 + domain%pic_ny * domain%dy
         z1 = v0%z0 + domain%pic_nz * domain%dz
 
+        ! The grid sizes of each MPI process
+        dx = domain%dx * domain%pic_nx
+        dy = domain%dy * domain%pic_ny
+        dz = domain%dz * domain%pic_nz
+
         ! Only if the corners are within the box.
-        ! Shift one grid to cover boundary.
-        isrange1 = x1 >= (spatial_range(1,1) - domain%dx) &
-             .and. x1 <= (spatial_range(2,1) + domain%dx) &
-             .and. y1 >= (spatial_range(1,2) - domain%dy) &
-             .and. y1 <= (spatial_range(2,2) + domain%dy) &
-             .and. z1 >= (spatial_range(1,3) - domain%dz) &
-             .and. z1 <= (spatial_range(2,3) + domain%dz)
-        isrange2 = x0 >= (spatial_range(1,1) - domain%dx) &
-             .and. x0 <= (spatial_range(2,1) + domain%dx) &
-             .and. y0 >= (spatial_range(1,2) - domain%dy) &
-             .and. y0 <= (spatial_range(2,2) + domain%dy) &
-             .and. z0 >= (spatial_range(1,3) - domain%dz) &
-             .and. z0 <= (spatial_range(2,3) + domain%dz)
+        ! Shift one MPI grid to cover boundary.
+        isrange1 = x1 >= (spatial_range(1,1) - dx) &
+             .and. x1 <= (spatial_range(2,1) + dx) &
+             .and. y1 >= (spatial_range(1,2) - dy) &
+             .and. y1 <= (spatial_range(2,2) + dy) &
+             .and. z1 >= (spatial_range(1,3) - dz) &
+             .and. z1 <= (spatial_range(2,3) + dz)
+        isrange2 = x0 >= (spatial_range(1,1) - dx) &
+             .and. x0 <= (spatial_range(2,1) + dx) &
+             .and. y0 >= (spatial_range(1,2) - dy) &
+             .and. y0 <= (spatial_range(2,2) + dy) &
+             .and. z0 >= (spatial_range(1,3) - dz) &
+             .and. z0 <= (spatial_range(2,3) + dz)
 
         isrange = isrange1 .or. isrange2
     end function check_particle_in_range
