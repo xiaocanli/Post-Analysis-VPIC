@@ -41,7 +41,8 @@ font = {'family' : 'serif',
         'size'   : 24,
         }
 
-colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+# colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+colors = palettable.colorbrewer.qualitative.Dark2_8.mpl_colors
 
 def plot_by_time(run_name, root_dir, pic_info):
     """Plot by contour at multiple time frames
@@ -299,15 +300,296 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     # plt.close()
 
 
+def plot_jpara_dote(run_name, root_dir, pic_info, species):
+    """Plot jdote due to different parallel current
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        species: particle species.
+    """
+    ct = 0
+    nj = 1
+    contour_color = ['k'] * nj
+    vmin = [-1.0] * nj
+    vmax = [1.0] * nj
+    xs, ys = 0.11, 0.59
+    w1, h1 = 0.8, 0.38
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.05]
+    fig_sizes = (8, 4)
+    nxp, nzp = 1, nj
+    var_sym = ['\parallel']
+    var_names = []
+    for var in var_sym:
+        var_name = r'$\boldsymbol{j}_' + var + r'\cdot\boldsymbol{E}$'
+        var_names.append(var_name)
+    colormaps = ['seismic'] * nj
+    text_colors = colors[0:nj]
+    xstep, zstep = 2, 2
+    is_logs = [False] * nj
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    b0 = pic_info.b0
+    j0 = 0.1 * va**2 * b0
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_jpara_dote/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    fnames = []
+    fname = root_dir + 'data1/jqnvpara_dote00_' + species + '.gda'
+    fnames.append(fname)
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    fdata = []
+    fdata_1d = []
+    for fname in fnames:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+        fdata_1d.append(fdata_cum)
+        data_new = signal.convolve2d(data, kernel, 'same')
+        fdata.append(data_new)
+    fdata = np.asarray(fdata)
+    fdata_1d = np.asarray(fdata_1d)
+    fdata /= j0  # Normalization
+    fname2 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    fname = 'jpara_dote_' + species
+    bottom_panel = True
+    xlim = [0, 200]
+    zlim = [-25, 25]
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
+            'fdata_1d':fdata_1d, 'xlim':xlim, 'zlim':zlim}
+    jdote_plot = PlotMultiplePanels(**kwargs_plots)
+    for ct in range(1, pic_info.ntf):
+        kwargs["current_time"] = ct
+        fdata = []
+        fdata_1d = []
+        for fname in fnames:
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+            fdata_1d.append(fdata_cum)
+            data_new = signal.convolve2d(data, kernel, 'same')
+            fdata.append(data_new)
+        fdata = np.asarray(fdata)
+        fdata_1d = np.asarray(fdata_1d)
+        fdata /= j0  # Normalization
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        jdote_plot.update_plot_1d(fdata_1d)
+        jdote_plot.update_fields(ct, fdata, Ay)
+
+    plt.close()
+    # plt.show()
+
+
+def plot_jdotes_fields(run_name, root_dir, pic_info, species, ct, srange,
+        axis_pos, gaps, fig_sizes):
+    """Plot jdote due to different drift current
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        species: particle species.
+        ct: current time frame
+        srange: spatial range
+    """
+    nj = 5
+    contour_color = ['k'] * nj
+    vmin = [-1.0] * nj
+    vmax = [1.0] * nj
+    nxp, nzp = 1, nj
+    var_sym = ['c', 'g', 'm', 'p', 'a', '\parallel', '\perp']
+    var_names = []
+    for var in var_sym:
+        var_name = r'$\boldsymbol{j}_' + var + r'\cdot\boldsymbol{E}$'
+        var_names.append(var_name)
+    colormaps = ['seismic'] * nj
+    text_colors = ['b', 'g', 'r', 'c', 'm']
+    xstep, zstep = 1, 1
+    is_logs = [False] * nj
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    b0 = pic_info.b0
+    j0 = 0.1 * va**2 * b0
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_jdotes_apj/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    kwargs = {"current_time":ct, "xl":srange[0], "xr":srange[1],
+            "zb":srange[2], "zt":srange[3]}
+    fnames = []
+    fname = root_dir + 'data1/jcpara_dote00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/jgrad_dote00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/jmag_dote00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/jpolar_dote00_' + species + '.gda'
+    fnames.append(fname)
+    fname = root_dir + 'data1/jagy_dote00_' + species + '.gda'
+    fnames.append(fname)
+    # fname = root_dir + 'data1/jqnvpara_dote00_' + species + '.gda'
+    # fnames.append(fname)
+    # fname = root_dir + 'data1/jqnvperp_dote00_' + species + '.gda'
+    # fnames.append(fname)
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    fdata = []
+    fdata_1d = []
+    for fname in fnames:
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
+        fdata_1d.append(fdata_cum)
+        data_new = signal.convolve2d(data, kernel, 'same')
+        fdata.append(data_new)
+    fdata = np.asarray(fdata)
+    fdata_1d = np.asarray(fdata_1d)
+    fdata /= j0  # Normalization
+    fname2 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    fname = 'jdotes_' + species
+    bottom_panel = True
+    xlim = srange[:2]
+    zlim = srange[2:]
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
+            'fdata_1d':fdata_1d, 'xlim':xlim, 'zlim':zlim}
+    jdote_plot = PlotMultiplePanels(**kwargs_plots)
+    plt.show()
+
+
+def plot_jdrifts_dote_fields():
+    # ct = 61
+    # srange = np.asarray([105, 140, -25, 25])
+    # xs, ys = 0.22, 0.85
+    # w1, h1 = 0.65, 0.14
+    # axis_pos = [xs, ys, w1, h1]
+    # gaps = [0.1, 0.02]
+    # fig_sizes = (4, 12)
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange,
+    #         axis_pos, gaps, fig_sizes)
+
+    # ct = 101
+    # srange = np.asarray([110, 170, -25, 25])
+    # xs, ys = 0.22, 0.85
+    # w1, h1 = 0.65, 0.14
+    # axis_pos = [xs, ys, w1, h1]
+    # gaps = [0.1, 0.02]
+    # fig_sizes = (4, 12)
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange,
+    #         axis_pos, gaps, fig_sizes)
+
+    # ct = 170
+    # srange = np.asarray([150, 200, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'e', ct, srange)
+
+    # ct = 48
+    # xs, ys = 0.22, 0.85
+    # w1, h1 = 0.65, 0.14
+    # axis_pos = [xs, ys, w1, h1]
+    # gaps = [0.1, 0.02]
+    # fig_sizes = (4, 12)
+    # srange = np.asarray([80, 100, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange,
+    #         axis_pos, gaps, fig_sizes)
+
+    # ct = 92
+    # xs, ys = 0.22, 0.85
+    # w1, h1 = 0.65, 0.14
+    # axis_pos = [xs, ys, w1, h1]
+    # gaps = [0.1, 0.02]
+    # fig_sizes = (4, 12)
+    # srange = np.asarray([110, 160, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'e', ct, srange,
+    #         axis_pos, gaps, fig_sizes)
+
+    # ct = 206
+    # srange = np.asarray([150, 200, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'e', ct, srange)
+
+    # ct = 55
+    # xs, ys = 0.22, 0.85
+    # w1, h1 = 0.65, 0.14
+    # axis_pos = [xs, ys, w1, h1]
+    # gaps = [0.1, 0.02]
+    # fig_sizes = (4, 12)
+    # srange = np.asarray([110, 130, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange,
+    #         axis_pos, gaps, fig_sizes)
+
+    # ct = 110
+    # srange = np.asarray([110, 180, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'e', ct, srange)
+    # ct = 200
+    # srange = np.asarray([130, 200, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange)
+    # ct = 40
+    # srange = np.asarray([80, 100, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange)
+    # ct = 80
+    # srange = np.asarray([100, 150, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange)
+    # ct = 200
+    # srange = np.asarray([150, 200, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange)
+
+    # ct = 109
+    # xs, ys = 0.18, 0.85
+    # w1, h1 = 0.68, 0.14
+    # axis_pos = [xs, ys, w1, h1]
+    # gaps = [0.1, 0.02]
+    # fig_sizes = (5, 12)
+    # srange = np.asarray([120, 200, -25, 25])
+    # plot_jdotes_fields(run_name, root_dir, pic_info, 'e', ct, srange,
+    #         axis_pos, gaps, fig_sizes)
+
+    ct = 55
+    xs, ys = 0.18, 0.85
+    w1, h1 = 0.68, 0.14
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.02]
+    fig_sizes = (5, 12)
+    srange = np.asarray([140, 200, -25, 25])
+    plot_jdotes_fields(run_name, root_dir, pic_info, 'i', ct, srange,
+            axis_pos, gaps, fig_sizes)
+
+
+
 if __name__ == "__main__":
     # run_name = "mime25_beta002_noperturb"
     # root_dir = '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/'
-    run_name = "mime25_beta002"
-    root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
-    # run_name = "mime25_beta0007"
-    # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
+    # run_name = "mime25_beta002"
+    # root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
+    run_name = "mime25_beta0007"
+    root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
+    # run_name = "mime25_beta002_track"
+    # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_vx_time(run_name, root_dir, pic_info)
-    plot_epara_eperp(pic_info, 20, root_dir)
+    # plot_epara_eperp(pic_info, 20, root_dir)
+    # plot_jpara_dote(run_name, root_dir, pic_info, 'i')
+    # plot_jdrifts_dote_fields()

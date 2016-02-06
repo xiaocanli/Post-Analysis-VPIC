@@ -309,14 +309,14 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     """
     jdote_tot_drifts = jdote.jcpara_dote + jdote.jgrad_dote \
             + jdote.jmag_dote \
-            + jdote.jagy_dote \
+            # + jdote.jagy_dote \
             # + jdote.jpolar_dote \
             # + jdote.jqnupara_dote \
             # + jdote.jdivu_dote \
 
     jdote_tot_drifts_int = jdote.jcpara_dote_int + jdote.jgrad_dote_int \
             + jdote.jmag_dote_int \
-            + jdote.jagy_dote_int \
+            # + jdote.jagy_dote_int \
             # + jdote.jpolar_dote_int \
             # + jdote.jqnupara_dote_int \
             # + jdote.jdivu_dote_int \
@@ -772,10 +772,10 @@ def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
     ax1.text(0.65, 0.65, r"$\boldsymbol{j}_\perp\cdot\boldsymbol{E}$", color='m',
             fontsize=20, horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax1.text(0.85, 0.65, r'$dK_e/dt$', color='k', fontsize=20,
+    ax1.text(0.82, 0.65, r'$dK_e/dt$', color='k', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax1.transAxes)
-    ax2.text(0.85, 0.85, r'$dK_i/dt$', color='k', fontsize=20,
+    ax2.text(0.82, 0.85, r'$dK_i/dt$', color='k', fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax2.transAxes)
 
@@ -873,7 +873,7 @@ if __name__ == "__main__":
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
-    # save_jdote_json('e')
+    # save_jdote_json('i')
     # plot_jpara_jperp_dote_multi()
     # plot_jdotes_evolution_multi(species)
     # calc_jdotes_fraction_multi(species)

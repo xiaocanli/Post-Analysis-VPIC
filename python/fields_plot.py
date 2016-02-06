@@ -83,6 +83,7 @@ class PlotMultiplePanels(object):
         self.ax = []
         self.im = []
         self.co = []
+        self.cbar = []
 
         w1, h1 = self.axis_pos[2], self.axis_pos[3]
         for j in range(self.nzp):
@@ -98,6 +99,7 @@ class PlotMultiplePanels(object):
                 im1, cbar1 = plot_2d_contour(self.x, self.z, self.fdata[ip],
                         self.ax1, self.fig, **self.kwargs_plot)
                 self.im.append(im1)
+                self.cbar.append(cbar1)
                 im1.set_cmap(plt.cm.get_cmap(self.colormaps[ip]))
                 if not self.is_multi_Ay:
                     co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
@@ -158,10 +160,15 @@ class PlotMultiplePanels(object):
                     self.p1d.append(p1)
             self.ax1d.plot([np.min(self.x), np.max(self.x)], [0,0],
                     linestyle='--', color='k')
+            self.ax1d.set_xlim(self.ax[0].get_xlim())
             self.ax1d.tick_params(labelsize=16)
             self.ax1d.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
             self.ax1d.set_ylabel(r'Accumulation', fontdict=font, fontsize=20)
 
+        if "save_eps" in kwargs:
+            self.save_eps = kwargs["save_eps"]
+        else:
+            self.save_eps = False
         self.save_figures()
 
     def update_fields(self, ct, fdata, Ay):
@@ -195,8 +202,12 @@ class PlotMultiplePanels(object):
         self.ax1d.autoscale()
 
     def save_figures(self):
-        fname = self.fig_dir + self.fname + '_' + str(self.ct).zfill(3) + '.jpg'
-        self.fig.savefig(fname, dpi=200)
+        if self.save_eps:
+            fname = self.fig_dir + self.fname + '_' + str(self.ct).zfill(3) + '.eps'
+            self.fig.savefig(fname)
+        else:
+            fname = self.fig_dir + self.fname + '_' + str(self.ct).zfill(3) + '.jpg'
+            self.fig.savefig(fname, dpi=200)
 
 
 def plot_magnetic_fields(run_name, root_dir, pic_info):

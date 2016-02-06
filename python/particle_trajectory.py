@@ -28,10 +28,10 @@ font = {'family' : 'serif',
         'size'   : 24,
         }
 
-def get_file_names():
+def get_file_names(root_dir='../../'):
     """Get the file names in the traj folder.
     """
-    traj_path = '../../traj/'
+    traj_path = root_dir + 'traj/'
     fnames = [ f for f in listdir(traj_path) if isfile(join(traj_path,f)) ]
     fnames.sort()
     ntraj_e = 0
