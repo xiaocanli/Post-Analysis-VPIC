@@ -52,8 +52,8 @@ module picinfo
     !---------------------------------------------------------------------------
     function get_main_fname() result(fname)
         implicit none
-        character(len=20) :: fname
-        character(len=150) :: buff
+        character(len=64) :: fname
+        character(len=256) :: buff
         integer :: fh, index1
         fh = 40
         ! Get the main configuration file for current PIC simulation.
@@ -87,8 +87,8 @@ module picinfo
         real(fp), intent(in) :: dtwpe, dtwce, dtwpi, dtwci
         integer, intent(out) :: fields_interval, hydro_interval, particle_interval
         integer :: fh, index1, index2, index3
-        character(len=150) :: buff, code
-        character(len=20) :: fname, another_interval
+        character(len=256) :: buff, code
+        character(len=64) :: fname, another_interval
         logical :: cond1, cond2
         integer :: interval, ratio, interval_base
         fh = 40
@@ -310,7 +310,7 @@ module picinfo
         real(dp) :: tx, ty, tz
         integer :: file_size, fh, index1, index2
         logical :: ex
-        character(len=150) :: fname, buff
+        character(len=256) :: fname, buff
         ex = .false.
         fname = trim(adjustl(rootpath))//"info.bin"
         inquire(file=fname, exist=ex, size=file_size)
@@ -423,7 +423,7 @@ module picinfo
         integer(kind=8) :: filesize
         logical :: is_exist0, is_exist1, is_exist
         character(len=16) :: cfname
-        character(len=150) :: fname
+        character(len=256) :: fname
         integer :: tindex, nframe
         if (myid == master) then
             if (output_format == 1) then
@@ -462,8 +462,8 @@ module picinfo
         use constants, only: fp
         implicit none
         integer :: fh, index1, index2
-        character(len=150) :: buff, single_line
-        character(len=20) :: fname
+        character(len=256) :: buff, single_line
+        character(len=64) :: fname
 
         fh = 40
         fname = get_main_fname()
@@ -515,7 +515,7 @@ module picinfo
                 write(*, "(A)") " Ti/Te is not defined. 1.0 is used."
                 Ti_Te = 1.0
             else
-                write(*, "(A, F4.2)") " The temperature ratio Ti/Te is: ", Ti_Te
+                write(*, "(A, F5.2)") " The temperature ratio Ti/Te is: ", Ti_Te
             endif
         endif
         vthi = get_variable(fh, 'vthi/c', '=')
