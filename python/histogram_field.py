@@ -38,9 +38,13 @@ def histogram_field(pic_info, var_name, fname, **kwargs):
     x, z, field_data = read_2d_fields(pic_info, fname, **kwargs) 
     dmax = np.max(field_data)
     dmin = np.min(field_data)
-    nb = 100
+    dmin = -100.0
+    dmax = 100.0
+    nb = 1000
+    print np.sum(field_data)
     bins = np.linspace(dmin, dmax, nb)
     hist, bin_edges = np.histogram(field_data, bins)
+    print np.sum(hist)
     print 'Maximum and Minimum of the field: ', dmax, dmin
     fig = plt.figure(figsize=[7, 5])
     width = 0.8
@@ -48,7 +52,7 @@ def histogram_field(pic_info, var_name, fname, **kwargs):
     ax = fig.add_axes([0.12, 0.15, width, height])
     hist_f = np.array(hist, dtype=np.float64)
     hist_f /= np.max(hist_f)
-    p1 = ax.plot(bins[:nb-1], hist_f, linewidth=2)
+    p1 = ax.semilogy(bins[:nb-1], hist_f, linewidth=2)
     ax.tick_params(labelsize=16)
     ax.set_xlabel(var_name, fontdict=font, fontsize=20)
     qname = r'$f($' + var_name + '$)$'
@@ -56,8 +60,9 @@ def histogram_field(pic_info, var_name, fname, **kwargs):
     plt.show()
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info("..")
-    kwargs = {"current_time":40, "xl":0, "xr":200, "zb":-1, "zt":1}
+    pic_info = pic_information.get_pic_info("../../")
+    kwargs = {"current_time":40, "xl":0, "xr":400, "zb":-100, "zt":100}
     #histogram_field(pic_info, r'$n_e$', "../data/ne.gda", **kwargs)
     #histogram_field(pic_info, r'$|\mathbf{B}|$', "../data/absB.gda", **kwargs)
-    histogram_field(pic_info, r'$A_e$', "../data1/agyrotropy00_e.gda", **kwargs)
+    # histogram_field(pic_info, r'$A_e$', "../data1/agyrotropy00_e.gda", **kwargs)
+    histogram_field(pic_info, r'$A_e$', "../../data1/jpolar_dote00_e.gda", **kwargs)

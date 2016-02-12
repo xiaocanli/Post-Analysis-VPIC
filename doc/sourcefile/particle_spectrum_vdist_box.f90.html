@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+	 
+    <meta name="description" content="Documentation for Fortran Program">
+	 
+    <meta name="author" content="Chris MacMackin" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>particle_spectrum_vdist_box.f90 &ndash; Fortran Program</title>
+
+    <link href="../css/bootstrap.min.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+    <link href="../css/font-awesome.min.css" rel="stylesheet">
+    <link href="../css/local.css" rel="stylesheet">
+    
+
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+      <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    
+    <script src="../js/jquery-2.1.3.min.js"></script>
+    <script src="../js/svg-pan-zoom.min.js"></script>
+
+    
+    <script src="../tipuesearch/tipuesearch_content.js"></script>
+    <link  href="../tipuesearch/tipuesearch.css" rel="stylesheet">
+    <script src="../tipuesearch/tipuesearch_set.js"></script>
+    <script src="../tipuesearch/tipuesearch.js"></script>
+    
+
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <nav class="navbar navbar-inverse navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="sr-only">Toggle navigation</span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <a class="navbar-brand" href="../index.html">Fortran Program </a>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+				
+                
+            <li><a href="../lists/files.html">Source Files</a></li>
+				
+				
+            <li><a href="../lists/modules.html">Modules</a></li>
+				
+				
+            <li><a href="../lists/procedures.html">Procedures</a></li>
+				
+								
+            <li><a href="../lists/types.html">Derived Types</a></li>
+				
+				
+            <li><a href="../lists/programs.html">Programs</a></li>
+				
+          </ul>
+        
+        <form action="../search.html" class="navbar-form navbar-right" role="search">
+        <div class="form-group">
+          <input type="text" class="form-control" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+        </div>
+<!--
+        <button type="submit" class="btn btn-default">Submit</button>
+-->
+        </form>
+        
+        </div><!--/.nav-collapse -->
+      </div>
+    </nav>
+
+    <div class="container">
+    
+  
+  <div class="row">
+    <h1>particle_spectrum_vdist_box.f90
+    <small>Source File</small>
+    
+    </h1>
+	 
+<div class="row">
+<div class="col-lg-12">
+<div class="well well-sm">
+  <ul class="list-inline" style="margin-bottom:0px;display:inline">
+     
+     
+     
+     
+    
+    
+    <li><i class="fa fa-code"></i><a href="../src/particle_spectrum_vdist_box.f90"> Source File</a></li>
+     
+  </ul>
+  <ol class="breadcrumb in-well text-right">
+  
+     <li class="active">particle_spectrum_vdist_box.f90</li>
+  </ol>
+</div>
+</div>
+</div>
+    
+  </div>
+  <div class="row">
+    <div class="col-lg-3">
+    
+<div id="sidebar">
+  
+  
+  
+  
+  
+  
+  <div class="panel panel-primary">
+    <div class="panel-heading text-left"><h3 class="panel-title"><a data-toggle="collapse" href="#progs">Programs</a></h3></div>
+    <div id="progs" class="panel-collapse collapse">
+        <div class="list-group">
+          
+          <a class="list-group-item" href="../program/particle_spectrum_vdist_box.html">particle_spectrum_vdist_box</a>
+          
+        </div>
+    </div>
+  </div>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  <div class="panel panel-primary">
+    <div class="panel-heading text-left"><h3 class="panel-title">Source Code</h3></div>
+    <div class="list-group">
+      <a class="list-group-item" href="../sourcefile/particle_spectrum_vdist_box.f90.html#src">particle_spectrum_vdist_box.f90</a>
+    </div>
+  </div>
+  
+  <hr>
+  
+  <div class="panel panel-default">
+    <div class="panel-heading text-left"><h3 class="panel-title"><a data-toggle="collapse" href="#allfiles">All Source Files</a></h3></div>
+    <div id="allfiles" class="panel-collapse collapse">
+        <div class="list-group">
+          
+          <a class="list-group-item" href="../sourcefile/analysis_config.f90.html">analysis_config.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/bulk_internal_energy.f90.html">bulk_internal_energy.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/calc_agyrotropy.f90.html">calc_agyrotropy.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/cla_test.f90.html">cla_test.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/commandline_arguments.f90.html">commandline_arguments.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/compression.f90.html">compression.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/compression_shear.f90.html">compression_shear.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/current_densities.f90.html">current_densities.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/dissipation.f90.html">dissipation.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/electric_field.f90.html">electric_field.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/emfields.f90.html">emfields.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/fieldline_tracing.f90.html">fieldline_tracing.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/file_header.f90.html">file_header.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/get_info.f90.html">get_info.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/get_info_translate.f90.html">get_info_translate.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/inductive_efield.f90.html">inductive_efield.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/interpolation_emf.f90.html">interpolation_emf.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/jdote_eband.f90.html">jdote_eband.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/jdote_energy_band.f90.html">jdote_energy_band.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/jdote_module.f90.html">jdote_module.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/kinds.f90.html">kinds.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/magnetic_field.f90.html">magnetic_field.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/maximum_energy.f90.html">maximum_energy.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/mpi_io_fields.f90.html">mpi_io_fields.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/mpi_io_translate.f90.html">mpi_io_translate.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/mpi_setup.f90.html">mpi_setup.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/neighbors.f90.html">neighbors.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/para_perp_pressure.f90.html">para_perp_pressure.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/parallel_hdf5.f90.html">parallel_hdf5.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/parallel_hdf5.f90%7E2.html">parallel_hdf5.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/parallel_potential.f90.html">parallel_potential.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/parameters.f90.html">parameters.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/parspec.f90.html">parspec.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/parspec_cpu_based.f90.html">parspec_cpu_based.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_based_jdote.f90.html">particle_based_jdote.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_drift.f90.html">particle_drift.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_fieldline.f90.html">particle_fieldline.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_fields.f90.html">particle_fields.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_file.f90.html">particle_file.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_frames.f90.html">particle_frames.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_info.f90.html">particle_info.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_module.f90.html">particle_module.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_number_eband.f90.html">particle_number_eband.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_spectrum.f90.html">particle_spectrum.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_spectrum_box.f90.html">particle_spectrum_box.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_spectrum_vdist.f90.html">particle_spectrum_vdist.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_spectrum_vdist_box.f90.html">particle_spectrum_vdist_box.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/particle_spectrum_vdist_python.f90.html">particle_spectrum_vdist_python.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/path_info.f90.html">path_info.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/pressure_tensor.f90.html">pressure_tensor.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/read_config.f90.html">read_config.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/saving_flags.f90.html">saving_flags.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/spectrum_along_fieldline.f90.html">spectrum_along_fieldline.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/spectrum_config.f90.html">spectrum_config.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/statistics.f90.html">statistics.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/topology_translate.f90.html">topology_translate.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/translate.f90.html">translate.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/translate_config.f90.html">translate_config.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/vdist.f90.html">vdist.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/vdist_1d_along_fieldline.f90.html">vdist_1d_along_fieldline.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/vdist_2d_along_fieldline.f90.html">vdist_2d_along_fieldline.f90</a>
+          
+          <a class="list-group-item" href="../sourcefile/vdistribution.f90.html">vdistribution.f90</a>
+          
+        </div>
+    </div>
+  </div>
+  
+</div>
+
+    </div>
+    <div class="col-lg-9" id='text'>
+    <hr>
+<p>Main program to calculate particle spectrum and velocity distributions in a
+ user defined box.</p>
+<hr>
+    <br>
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl"><pre><a name="ln-1"></a><span class="c">!*******************************************************************************</span>
+<a name="ln-2"></a><span class="c">! Main program to calculate particle spectrum and velocity distributions in a</span>
+<a name="ln-3"></a><span class="c">! user defined box.</span>
+<a name="ln-4"></a><span class="c">!*******************************************************************************</span>
+<a name="ln-5"></a><span class="k">program </span><span class="nv">particle_spectrum_vdist_box</span>
+<a name="ln-6"></a>    <span class="k">use </span><span class="nv">particle_spectrum_vdist_module</span>
+<a name="ln-7"></a>    <span class="k">implicit none</span>
+<a name="ln-8"></a><span class="k">    call </span><span class="nv">particle_spectrum_vdist_main</span>
+<a name="ln-9"></a><span class="k">end program </span><span class="nv">particle_spectrum_vdist_box</span>
+</pre></div>
+
+    </section>
+    </div>
+  </div>
+
+    <hr>
+    <footer>
+        <div class="row">
+        <div class="col-md-4">&copy; 2016 </div>
+	<div class="col-md-4"><span class="text-center"> Fortran Program was developed by </span></div>
+        <div class="col-md-4"><span class="pull-right">Documentation generated by <a href="https://github.com/cmacmackin/ford">FORD</a></span></div>
+        </div>
+        <br>
+    </footer>
+    </div> <!-- /container -->
+
+
+    <!-- Bootstrap core JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+<!--
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+-->
+    <script src="../js/bootstrap.min.js"></script>
+    <!-- IE10 viewport hack for Surface/desktop Windows 8 bug -->
+    <script src="../js/ie10-viewport-bug-workaround.js"></script>
+
+    <!-- MathJax JavaScript
+    ================================================== -->
+    <!-- Placed at the end of the document so the pages load faster -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { extensions: ['AMSmath.js','AMSsymbols.js','noErrors.js','noUndefined.js'], equationNumbers: { autoNumber: 'AMS' } },
+        jax: ['input/TeX','input/MathML','output/HTML-CSS'],
+        extensions: ['tex2jax.js','mml2jax.js','MathMenu.js','MathZoom.js'],
+        'HTML-CSS': { 
+           styles: { '.MathJax_Display, .MathJax .mo, .MathJax .mi, .MathJax .mn': {color: '#000000 ! important'} }
+        }
+      });
+    </script>
+    <script src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+  </body>
+</html>

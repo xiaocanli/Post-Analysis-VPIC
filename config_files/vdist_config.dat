@@ -1,0 +1,15 @@
+***** Configuration file for velocity distribution *****
+
+nbins = 600
+emax = 100.0
+emin = 0.0001
+xc/de = 500.00
+yc/de =   0.00
+zc/de =   0.00
+xsize = 4
+ysize = 1
+zsize = 2048
+nbins_vdist = 64
+vmax =   2.00
+vmin =   0.00
+tframe = 10

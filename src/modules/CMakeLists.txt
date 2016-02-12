@@ -4,8 +4,11 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # Add libraries.
 add_library(read_config read_config.f90 global.f90)
 
-add_library(get_info STATIC get_info.f90 global.f90)
-target_link_libraries(get_info read_config)
+add_library(path_info path_info.f90 global.f90)
+
+add_library(get_info STATIC get_info.f90 get_info_translate.f90
+    translate_config.f90 global.f90)
+target_link_libraries(get_info read_config path_info)
 
 add_library(statistics STATIC statistics.f90)
 
@@ -18,8 +21,10 @@ add_library(parameters parameters.f90 global.f90)
 target_link_libraries(parameters read_config)
 
 add_library(analysis_config STATIC analysis_config.f90 mpi_setup.f90
-    mpi_io_fields.f90 particle_info.f90)
-target_link_libraries(analysis_config get_info mpi_io parameters)
+    mpi_io_fields.f90 particle_info.f90 translate_config.f90
+    get_info_translate.f90)
+target_link_libraries(analysis_config get_info mpi_io parameters
+    commandline_arguments)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
 target_link_libraries(magnetic_field get_info parameters)
@@ -39,7 +44,7 @@ target_link_libraries(usingle get_info pic_fields)
 add_library(fields STATIC inductive_efield.f90 para_perp_pressure.f90)
 target_link_libraries(fields statistics get_info saving_flags pic_fields
     usingle)
-    
+
 add_library(jdote STATIC current_densities.f90 jdote_module.f90
     neighbors.f90 global.f90)
 target_link_libraries(jdote compression_shear)
@@ -47,25 +52,32 @@ target_link_libraries(jdote compression_shear)
 add_library(file_header STATIC file_header.f90)
 
 add_library(translate_module translate_config.f90 emfields.f90
-    particle_fields.f90 mpi_io_translate.f90 global.f90 get_info_translate.f90)
-target_link_libraries(translate_module file_header get_info mpi_io)
+    particle_fields.f90 mpi_io_translate.f90 global.f90 get_info_translate.f90
+    topology_translate.f90)
+target_link_libraries(translate_module file_header get_info mpi_io parameters)
 
 add_library(spectrum_config spectrum_config.f90)
-target_link_libraries(spectrum_config read_config)
+target_link_libraries(spectrum_config read_config get_info)
 
-add_library(particle_spectrum particle_module.f90 particle_frames.f90
-    particle_spectrum.f90 particle_file.f90)
+add_library(particle_module particle_module.f90 particle_info.f90)
+target_link_libraries(particle_module get_info file_header interp_emf
+    magnetic_field)
+
+add_library(particle_file particle_file.f90)
+
+add_library(particle_spectrum particle_frames.f90 particle_spectrum.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field
-    spectrum_config)
+    spectrum_config particle_module particle_file maximum_energy
+    commandline_arguments)
 
-add_library(vdist vdist.f90 particle_module.f90 particle_frames.f90
-    particle_file.f90)
+add_library(vdist vdist.f90 particle_frames.f90)
 target_link_libraries(vdist file_header get_info magnetic_field
-    spectrum_config)
+    spectrum_config particle_module particle_file)
 
-add_library(particle_fieldline particle_fieldline.f90 particle_file.f90
-    particle_frames.f90 mpi_setup.f90)
-target_link_libraries(particle_fieldline get_info fieldline_tracing)
+add_library(particle_fieldline particle_fieldline.f90 particle_frames.f90
+    mpi_setup.f90)
+target_link_libraries(particle_fieldline get_info fieldline_tracing
+    particle_file)
 
 add_library(pressure_tensor pressure_tensor.f90 neighbors.f90 global.f90)
 target_link_libraries(pressure_tensor get_info fields)
@@ -73,3 +85,27 @@ target_link_libraries(pressure_tensor get_info fields)
 add_library(compression_shear compression_shear.f90 global.f90
     para_perp_pressure.f90)
 target_link_libraries(compression_shear pressure_tensor get_info pic_fields)
+
+add_library(jdote_energy_band jdote_energy_band.f90 global.f90)
+target_link_libraries(jdote_energy_band read_config analysis_config)
+
+add_library(interp_emf interpolation_emf.f90 neighbors.f90)
+target_link_libraries(interp_emf get_info)
+
+add_library(particle_drift particle_drift.f90 particle_frames.f90)
+target_link_libraries(particle_drift file_header magnetic_field interp_emf
+    particle_module translate_module particle_file)
+
+add_library(particle_spectrum_vdist particle_spectrum_vdist.f90 global.f90)
+target_link_libraries(particle_spectrum_vdist particle_spectrum vdist
+    get_info commandline_arguments)
+
+add_library(cla cla.f90 kinds.f90)
+
+add_library(commandline_arguments commandline_arguments.f90 global.f90
+    particle_info.f90)
+target_link_libraries(commandline_arguments cla spectrum_config parameters)
+
+add_library(maximum_energy maximum_energy.f90 global.f90 mpi_setup.f90)
+target_link_libraries(maximum_energy get_info spectrum_config mpi_io
+    path_info)

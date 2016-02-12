@@ -1,0 +1,5 @@
+***** Configuration file for jdote for different energy band *****
+
+nbands = 10
+emax = 100.0
+emin = 0.0001
