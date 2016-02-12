@@ -49,8 +49,12 @@ def plot_particle_drift(pic_info, species, current_time):
     ys = 0.98 - height
     gap = 0.025
 
-    vmin = -0.1
-    vmax = 0.1
+    if species == 'i':
+        vmin = -0.5
+        vmax = 0.5
+    else:
+        vmin = -0.8
+        vmax = 0.8
     fig = plt.figure(figsize=[10,14])
     kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
     xstep = kwargs_plot["xstep"]
@@ -66,13 +70,13 @@ def plot_particle_drift(pic_info, species, current_time):
     zl = nz / 4
     zt = nz - zl
 
-    nbands = 10
+    nbands = 5
     data_sum = np.zeros((nbands, nx))
     data_acc = np.zeros((nbands, nx))
     
     nb = 0
     kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
-    for iband in range(1, nbands+1, 2):
+    for iband in range(1, nbands+1):
         fname = "../../data1/jpara_dote_" + species + "_" + str(iband).zfill(2) + ".gda"
         x, z, jpara_dote = read_2d_fields(pic_info, fname, **kwargs) 
         fname = "../../data1/jperp_dote_" + species + "_" + str(iband).zfill(2) + ".gda"
@@ -91,8 +95,11 @@ def plot_particle_drift(pic_info, species, current_time):
         ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
         ax1.tick_params(labelsize=20)
         ax1.tick_params(axis='x', labelbottom='off')
-        # cbar1.set_ticks(np.arange(-0.004, 0.005, 0.002))
         cbar1.ax.tick_params(labelsize=20)
+        if species == 'i':
+            cbar1.set_ticks(np.arange(-0.4, 0.5, 0.2))
+        else:
+            cbar1.set_ticks(np.arange(-0.8, 0.9, 0.4))
         ys -= height + gap
         data_sum[nb, :] = np.sum(data, axis=0)
         data_acc[nb, :] = np.cumsum(data_sum[nb, :])
@@ -114,16 +121,17 @@ def plot_particle_drift(pic_info, species, current_time):
 
     ax1.tick_params(labelsize=20)
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'Accumulation', fontdict=font, fontsize=24)
     ax1.legend(loc=2, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
     
-    # if not os.path.isdir('../img/'):
-    #     os.makedirs('../img/')
-    # if not os.path.isdir('../img/img_particle_drift/'):
-    #     os.makedirs('../img/img_particle_drift/')
-    # fname = 'ene_gain_' + str(current_time).zfill(3) + '_' + species + '.jpg'
-    # fname = '../img/img_particle_drift/' + fname
-    # fig.savefig(fname)
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    if not os.path.isdir('../img/img_particle_drift/'):
+        os.makedirs('../img/img_particle_drift/')
+    fname = 'ene_gain_' + str(current_time).zfill(3) + '_' + species + '.jpg'
+    fname = '../img/img_particle_drift/' + fname
+    fig.savefig(fname, dpi=200)
     # plt.close()
     plt.show()
 
@@ -133,4 +141,4 @@ if __name__ == "__main__":
     ntp = pic_info.ntp
     # for ct in range(ntp):
     #     plot_particle_drift(pic_info, 'e', ct)
-    plot_particle_drift(pic_info, 'e', 11)
+    plot_particle_drift(pic_info, 'e', 12)
