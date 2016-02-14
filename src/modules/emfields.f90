@@ -125,17 +125,26 @@ module emfields
         nc3 = fheader%nc(3) - 1
 
         read(fh) buffer
-        ex(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ex(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(2:nc1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(2:nc1, 3:nc2+1, 3:nc3+1)) * 0.25
         read(fh) buffer
-        ey(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ey(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1)) * 0.25
         read(fh) buffer
-        ez(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ez(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3)) * 0.25
         read(fh) buffer
-        bx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        bx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3)) * 0.5
         read(fh) buffer
-        by(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        by(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(2:nc1, 3:nc2+1, 2:nc3)) * 0.5
         read(fh) buffer
-        bz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        bz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(2:nc1, 2:nc2, 3:nc3+1)) * 0.5
         deallocate(buffer)
         close(fh)
     end subroutine read_emfields_single
