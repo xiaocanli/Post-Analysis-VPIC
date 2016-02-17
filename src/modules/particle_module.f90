@@ -10,7 +10,8 @@ module particle_module
            vcz, ci, cj, ck, iex, jex, kex, iey, jey, key, iez, jez, kez, &
            ibx, jbx, kbx, iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
            dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
-           dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz
+           dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, dnx, dny, &
+           dnz
     public calc_particle_energy, calc_ptl_coord, calc_para_perp_velocity, &
            calc_para_perp_velocity_3d, calc_gyrofrequency, &
            calc_gradient_drift_velocity, calc_curvature_drift_velocity, &
@@ -37,10 +38,12 @@ module particle_module
     integer :: iex, jex, kex   ! The indices of the corner for Ex interpolation
     integer :: iey, jey, key, iez, jez, kez
     integer :: ibx, iby, ibz, jbx, jby, jbz, kbx, kby, kbz
+    integer :: ino, jno, kno   ! w.r.t the node
     real(fp) :: dx_ex, dy_ex, dz_ex  ! The offsets for Ex interpolation
     real(fp) :: dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez
     real(fp) :: dx_bx, dx_by, dx_bz, dy_bx, dy_by, dy_bz
     real(fp) :: dz_bx, dz_by, dz_bz
+    real(fp) :: dnx, dny, dnz
 
     contains
 
@@ -183,6 +186,13 @@ module particle_module
             dz_by = 0.5*dz
         endif
 
+        ! When the fields are on the node
+        ino = ci
+        jno = cj
+        kno = ck
+        dnx = (1 + dx) * 0.5
+        dny = (1 + dy) * 0.5
+        dnz = (1 + dz) * 0.5
     end subroutine calc_interp_param
 
     !---------------------------------------------------------------------------
