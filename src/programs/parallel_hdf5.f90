@@ -162,7 +162,8 @@ program parallel_hdf5
                     call write_hdf5_parallel_real(vsy_id, dcount, doffset, dset_dims, Vy)
                     call write_hdf5_parallel_real(vsz_id, dcount, doffset, dset_dims, Vz)
                     deallocate(dX, dY, dZ, icell)
-                    deallocate(Ex, Ey, Ez, Bx, By, Bz, Vx, Vy, Vz)
+                    deallocate(Ex, Ey, Ez, Bx, By, Bz)
+                    deallocate(Vx, Vy, Vz)
                 enddo ! x
             enddo ! y
         enddo ! z
