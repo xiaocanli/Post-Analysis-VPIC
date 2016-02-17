@@ -431,10 +431,10 @@ void read_dataset_h5(size_t row_count, int row_size, int max_type_size,
         package(package_data, i, row_count, temp_data, row_size,
                 dname_array[i].type_size, max_type_size);
         H5Dclose(dname_array[i].did);
-        if(mpi_rank == 0)
-            printf("%d,  %s , type id (%d), type size (%d)\n ", i, 
-                    dname_array[i].dataset_name, dname_array[i].type_id,
-                    dname_array[i].type_size);
+        /* if(mpi_rank == 0) */
+        /*     printf("%d,  %s , type id (%d), type size (%d)\n ", i, */ 
+        /*             dname_array[i].dataset_name, dname_array[i].type_id, */
+        /*             dname_array[i].type_size); */
     }
     free(temp_data);
     MPI_Barrier(MPI_COMM_WORLD);
