@@ -163,18 +163,25 @@ module interpolation_particle_fields
         call open_hydro_files_tb(fh, tindex0, pic_mpi_id)
         call read_vel_rho(fh(1:2))
         ! Notice: the read velocities are actually q*n*v
-        vsx = vx2 - vx1
-        vsy = vy2 - vy1
-        vsz = vz2 - vz1
-        ntot = nrho1 + nrho2
+        ! Notice: nrho is actually charge density
+        vsx = -vx1 - vx2
+        vsy = -vy1 - vy2
+        vsz = -vz1 - vz2
+        ntot = abs(nrho1 + nrho2)
         call read_vel_rho(fh(3:4))
-        vsx = vsx + (vx2 - vx1) * mime
-        vsy = vsy + (vy2 - vy1) * mime
-        vsz = vsz + (vz2 - vz1) * mime
-        ntot = ntot + (nrho1 + nrho2) * mime
-        vsx = vsx / ntot
-        vsy = vsy / ntot
-        vsz = vsz / ntot
+        vsx = vsx + (vx1 + vx2) * mime
+        vsy = vsy + (vy1 + vy2) * mime
+        vsz = vsz + (vz1 + vz2) * mime
+        ntot = ntot + abs((nrho1 + nrho2)) * mime
+        where (ntot > 0.0)
+            vsx = vsx / ntot
+            vsy = vsy / ntot
+            vsz = vsz / ntot
+        elsewhere
+            vsx = 0.0
+            vsy = 0.0
+            vsz = 0.0
+        endwhere
 
         do i = 1, 4
             close(fh(i))
