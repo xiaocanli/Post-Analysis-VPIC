@@ -22,7 +22,8 @@ int get_configuration(int argc, char **argv, int mpi_rank, char *fpath_binary,
         int *ncpus, int *dataset_num);
 void print_help(void);
 void read_header(FILE *fp, int *nptl, float *q_m, double *t);
-dset_name_item *set_dname_array(int dataset_num);
+dset_name_item *set_dname_array_13(int dataset_num);
+dset_name_item *set_dname_array_8(int dataset_num);
 void set_jobs(int mpi_rank, int mpi_size, int njobs_tot, int *njobs, int *offset);
 void save_np_pic(int *np_local, char *fpath_hdf5, char *species, int ncpus,
         int tstep);
@@ -63,9 +64,12 @@ int main(int argc, char **argv)
     dset_name_item *dname_array;
     int max_type_size, row_size;
     max_type_size = 4;
-    dataset_num = 13;
     row_size = dataset_num * max_type_size;
-    dname_array = set_dname_array(dataset_num);
+    if (dataset_num == 13) {
+        dname_array = set_dname_array_13(dataset_num);
+    } else {
+        dname_array = set_dname_array_8(dataset_num);
+    }
 
     int nptl;
     float q_m;
@@ -85,6 +89,7 @@ int main(int argc, char **argv)
     np_local = (int *)malloc(sizeof(int) * njobs);
     np_all = (int *)malloc(sizeof(int) * ncpus);
     for (tstep = tmin; tstep <= tmax; tstep += tinterval) {
+        if (mpi_rank == 0) printf("%d\n", tstep);
         for (int i = 0; i < njobs; i++) {
             np_local[i] = 0;
         }
@@ -314,9 +319,42 @@ void print_help(void)
 
 /******************************************************************************
  * Set dname_array. This is based on looking into the data directly. It is
- * not generated directly.
+ * not generated directly. This function assumes there are 8 datasets and they
+ * are in order as described below.
  ******************************************************************************/
-dset_name_item *set_dname_array(int dataset_num)
+dset_name_item *set_dname_array_8(int dataset_num)
+{
+    dset_name_item *dname_array;
+    dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
+    snprintf(dname_array[0].dataset_name, NAME_MAX, "%s", "Ux");
+    snprintf(dname_array[1].dataset_name, NAME_MAX, "%s", "Uy");
+    snprintf(dname_array[2].dataset_name, NAME_MAX, "%s", "Uz");
+    snprintf(dname_array[3].dataset_name, NAME_MAX, "%s", "dX");
+    snprintf(dname_array[4].dataset_name, NAME_MAX, "%s", "dY");
+    snprintf(dname_array[5].dataset_name, NAME_MAX, "%s", "dZ");
+    snprintf(dname_array[6].dataset_name, NAME_MAX, "%s", "i");
+    snprintf(dname_array[7].dataset_name, NAME_MAX, "%s", "q");
+
+    dname_array[6].did = 0;
+    dname_array[6].type_id = H5T_NATIVE_INT;
+    dname_array[6].type_size = 4;
+    dname_array[7].did = 0;
+    dname_array[7].type_id = H5T_NATIVE_INT;
+    dname_array[7].type_size = 4;
+
+    for (int i = 0; i < 6; i++) {
+        dname_array[i].did = 0;
+        dname_array[i].type_id = H5T_NATIVE_FLOAT;
+        dname_array[i].type_size = 4;
+    }
+    return dname_array;
+}
+
+/******************************************************************************
+ * Set dname_array. This is based on looking into the data directly. It is
+ * not generated directly. This function assumes there are 13 datasets.
+ ******************************************************************************/
+dset_name_item *set_dname_array_13(int dataset_num)
 {
     dset_name_item *dname_array;
     dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
