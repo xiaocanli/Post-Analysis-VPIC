@@ -78,7 +78,7 @@ add_executable(parallel_hdf5 parallel_hdf5.f90)
 #target_include_directories(parallel_hdf5)
 target_link_libraries(parallel_hdf5 ${MPI_Fortran_LIBRARIES}
     ${HDF5_Fortran_LIBRARIES} particle_drift interp_emf get_info
-    translate_module)
+    translate_module interp_pfields)
 
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})

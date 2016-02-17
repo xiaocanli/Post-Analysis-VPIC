@@ -58,23 +58,28 @@ program parallel_hdf5
                 iex, jex, kex, iey, jey, key, iez, jez, kez, ibx, jbx, kbx, &
                 iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
                 dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
-                dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz
+                dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, &
+                dnx, dny, dnz
         use interpolation_emf, only: trilinear_interp_only_bx, &
                 trilinear_interp_only_by, trilinear_interp_only_bz, &
                 trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
                 bx0, by0, bz0, ex0, ey0, ez0
+        use interpolation_particle_fields, only: trilinear_interp_vel, &
+                vsx0, vsy0, vsz0, calc_vsingle
         implicit none
         character(*), intent(in) :: filename, groupname
         integer, intent(in) :: tindex0, output_record
         integer(hsize_t), dimension(rank) :: dcount, doffset
         integer(hid_t) :: file_id, group_id
         integer(hid_t) :: bx_id, by_id, bz_id, ex_id, ey_id, ez_id
+        integer(hid_t) :: vsx_id, vsy_id, vsz_id
         integer(hsize_t), dimension(1) :: dset_dims, dset_dims_max
         integer(hid_t) :: filespace
         integer :: dom_x, dom_y, dom_z, n
         integer :: ix, iy, iz, i, iptl
         real(fp), allocatable, dimension(:) :: dX, dY, dZ
         real(fp), allocatable, dimension(:) :: Ex, Ey, Ez, Bx, By, Bz
+        real(fp), allocatable, dimension(:) :: Vx, Vy, Vz ! Bulk flow velocity
         integer, allocatable, dimension(:) :: icell
         integer :: storage_type, nlinks, max_corder
         dset_id = 0
@@ -83,7 +88,113 @@ program parallel_hdf5
         call open_hdf5_parallel(filename, groupname, file_id, group_id)
         call h5gget_info_f(group_id, storage_type, nlinks, max_corder, error)
 
-        !! dX, dY, dZ and i to determine particle position
+        !! Open dX, dY, dZ and i to determine particle position
+        call open_dset_tracer(group_id, dset_id, dset_dims, &
+            dset_dims_max, filespace)
+        call create_emf_datasets(group_id, dset_dims, ex_id, ey_id, ez_id, &
+            bx_id, by_id, bz_id, filespace)
+        call create_vel_datasets(group_id, dset_dims, vsx_id, vsy_id, &
+            vsz_id, filespace)
+
+        do dom_x = ht%start_x, ht%stop_x
+            ix = (dom_x - ht%start_x) * domain%pic_nx
+            do dom_y = ht%start_y, ht%stop_y
+                iy = (dom_y - ht%start_y) * domain%pic_ny
+                do dom_z = ht%start_z, ht%stop_z
+                    iz = (dom_z - ht%start_z) * domain%pic_nz
+                    call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
+                                       domain%pic_ty, domain%pic_tz, n)
+                    dcount(1) = np_local(n)
+                    doffset(1) = offset_local(n)
+                    allocate(dX(dcount(1)))
+                    allocate(dY(dcount(1)))
+                    allocate(dZ(dcount(1)))
+                    allocate(icell(dcount(1)))
+                    allocate(Ex(dcount(1)))
+                    allocate(Ey(dcount(1)))
+                    allocate(Ez(dcount(1)))
+                    allocate(Bx(dcount(1)))
+                    allocate(By(dcount(1)))
+                    allocate(Bz(dcount(1)))
+                    allocate(Vx(dcount(1)))
+                    allocate(Vy(dcount(1)))
+                    allocate(Vz(dcount(1)))
+                    call read_hdf5_parallel_real(dset_id(4), dcount, doffset, &
+                        dset_dims, dX)
+                    call read_hdf5_parallel_real(dset_id(5), dcount, doffset, &
+                        dset_dims, dY)
+                    call read_hdf5_parallel_real(dset_id(6), dcount, doffset, &
+                        dset_dims, dZ)
+                    call read_hdf5_parallel_integer(dset_id(7), dcount, &
+                        doffset, dset_dims, icell)
+                    call read_emfields_single(tindex0, n-1)
+                    call calc_vsingle(tindex0, n-1)
+                    do iptl = 1, dcount(1)
+                        ptl%dx = dX(iptl)
+                        ptl%dy = dY(iptl)
+                        ptl%dz = dZ(iptl)
+                        ptl%icell = icell(iptl)
+                        call calc_interp_param
+                        call trilinear_interp_only_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
+                        call trilinear_interp_only_by(iby, jby, kby, dx_by, dy_by, dz_by)
+                        call trilinear_interp_only_bz(ibz, jbz, kbz, dx_bz, dy_bz, dz_bz)
+                        call trilinear_interp_ex(iex, jex, kex, dx_ex, dy_ex, dz_ex)
+                        call trilinear_interp_ey(iey, jey, key, dx_ey, dy_ey, dz_ey)
+                        call trilinear_interp_ez(iez, jez, kez, dx_ez, dy_ez, dz_ez)
+                        call trilinear_interp_vel(ino, jno, kno, dnx, dny, dnz)
+                        Ex(iptl) = ex0
+                        Ey(iptl) = ey0
+                        Ez(iptl) = ez0
+                        Bx(iptl) = bx0
+                        By(iptl) = by0
+                        Bz(iptl) = bz0
+                        Vx(iptl) = vsx0
+                        Vy(iptl) = vsy0
+                        Vz(iptl) = vsz0
+                    enddo
+                    call write_hdf5_parallel_real(ex_id, dcount, doffset, dset_dims, Ex)
+                    call write_hdf5_parallel_real(ey_id, dcount, doffset, dset_dims, Ey)
+                    call write_hdf5_parallel_real(ez_id, dcount, doffset, dset_dims, Ez)
+                    call write_hdf5_parallel_real(bx_id, dcount, doffset, dset_dims, Bx)
+                    call write_hdf5_parallel_real(by_id, dcount, doffset, dset_dims, By)
+                    call write_hdf5_parallel_real(bz_id, dcount, doffset, dset_dims, Bz)
+                    call write_hdf5_parallel_real(vsx_id, dcount, doffset, dset_dims, Vx)
+                    call write_hdf5_parallel_real(vsy_id, dcount, doffset, dset_dims, Vy)
+                    call write_hdf5_parallel_real(vsz_id, dcount, doffset, dset_dims, Vz)
+                    deallocate(dX, dY, dZ, icell)
+                    deallocate(Ex, Ey, Ez, Bx, By, Bz, Vx, Vy, Vz)
+                enddo ! x
+            enddo ! y
+        enddo ! z
+
+        call h5dclose_f(vsx_id, error)
+        call h5dclose_f(vsy_id, error)
+        call h5dclose_f(vsz_id, error)
+        call h5dclose_f(ex_id, error)
+        call h5dclose_f(ey_id, error)
+        call h5dclose_f(ez_id, error)
+        call h5dclose_f(bx_id, error)
+        call h5dclose_f(by_id, error)
+        call h5dclose_f(bz_id, error)
+        call h5sclose_f(filespace, error)
+        call h5dclose_f(dset_id(4), error)
+        call h5dclose_f(dset_id(5), error)
+        call h5dclose_f(dset_id(6), error)
+        call h5dclose_f(dset_id(7), error)
+        call h5gclose_f(group_id, error)
+        call h5fclose_f(file_id, error)
+    end subroutine get_particle_emf
+
+    !!--------------------------------------------------------------------------
+    !! Open datasets of the tracer file
+    !!--------------------------------------------------------------------------
+    subroutine open_dset_tracer(group_id, dset_id, dset_dims, dset_dims_max, &
+            filespace)
+        implicit none
+        integer(hid_t), intent(in) :: group_id
+        integer(hid_t), dimension(*), intent(inout) :: dset_id
+        integer(hsize_t), dimension(1), intent(out) :: dset_dims, dset_dims_max
+        integer(hid_t), intent(out) :: filespace
         call open_hdf5_dataset("dX", group_id, dset_id(4), &
             dset_dims, dset_dims_max, filespace)
         call open_hdf5_dataset("dY", group_id, dset_id(5), &
@@ -92,6 +203,38 @@ program parallel_hdf5
             dset_dims, dset_dims_max, filespace)
         call open_hdf5_dataset("i", group_id, dset_id(7), &
             dset_dims, dset_dims_max, filespace)
+    end subroutine open_dset_tracer
+
+    !!--------------------------------------------------------------------------
+    !! Create bulk velocity dataset
+    !!--------------------------------------------------------------------------
+    subroutine create_vel_datasets(group_id, dset_dims, vsx_id, vsy_id, &
+            vsz_id, filespace)
+        implicit none
+        integer(hid_t), intent(in) :: group_id
+        integer(hsize_t), dimension(1), intent(in) :: dset_dims
+        integer(hid_t), intent(out) :: vsx_id, vsy_id, vsz_id, filespace
+        call create_hdf5_dataset("Vx", group_id, vsx_id, &
+            dset_dims, H5T_NATIVE_REAL, filespace)
+        current_num_dset = current_num_dset + 1
+        call create_hdf5_dataset("Vy", group_id, vsy_id, &
+            dset_dims, H5T_NATIVE_REAL, filespace)
+        current_num_dset = current_num_dset + 1
+        call create_hdf5_dataset("Vz", group_id, vsz_id, &
+            dset_dims, H5T_NATIVE_REAL, filespace)
+        current_num_dset = current_num_dset + 1
+    end subroutine create_vel_datasets
+
+    !!--------------------------------------------------------------------------
+    !! Create electric field and magnetic field datasets
+    !!--------------------------------------------------------------------------
+    subroutine create_emf_datasets(group_id, dset_dims, ex_id, ey_id, ez_id, &
+            bx_id, by_id, bz_id, filespace)
+        implicit none
+        integer(hid_t), intent(in) :: group_id
+        integer(hsize_t), dimension(1), intent(in) :: dset_dims
+        integer(hid_t), intent(out) :: ex_id, ey_id, ez_id, bx_id, by_id, &
+            bz_id, filespace
         call create_hdf5_dataset("Ex", group_id, ex_id, &
             dset_dims, H5T_NATIVE_REAL, filespace)
         current_num_dset = current_num_dset + 1
@@ -109,81 +252,8 @@ program parallel_hdf5
         current_num_dset = current_num_dset + 1
         call create_hdf5_dataset("Bz", group_id, bz_id, &
             dset_dims, H5T_NATIVE_REAL, filespace)
-
-        do dom_x = ht%start_x, ht%stop_x
-            ix = (dom_x - ht%start_x) * domain%pic_nx
-            do dom_y = ht%start_y, ht%stop_y
-                iy = (dom_y - ht%start_y) * domain%pic_ny
-                do dom_z = ht%start_z, ht%stop_z
-                    iz = (dom_z - ht%start_z) * domain%pic_nz
-                    call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
-                                       domain%pic_ty, domain%pic_tz, n)
-                    dcount(1) = np_local(n)
-                    doffset(1) = offset_local(n)
-                    allocate(dX(dcount(1)))
-                    allocate(dY(dcount(1)))
-                    allocate(dZ(dcount(1)))
-                    allocate(icell(dcount(1)))
-                    allocate(EX(dcount(1)))
-                    allocate(EY(dcount(1)))
-                    allocate(EZ(dcount(1)))
-                    allocate(BX(dcount(1)))
-                    allocate(BY(dcount(1)))
-                    allocate(BZ(dcount(1)))
-                    call read_hdf5_parallel_real(dset_id(4), dcount, doffset, &
-                        dset_dims, dX)
-                    call read_hdf5_parallel_real(dset_id(5), dcount, doffset, &
-                        dset_dims, dY)
-                    call read_hdf5_parallel_real(dset_id(6), dcount, doffset, &
-                        dset_dims, dZ)
-                    call read_hdf5_parallel_integer(dset_id(7), dcount, &
-                        doffset, dset_dims, icell)
-                    call read_emfields_single(tindex0, n-1)
-                    do iptl = 1, dcount(1)
-                        ptl%dx = dX(iptl)
-                        ptl%dy = dY(iptl)
-                        ptl%dz = dZ(iptl)
-                        ptl%icell = icell(iptl)
-                        call calc_interp_param
-                        call trilinear_interp_only_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
-                        call trilinear_interp_only_by(iby, jby, kby, dx_by, dy_by, dz_by)
-                        call trilinear_interp_only_bz(ibz, jbz, kbz, dx_bz, dy_bz, dz_bz)
-                        call trilinear_interp_ex(iex, jex, kex, dx_ex, dy_ex, dz_ex)
-                        call trilinear_interp_ey(iey, jey, key, dx_ey, dy_ey, dz_ey)
-                        call trilinear_interp_ez(iez, jez, kez, dx_ez, dy_ez, dz_ez)
-                        Ex(iptl) = ex0
-                        Ey(iptl) = ey0
-                        Ez(iptl) = ez0
-                        Bx(iptl) = bx0
-                        By(iptl) = by0
-                        Bz(iptl) = bz0
-                    enddo
-                    call write_hdf5_parallel_real(ex_id, dcount, doffset, dset_dims, Ex)
-                    call write_hdf5_parallel_real(ey_id, dcount, doffset, dset_dims, Ey)
-                    call write_hdf5_parallel_real(ez_id, dcount, doffset, dset_dims, Ez)
-                    call write_hdf5_parallel_real(bx_id, dcount, doffset, dset_dims, Bx)
-                    call write_hdf5_parallel_real(by_id, dcount, doffset, dset_dims, By)
-                    call write_hdf5_parallel_real(bz_id, dcount, doffset, dset_dims, Bz)
-                    deallocate(dX, dY, dZ, icell)
-                    deallocate(Ex, Ey, Ez, Bx, By, Bz)
-                enddo ! x
-            enddo ! y
-        enddo ! z
-
-        call h5sclose_f(filespace, error)
-        call h5dclose_f(dset_id(4), error)
-        call h5dclose_f(dset_id(5), error)
-        call h5dclose_f(dset_id(6), error)
-        call h5dclose_f(dset_id(7), error)
-        call h5dclose_f(ex_id, error)
-        call h5dclose_f(ey_id, error)
-        call h5dclose_f(ez_id, error)
-        call h5dclose_f(bx_id, error)
-        call h5dclose_f(by_id, error)
-        call h5dclose_f(bz_id, error)
-        call h5gclose_f(group_id, error)
-        call h5fclose_f(file_id, error)
-    end subroutine get_particle_emf
+        current_num_dset = current_num_dset + 1
+    end subroutine create_emf_datasets
 
     !!--------------------------------------------------------------------------
     !! Open hdf5 file in parallel
@@ -464,6 +534,8 @@ program parallel_hdf5
         use mpi_io_translate, only: set_mpi_io
         use parameters, only: get_relativistic_flag, get_start_end_time_points, tp2
         use interpolation_emf, only: init_emfields
+        use interpolation_particle_fields, only: init_velocity_fields, &
+            init_number_density
         use neighbors_module, only: init_neighbors, get_neighbors
         implicit none
         integer :: nx, ny, nz
@@ -502,6 +574,8 @@ program parallel_hdf5
         call get_neighbors
 
         call init_emfields
+        call init_velocity_fields
+        call init_number_density
 
     end subroutine init_analysis
 
@@ -514,6 +588,8 @@ program parallel_hdf5
         use mpi_io_translate, only: datatype
         use mpi_info_module, only: fileinfo
         use interpolation_emf, only: free_emfields, free_emfields_derivatives
+        use interpolation_particle_fields, only: free_velocity_fields, &
+            free_number_density
         use particle_drift, only: free_drift_fields, free_para_perp_fields, &
                 free_jdote_sum
         use neighbors_module, only: free_neighbors
@@ -521,6 +597,8 @@ program parallel_hdf5
         implicit none
         call free_neighbors
         call free_emfields
+        call free_velocity_fields
+        call free_number_density
         call free_start_stop_cells
         call MPI_TYPE_FREE(datatype, ierror)
         call MPI_INFO_FREE(fileinfo, ierror)
