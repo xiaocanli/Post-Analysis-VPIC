@@ -134,7 +134,7 @@ module interpolation_emf
         inquire(file=trim(fname), exist=is_exist)
       
         if (is_exist) then 
-            open(unit=10, file=trim(fname), access='stream', status='unknown', &
+            open(unit=fh, file=trim(fname), access='stream', status='unknown', &
                  form='unformatted', action='read')
         else
             print *, "Can't find file:", fname
