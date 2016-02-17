@@ -27,7 +27,7 @@ font = {'family' : 'serif',
         'size'   : 24,
         }
 
-def particle_energy(iptl, particle_tags, pic_info, odir):
+def particle_energy(iptl, particle_tags, pic_info, stride, odir):
     group = file[particle_tags[iptl]]
     dset_ux = group['Ux']
     sz, = dset_ux.shape
@@ -40,6 +40,9 @@ def particle_energy(iptl, particle_tags, pic_info, odir):
     Ex = np.zeros(sz)
     Ey = np.zeros(sz)
     Ez = np.zeros(sz)
+    vx = np.zeros(sz)
+    vy = np.zeros(sz)
+    vz = np.zeros(sz)
     dset_ux = group['Ux']
     dset_uy = group['Uy']
     dset_uz = group['Uz']
@@ -49,6 +52,9 @@ def particle_energy(iptl, particle_tags, pic_info, odir):
     dset_ex = group['Ex']
     dset_ey = group['Ey']
     dset_ez = group['Ez']
+    dset_vx = group['Vx']
+    dset_vy = group['Vy']
+    dset_vz = group['Vz']
     dset_ux.read_direct(ux)
     dset_uy.read_direct(uy)
     dset_uz.read_direct(uz)
@@ -58,6 +64,9 @@ def particle_energy(iptl, particle_tags, pic_info, odir):
     dset_ex.read_direct(Ex)
     dset_ey.read_direct(Ey)
     dset_ez.read_direct(Ez)
+    dset_vx.read_direct(vx)
+    dset_vy.read_direct(vy)
+    dset_vz.read_direct(vz)
 
     gama = np.sqrt(ux*ux + uy*uy + uz*uz + 1) - 1.0
 
@@ -72,11 +81,17 @@ def particle_energy(iptl, particle_tags, pic_info, odir):
     jdote_para = -(ux*Eparax + uy*Eparay + uz*Eparaz) / gama
     jdote_perp = -(ux*Eperpx + uy*Eperpy + uz*Eperpz) / gama
 
+    Einx = vz*By - vy*Bz
+    Einy = vx*Bz - vz*Bx
+    Einz = vy*Bx - vx*By
+    jdote_in = -(ux*Einx + uy*Einy + uz*Einz) / gama
+
     dtwci = pic_info.dtwci
     dtwpe = pic_info.dtwpe
     dt = pic_info.dt_fields * dtwpe / dtwci
-    jdote_para_cum = np.cumsum(jdote_para) * dt
-    jdote_perp_cum = np.cumsum(jdote_perp) * dt
+    jdote_para_cum = np.cumsum(jdote_para[::stride]) * dt * stride
+    jdote_perp_cum = np.cumsum(jdote_perp[::stride]) * dt * stride
+    jdote_in_cum = np.cumsum(jdote_in[::stride]) * dt * stride
     jdote_tot_cum = jdote_para_cum + jdote_perp_cum
     tfields = np.arange(sz) * dt
 
@@ -84,18 +99,20 @@ def particle_energy(iptl, particle_tags, pic_info, odir):
     xs, ys = 0.13, 0.13
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(tfields, jdote_tot_cum, linewidth=2, color='r', 
-            label=r'$\int q\mathbf{v}\cdot\mathbf{E}$')
+    ax.plot(tfields[::stride], jdote_tot_cum, linewidth=2, color='r', 
+            label=r'$\int q\boldsymbol{v}\cdot\boldsymbol{E}$')
     ax.plot(tfields, gama, linewidth=2, color='k', label=r'$\gamma$')
-    ax.plot(tfields, jdote_para_cum, linewidth=2, color='g',
-            label=r'$\int q\mathbf{v}_\parallel\cdot\mathbf{E}$')
-    ax.plot(tfields, jdote_perp_cum, linewidth=2, color='b',
-            label=r'$\int q\mathbf{v}_\perp\cdot\mathbf{E}$')
-    leg = ax.legend(loc=7, prop={'size':20}, ncol=1,
+    ax.plot(tfields[::stride], jdote_para_cum, linewidth=2, color='g',
+            label=r'$\int q\boldsymbol{v}_\parallel\cdot\boldsymbol{E}$')
+    ax.plot(tfields[::stride], jdote_perp_cum, linewidth=2, color='b',
+            label=r'$\int q\boldsymbol{v}_\perp\cdot\boldsymbol{E}$')
+    ax.plot(tfields[::stride], jdote_in_cum, linewidth=2, color='m',
+            label=r'$\int q\boldsymbol{v}_\perp\cdot\boldsymbol{E}_{vB}$')
+    leg = ax.legend(loc=4, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
     ax.tick_params(labelsize=16)
     ax.set_xlabel(r'$t\Omega_{pe}$', fontdict=font, fontsize=24)
-    fname = odir + 'ptl_ene_' + str(iptl) + '.eps'
+    fname = odir + 'ptl_ene_' + str(iptl) + '_' + str(stride) + '.eps'
     plt.savefig(fname)
     # plt.show()
     plt.close()
@@ -120,7 +137,9 @@ if __name__ == "__main__":
     odir = '../img/ptl_ene/'
     if not os.path.isdir(odir):
         os.makedirs(odir)
-    for iptl in range(nptl):
-        print(iptl)
-        particle_energy(iptl, particle_tags, pic_info, odir)
+    for i in range(4):
+        stride = 2**i
+        for iptl in range(0,10):
+            print(iptl)
+            particle_energy(iptl, particle_tags, pic_info, stride, odir)
     file.close()
