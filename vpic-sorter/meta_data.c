@@ -151,22 +151,25 @@ void read_vpic_meta_data_h5(int dataset_num, hsize_t *dims_out,
  *  my_data_size: the data size on current MPI process.
  *  row_size: the size of one record of all dataset.
  *  max_type_size the maximum data size of all datasets.
+ *  dname_array: the HDF5 dataset information.
+ *  dataset_num: number of datasets.
  *
  * Input & output:
  *  package_data: the package includes all of the particle information.
  ******************************************************************************/
 void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
         int max_type_size, hsize_t my_data_size, char* filename_meta,
-        char *group_name, char *package_data)
+        char *group_name, dset_name_item *dname_array, int dataset_num,
+        char *package_data)
 {
     float cell_sizes[3];
     int grid_dims[3];
-    int dataset_num;
+    int dataset_num_meta;
     int *np_local;
     long int *np_global;
     float *x0, *y0, *z0;
     int dim;
-    dset_name_item *dname_array;
+    dset_name_item *dname_array_meta;
     int j, xindex, yindex, zindex, icell_index;
     hsize_t i;
 
@@ -175,10 +178,10 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
 
     /* Get the data size */
     if (mpi_rank == 0) {
-        dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM *
+        dname_array_meta = (dset_name_item *)malloc(MAX_DATASET_NUM *
                 sizeof(dset_name_item));
         open_file_group_dset(filename_meta, group_name, &file_id, &group_id,
-                dname_array, dims_out, &dataset_num);
+                dname_array_meta, dims_out, &dataset_num_meta);
         dim = (int)dims_out[0];
         xindex = get_dataset_index("dX", dname_array, dataset_num);
         yindex = get_dataset_index("dY", dname_array, dataset_num);
@@ -201,7 +204,7 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
 
     /* Read the data and broadcast to all MPI processes */
     if (mpi_rank == 0) {
-        read_vpic_meta_data_h5(dataset_num, dims_out, dname_array,
+        read_vpic_meta_data_h5(dataset_num_meta, dims_out, dname_array_meta,
                 cell_sizes, grid_dims, np_local, x0, y0, z0);
     }
 
@@ -293,7 +296,7 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
     free(np_local);
     free(np_global);
     if (mpi_rank == 0) {
-        free(dname_array);
+        free(dname_array_meta);
         H5Gclose(group_id);
         H5Fclose(file_id);
     }

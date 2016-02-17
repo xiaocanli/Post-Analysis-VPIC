@@ -124,6 +124,7 @@ int main(int argc, char **argv){
     if (multi_tsteps) {
         for (int i = 0; i < ntf; i++) {
             tstep = i * tinterval;
+            if (mpi_rank == 0) printf("%d\n", tstep);
             set_filenames(tstep, filepath, species, filename, group_name,
                     filename_sorted, filename_attribute, filename_meta);
             final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
@@ -216,7 +217,8 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
             ux_kindex);
 
     calc_particle_positions(mpi_rank, my_offset, row_size, max_type_size,
-            my_data_size, filename_meta, group_name, package_data);
+            my_data_size, filename_meta, group_name, dname_array,
+            dataset_num, package_data);
 
     /* master:  also do slave's job. In addition, it is responsible for samples and pivots */
     /* slave:   (1) sorts. (2) samples (3) sends sample to master (4) receives pivots */
