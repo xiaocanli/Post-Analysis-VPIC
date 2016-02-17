@@ -216,7 +216,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
             ux_kindex);
 
     calc_particle_positions(mpi_rank, my_offset, row_size, max_type_size,
-            my_data_size, filename_meta, group_name, package_data, ux_kindex);
+            my_data_size, filename_meta, group_name, package_data);
 
     /* master:  also do slave's job. In addition, it is responsible for samples and pivots */
     /* slave:   (1) sorts. (2) samples (3) sends sample to master (4) receives pivots */

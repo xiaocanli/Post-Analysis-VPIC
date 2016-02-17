@@ -9,6 +9,7 @@
 #include "constants.h"
 #include "vpic_data.h"
 #include "get_data.h"
+#include "tracked_particle.h"
 
 /******************************************************************************
  * Read data from HDF5 file using one process.
@@ -156,7 +157,7 @@ void read_vpic_meta_data_h5(int dataset_num, hsize_t *dims_out,
  ******************************************************************************/
 void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
         int max_type_size, hsize_t my_data_size, char* filename_meta,
-        char *group_name, char *package_data, int ux_kindex)
+        char *group_name, char *package_data)
 {
     float cell_sizes[3];
     int grid_dims[3];
@@ -166,8 +167,8 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
     float *x0, *y0, *z0;
     int dim;
     dset_name_item *dname_array;
+    int j, xindex, yindex, zindex, icell_index;
     hsize_t i;
-    int j;
 
     hid_t file_id, group_id;
     hsize_t dims_out[1];
@@ -179,10 +180,18 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
         open_file_group_dset(filename_meta, group_name, &file_id, &group_id,
                 dname_array, dims_out, &dataset_num);
         dim = (int)dims_out[0];
+        xindex = get_dataset_index("dX", dname_array, dataset_num);
+        yindex = get_dataset_index("dY", dname_array, dataset_num);
+        zindex = get_dataset_index("dZ", dname_array, dataset_num);
+        icell_index = get_dataset_index("i", dname_array, dataset_num);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Bcast(&dim, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&xindex, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&yindex, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&zindex, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&icell_index, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     np_local = (int *)malloc(dim * sizeof(int));
     np_global = (long int *)malloc(dim * sizeof(long int));
@@ -249,14 +258,9 @@ void calc_particle_positions(int mpi_rank, hsize_t my_offset, int row_size,
     float px, py, pz;
     float x0c, y0c, z0c;
     int icell, ix, iy, iz, nxg, nyg;
-    int xindex, yindex, zindex, icell_index;
     offset = 0;
     nxg = grid_dims[0] + 2; // with ghost cells.
     nyg = grid_dims[1] + 2;
-    xindex = ux_kindex + 3;
-    yindex = ux_kindex + 4;
-    zindex = ux_kindex + 5;
-    icell_index = ux_kindex + 6;
     for (j = 0; j < endp - startp + 1; j++) {
         x0c = x0[j+startp];
         y0c = y0[j+startp];
