@@ -19,7 +19,7 @@
 
 int get_configuration(int argc, char **argv, int mpi_rank, char *fpath_binary,
         char *fpath_hdf5, char *species, int *tmax, int *tmin, int *tinterval,
-        int *ncpus);
+        int *ncpus, int *dataset_num);
 void print_help(void);
 void read_header(FILE *fp, int *nptl, float *q_m, double *t);
 dset_name_item *set_dname_array(int dataset_num);
@@ -39,6 +39,7 @@ int main(int argc, char **argv)
     char *fpath_binary, *fpath_hdf5, *species, *fname_binary, *fname_hdf5;
     char *group_name;
     int tmax, tmin, tinterval, tstep;
+    int dataset_num;
     double t0, t1;
 
     MPI_Comm comm = MPI_COMM_WORLD;
@@ -56,11 +57,11 @@ int main(int argc, char **argv)
     group_name = (char *)malloc(32 * sizeof(char));
 
     get_configuration(argc, argv, mpi_rank, fpath_binary, fpath_hdf5,
-        species, &tmax, &tmin, &tinterval, &ncpus);
+        species, &tmax, &tmin, &tinterval, &ncpus, &dataset_num);
 
     /* The variables are required to use the sorting procedures for HDF5 */
     dset_name_item *dname_array;
-    int max_type_size, dataset_num, row_size;
+    int max_type_size, row_size;
     max_type_size = 4;
     dataset_num = 13;
     row_size = dataset_num * max_type_size;
@@ -226,10 +227,10 @@ void read_header(FILE *fp, int *nptl, float *q_m, double *t)
  ******************************************************************************/
 int get_configuration(int argc, char **argv, int mpi_rank, char *fpath_binary,
         char *fpath_hdf5, char *species, int *tmax, int *tmin, int *tinterval,
-        int *ncpus)
+        int *ncpus, int *dataset_num)
 {
     int c;
-    static const char *options="e:s:i:f:p:n:d:";
+    static const char *options="e:s:i:f:p:n:d:m:";
     static struct option long_options[] = 
     {
         {"tmax", required_argument, 0, 'e'},
@@ -239,6 +240,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, char *fpath_binary,
         {"fpath_hdf5", required_argument, 0, 'd'},
         {"species", required_argument, 0, 'p'},
         {"ncpus", required_argument, 0, 'n'},
+        {"dataset_num", required_argument, 0, 'm'},
         {0, 0, 0, 0},
     };
     /* getopt_long stores the option index here. */
@@ -251,6 +253,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, char *fpath_binary,
     *tmax = 12;
     *tinterval = 6;
     *ncpus = 256;
+    *dataset_num = 8;
 
     while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
         switch (c){
@@ -274,6 +277,9 @@ int get_configuration(int argc, char **argv, int mpi_rank, char *fpath_binary,
                 break;
             case 'n':
                 *ncpus = atoi(optarg);
+                break;
+            case 'm':
+                *dataset_num = atoi(optarg);
                 break;
             case 'h':
                 if (mpi_rank == 0) {
@@ -299,6 +305,7 @@ void print_help(void)
                -s the particle output minimum time step \n\
                -i the particle output time interval \n\
                -n number of CPUs to use \n\
+               -n number of datasets \n\
                -f file path of the binary data \n\
                -f file path to save the HDF5 data \n\
                -p  particle species for sorting \n";
