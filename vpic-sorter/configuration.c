@@ -20,10 +20,10 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         char *filename_attribute, char *filename_meta, char *filepath,
         char *species, int *tmax, int *tinterval, int *multi_tsteps,
         int *ux_kindex, char *filename_traj, int *nptl_traj, float *ratio_emax,
-        int *tracking_traj)
+        int *tracking_traj, int *load_tracer_meta)
 {
     int c;
-    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:pu:q";
+    static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:pu:qr";
     static struct option long_options[] = 
     {
         {"tmax", required_argument, 0, 'b'},
@@ -33,6 +33,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         {"filename_traj", required_argument, 0, 3},
         {"nptl_traj", required_argument, 0, 4},
         {"ratio_emax", required_argument, 0, 5},
+        {"load_tracer_meta", required_argument, 0, 'r'},
         {0, 0, 0, 0},
     };
     /* getopt_long stores the option index here. */
@@ -56,6 +57,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *nptl_traj = 10;
     *ratio_emax = 1;
     *tracking_traj = 0;
+    *load_tracer_meta = 0;
 
     /* while ((c = getopt (argc, argv, options)) != -1){ */
     while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
@@ -131,6 +133,9 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 5:
                 *ratio_emax = atof(optarg);
                 break;
+            case 'r':
+                *load_tracer_meta = 1;
+                break;
             case 'p':
                 *multi_tsteps = 1;
                 break;
@@ -172,6 +177,7 @@ void print_help(){
                -p run sorting for multiple time steps \n\
                -u the key index of ux \n\
                -q tracking the trajectories of particles\n\
+               -r whether to load tracer meta data \n\
                --filepath file path saving the particle tracing data \n\
                --species particle species for sorting \n\
                --filename_traj output file for particle trajectories \n\
