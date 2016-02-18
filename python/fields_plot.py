@@ -72,6 +72,10 @@ class PlotMultiplePanels(object):
             self.fdata_1d = kwargs["fdata_1d"]
         else:
             self.bottom_panel = False
+        if "nlevels_contour" in kwargs:
+            self.nlevels_contour = kwargs["nlevels_contour"]
+        else:
+            self.nlevels_contour = 0
 
         # Whether to use multiple Ay
         if "is_multi_Ay" in kwargs:
@@ -102,16 +106,36 @@ class PlotMultiplePanels(object):
                 self.cbar.append(cbar1)
                 im1.set_cmap(plt.cm.get_cmap(self.colormaps[ip]))
                 if not self.is_multi_Ay:
-                    co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
-                            self.z[0:self.nz:self.zstep],
-                            self.Ay[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
-                            colors=self.contour_color[ip], linewidths=0.5)
+                    if self.nlevels_contour == 0:
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                self.Ay[0:self.nz:self.zstep,
+                                    0:self.nx:self.xstep], 
+                                colors=self.contour_color[ip], linewidths=0.5)
+                    else:
+                        self.levels = np.linspace(np.min(self.Ay),
+                                np.max(self.Ay), self.nlevels_contour)
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                self.Ay[0:self.nz:self.zstep,
+                                    0:self.nx:self.xstep], 
+                                colors=self.contour_color[ip], linewidths=0.5,
+                                levels=self.levels)
                 else:
                     Ay1 = self.Ay[ip]
-                    co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
-                            self.z[0:self.nz:self.zstep],
-                            Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
-                            colors=self.contour_color[ip], linewidths=0.5)
+                    if self.nlevels_contour == 0:
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep],
+                                colors=self.contour_color[ip], linewidths=0.5)
+                    else:
+                        self.levels = np.linspace(np.min(Ay1),
+                                np.max(Ay1), self.nlevels_contour)
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep],
+                                colors=self.contour_color[ip], linewidths=0.5,
+                                levels=self.levels)
                 self.co.append(co1)
                 self.ax1.tick_params(labelsize=16)
                 self.ax1.tick_params(axis='x', labelbottom='off')
