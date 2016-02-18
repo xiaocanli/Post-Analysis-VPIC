@@ -7,9 +7,10 @@ module commandline_arguments
     use cla
     implicit none
     private
-    public is_species, is_config_dist, is_emax_cell
-    public get_cmdline_arguments
-    logical :: is_species, is_config_dist, is_emax_cell
+    public is_species, is_config_dist, is_emax_cell, dir_tracer_hdf5
+    public get_cmdline_arguments, get_dir_tracer_hdf5
+    logical :: is_species, is_config_dist, is_emax_cell, is_dir_tracer_hdf5
+    character(len=32) :: dir_tracer_hdf5
     
     contains
 
@@ -24,6 +25,25 @@ module commandline_arguments
         call get_config_dist
         call get_emax_cell_flag
     end subroutine get_cmdline_arguments
+
+    !---------------------------------------------------------------------------
+    ! Get the directory that saving the particle tracking data in HDF5 format
+    !---------------------------------------------------------------------------
+    subroutine get_dir_tracer_hdf5
+        implicit none
+        character(len=STRLEN) :: dir
+        logical :: log1, log2
+        call cla_init
+        dir = 'tracer'
+        call cla_register('-d', '--dir_tracer_hdf5', 'str', cla_char, dir)
+        log1 = cla_key_present('-d')
+        log2 = cla_key_present('--dir_tracer_hdf5')
+        is_dir_tracer_hdf5 = log1 .or. log2
+        call cla_get('-d', dir)
+        dir_tracer_hdf5 = dir
+        write(*, '(A,A)') ' The directory of the tracer in HDF5: ', &
+            dir_tracer_hdf5
+    end subroutine get_dir_tracer_hdf5
 
     !---------------------------------------------------------------------------
     ! Get particle species.
