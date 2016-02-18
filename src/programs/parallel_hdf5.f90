@@ -6,6 +6,7 @@ program parallel_hdf5
     use mpi_module
     use path_info, only: rootpath
     use particle_info, only: species
+    use commandline_arguments, only: dir_tracer_hdf5
     use hdf5
     implicit none
     integer :: ct
@@ -26,18 +27,18 @@ program parallel_hdf5
 
     call init_analysis
 
-    do ct = 0, 14329, 7
+    do ct = 0, 5, 5
         if (myid == master) print*, ct
         write(ct_char, "(I0)") ct
         current_num_dset = num_dset
-        filename = trim(adjustl(rootpath))//"/tracer/T."
+        filename = trim(adjustl(rootpath))//"/"//trim(dir_tracer_hdf5)//"/T."
         filename = trim(filename)//trim(ct_char)//"/electron_tracer.h5p"
-        filename_metadata = trim(adjustl(rootpath))//"/tracer/T."
+        filename_metadata = trim(adjustl(rootpath))//"/"//trim(dir_tracer_hdf5)//"/T."
         filename_metadata = trim(filename_metadata)//trim(ct_char)
         filename_metadata = trim(filename_metadata)//"/grid_metadata_electron_tracer.h5p"
         groupname = "Step#"//trim(ct_char)
         call get_np_local_vpic(filename_metadata, groupname)
-        call get_particle_emf(filename, groupname, ct, 0)
+        ! call get_particle_emf(filename, groupname, ct, 0)
         call free_np_offset_local
     enddo
 
@@ -538,6 +539,7 @@ program parallel_hdf5
         use interpolation_particle_fields, only: init_velocity_fields, &
             init_number_density
         use neighbors_module, only: init_neighbors, get_neighbors
+        use commandline_arguments, only: get_dir_tracer_hdf5
         implicit none
         integer :: nx, ny, nz
 
@@ -545,6 +547,7 @@ program parallel_hdf5
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
         call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
+        call get_dir_tracer_hdf5
         call get_ptl_mass_charge(species)
         call get_file_paths
         if (myid == master) then
