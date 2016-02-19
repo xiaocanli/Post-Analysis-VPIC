@@ -453,32 +453,40 @@ module pic_fields
         character(*), intent(in) :: species
         character(len=100) :: fname
         character(len=1) :: vel
-        logical :: ex
+        logical :: ex, is_opened
         integer :: file_size
 
         vfields_fh = 0
         ex = .false.
         ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
         fname = trim(adjustl(filepath))//'v'//species//'x.gda'
-        inquire(file=fname, exist=ex, size=file_size)
+        inquire(file=fname, exist=ex, size=file_size, opened=is_opened)
         if (ex .and. file_size .ne. 0) then
             vel = 'v'
         else
             vel = 'u'
         endif
-        fname = trim(adjustl(filepath))//vel//species//'x.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
-        fname = trim(adjustl(filepath))//vel//species//'y.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
-        fname = trim(adjustl(filepath))//vel//species//'z.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
-        if (is_rel == 1) then
-            fname = trim(adjustl(filepath))//'u'//species//'x.gda'
-            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
-            fname = trim(adjustl(filepath))//'u'//species//'y.gda'
-            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
-            fname = trim(adjustl(filepath))//'u'//species//'z.gda'
-            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+        if (.not. is_opened) then
+            fname = trim(adjustl(filepath))//vel//species//'x.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_fh(1))
+            fname = trim(adjustl(filepath))//vel//species//'y.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_fh(2))
+            fname = trim(adjustl(filepath))//vel//species//'z.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_fh(3))
+            if (is_rel == 1) then
+                fname = trim(adjustl(filepath))//'u'//species//'x.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                    ufields_fh(1))
+                fname = trim(adjustl(filepath))//'u'//species//'y.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                    ufields_fh(2))
+                fname = trim(adjustl(filepath))//'u'//species//'z.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                    ufields_fh(3))
+            endif
         endif
     end subroutine open_velocity_field_files_single
 
@@ -489,9 +497,13 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         character(len=100) :: fname
+        logical :: is_opened
         nrho_fh = 0
         fname = trim(adjustl(filepath))//'n'//species//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+        inquire(file=fname, opened=is_opened)
+        if (.not. is_opened) then
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+        endif
     end subroutine open_number_density_file_single
 
     !---------------------------------------------------------------------------
@@ -627,32 +639,34 @@ module pic_fields
         character(len=100) :: fname
         character(len=16) :: cfname
         character(len=1) :: vel
-        logical :: ex
+        logical :: ex, is_opened
         integer :: file_size
 
         write(cfname, "(I0)") tindex
         vfields_fh = 0
         ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
         fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
-        inquire(file=fname, exist=ex, size=file_size)
+        inquire(file=fname, exist=ex, size=file_size, opened=is_opened)
         if (ex .and. file_size .ne. 0) then
             vel = 'v'
         else
             vel = 'u'
         endif
-        fname = trim(adjustl(filepath))//vel//species//'x_'//trim(cfname)//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
-        fname = trim(adjustl(filepath))//vel//species//'y_'//trim(cfname)//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
-        fname = trim(adjustl(filepath))//vel//species//'z_'//trim(cfname)//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
-        if (is_rel == 1) then
-            fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'.gda'
-            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
-            fname = trim(adjustl(filepath))//'u'//species//'y_'//trim(cfname)//'.gda'
-            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
-            fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'.gda'
-            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+        if (.not. is_opened) then
+            fname = trim(adjustl(filepath))//vel//species//'x_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
+            fname = trim(adjustl(filepath))//vel//species//'y_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
+            fname = trim(adjustl(filepath))//vel//species//'z_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
+            if (is_rel == 1) then
+                fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
+                fname = trim(adjustl(filepath))//'u'//species//'y_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
+                fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+            endif
         endif
     end subroutine open_velocity_field_files_multiple
 
@@ -668,10 +682,14 @@ module pic_fields
         integer, intent(in) :: tindex
         character(len=100) :: fname
         character(len=16) :: cfname
+        logical :: is_opened
         write(cfname, "(I0)") tindex
         nrho_fh = 0
         fname = trim(adjustl(filepath))//'n'//species//'_'//trim(cfname)//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+        inquire(file=fname, opened=is_opened)
+        if (.not. is_opened) then
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+        endif
     end subroutine open_number_density_file_multiple
 
     !---------------------------------------------------------------------------
@@ -862,13 +880,17 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_velocity_field_files
         implicit none
-        call MPI_FILE_CLOSE(vfields_fh(1), ierror)
-        call MPI_FILE_CLOSE(vfields_fh(2), ierror)
-        call MPI_FILE_CLOSE(vfields_fh(3), ierror)
-        if (is_rel == 1) then
-            call MPI_FILE_CLOSE(ufields_fh(1), ierror)
-            call MPI_FILE_CLOSE(ufields_fh(2), ierror)
-            call MPI_FILE_CLOSE(ufields_fh(3), ierror)
+        logical :: is_opened
+        inquire(vfields_fh(1), opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(vfields_fh(1), ierror)
+            call MPI_FILE_CLOSE(vfields_fh(2), ierror)
+            call MPI_FILE_CLOSE(vfields_fh(3), ierror)
+            if (is_rel == 1) then
+                call MPI_FILE_CLOSE(ufields_fh(1), ierror)
+                call MPI_FILE_CLOSE(ufields_fh(2), ierror)
+                call MPI_FILE_CLOSE(ufields_fh(3), ierror)
+            endif
         endif
     end subroutine close_velocity_field_files
 
@@ -877,7 +899,11 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine close_number_density_file
         implicit none
-        call MPI_FILE_CLOSE(nrho_fh, ierror)
+        logical :: is_opened
+        inquire(nrho_fh, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(nrho_fh, ierror)
+        endif
     end subroutine close_number_density_file
 
     !---------------------------------------------------------------------------
