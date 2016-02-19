@@ -153,10 +153,17 @@ module usingle
         implicit none
         character(*), intent(in) :: species
         integer :: i
-        do i = 1, 3
-            call MPI_FILE_CLOSE(fh_vel(i), ierror)
-        enddo
-        call MPI_FILE_CLOSE(fh_nrho)
+        logical :: is_opened
+        inquire(fh_vel(1), opened=is_opened)
+        if (is_opened) then
+            do i = 1, 3
+                call MPI_FILE_CLOSE(fh_vel(i), ierror)
+            enddo
+        endif
+        inquire(fh_nrho, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(fh_nrho)
+        endif
     end subroutine close_velocity_density_files_s
 
     !---------------------------------------------------------------------------
@@ -166,12 +173,22 @@ module usingle
         use mpi_module
         implicit none
         integer :: i
-        do i = 1, 3
-            call MPI_FILE_CLOSE(fh_vel(i), ierror)
-            call MPI_FILE_CLOSE(fh_vel_b(i), ierror)
-        enddo
-        call MPI_FILE_CLOSE(fh_nrho)
-        call MPI_FILE_CLOSE(fh_nrho_b)
+        logical :: is_opened
+        inquire(fh_vel(1), opened=is_opened)
+        if (is_opened) then
+            do i = 1, 3
+                call MPI_FILE_CLOSE(fh_vel(i), ierror)
+                call MPI_FILE_CLOSE(fh_vel_b(i), ierror)
+            enddo
+        endif
+        inquire(fh_nrho, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(fh_nrho)
+        endif
+        inquire(fh_nrho_b, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(fh_nrho_b)
+        endif
     end subroutine close_velocity_density_files_b
 
     !---------------------------------------------------------------------------
