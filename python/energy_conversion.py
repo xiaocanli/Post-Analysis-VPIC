@@ -203,7 +203,7 @@ def plot_particle_energy_gain():
             rotation=0, fontsize=16)
     plt.show()
 
-def read_jdote_data(species, rootpath='../../'):
+def read_jdote_data(species, rootpath='../../', is_inductive=False):
     """Read j.E data.
 
     Args:
@@ -216,7 +216,10 @@ def read_jdote_data(species, rootpath='../../'):
     dt_fields = pic_info.dt_fields
     dtf_wpe = dt_fields * pic_info.dtwpe / pic_info.dtwci
     fpath_jdote = rootpath + 'pic_analysis/data/'
-    fname = fpath_jdote + "jdote00_" + species + ".gda"
+    if is_inductive:
+        fname = fpath_jdote + "jdote_in00_" + species + ".gda"
+    else:
+        fname = fpath_jdote + "jdote00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -659,7 +662,7 @@ def plot_energy_evolution_multi():
         plt.close()
 
 
-def save_jdote_json(species):
+def save_jdote_json(species, is_inductive=False):
     """Save jdote data for different runs as json
 
     Args:
@@ -673,9 +676,13 @@ def save_jdote_json(species):
 
     base_dirs, run_names = ApJ_long_paper_runs()
     for base_dir, run_name in zip(base_dirs, run_names):
-        jdote = read_jdote_data(species, base_dir)
+        if is_inductive:
+            jdote = read_jdote_data(species, base_dir, is_inductive)
+            fname = dir + 'jdote_in_' + run_name + '_' + species + '.json'
+        else:
+            jdote = read_jdote_data(species, base_dir)
+            fname = dir + 'jdote_' + run_name + '_' + species + '.json'
         jdote_json = data_to_json(jdote)
-        fname = dir + 'jdote_' + run_name + '_' + species + '.json'
         with open(fname, 'w') as f:
             json.dump(jdote_json, f)
 
@@ -700,8 +707,8 @@ def plot_jpara_jperp_dote_multi():
         plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
         oname = odir + 'jpp_' + run_name + '.eps'
         plt.savefig(oname)
-        # plt.show()
-        plt.close()
+        plt.show()
+        # plt.close()
 
 
 def plot_jdotes_evolution_multi(species):
@@ -1047,10 +1054,12 @@ if __name__ == "__main__":
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
-    # save_jdote_json('e')
-    # save_jdote_json('i')
+    save_jdote_json('e')
+    save_jdote_json('i')
+    save_jdote_json('e', True)
+    save_jdote_json('i', True)
     # plot_jpara_jperp_dote_multi()
     # plot_jdotes_evolution_multi('e')
     # calc_jdotes_fraction_multi('e')
     # plot_jdotes_evolution_both_multi()
-    plot_jpolar_dote_evolution_both_multi()
+    # plot_jpolar_dote_evolution_both_multi()
