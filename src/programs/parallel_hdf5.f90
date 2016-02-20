@@ -14,7 +14,6 @@ program parallel_hdf5
     integer, parameter :: rank = 1
     integer, parameter :: num_dset = 8
     integer(hid_t), dimension(num_dset) :: dset_id
-    character(len=16), dimension(num_dset) :: dset_name
     integer, allocatable, dimension(:) :: np_local, offset_local
     integer :: error
     character(len=256) :: filename, filename_metadata
@@ -84,7 +83,6 @@ program parallel_hdf5
         integer, allocatable, dimension(:) :: icell
         integer :: storage_type, nlinks, max_corder
         dset_id = 0
-        dset_name = (/"Ux", "Uy", "Uz", "dX", "dY", "dZ", "i", "q"/)
 
         call open_hdf5_parallel(filename, groupname, file_id, group_id)
         call h5gget_info_f(group_id, storage_type, nlinks, max_corder, error)
@@ -508,9 +506,12 @@ program parallel_hdf5
         integer(hsize_t), intent(in) :: dset_dims
         integer(hsize_t), intent(out) :: dcount, doffset
         integer(hsize_t) :: rest_size
+        integer(hsize_t) :: numprocs_ht
         dcount = dset_dims / numprocs
         doffset = dcount * myid
-        rest_size = mod(dset_dims, numprocs)
+        ! Avoiding gcc complains about type mismatch
+        numprocs_ht = int(numprocs, hsize_t)
+        rest_size = mod(dset_dims, numprocs_ht)
         if (myid < rest_size) then
             dcount = dcount + 1
             doffset = doffset + myid
