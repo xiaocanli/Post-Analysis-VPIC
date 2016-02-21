@@ -326,13 +326,13 @@ module usingle
         implicit none
         character(*), intent(in) :: species
         if (species == 'e') then
-            vsx = (vsx*mime*nrho_a + vx*num_rho) / (mime*nrho_a + num_rho)
-            vsy = (vsy*mime*nrho_a + vy*num_rho) / (mime*nrho_a + num_rho)
-            vsz = (vsz*mime*nrho_a + vz*num_rho) / (mime*nrho_a + num_rho)
-        else
             vsx = (vsx*nrho_a + vx*mime*num_rho) / (mime*num_rho + nrho_a)
             vsy = (vsy*nrho_a + vy*mime*num_rho) / (mime*num_rho + nrho_a)
             vsz = (vsz*nrho_a + vz*mime*num_rho) / (mime*num_rho + nrho_a)
+        else
+            vsx = (vsx*mime*nrho_a + vx*num_rho) / (mime*nrho_a + num_rho)
+            vsy = (vsy*mime*nrho_a + vy*num_rho) / (mime*nrho_a + num_rho)
+            vsz = (vsz*mime*nrho_a + vz*num_rho) / (mime*nrho_a + num_rho)
         endif
     end subroutine calc_usingle_s
 
