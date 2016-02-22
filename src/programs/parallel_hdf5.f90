@@ -26,7 +26,7 @@ program parallel_hdf5
 
     call init_analysis
 
-    do ct = 0, 5, 5
+    do ct = 0, 98, 7
         if (myid == master) print*, ct
         write(ct_char, "(I0)") ct
         current_num_dset = num_dset
@@ -37,7 +37,7 @@ program parallel_hdf5
         filename_metadata = trim(filename_metadata)//"/grid_metadata_electron_tracer.h5p"
         groupname = "Step#"//trim(ct_char)
         call get_np_local_vpic(filename_metadata, groupname)
-        ! call get_particle_emf(filename, groupname, ct, 0)
+        call get_particle_emf(filename, groupname, ct, 0)
         call free_np_offset_local
     enddo
 
@@ -183,6 +183,7 @@ program parallel_hdf5
         call h5dclose_f(dset_id(7), error)
         call h5gclose_f(group_id, error)
         call h5fclose_f(file_id, error)
+        call h5close_f(error)
     end subroutine get_particle_emf
 
     !!--------------------------------------------------------------------------
