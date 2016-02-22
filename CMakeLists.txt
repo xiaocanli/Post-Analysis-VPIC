@@ -46,6 +46,9 @@ elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g -traceback -check all \
     -check bounds -check uninit -debug all -check arg_temp_created \
     -fpe0 -ftrapuv -fPIC -cpp")
+elseif (Fortran_COMPILER_NAME MATCHES "ftn.*")
+  set (CMAKE_Fortran_FLAGS_RELEASE "-xHost -O3 -no-prec-div -fPIC -cpp")
+  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g -fPIC -cpp")
 elseif (Fortran_COMPILER_NAME MATCHES "g77")
   # g77
   set (CMAKE_Fortran_FLAGS_RELEASE "-funroll-all-loops -fno-f2c -O3 -m32")
