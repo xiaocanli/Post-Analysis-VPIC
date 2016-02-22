@@ -2,6 +2,7 @@
 !! Module of doing interpolation in particle fields
 !!******************************************************************************
 module interpolation_particle_fields
+    use mpi_module
     use constants, only: fp
     implicit none
     private
@@ -110,24 +111,36 @@ module interpolation_particle_fields
         character(*), intent(in) :: species, pos
         character(len=256) :: fname
         logical :: is_exist
-        integer :: tindex
+        integer :: tindex, is_exist_int
         tindex = tindex0
+        is_exist = .false.
+        is_exist_int = 0
         ! Index 0 does not have proper current, so use index 1 if it exists
         if (tindex == 0) then
             write(fname, "(A,I0,A,A,A,A,I0,A,I0)") &
                 trim(adjustl(rootpath))//"hydro/T.", &
                 1, "/", species, pos, "hydro.", 1, ".", pic_mpi_id
-            is_exist = .false.
-            inquire(file=trim(fname), exist=is_exist)
-            if (is_exist) tindex = 1
+            if (myid == master) then
+                inquire(file=trim(fname), exist=is_exist)
+                if (is_exist) is_exist_int = 1
+            endif
+            call MPI_BCAST(is_exist_int, 1, MPI_INTEGER, master, &
+                MPI_COMM_WORLD, ierr)
         endif
+        if (is_exist_int == 1) tindex = 1
         write(fname, "(A,I0,A,A,A,A,I0,A,I0)") &
             trim(adjustl(rootpath))//"hydro/T.", &
             tindex, "/", species, pos, "hydro.", tindex, ".", pic_mpi_id
         is_exist = .false.
-        inquire(file=trim(fname), exist=is_exist)
+        is_exist_int = 0
+        if (myid == master) then
+            inquire(file=trim(fname), exist=is_exist)
+            if (is_exist) is_exist_int = 1
+        endif
+        call MPI_BCAST(is_exist_int, 1, MPI_INTEGER, master, &
+            MPI_COMM_WORLD, ierr)
       
-        if (is_exist) then 
+        if (is_exist_int == 1) then 
             open(unit=fh, file=trim(fname), access='stream', status='unknown', &
                  form='unformatted', action='read')
         else
