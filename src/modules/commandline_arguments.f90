@@ -41,8 +41,10 @@ module commandline_arguments
         is_dir_tracer_hdf5 = log1 .or. log2
         call cla_get('-d', dir)
         dir_tracer_hdf5 = dir
-        write(*, '(A,A)') ' The directory of the tracer in HDF5: ', &
-            dir_tracer_hdf5
+        if (myid == master) then
+            write(*, '(A,A)') ' The directory of the tracer in HDF5: ', &
+                dir_tracer_hdf5
+        endif
     end subroutine get_dir_tracer_hdf5
 
     !---------------------------------------------------------------------------
