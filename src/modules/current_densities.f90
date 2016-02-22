@@ -967,7 +967,7 @@ module current_densities
         real(fp), intent(out) :: jpara_dote, jperp_dote
         real(fp), dimension(3), intent(out) :: jpara_avg, jperp_avg
         real(fp), allocatable, dimension(:, :, :) :: jdotb_over_b2
-        allocate(jdotb_over_b2(htg%nx, htg%ny, htg%nx))
+        allocate(jdotb_over_b2(htg%nx, htg%ny, htg%nz))
         jdotb_over_b2 = (jx*bx+jy*by+jz*bz)/(absB*absB)
         ! Parallel direction
         jx1 = jdotb_over_b2 * bx
