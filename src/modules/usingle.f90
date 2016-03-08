@@ -120,7 +120,7 @@ module usingle
     !   species: particle species. 'e' for electron. 'i' for ion.
     !   ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
     ! Outputs:
-    !   fh_vel_t, fh_nrho_t: file handlers 
+    !   fh_vel_t, fh_nrho_t: file handlers
     !---------------------------------------------------------------------------
     subroutine open_velocity_density_fieles_t(species, fh_vel_t, fh_nrho_t)
         use mpi_module
@@ -185,7 +185,7 @@ module usingle
 
     !---------------------------------------------------------------------------
     ! Open the data files of velocity fields and number density for both
-    ! species. 
+    ! species.
     !---------------------------------------------------------------------------
     subroutine open_velocity_density_files_b
         use path_info, only: filepath
@@ -268,7 +268,7 @@ module usingle
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
 
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
             disp, offset, vsx)
         call read_data_mpi_io(fh_vel(2), filetype_ghost, subsizes_ghost, &
@@ -295,7 +295,7 @@ module usingle
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
 
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         ! Electron
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
             disp, offset, vsx)
