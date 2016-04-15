@@ -481,33 +481,42 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
-    compression_data = np.zeros((ntf, 2))
+    compression_data = np.zeros((ntf, 6))
     index_start = 0
     index_end = 4
+    ndset = 6
     for ct in range(ntf):
-        for i in range(2):
+        for i in range(ndset):
             compression_data[ct, i], = \
                 struct.unpack('f', data[index_start:index_end])
             index_start = index_end
             index_end += 4
     div_u = compression_data[:, 0]
     pdiv_u = compression_data[:, 1]
+    div_usingle = compression_data[:, 2]
+    div_upara_usingle = compression_data[:, 3]
+    pdiv_usingle = compression_data[:, 4]
+    pdiv_upara_usingle = compression_data[:, 5]
 
     fname = root_dir + "shear00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
-    shear_data = np.zeros((ntf, 2))
+    shear_data = np.zeros((ntf, ndset))
     index_start = 0
     index_end = 4
     for ct in range(ntf):
-        for i in range(2):
+        for i in range(ndset):
             shear_data[ct, i], = \
                 struct.unpack('f', data[index_start:index_end])
             index_start = index_end
             index_end += 4
     bbsigma = shear_data[:, 0]
     pshear = shear_data[:, 1]
+    bbsigma_single = shear_data[:, 2]
+    bbsigma_para_usingle = shear_data[:, 3]
+    pshear_single = shear_data[:, 4]
+    pshear_para_usingle = shear_data[:, 5]
 
     fname = root_dir + "div_vdot_ptensor00_" + species + ".gda"
     fh = open(fname, 'r')
@@ -542,12 +551,25 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     dt_fields = pic_info.dt_fields * dtwpe / dtwci
     pdiv_u_cum = np.cumsum(pdiv_u) * dt_fields
     pshear_cum = np.cumsum(pshear) * dt_fields
+    pdiv_usingle_cum = np.cumsum(pdiv_usingle) * dt_fields
+    pdiv_upara_usingle_cum = np.cumsum(pdiv_upara_usingle) * dt_fields
+    pshear_single_cum = np.cumsum(pshear_single) * dt_fields
+    pshear_para_usingle_cum = np.cumsum(pshear_para_usingle) * dt_fields
     div_vdot_ptensor_cum = np.cumsum(div_vdot_ptensor) * dt_fields
     vdot_div_ptensor_cum = np.cumsum(vdot_div_ptensor) * dt_fields
     pdiv_u_cum /= enorm
     pshear_cum /= enorm
+    pdiv_usingle_cum /= enorm
+    pdiv_upara_usingle_cum /= enorm
+    pshear_single_cum /= enorm
+    pshear_para_usingle_cum /= enorm
     div_vdot_ptensor_cum /= enorm
     vdot_div_ptensor_cum /= enorm
+
+    pdiv_uperp_usingle = pdiv_usingle - pdiv_upara_usingle
+    pshear_perp_usingle = pshear_single - pshear_para_usingle
+    pdiv_uperp_usingle_cum = pdiv_usingle_cum - pdiv_upara_usingle_cum
+    pshear_perp_usingle_cum = pshear_single_cum - pshear_para_usingle_cum
 
     # jdote = read_jdote_data(species)
     jpolar_dote = jdote.jpolar_dote
@@ -568,8 +590,10 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     label4 = label3 + label1 + label2
     label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
     label6 = r'$\mathbf{j}_' + species + '\cdot\mathbf{E}$'
-    p1 = ax.plot(tfields, pdiv_u, linewidth=2, color='r', label=label1)
-    p2 = ax.plot(tfields, pshear, linewidth=2, color='g', label=label2)
+    p1 = ax.plot(tfields, pdiv_uperp_usingle, linewidth=2,
+                 color='r', label=label1)
+    p2 = ax.plot(tfields, pshear_perp_usingle, linewidth=2,
+                 color='g', label=label2)
     p3 = ax.plot(tfields, div_vdot_ptensor, linewidth=2,
                  color='b', label=label3)
     p4 = ax.plot(tfields, pdiv_u + pshear + div_vdot_ptensor,
@@ -608,8 +632,8 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
 
     ys -= h1 + 0.05
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    p1 = ax1.plot(tfields, pdiv_u_cum, linewidth=2, color='r')
-    p2 = ax1.plot(tfields, pshear_cum, linewidth=2, color='g')
+    p1 = ax1.plot(tfields, pdiv_uperp_usingle_cum, linewidth=2, color='r')
+    p2 = ax1.plot(tfields, pshear_perp_usingle_cum, linewidth=2, color='g')
     p3 = ax1.plot(tfields, div_vdot_ptensor_cum, linewidth=2, color='b')
     p3 = ax1.plot(tfields, pdiv_u_cum + pshear_cum + div_vdot_ptensor_cum,
                   linewidth=2, color='darkred')
@@ -627,7 +651,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     #     os.makedirs('../img/')
     # fname = '../img/compressional_' + species + '.eps'
     # fig.savefig(fname)
-    # plt.show()
+    plt.show()
 
 
 def density_ratio(pic_info, current_time):
@@ -1378,7 +1402,7 @@ def plot_compression_time_multi(species):
 
 
 if __name__ == "__main__":
-    # pic_info = pic_information.get_pic_info('../../')
+    pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
     # for i in range(pic_info.ntf):
     #     plot_compression(pic_info, 'i', i)
@@ -1397,7 +1421,9 @@ if __name__ == "__main__":
     # plot_compression_shear(pic_info, 'e', 24)
     # plot_compression_cut(pic_info, 'i', 12)
     # angle_current(pic_info, 12)
-    # compression_time(pic_info, 'e')
+    species = 'e'
+    jdote = read_jdote_data(species)
+    compression_time(pic_info, species, jdote, [-1.0, 2])
     # density_ratio(pic_info, 8)
     # for ct in range(pic_info.ntf):
     #     density_ratio(pic_info, ct)
@@ -1407,4 +1433,4 @@ if __name__ == "__main__":
     # for ct in range(pic_info.ntf):
     #     plot_velocity_components(pic_info, 'i', ct)
     # move_compression()
-    plot_compression_time_multi('i')
+    # plot_compression_time_multi('i')
