@@ -481,17 +481,18 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
-    compression_data = np.zeros((ntf, 2))
+    compression_data = np.zeros((ntf, 3))
     index_start = 0
     index_end = 4
     for ct in range(ntf):
-        for i in range(2):
+        for i in range(3):
             compression_data[ct, i], = \
                 struct.unpack('f', data[index_start:index_end])
             index_start = index_end
             index_end += 4
     div_u = compression_data[:, 0]
     pdiv_u = compression_data[:, 1]
+    pdiv_upara = compression_data[:, 2]
 
     fname = root_dir + "shear00_" + species + ".gda"
     fh = open(fname, 'r')
@@ -541,10 +542,12 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     dtwci = pic_info.dtwci
     dt_fields = pic_info.dt_fields * dtwpe / dtwci
     pdiv_u_cum = np.cumsum(pdiv_u) * dt_fields
+    pdiv_upara_cum = np.cumsum(pdiv_upara) * dt_fields
     pshear_cum = np.cumsum(pshear) * dt_fields
     div_vdot_ptensor_cum = np.cumsum(div_vdot_ptensor) * dt_fields
     vdot_div_ptensor_cum = np.cumsum(vdot_div_ptensor) * dt_fields
     pdiv_u_cum /= enorm
+    pdiv_upara_cum /= enorm
     pshear_cum /= enorm
     div_vdot_ptensor_cum /= enorm
     vdot_div_ptensor_cum /= enorm
@@ -562,22 +565,24 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     w1, h1 = 0.8, 0.4
     xs, ys = 0.96-w1, 0.96-h1
     ax = fig.add_axes([xs, ys, w1, h1])
-    label1 = r'$-p\nabla\cdot\mathbf{u}$'
+    label1 = r'$-p\nabla\cdot\boldsymbol{V}_\perp$'
     label2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
-    label3 = r'$\nabla\cdot(\mathcal{P}\cdot\mathbf{u})$'
-    label4 = label3 + label1 + label2
-    label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
-    label6 = r'$\mathbf{j}_' + species + '\cdot\mathbf{E}$'
+    # label3 = r'$\nabla\cdot(\mathcal{P}\cdot\boldsymbol{u})$'
+    label3 = r'$-(p_\parallel - p_\perp)\nabla\cdot\boldsymbol{V}_\parallel$'
+    # label4 = label3 + label1 + label2
+    label4 = 'Sum'
+    label5 = r'$\boldsymbol{u}\cdot(\nabla\cdot\mathcal{P})$'
+    label6 = r'$\boldsymbol{j}_' + species + r'\cdot\boldsymbol{E}$'
     p1 = ax.plot(tfields, pdiv_u, linewidth=2, color='r', label=label1)
     p2 = ax.plot(tfields, pshear, linewidth=2, color='g', label=label2)
-    p3 = ax.plot(tfields, div_vdot_ptensor, linewidth=2,
-                 color='b', label=label3)
-    p4 = ax.plot(tfields, pdiv_u + pshear + div_vdot_ptensor,
-                 linewidth=2, color='darkred', label=label4)
-    p5 = ax.plot(tfields, vdot_div_ptensor, linewidth=2, color='k',
-                 label=label5)
-    p6 = ax.plot(tfields, jqnudote, linewidth=2, color='k', linestyle='--',
-                 label=label6)
+    # p3 = ax.plot(tfields, pdiv_upara, linewidth=2,
+    #              color='b', label=label3)
+    p4 = ax.plot(tfields, pdiv_u + pshear,
+                 linewidth=2, color='k', label=label4)
+    # p5 = ax.plot(tfields, vdot_div_ptensor, linewidth=2, color='k',
+    #              label=label5)
+    # p6 = ax.plot(tfields, jqnudote, linewidth=2, color='k', linestyle='--',
+    #              label=label6)
     ax.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
     ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=16)
@@ -585,7 +590,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     ax.set_xlim([0, 800])
     ax.set_ylim(ylim1)
 
-    ax.text(0.45, 0.9, label1, color='red', fontsize=20,
+    ax.text(0.65, 0.7, label1, color='red', fontsize=20,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform=ax.transAxes)
@@ -593,15 +598,15 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform=ax.transAxes)
-    ax.text(0.5, 0.7, label3, color='blue', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform=ax.transAxes)
-    ax.text(0.75, 0.7, label5, color='black', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform=ax.transAxes)
-    ax.text(0.1, 0.07, label4, color='darkred', fontsize=20,
+    # ax.text(0.6, 0.7, label3, color='blue', fontsize=20,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='center',
+    #         transform=ax.transAxes)
+    # ax.text(0.75, 0.7, label5, color='black', fontsize=20,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='center',
+    #         transform=ax.transAxes)
+    ax.text(0.8, 0.07, label4, color='k', fontsize=20,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform=ax.transAxes)
@@ -610,23 +615,24 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     ax1 = fig.add_axes([xs, ys, w1, h1])
     p1 = ax1.plot(tfields, pdiv_u_cum, linewidth=2, color='r')
     p2 = ax1.plot(tfields, pshear_cum, linewidth=2, color='g')
-    p3 = ax1.plot(tfields, div_vdot_ptensor_cum, linewidth=2, color='b')
-    p3 = ax1.plot(tfields, pdiv_u_cum + pshear_cum + div_vdot_ptensor_cum,
-                  linewidth=2, color='darkred')
-    p5 = ax1.plot(tfields, vdot_div_ptensor_cum, linewidth=2, color='k')
-    p6 = ax1.plot(tfields, jqnudote_cum, linewidth=2, color='k',
-                  linestyle='--', label=label6)
+    # p3 = ax1.plot(tfields, pdiv_upara_cum, linewidth=2, color='b')
+    p3 = ax1.plot(tfields, pdiv_u_cum + pshear_cum,
+                  linewidth=2, color='k')
+    # p5 = ax1.plot(tfields, vdot_div_ptensor_cum, linewidth=2, color='k')
+    # p6 = ax1.plot(tfields, jqnudote_cum, linewidth=2, color='k',
+    #               linestyle='--', label=label6)
+    p7 = ax1.plot([0, 800], [0,0], linewidth=0.5, linestyle='--', color='k')
     ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$\varepsilon_c$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
-    ax1.legend(loc=2, prop={'size': 20}, ncol=1,
-               shadow=False, fancybox=False, frameon=False)
+    # ax1.legend(loc=2, prop={'size': 20}, ncol=1,
+    #            shadow=False, fancybox=False, frameon=False)
     ax1.set_xlim(ax.get_xlim())
     # ax1.set_ylim(ylim2)
-    # if not os.path.isdir('../img/'):
-    #     os.makedirs('../img/')
-    # fname = '../img/compressional_' + species + '.eps'
-    # fig.savefig(fname)
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    fname = '../img/compressional2_' + species + '.eps'
+    fig.savefig(fname)
     # plt.show()
 
 
@@ -1358,10 +1364,10 @@ def plot_compression_time_multi(species):
         ylim1[3, :] = -20.0, 60.0
         ylim1[4, :] = -4.0, 13.0
         ylim1[5, :] = -0.2, 0.4
-        ylim1[6, :] = -1.0, 2.2
+        ylim1[6, :] = -1.0, 2.4
         ylim1[7, :] = -5.0, 15.0
         ylim1[8, :] = -3.0, 7.0
-    for i in range(nrun):
+    for i in range(6,7):
         run_name = run_names[i]
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         jdote_fname = dir_jdote + 'jdote_' + run_name + '_' + species + '.json'
@@ -1373,8 +1379,62 @@ def plot_compression_time_multi(species):
         # oname = odir + 'compression_' + run_name + '_' + species + '.eps'
         oname = odir + 'compression_' + run_name + '_wjp_' + species + '.eps'
         plt.savefig(oname)
-        # plt.show()
-        plt.close()
+        plt.show()
+        # plt.close()
+
+
+def plot_div_v(current_time, species):
+    """Plot the divergence of velocity field
+    """
+    print(current_time)
+    spath = '/net/scratch2/xiaocanli/'
+    kwargs = {"current_time": current_time, "xl": 0, "xr": 200, "zb": -20,
+              "zt": 20}
+    # rpath =  spath + 'mime25-sigma1-beta002-200-100-noperturb/'
+    # rname = 'mime25_beta002_noperturb'
+    # rpath =  spath + 'mime25-sigma1-beta002-guide1-200-100/'
+    # rname = 'mime25_beta002_guide1'
+    rpath =  spath + 'mime25-guide0-beta001-200-100-sigma033/'
+    rname = 'mime25_beta002_sigma033'
+    picinfo_fname = '../data/pic_info/pic_info_' + rname + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    # fname = rpath + "data1/div_v00_" + species + ".gda"
+    # fname = rpath + "data1/pdiv_v00_" + species + ".gda"
+    fname = rpath + "data1/pshear00_" + species + ".gda"
+    # fname = rpath + "data1/bbsigma00_" + species + ".gda"
+    x, z, div_v = read_2d_fields(pic_info, fname, **kwargs)
+    fname = rpath + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    nk = 7
+    kernel = np.ones((nk, nk)) / float(nk*nk)
+    div_v = signal.convolve2d(div_v, kernel, mode='same')
+    # vmin, vmax = -0.005, 0.005
+    dnorm = 5.0e-4
+    div_v /= dnorm
+    vmin, vmax = -1.0, 1.0
+    width = 0.75
+    height = 0.7
+    xs = 0.12
+    ys = 0.9 - height
+    fig = plt.figure(figsize=[10, 4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep": 1, "zstep": 1}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, div_v, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.seismic)
+    ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=20)
+    cbar1.set_ticks(np.arange(-0.004, 0.005, 0.002))
+    fig.savefig('../img/bbsigma.jpg', dpi=300)
+    # fig.savefig('../img/divv.jpg', dpi=300)
+    # cbar1.ax.tick_params(labelsize=20)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -1408,3 +1468,4 @@ if __name__ == "__main__":
     #     plot_velocity_components(pic_info, 'i', ct)
     # move_compression()
     plot_compression_time_multi('i')
+    # plot_div_v(36, 'e')
