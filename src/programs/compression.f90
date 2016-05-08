@@ -26,7 +26,8 @@ program compression
         use mpi_topology, only: htg
         use particle_info, only: species, ibtag, get_ptl_mass_charge
         use para_perp_pressure, only: init_para_perp_pressure, &
-                free_para_perp_pressure, calc_para_perp_pressure
+                free_para_perp_pressure, calc_para_perp_pressure, &
+                calc_ppara_pperp_single, calc_real_para_perp_pressure
         use pic_fields, only: open_pic_fields, init_pic_fields, &
                 free_pic_fields, close_pic_fields_file, &
                 read_pic_fields
@@ -38,6 +39,9 @@ program compression
         use pressure_tensor, only: init_scalar_pressure, init_div_ptensor, &
                 free_scalar_pressure, free_div_ptensor, calc_scalar_pressure, &
                 calc_div_ptensor
+        use usingle, only: init_usingle, open_velocity_density_files, &
+                free_usingle, close_velocity_density_files, &
+                read_velocity_density, calc_usingle
         use parameters, only: tp1, tp2
         implicit none
         integer :: input_record, output_record
@@ -56,17 +60,23 @@ program compression
         call init_scalar_pressure
         call init_div_ptensor
         call init_compression_shear
+        call init_usingle(species)
+        call open_velocity_density_files(species)
         do input_record = tp1, tp2
             if (myid==master) print*, input_record
             output_record = input_record - tp1 + 1
             call read_pic_fields(input_record)
-            call calc_para_perp_pressure(input_record)
+            call read_velocity_density(input_record, species)
+            call calc_usingle(species)
+            call calc_real_para_perp_pressure(input_record)
             call calc_scalar_pressure
             call calc_div_ptensor
             call calc_compression_shear
             call save_compression_shear(input_record)
             call save_tot_compression_shear(input_record)
         enddo
+        call close_velocity_density_files(species)
+        call free_usingle(species)
         call free_compression_shear
         call free_div_ptensor
         call free_scalar_pressure

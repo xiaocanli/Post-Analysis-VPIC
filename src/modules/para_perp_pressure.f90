@@ -11,6 +11,7 @@ module para_perp_pressure
     public calc_para_perp_pressure, calc_real_para_perp_pressure
     public save_para_perp_pressure, save_averaged_para_perp_pressure
     public init_avg_para_perp_pressure, free_avg_para_perp_pressure
+    public calc_ppara_pperp_single
     real(fp), allocatable, dimension(:,:,:) :: pperp, ppara
     real(fp), allocatable, dimension(:) :: pperp_avg, ppara_avg
     logical :: is_subtract_bulkflow
@@ -71,7 +72,7 @@ module para_perp_pressure
 
     !---------------------------------------------------------------------------
     ! Calculate parallel and perpendicular pressure from the pressure tensor
-    ! and magnetic field. P is the pressure tensor below. 
+    ! and magnetic field. P is the pressure tensor below.
     !       P_\parallel = \hat{b}\cdot P \cdot\hat{b}
     !       P_\perp = (tr(P)-P_\parallel)*0.5
     ! The bulk flow is NOT subtracted from the pressure.
@@ -188,6 +189,81 @@ module para_perp_pressure
     end subroutine calc_real_para_perp_pressure
 
     !---------------------------------------------------------------------------
+    ! Calculate parallel and perpendicular pressure in the single-fluid frame.
+    ! Inputs:
+    !   ct: current time frame.
+    !---------------------------------------------------------------------------
+    subroutine calc_ppara_pperp_single(ct)
+        use constants, only: fp
+        use parameters, only: tp1
+        use pic_fields, only: bx, by, bz, absB, vx, vy, vz, ux, uy, uz, &
+                num_rho, pxx, pxy, pxz, pyy, pyz, pzz, pyx, pzx, pzy
+        use statistics, only: get_average_and_total
+        use particle_info, only: ptl_mass
+        use mpi_topology, only: htg
+        use saving_flags, only: save_pre
+        use usingle, only: vsx, vsy, vsz
+        implicit none
+        integer, intent(in) :: ct
+        real(fp), allocatable, dimension(:,:,:) :: bsquare, prexx, preyy, prezz
+        real(fp), allocatable, dimension(:,:,:) :: prexy, prexz, preyz
+        real(fp) :: tot
+        integer :: nx, ny, nz
+
+        nx = htg%nx
+        ny = htg%ny
+        nz = htg%nz
+
+        allocate(bsquare(nx, ny, nz))
+        allocate(prexx(nx, ny, nz))
+        allocate(preyy(nx, ny, nz))
+        allocate(prezz(nx, ny, nz))
+        allocate(prexy(nx, ny, nz))
+        allocate(prexz(nx, ny, nz))
+        allocate(preyz(nx, ny, nz))
+
+        bsquare = bx*bx + by*by + bz*bz
+        if (is_rel == 1) then
+            prexx = pxx + vx*ux*num_rho*ptl_mass
+            preyy = pyy + vy*uy*num_rho*ptl_mass
+            prezz = pzz + vz*uz*num_rho*ptl_mass
+            ppara = prexx * bx * bx + &
+                    preyy * by * by + &
+                    prezz * bz * bz + &
+                    (pxy + vx*uy*num_rho*ptl_mass) * bx * by + &
+                    (pyx + vy*ux*num_rho*ptl_mass) * bx * by + &
+                    (pxz + vx*uz*num_rho*ptl_mass) * bx * bz + &
+                    (pzx + vz*ux*num_rho*ptl_mass) * bx * bz + &
+                    (pyz + vy*uz*num_rho*ptl_mass) * by * bz + &
+                    (pzy + vz*uy*num_rho*ptl_mass) * by * bz
+        else
+            pxx = pxx + (vx*vx + vsx*vsx - 2*vx*vsx)*num_rho*ptl_mass
+            pyy = pyy + (vy*vy + vsy*vsy - 2*vy*vsy)*num_rho*ptl_mass
+            pzz = pzz + (vz*vz + vsz*vsz - 2*vz*vsz)*num_rho*ptl_mass
+            pxy = pxy + (vx*vy + vsx*vsy - vx*vsy - vsx*vy)*num_rho*ptl_mass
+            pxz = pxz + (vx*vz + vsx*vsz - vx*vsz - vsx*vz)*num_rho*ptl_mass
+            pyz = pyz + (vy*vz + vsy*vsz - vy*vsz - vsy*vz)*num_rho*ptl_mass
+            ppara = pxx * bx * bx + &
+                    pyy * by * by + &
+                    pzz * bz * bz + &
+                    pxy * bx * by * 2.0 + &
+                    pxz * bx * bz * 2.0 + &
+                    pyz * by * bz * 2.0
+        endif
+        ppara = ppara / bsquare
+        pperp = 0.5 * (pxx + pyy + pzz - ppara)
+
+        is_subtract_bulkflow = .false.
+        if (save_pre==1) then
+            call save_para_perp_pressure(ct)
+        endif
+        deallocate(bsquare)
+        deallocate(prexx, preyy, prezz, prexy, prexz, preyz)
+        call get_average_and_total(ppara, ppara_avg(ct-tp1+1), tot)
+        call get_average_and_total(pperp, pperp_avg(ct-tp1+1), tot)
+    end subroutine calc_ppara_pperp_single
+
+    !---------------------------------------------------------------------------
     ! Save calculated parallel and perpendicular pressure.
     ! Input:
     !   ct: current time frame.
@@ -225,7 +301,7 @@ module para_perp_pressure
         integer :: current_pos, output_record
         logical :: dir_e
         integer :: ct
-    
+
         inquire(file='./data/.', exist=dir_e)
         if (.not. dir_e) then
             call system('mkdir ./data')

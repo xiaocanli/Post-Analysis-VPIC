@@ -4,6 +4,7 @@
 #include <string.h>
 #include <float.h>
 #include <mpi.h>
+#include <stdint.h>
 #include "hdf5.h"
 #include "time_frame_info.h"
 #include "constants.h"
@@ -251,5 +252,7 @@ void track_particles(int mpi_rank, int mpi_size, int ntf, int tinterval,
  ******************************************************************************/
 int CompareInt32Value (const void * a, const void * b)
 {
-    return ( *(int*)a - *(int*)b );
+    int va = *(const int*) a;
+    int vb = *(const int*) b;
+    return (va > vb) - (va < vb);
 }
