@@ -111,7 +111,7 @@ int main(int argc, char **argv)
         MPI_Gather(np_local, njobs, MPI_INT, np_all, njobs, MPI_INT, 0,
                 MPI_COMM_WORLD);
         if (mpi_rank == 0) {
-            save_np_pic(np_local, fpath_hdf5, species, ncpus, tstep);
+            save_np_pic(np_all, fpath_hdf5, species, ncpus, tstep);
         }
         // Get the tracer data
         char *package_data = (char *)malloc(row_size * nptl_tot);
