@@ -795,11 +795,17 @@ def plot_energy_conversion_fraction():
     if not os.path.isdir(odir):
         os.makedirs(odir)
     fnames = list_pic_info_dir(dir)
-    run_id = [2, 5, 1, 6, 7, 8, 0, 4]
+    # run_id = [2, 5, 1, 6, 7, 8, 0, 4]
+    run_id = [2, 8, 1, 9, 10, 12, 0, 7]
     nrun = len(run_id)
     ene_fraction = np.zeros(nrun)
     dke_dki = np.zeros(nrun)
     irun = 0
+    i = 0
+    for fname in fnames:
+        print i
+        print fname
+        i += 1
     for i in run_id:
         fname = fnames[i]
         print fname
@@ -824,8 +830,8 @@ def plot_energy_conversion_fraction():
     w1, h1 = 0.7, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.plot(x, ene_fraction, color='r', marker='o', markersize=10,
-            linestyle='')
-    labels = [r'R6', r'R1', r'R2', r'R4', r'R5', r'R3', r'R7', r'R8']
+            linestyle='', markeredgecolor = 'r')
+    labels = [r'R6', r'R1', r'R4', r'R2', r'R5', r'R3', r'R7', r'R8']
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_xlim([-0.5, 7.5])
@@ -839,8 +845,8 @@ def plot_energy_conversion_fraction():
     for tl in ax.get_yticklabels():
         tl.set_color('r')
     ax1 = ax.twinx()
-    ax1.plot(x, dke_dki, color='b', marker='o', markersize=10,
-            linestyle='')
+    ax1.plot(x, dke_dki, color='b', marker='v', markersize=10,
+            linestyle='', markeredgecolor = 'b')
     ax1.set_xlim([-0.5, 7.5])
     ax1.set_ylabel(r'$\Delta K_e/\Delta K_i$', color='b',
             fontdict=font, fontsize=24)
@@ -1028,19 +1034,19 @@ if __name__ == "__main__":
     # plot_vx_frame(run_name, root_dir, pic_info, 'i')
     # plot_anisotropy(run_name, root_dir, pic_info, 'i', 62)
     # plot_compression_fields_single(run_name, root_dir, pic_info, 'i', 24)
-    for ct in range(110, 121):
-        plot_compression_fields_single(run_name, root_dir, pic_info, 'e', ct)
-        plt.close()
-    for ct in range(110, 121):
-        plot_compression_fields_single(run_name, root_dir, pic_info, 'i', ct)
-        plt.close()
+    # for ct in range(110, 121):
+    #     plot_compression_fields_single(run_name, root_dir, pic_info, 'e', ct)
+    #     plt.close()
+    # for ct in range(110, 121):
+    #     plot_compression_fields_single(run_name, root_dir, pic_info, 'i', ct)
+    #     plt.close()
     # cts = [110, 116]
     # plot_temperature_cut(run_name, root_dir, pic_info, cts)
     # plot_thermal_temperature_single(run_name, root_dir, pic_info, 115)
     # plot_compression_time_beta('e')
     # plot_compression_time_temp('e')
     # plot_by_time(run_name, root_dir, pic_info)
-    # plot_energy_conversion_fraction()
+    plot_energy_conversion_fraction()
     # plot_nonthermal_fraction()
     # plot_jpara_dote_fraction()
     # plot_jdrifts_fraction('i')
