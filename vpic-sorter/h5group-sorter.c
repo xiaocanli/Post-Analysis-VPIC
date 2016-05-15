@@ -28,7 +28,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
         int ux_kindex, char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta,
-        unsigned long long *rsize);
+        unsigned long long *rsize, int load_tracer_meta);
 void set_filenames(int tstep, char *filepath, char *species, char *filename,
         char *group_name, char *filename_sorted, char *filename_attribute,
         char *filename_meta);
@@ -42,7 +42,8 @@ int main(int argc, char **argv){
     int is_help;
     int key_index, sort_key_only, skew_data, verbose, write_result,
         collect_data, weak_scale_test, weak_scale_test_length,
-        local_sort_threaded, local_sort_threads_num, meta_data;
+        local_sort_threaded, local_sort_threads_num, meta_data,
+        load_tracer_meta;
     int tmax, tinterval; // Maximum time step and time interval
     int multi_tsteps, ux_kindex;
     char *filename, *group_name, *filename_sorted, *filename_attribute;
@@ -76,7 +77,7 @@ int main(int argc, char **argv){
             filename, group_name, filename_sorted, filename_attribute,
             filename_meta, filepath, species, &tmax, &tinterval,
             &multi_tsteps, &ux_kindex, filename_traj, &nptl_traj,
-            &ratio_emax, &tracking_traj);
+            &ratio_emax, &tracking_traj, &load_tracer_meta);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {
@@ -124,6 +125,7 @@ int main(int argc, char **argv){
     if (multi_tsteps) {
         for (int i = 0; i < ntf; i++) {
             tstep = i * tinterval;
+            if (mpi_rank == 0) printf("%d\n", tstep);
             set_filenames(tstep, filepath, species, filename, group_name,
                     filename_sorted, filename_attribute, filename_meta);
             final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
@@ -131,7 +133,7 @@ int main(int argc, char **argv){
                     weak_scale_test, weak_scale_test_length, local_sort_threaded,
                     local_sort_threads_num, meta_data, ux_kindex, filename,
                     group_name, filename_sorted, filename_attribute,
-                    filename_meta, &rsize);
+                    filename_meta, &rsize, load_tracer_meta);
             if (tracking_traj) {
                 get_tracked_particle_info(final_buff, qindex, row_size,
                         rsize, i, ntf, tags, nptl_traj, tracked_particles);
@@ -146,7 +148,7 @@ int main(int argc, char **argv){
                 weak_scale_test, weak_scale_test_length, local_sort_threaded,
                 local_sort_threads_num, meta_data, ux_kindex, filename,
                 group_name, filename_sorted, filename_attribute,
-                filename_meta, &rsize);
+                filename_meta, &rsize, load_tracer_meta);
         if(collect_data == 1) {
             free(final_buff);
         }
@@ -200,7 +202,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
         int ux_kindex, char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta,
-        unsigned long long *rsize) {
+        unsigned long long *rsize, int load_tracer_meta) {
     int max_type_size, dataset_num, key_value_type, row_size;
     hsize_t my_data_size, rest_size, my_offset;
     char *package_data, *final_buff;
@@ -215,8 +217,14 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
     set_variable_data(max_type_size, key_index, dataset_num, key_value_type,
             ux_kindex);
 
-    calc_particle_positions(mpi_rank, my_offset, row_size, max_type_size,
-            my_data_size, filename_meta, group_name, package_data, ux_kindex);
+    /* We have to use the meta data to calculate the particle position */
+    /* But when using the binary output, the position is already calculated, */
+    /* so we don't have to load the meta data. */
+    if (load_tracer_meta) {
+        calc_particle_positions(mpi_rank, my_offset, row_size, max_type_size,
+                my_data_size, filename_meta, group_name, dname_array,
+                dataset_num, package_data);
+    }
 
     /* master:  also do slave's job. In addition, it is responsible for samples and pivots */
     /* slave:   (1) sorts. (2) samples (3) sends sample to master (4) receives pivots */

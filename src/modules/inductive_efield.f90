@@ -85,11 +85,12 @@ module inductive_electric_field
         use picinfo, only: domain, mime
         use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
         use mpi_io_module, only: read_data_mpi_io
-        use usingle, only: calc_usingle, vsx, vsy, vsz
+        use usingle, only: calc_usingle, vsx, vsy, vsz, read_velocity_density
         implicit none
         integer, intent(in) :: ct
         character(*), intent(in) :: species
 
+        call read_velocity_density(ct, species)
         call calc_usingle(species)
 
         exin = by*vsz - bz*vsy

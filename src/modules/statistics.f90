@@ -36,10 +36,8 @@ module statistics
         iyh = range_out%iyh
         izh = range_out%izh
 
-        if (myid == master) then
-            allocate(tot_array(numprocs))
-            tot_array = 0.0
-        endif
+        allocate(tot_array(numprocs))
+        tot_array = 0.0
         tot_local = sum(fdata(ixl:ixh, iyl:iyh, izl:izh))
         call MPI_BARRIER(MPI_COMM_WORLD, ierror)
         call MPI_GATHER(tot_local, 1, MPI_REAL, tot_array, 1, MPI_REAL, &
@@ -47,10 +45,10 @@ module statistics
         if (myid == master) then
             tot = sum(tot_array) * domain%dx * domain%dy * domain%dz
             avg = tot / (domain%nx*domain%ny*domain%nz)
-            deallocate(tot_array)
         else
             avg = 0.1; tot = 1.0 ! Some random number except rank master.
         endif
+        deallocate(tot_array)
     end subroutine get_average_and_total
 
     !---------------------------------------------------------------------------

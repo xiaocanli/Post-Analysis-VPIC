@@ -11,17 +11,17 @@ program particle_based_jdote
 
     ct = 1
 
-    species = 'e'
-    call init_analysis
-    call commit_analysis
-    call end_analysis
-
-    ! call MPI_BARRIER(MPI_COMM_WORLD, ierror)
-
-    ! species = 'i'
+    ! species = 'e'
     ! call init_analysis
     ! call commit_analysis
     ! call end_analysis
+
+    ! call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+
+    species = 'i'
+    call init_analysis
+    call commit_analysis
+    call end_analysis
 
     contains
 
@@ -180,11 +180,23 @@ program particle_based_jdote
                     iz = (dom_z - ht%start_z) * domain%pic_nz
                     call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
                                        domain%pic_ty, domain%pic_tz, n)
+                    if (species == 'i') then
+                        species = 'H'
+                    endif
                     call read_emfields_single(tindex0, n-1)
                     call calc_emfields_derivatives
                     call read_density_fields_single(tindex0, n-1, species)
+                    if (species == 'H') then
+                        species = 'i'
+                    endif
+                    if (species == 'i') then
+                        species = 'h'
+                    endif
                     call calc_particle_energy_change_rate(tindex0, species, &
                             n-1, ix, iy, iz)
+                    if (species == 'h') then
+                        species = 'i'
+                    endif
                 enddo ! x
             enddo ! y
         enddo ! z

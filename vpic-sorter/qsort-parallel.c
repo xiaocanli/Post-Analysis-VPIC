@@ -352,7 +352,7 @@ char *master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
     int rou;
     double previous_pivot = lowest_double, cur_pivot;
     rou = mpi_size / 2;
-    printf("Pivots : ");
+    /* printf("Pivots : "); */
     for(i = 0; i < (mpi_size-1); i++){
         memcpy(pivots+row_size*i, all_samp + (mpi_size*(i+1) + rou -1)*row_size, row_size);
         cur_pivot = get_value_double(key_index,   pivots+row_size*i);
@@ -360,8 +360,8 @@ char *master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
             printf(" (Same pivot)");
         }
         previous_pivot = cur_pivot;
-        if(i < 60)
-            printf("%f, ", cur_pivot);
+        /* if(i < 60) */
+        /*     printf("%f, ", cur_pivot); */
     }
     printf("\n");
     free(all_samp);

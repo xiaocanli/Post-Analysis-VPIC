@@ -305,18 +305,18 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
             printf("Create attribute file successful ! \n");
         }
 
-        for (i=0; i < mpi_size; i++){
-            printf("%f %f %llu %llu, count %lld \n",
-                    global_metadata_array[i].c_min, global_metadata_array[i].c_max,
-                    global_metadata_array[i].c_start_offset,
-                    global_metadata_array[i].c_end_offset,
-                    (global_metadata_array[i].c_end_offset -
-                     global_metadata_array[i].c_start_offset)); 
-            fprintf(file_ptr,"%f %f %llu %llu\n", global_metadata_array[i].c_min,
-                    global_metadata_array[i].c_max,
-                    global_metadata_array[i].c_start_offset,
-                    global_metadata_array[i].c_end_offset); 
-        } 
+        /* for (i=0; i < mpi_size; i++){ */
+        /*     printf("%f %f %llu %llu, count %lld \n", */
+        /*             global_metadata_array[i].c_min, global_metadata_array[i].c_max, */
+        /*             global_metadata_array[i].c_start_offset, */
+        /*             global_metadata_array[i].c_end_offset, */
+        /*             (global_metadata_array[i].c_end_offset - */
+        /*              global_metadata_array[i].c_start_offset)); */ 
+        /*     fprintf(file_ptr,"%f %f %llu %llu\n", global_metadata_array[i].c_min, */
+        /*             global_metadata_array[i].c_max, */
+        /*             global_metadata_array[i].c_start_offset, */
+        /*             global_metadata_array[i].c_end_offset); */ 
+        /* } */ 
         fclose(file_ptr);
     }
     free(global_metadata_array);

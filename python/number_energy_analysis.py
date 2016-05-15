@@ -15,6 +15,7 @@ import struct
 import collections
 import pic_information
 import spectrum_fitting
+from energy_conversion import read_data_from_json
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -27,6 +28,12 @@ font = {'family' : 'serif',
         'size'   : 24,
         }
 
+# spectrum_dir = '../'
+spectrum_dir = '../data/spectra/'
+# run_name = 'mime25_beta0007'
+run_name = 'mime25_beta002_guide4'
+fpath = spectrum_dir + run_name + '/'
+
 def get_distributions(species, current_time, pic_info, spectrum_type):
     """Get the whole, thermal and nonthermal distributions.
 
@@ -38,26 +45,22 @@ def get_distributions(species, current_time, pic_info, spectrum_type):
     Returns:
         dist_info: the distributions and the energy bins.
     """
-    if (species == 'e'):
-        vth = pic_info.vthe
-    else:
-        vth = pic_info.vthi
     nx = pic_info.nx
     ny = pic_info.ny
     nz = pic_info.nz
     nppc = pic_info.nppc
     fnorm = nx * ny * nz * nppc
-    fname = "../" + spectrum_type + "-" + species +  "." + \
+    fname = fpath + spectrum_type + "-" + species +  "." + \
             str(current_time).zfill(len(str(current_time)))
     if (os.path.isfile(fname)):
         ene_lin, flin, ene_log, flog = \
                 spectrum_fitting.get_energy_distribution(fname, fnorm)
     else:
-        fname = "../" + spectrum_type + "-" + species +  \
+        fname = fpath + spectrum_type + "-" + species +  \
                 "." + str(current_time-1).zfill(len(str(current_time)))
         ene_lin, flin1, ene_log, flog1 = \
                 spectrum_fitting.get_energy_distribution(fname, fnorm)
-        fname = "../" + spectrum_type + "-" + species +  \
+        fname = fpath + spectrum_type + "-" + species +  \
                 "." + str(current_time+1).zfill(len(str(current_time)))
         ene_lin, flin2, ene_log, flog2 = \
                 spectrum_fitting.get_energy_distribution(fname, fnorm)
@@ -65,8 +68,8 @@ def get_distributions(species, current_time, pic_info, spectrum_type):
         flog = (flog1 + flog2) / 2
     fthermal_log = spectrum_fitting.fit_thermal_core(ene_log, flog)
     fnonthermal_log = flog - fthermal_log
-    distribution_info = collections.namedtuple('distribution_info', 
-            ['ene_lin', 'flin', 'ene_log', 'flog', 'fthermal_log', 
+    distribution_info = collections.namedtuple('distribution_info',
+            ['ene_lin', 'flin', 'ene_log', 'flog', 'fthermal_log',
                 'fnonthermal_log'])
     dist_info = distribution_info(ene_lin=ene_lin, flin=flin,
             ene_log=ene_log, flog=flog, fthermal_log=fthermal_log,
@@ -145,11 +148,11 @@ def plot_nonthermal_populations(species, pic_info, spectrum_type):
     e_nonthermal_fraction[0] = 0
     tmin = np.min(tparticles)
     tmax = np.max(tparticles)
-    p1, = ax.plot(tparticles, n_nonthermal_fraction, 
-            linewidth = 2, color = 'b', 
+    p1, = ax.plot(tparticles, n_nonthermal_fraction,
+            linewidth = 2, color = 'b',
             label = r'$n_{nth} / n_{tot}$')
-    p2, = ax.plot(tparticles, e_nonthermal_fraction, 
-            linewidth = 2, color = 'g', 
+    p2, = ax.plot(tparticles, e_nonthermal_fraction,
+            linewidth = 2, color = 'g',
             label = r'$E_{nth} / E_{tot}$')
     ax.set_xlim([tmin, tmax])
     ax.set_ylim([-0.05, 1.05])
@@ -161,11 +164,11 @@ def plot_nonthermal_populations(species, pic_info, spectrum_type):
     fig.tight_layout()
 
     fig, ax = plt.subplots(figsize=[7,5])
-    p1 = ax.plot(tparticles, n_nonthermal_fraction_diff, 
-            linewidth = 2, color = 'b', 
+    p1 = ax.plot(tparticles, n_nonthermal_fraction_diff,
+            linewidth = 2, color = 'b',
             label = 'Non-thermal particle number $n$')
     p2 = ax.plot(tparticles, e_nonthermal_fraction_diff,
-            linewidth = 2, color = 'g', 
+            linewidth = 2, color = 'g',
             label = 'Non-thermal particle energy $E$')
     ax.set_xlim([tmin, tmax])
     ax.tick_params(labelsize=20)
@@ -199,26 +202,29 @@ def cumulative_distributions(species, pic_info, spectrum_type, ct):
             dist_info.fnonthermal_log)
     nacc_ene, eacc_ene = spectrum_fitting.accumulated_particle_info(
             dist_info.ene_log, dist_info.flog)
-    ene_log_norm = spectrum_fitting.get_normalized_energy(species, 
+    ene_log_norm = spectrum_fitting.get_normalized_energy(species,
             dist_info.ene_log, pic_info)
-    fig, ax = plt.subplots(figsize=[7,5])
-    p1, = ax.semilogx(ene_log_norm, nacc_ene / nacc_ene[-1], 
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    p1, = ax.semilogx(ene_log_norm, nacc_ene / nacc_ene[-1],
             linewidth = 2, color = 'b', label = 'Particle number $n$')
     p2, = ax.semilogx(ene_log_norm, eacc_ene / eacc_ene[-1],
-            linewidth = 2, color = 'g', label = 'Particle energy $E$')
+            linewidth = 2, color = 'g', label = r'Particle energy $\varepsilon$')
     xmin = np.min(ene_log_norm)
     xmax = np.max(ene_log_norm)
     ax.set_xlim([xmin, xmax])
     ax.set_ylim([-0.05, 1.05])
 
     #plt.title('Energy spectrum', fontdict=font)
-    plt.xlabel('$E/E_{th}$', fontdict=font)
-    plt.ylabel('Cumulative $n$ and $E$', fontdict=font)
-   
-    plt.legend(loc=4, prop={'size':16})
-    plt.tick_params(labelsize=20)
-    plt.tight_layout()
-    #plt.grid(True)
+    plt.xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font)
+    plt.ylabel(r'Cumulative $n$ and $\varepsilon$', fontdict=font)
+
+    leg = ax.legend(loc=2, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(labelsize=20)
+    ax.grid(True)
     #plt.savefig('n_ene_acc.eps')
     plt.show()
 
@@ -238,13 +244,16 @@ def plot_numerber_enerergy_each_bin(species, pic_info, spectrum_type, ct):
     ediff_ene = np.gradient(eacc_ene)
     ndiff_max = np.max(ndiff_ene)
     ediff_max = np.max(ediff_ene)
-    ene_log_norm = spectrum_fitting.get_normalized_energy(species, 
+    ene_log_norm = spectrum_fitting.get_normalized_energy(species,
             dist_info.ene_log, pic_info)
-    fig, ax = plt.subplots()
-    p1, = ax.loglog(ene_log_norm, ndiff_ene / ndiff_max, 
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    p1, = ax.loglog(ene_log_norm, ndiff_ene / ndiff_max,
             linewidth = 2, color = 'b', label = 'Number $n$')
     p2, = ax.loglog(ene_log_norm, ediff_ene / ediff_max,
-            linewidth = 2, color = 'g', label = 'Energy $E$')
+            linewidth = 2, color = 'g', label = r'Energy $\varepsilon$')
     ax.set_ylim([1.0E-7, 2])
     if (species == 'e'):
         ax.set_xlim([np.min(ene_log_norm), 6E2])
@@ -252,22 +261,25 @@ def plot_numerber_enerergy_each_bin(species, pic_info, spectrum_type, ct):
         ax.set_xlim([np.min(ene_log_norm), 2E3])
 
     #plt.title('Energy spectrum', fontdict=font)
-    ax.set_xlabel('$E/E_{th}$', fontdict=font)
-    ax.set_ylabel('$n$ and $E$ in each bins', fontdict=font)
-   
-    plt.legend(loc=0, prop={'size':16})
-    plt.tick_params(labelsize=20)
-    plt.tight_layout()
-    plt.grid(True)
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_{th}$', fontdict=font)
+    ax.set_ylabel(r'$n$ and $\varepsilon$ in each bins', fontdict=font)
+
+    leg = ax.legend(loc=4, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(labelsize=20)
+    # ax.tight_layout()
+    ax.grid(True)
     #fname = 'n_ene_diff' + str(it) + '_' + species + '.eps'
     #plt.savefig(fname)
 
     plt.show()
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('..')
+    # pic_info = pic_information.get_pic_info('..')
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     ntp = pic_info.ntp
     vthe = pic_info.ntp
-    #plot_nonthermal_populations('e', pic_info, 'spectrum')
-    cumulative_distributions('h', pic_info, 'spectrum', ntp)
-    #plot_numerber_enerergy_each_bin('e', pic_info, 'spectrum', ntp)
+    # plot_nonthermal_populations('e', pic_info, 'spectrum')
+    cumulative_distributions('e', pic_info, 'spectrum', ntp)
+    # plot_numerber_enerergy_each_bin('e', pic_info, 'spectrum', ntp)

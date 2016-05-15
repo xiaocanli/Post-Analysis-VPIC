@@ -292,13 +292,33 @@ module particle_fields
                 izl, izh, nc1, nc2, nc3)
         
         read(fh) buffer
-        vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        nrho(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
 
         if (is_rel == 1) then
             read(fh) buffer
@@ -311,17 +331,47 @@ module particle_fields
         endif
 
         read(fh) buffer
-        pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        pxx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        pyy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        pzz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        pyz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        pxz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        pxy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         
         ! Particle fraction in each energy band.
         if (nbands > 0) then
@@ -363,11 +413,23 @@ module particle_fields
                 izl, izh, nc1, nc2, nc3)
         
         read(fh) buffer
-        vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         read(fh) buffer
-        vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         read(fh) buffer
-        vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         read(fh) buffer
 
         if (is_rel == 1) then

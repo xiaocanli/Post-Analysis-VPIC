@@ -10,6 +10,11 @@ cmake ..
 make
 make install
 ```
+On a cray system, the `cmake ..` should be
+```
+CC=cc CXX=CC FC=ftn cmake ..
+```
+
 ## Get started
 
 The executables are all saved in this code's root directory.

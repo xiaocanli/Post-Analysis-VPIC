@@ -7,7 +7,8 @@ module usingle
     private
     public vsx, vsy, vsz    ! s indicates 'single fluid'
     public init_usingle, free_usingle, calc_usingle, &
-           open_velocity_density_files, close_velocity_density_files
+           open_velocity_density_files, close_velocity_density_files, &
+           read_velocity_density
     real(fp), allocatable, dimension(:, :, :) :: vsx, vsy, vsz
     real(fp), allocatable, dimension(:, :, :) :: vx, vy, vz
     real(fp), allocatable, dimension(:, :, :) :: nrho_a, nrho_b
@@ -30,6 +31,11 @@ module usingle
         module procedure &
             open_velocity_density_files_s, open_velocity_density_files_b
     end interface open_velocity_density_files
+
+    interface read_velocity_density
+        module procedure &
+            read_velocity_density_s, read_velocity_density_b
+    end interface read_velocity_density
 
     interface close_velocity_density_files
         module procedure &
@@ -94,13 +100,8 @@ module usingle
     !   species: particle species. 'e' for electron. 'i' for ion.
     !---------------------------------------------------------------------------
     subroutine open_velocity_density_files_s(species)
-        use path_info, only: filepath
-        use mpi_info_module, only: fileinfo
-        use pic_fields, only: open_velocity_field_files, vfields_fh, &
-                open_number_density_file, nrho_fh
         implicit none
         character(*), intent(in) :: species
-        character(len=100) :: fname
         character(len=1) :: species_other
         if (species == 'e') then
             species_other = 'i'
@@ -109,21 +110,86 @@ module usingle
         endif
         fh_vel = 0
         fh_nrho = 0
-        call open_velocity_field_files(species_other)
-        call open_number_density_file(species_other)
-        fh_vel = vfields_fh
-        fh_nrho = nrho_fh
+        call open_velocity_density_fieles_t(species_other, fh_vel, fh_nrho)
     end subroutine open_velocity_density_files_s
 
     !---------------------------------------------------------------------------
+    ! Open the data files of velocity fields and number density for one particle
+    ! species.
+    ! Inputs:
+    !   species: particle species. 'e' for electron. 'i' for ion.
+    !   ! 3-velocity is saved as ux, uy, uz in non-relativistic cases
+    ! Outputs:
+    !   fh_vel_t, fh_nrho_t: file handlers
+    !---------------------------------------------------------------------------
+    subroutine open_velocity_density_fieles_t(species, fh_vel_t, fh_nrho_t)
+        use mpi_module
+        use path_info, only: filepath
+        use mpi_info_module, only: fileinfo
+        use mpi_io_module, only: open_data_mpi_io
+        implicit none
+        character(*), intent(in) :: species
+        integer, dimension(3), intent(out) :: fh_vel_t
+        integer, intent(out) :: fh_nrho_t
+        integer :: file_size
+        character(len=256) :: fname
+        logical :: ex, is_opened
+        character(len=1) :: vel
+        integer :: fh
+        fname = trim(adjustl(filepath))//'v'//species//'x.gda'
+        inquire(file=fname, exist=ex, size=file_size)
+        if (ex .and. file_size .ne. 0) then
+            vel = 'v'
+        else
+            vel = 'u'
+        endif
+
+        fh_vel_t = 0
+        fh_nrho_t = 0
+
+        fname = trim(adjustl(filepath))//vel//species//'x.gda'
+        inquire(file=fname, opened=is_opened, number=fh)
+        if (is_opened) then
+            fh_vel_t(1) = fh
+        else
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                fh_vel_t(1))
+        endif
+
+        fname = trim(adjustl(filepath))//vel//species//'y.gda'
+        inquire(file=fname, opened=is_opened, number=fh)
+        if (is_opened) then
+            fh_vel_t(2) = fh
+        else
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                fh_vel_t(2))
+        endif
+
+        fname = trim(adjustl(filepath))//vel//species//'z.gda'
+        inquire(file=fname, opened=is_opened, number=fh)
+        if (is_opened) then
+            fh_vel_t(3) = fh
+        else
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                fh_vel_t(3))
+        endif
+
+        fname = trim(adjustl(filepath))//'n'//species//'.gda'
+        inquire(file=fname, opened=is_opened, number=fh)
+        if (is_opened) then
+            fh_nrho_t = fh
+        else
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, fh_nrho_t)
+        endif
+    end subroutine open_velocity_density_fieles_t
+
+    !---------------------------------------------------------------------------
     ! Open the data files of velocity fields and number density for both
-    ! species. 
+    ! species.
     !---------------------------------------------------------------------------
     subroutine open_velocity_density_files_b
         use path_info, only: filepath
         use mpi_info_module, only: fileinfo
-        use pic_fields, only: open_velocity_field_files, vfields_fh, &
-                open_number_density_file, nrho_fh
         implicit none
         character(len=100) :: fname
         fh_vel = 0
@@ -131,16 +197,9 @@ module usingle
         fh_vel_b = 0
         fh_nrho_b = 0
         ! Electron
-        call open_velocity_field_files('e')
-        call open_number_density_file('e')
-        fh_vel = vfields_fh
-        fh_nrho = nrho_fh
-
+        call open_velocity_density_fieles_t('e', fh_vel, fh_nrho)
         ! Ion
-        call open_velocity_field_files('i')
-        call open_number_density_file('i')
-        fh_vel_b = vfields_fh
-        fh_nrho_b = nrho_fh
+        call open_velocity_density_fieles_t('i', fh_vel_b, fh_nrho_b)
     end subroutine open_velocity_density_files_b
 
     !---------------------------------------------------------------------------
@@ -153,10 +212,17 @@ module usingle
         implicit none
         character(*), intent(in) :: species
         integer :: i
-        do i = 1, 3
-            call MPI_FILE_CLOSE(fh_vel(i), ierror)
-        enddo
-        call MPI_FILE_CLOSE(fh_nrho)
+        logical :: is_opened
+        inquire(fh_vel(1), opened=is_opened)
+        if (is_opened) then
+            do i = 1, 3
+                call MPI_FILE_CLOSE(fh_vel(i), ierror)
+            enddo
+        endif
+        inquire(fh_nrho, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(fh_nrho)
+        endif
     end subroutine close_velocity_density_files_s
 
     !---------------------------------------------------------------------------
@@ -166,12 +232,22 @@ module usingle
         use mpi_module
         implicit none
         integer :: i
-        do i = 1, 3
-            call MPI_FILE_CLOSE(fh_vel(i), ierror)
-            call MPI_FILE_CLOSE(fh_vel_b(i), ierror)
-        enddo
-        call MPI_FILE_CLOSE(fh_nrho)
-        call MPI_FILE_CLOSE(fh_nrho_b)
+        logical :: is_opened
+        inquire(fh_vel(1), opened=is_opened)
+        if (is_opened) then
+            do i = 1, 3
+                call MPI_FILE_CLOSE(fh_vel(i), ierror)
+                call MPI_FILE_CLOSE(fh_vel_b(i), ierror)
+            enddo
+        endif
+        inquire(fh_nrho, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(fh_nrho)
+        endif
+        inquire(fh_nrho_b, opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(fh_nrho_b)
+        endif
     end subroutine close_velocity_density_files_b
 
     !---------------------------------------------------------------------------
@@ -192,7 +268,7 @@ module usingle
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
 
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
             disp, offset, vsx)
         call read_data_mpi_io(fh_vel(2), filetype_ghost, subsizes_ghost, &
@@ -219,7 +295,7 @@ module usingle
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
 
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         ! Electron
         call read_data_mpi_io(fh_vel(1), filetype_ghost, subsizes_ghost, &
             disp, offset, vsx)
@@ -250,13 +326,13 @@ module usingle
         implicit none
         character(*), intent(in) :: species
         if (species == 'e') then
-            vsx = (vsx*mime*nrho_a + vx*num_rho) / (mime*nrho_a + num_rho)
-            vsy = (vsy*mime*nrho_a + vy*num_rho) / (mime*nrho_a + num_rho)
-            vsz = (vsz*mime*nrho_a + vz*num_rho) / (mime*nrho_a + num_rho)
+            vsx = (vsx*mime*nrho_a + vx*num_rho) / (num_rho + mime*nrho_a)
+            vsy = (vsy*mime*nrho_a + vy*num_rho) / (num_rho + mime*nrho_a)
+            vsz = (vsz*mime*nrho_a + vz*num_rho) / (num_rho + mime*nrho_a)
         else
-            vsx = (vsx*nrho_a + vx*mime*num_rho) / (mime*num_rho + nrho_a)
-            vsy = (vsy*nrho_a + vy*mime*num_rho) / (mime*num_rho + nrho_a)
-            vsz = (vsz*nrho_a + vz*mime*num_rho) / (mime*num_rho + nrho_a)
+            vsx = (vsx*nrho_a + vx*mime*num_rho) / (nrho_a + mime*num_rho)
+            vsy = (vsy*nrho_a + vy*mime*num_rho) / (nrho_a + mime*num_rho)
+            vsz = (vsz*nrho_a + vz*mime*num_rho) / (nrho_a + mime*num_rho)
         endif
     end subroutine calc_usingle_s
 

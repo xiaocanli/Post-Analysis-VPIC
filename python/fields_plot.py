@@ -72,6 +72,10 @@ class PlotMultiplePanels(object):
             self.fdata_1d = kwargs["fdata_1d"]
         else:
             self.bottom_panel = False
+        if "nlevels_contour" in kwargs:
+            self.nlevels_contour = kwargs["nlevels_contour"]
+        else:
+            self.nlevels_contour = 0
 
         # Whether to use multiple Ay
         if "is_multi_Ay" in kwargs:
@@ -102,22 +106,42 @@ class PlotMultiplePanels(object):
                 self.cbar.append(cbar1)
                 im1.set_cmap(plt.cm.get_cmap(self.colormaps[ip]))
                 if not self.is_multi_Ay:
-                    co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
-                            self.z[0:self.nz:self.zstep],
-                            self.Ay[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
-                            colors=self.contour_color[ip], linewidths=0.5)
+                    if self.nlevels_contour == 0:
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                self.Ay[0:self.nz:self.zstep,
+                                    0:self.nx:self.xstep],
+                                colors=self.contour_color[ip], linewidths=0.5)
+                    else:
+                        self.levels = np.linspace(np.min(self.Ay),
+                                np.max(self.Ay), self.nlevels_contour)
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                self.Ay[0:self.nz:self.zstep,
+                                    0:self.nx:self.xstep],
+                                colors=self.contour_color[ip], linewidths=0.5,
+                                levels=self.levels)
                 else:
                     Ay1 = self.Ay[ip]
-                    co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
-                            self.z[0:self.nz:self.zstep],
-                            Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
-                            colors=self.contour_color[ip], linewidths=0.5)
+                    if self.nlevels_contour == 0:
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep],
+                                colors=self.contour_color[ip], linewidths=0.5)
+                    else:
+                        self.levels = np.linspace(np.min(Ay1),
+                                np.max(Ay1), self.nlevels_contour)
+                        co1 = self.ax1.contour(self.x[0:self.nx:self.xstep],
+                                self.z[0:self.nz:self.zstep],
+                                Ay1[0:self.nz:self.zstep, 0:self.nx:self.xstep],
+                                colors=self.contour_color[ip], linewidths=0.5,
+                                levels=self.levels)
                 self.co.append(co1)
                 self.ax1.tick_params(labelsize=16)
                 self.ax1.tick_params(axis='x', labelbottom='off')
                 self.ax1.autoscale(1,'both',1)
                 self.ax1.text(0.05, 0.8, self.var_names[ip],
-                        color=self.text_colors[ip], fontsize=24, 
+                        color=self.text_colors[ip], fontsize=20,
                         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
                             pad=10.0), horizontalalignment='left',
                         verticalalignment='center',
@@ -182,10 +206,10 @@ class PlotMultiplePanels(object):
                 np = self.nxp*j + i
                 self.im[np].set_data(self.fdata[np])
                 for coll in self.co[np].collections:
-                        coll.remove() 
+                        coll.remove()
                 self.co[np] = self.ax[np].contour(self.x[0:self.nx:self.xstep],
                         self.z[0:self.nz:self.zstep],
-                        self.Ay[0:self.nz:self.zstep, 0:self.nx:self.xstep], 
+                        self.Ay[0:self.nz:self.zstep, 0:self.nx:self.xstep],
                         colors=self.contour_color[np], linewidths=0.5)
         self.fig.canvas.draw_idle()
         self.save_figures()
@@ -243,15 +267,15 @@ def plot_magnetic_fields(run_name, root_dir, pic_info):
         os.makedirs(fig_dir)
     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     fname1 = root_dir + 'data/absB.gda'
-    x, z, absB = read_2d_fields(pic_info, fname1, **kwargs) 
+    x, z, absB = read_2d_fields(pic_info, fname1, **kwargs)
     fname2 = root_dir + 'data/bx.gda'
-    x, z, bx = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, bx = read_2d_fields(pic_info, fname2, **kwargs)
     fname3 = root_dir + 'data/by.gda'
-    x, z, by = read_2d_fields(pic_info, fname3, **kwargs) 
+    x, z, by = read_2d_fields(pic_info, fname3, **kwargs)
     fname4 = root_dir + 'data/bz.gda'
-    x, z, bz = read_2d_fields(pic_info, fname4, **kwargs) 
+    x, z, bz = read_2d_fields(pic_info, fname4, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
     fdata = [absB, bx, by, bz]
     # Change with different runs
     b0 = pic_info.b0
@@ -267,11 +291,11 @@ def plot_magnetic_fields(run_name, root_dir, pic_info):
     bfields_plot = PlotMultiplePanels(**kwargs_plots)
     for ct in range(1, pic_info.ntf):
         kwargs["current_time"] = ct
-        x, z, absB = read_2d_fields(pic_info, fname1, **kwargs) 
-        x, z, bx = read_2d_fields(pic_info, fname2, **kwargs) 
-        x, z, by = read_2d_fields(pic_info, fname3, **kwargs) 
-        x, z, bz = read_2d_fields(pic_info, fname4, **kwargs) 
-        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+        x, z, absB = read_2d_fields(pic_info, fname1, **kwargs)
+        x, z, bx = read_2d_fields(pic_info, fname2, **kwargs)
+        x, z, by = read_2d_fields(pic_info, fname3, **kwargs)
+        x, z, bz = read_2d_fields(pic_info, fname4, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
         fdata = [absB, bx, by, bz]
         bfields_plot.update_fields(ct, fdata, Ay)
 
@@ -313,13 +337,13 @@ def plot_electric_fields(run_name, root_dir, pic_info):
     kernel = np.ones((ng,ng)) / float(ng*ng)
     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     fname2 = root_dir + 'data/ex.gda'
-    x, z, ex = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, ex = read_2d_fields(pic_info, fname2, **kwargs)
     fname3 = root_dir + 'data/ey.gda'
-    x, z, ey = read_2d_fields(pic_info, fname3, **kwargs) 
+    x, z, ey = read_2d_fields(pic_info, fname3, **kwargs)
     fname4 = root_dir + 'data/ez.gda'
-    x, z, ez = read_2d_fields(pic_info, fname4, **kwargs) 
+    x, z, ez = read_2d_fields(pic_info, fname4, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
     ex = signal.convolve2d(ex, kernel, 'same')
     ey = signal.convolve2d(ey, kernel, 'same')
     ez = signal.convolve2d(ez, kernel, 'same')
@@ -340,10 +364,10 @@ def plot_electric_fields(run_name, root_dir, pic_info):
     efields_plot = PlotMultiplePanels(**kwargs_plots)
     for ct in range(1, pic_info.ntf):
         kwargs["current_time"] = ct
-        x, z, ex = read_2d_fields(pic_info, fname2, **kwargs) 
-        x, z, ey = read_2d_fields(pic_info, fname3, **kwargs) 
-        x, z, ez = read_2d_fields(pic_info, fname4, **kwargs) 
-        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+        x, z, ex = read_2d_fields(pic_info, fname2, **kwargs)
+        x, z, ey = read_2d_fields(pic_info, fname3, **kwargs)
+        x, z, ez = read_2d_fields(pic_info, fname4, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
         ex = signal.convolve2d(ex, kernel, 'same')
         ey = signal.convolve2d(ey, kernel, 'same')
         ez = signal.convolve2d(ez, kernel, 'same')
@@ -386,15 +410,15 @@ def plot_current_densities(run_name, root_dir, pic_info):
         os.makedirs(fig_dir)
     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     fname1 = root_dir + 'data/absJ.gda'
-    x, z, absJ = read_2d_fields(pic_info, fname1, **kwargs) 
+    x, z, absJ = read_2d_fields(pic_info, fname1, **kwargs)
     fname2 = root_dir + 'data/jx.gda'
-    x, z, jx = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, jx = read_2d_fields(pic_info, fname2, **kwargs)
     fname3 = root_dir + 'data/jy.gda'
-    x, z, jy = read_2d_fields(pic_info, fname3, **kwargs) 
+    x, z, jy = read_2d_fields(pic_info, fname3, **kwargs)
     fname4 = root_dir + 'data/jz.gda'
-    x, z, jz = read_2d_fields(pic_info, fname4, **kwargs) 
+    x, z, jz = read_2d_fields(pic_info, fname4, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
     fdata = [absJ, jx, jy, jz]
     # Change with different runs
     b0 = pic_info.b0
@@ -412,11 +436,11 @@ def plot_current_densities(run_name, root_dir, pic_info):
     jfields_plot = PlotMultiplePanels(**kwargs_plots)
     for ct in range(1, pic_info.ntf):
         kwargs["current_time"] = ct
-        x, z, absJ = read_2d_fields(pic_info, fname1, **kwargs) 
-        x, z, jx = read_2d_fields(pic_info, fname2, **kwargs) 
-        x, z, jy = read_2d_fields(pic_info, fname3, **kwargs) 
-        x, z, jz = read_2d_fields(pic_info, fname4, **kwargs) 
-        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+        x, z, absJ = read_2d_fields(pic_info, fname1, **kwargs)
+        x, z, jx = read_2d_fields(pic_info, fname2, **kwargs)
+        x, z, jy = read_2d_fields(pic_info, fname3, **kwargs)
+        x, z, jz = read_2d_fields(pic_info, fname4, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
         fdata = [absJ, jx, jy, jz]
         jfields_plot.update_fields(ct, fdata, Ay)
 
@@ -456,11 +480,11 @@ def plot_number_densities(run_name, root_dir, pic_info):
         os.makedirs(fig_dir)
     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     fname1 = root_dir + 'data/ne.gda'
-    x, z, ne = read_2d_fields(pic_info, fname1, **kwargs) 
+    x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
     fname2 = root_dir + 'data/ni.gda'
-    x, z, ni = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
     fname3 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
     fdata = [ne, ni]
     fname = 'nrho'
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
@@ -472,9 +496,9 @@ def plot_number_densities(run_name, root_dir, pic_info):
     nfields_plot = PlotMultiplePanels(**kwargs_plots)
     for ct in range(1, pic_info.ntf):
         kwargs["current_time"] = ct
-        x, z, ne = read_2d_fields(pic_info, fname1, **kwargs) 
-        x, z, ni = read_2d_fields(pic_info, fname2, **kwargs) 
-        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs) 
+        x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
+        x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
         fdata = [ne, ni]
         nfields_plot.update_fields(ct, fdata, Ay)
 
@@ -532,10 +556,10 @@ def plot_energy_band(run_name, root_dir, pic_info, species):
     for i in range(1, nbands+1):
         fname1 = root_dir + 'data/' + species + 'EB' + str(i).zfill(2) + '.gda'
         fnames.append(fname1)
-        x, z, data = read_2d_fields(pic_info, fname1, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname1, **kwargs)
         fdata.append(data)
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = species + 'EB'
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
             'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
@@ -548,9 +572,9 @@ def plot_energy_band(run_name, root_dir, pic_info, species):
         kwargs["current_time"] = ct
         fdata = []
         for i in range(0, nbands):
-            x, z, data = read_2d_fields(pic_info, fnames[i], **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fnames[i], **kwargs)
             fdata.append(data)
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         ebfields_plot.update_fields(ct, fdata, Ay)
 
     # plt.show()
@@ -614,10 +638,10 @@ def plot_pressure_tensor(run_name, root_dir, pic_info, species):
     fname = root_dir + 'data/p' + species + '-zz.gda'
     fnames.append(fname)
     for fname in fnames:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata.append(data)
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = 'p' + species
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
             'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
@@ -630,9 +654,9 @@ def plot_pressure_tensor(run_name, root_dir, pic_info, species):
         kwargs["current_time"] = ct
         fdata = []
         for fname in fnames:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             fdata.append(data)
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         pfields_plot.update_fields(ct, fdata, Ay)
 
     # plt.show()
@@ -687,11 +711,11 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
         fname2 = root_dir + 'data/u' + species + 'x.gda'
         fname3 = root_dir + 'data/u' + species + 'y.gda'
         fname4 = root_dir + 'data/u' + species + 'z.gda'
-    x, z, vx = read_2d_fields(pic_info, fname2, **kwargs) 
-    x, z, vy = read_2d_fields(pic_info, fname3, **kwargs) 
-    x, z, vz = read_2d_fields(pic_info, fname4, **kwargs) 
+    x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
+    x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
+    x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
     fdata = [vx/va, vy/va, vz/va]
     fname = 'v' + species
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
@@ -703,10 +727,10 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     vfields_plot = PlotMultiplePanels(**kwargs_plots)
     for ct in range(1, pic_info.ntf):
         kwargs["current_time"] = ct
-        x, z, vx = read_2d_fields(pic_info, fname2, **kwargs) 
-        x, z, vy = read_2d_fields(pic_info, fname3, **kwargs) 
-        x, z, vz = read_2d_fields(pic_info, fname4, **kwargs) 
-        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+        x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
+        x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
+        x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
         fdata = [vx/va, vy/va, vz/va]
         vfields_plot.update_fields(ct, fdata, Ay)
 
@@ -760,21 +784,21 @@ def plot_thermal_temperature(run_name, root_dir, pic_info):
     pi = 0.0
     for name in fnames_e[0:3]:
         fname = root_dir + 'data/' + name + '.gda'
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pe += data
     fname = root_dir + 'data/' + fnames_e[3] + '.gda'
-    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     te = pe / nrho / 3.0
     for name in fnames_i[0:3]:
         fname = root_dir + 'data/' + name + '.gda'
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pi += data
     fname = root_dir + 'data/' + fnames_i[3] + '.gda'
-    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     ti = pi / nrho / 3.0
     fdata = [te, ti]
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = 'temp'
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
             'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
@@ -789,20 +813,20 @@ def plot_thermal_temperature(run_name, root_dir, pic_info):
         pi = 0.0
         for name in fnames_e[0:3]:
             fname = root_dir + 'data/' + name + '.gda'
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             pe += data
         fname = root_dir + 'data/' + fnames_e[3] + '.gda'
-        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
         te = pe / nrho / 3.0
         for name in fnames_i[0:3]:
             fname = root_dir + 'data/' + name + '.gda'
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             pi += data
         fname = root_dir + 'data/' + fnames_i[3] + '.gda'
-        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
         ti = pi / nrho / 3.0
         fdata = [te, ti]
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         pfields_plot.update_fields(ct, fdata, Ay)
 
     # plt.show()
@@ -856,13 +880,13 @@ def plot_maximum_energy(run_name, root_dir, pic_info):
     gama = 1.0 / math.sqrt(1.0 - 3*vthe**2)
     eth = gama - 1.0
     ieth = 1.0 / eth
-    x, z, emax_e = read_2d_fields(pic_info, fname1, **kwargs1) 
+    x, z, emax_e = read_2d_fields(pic_info, fname1, **kwargs1)
     fname2 = root_dir + 'data1/emax_h.gda'
     emax_e *= ieth
-    x, z, emax_i = read_2d_fields(pic_info, fname2, **kwargs1) 
+    x, z, emax_i = read_2d_fields(pic_info, fname2, **kwargs1)
     emax_i *= pic_info.mime * ieth
     fname3 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs2) 
+    x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs2)
     fdata = [emax_e, emax_i]
     fname = 'emax'
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
@@ -875,9 +899,9 @@ def plot_maximum_energy(run_name, root_dir, pic_info):
     for ct in range(1, pic_info.ntp):
         kwargs1["current_time"] = ct
         kwargs2["current_time"] = (ct+1) * tratio
-        x, z, emax_e = read_2d_fields(pic_info, fname1, **kwargs1) 
-        x, z, emax_i = read_2d_fields(pic_info, fname2, **kwargs1) 
-        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs2) 
+        x, z, emax_e = read_2d_fields(pic_info, fname1, **kwargs1)
+        x, z, emax_i = read_2d_fields(pic_info, fname2, **kwargs1)
+        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs2)
         emax_e *= ieth
         emax_i *= pic_info.mime * ieth
         fdata = [emax_e, emax_i]
@@ -1034,7 +1058,7 @@ def plot_jdote_fields(run_name, root_dir, pic_info, species):
     fdata = []
     fdata_1d = []
     for fname in fnames:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
         fdata_1d.append(fdata_cum)
         data_new = signal.convolve2d(data, kernel, 'same')
@@ -1043,7 +1067,7 @@ def plot_jdote_fields(run_name, root_dir, pic_info, species):
     fdata_1d = np.asarray(fdata_1d)
     fdata /= j0  # Normalization
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = 'jdotes_' + species
     bottom_panel = True
     xlim = [0, 200]
@@ -1061,7 +1085,7 @@ def plot_jdote_fields(run_name, root_dir, pic_info, species):
         fdata = []
         fdata_1d = []
         for fname in fnames:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
             fdata_1d.append(fdata_cum)
             data_new = signal.convolve2d(data, kernel, 'same')
@@ -1069,7 +1093,7 @@ def plot_jdote_fields(run_name, root_dir, pic_info, species):
         fdata = np.asarray(fdata)
         fdata_1d = np.asarray(fdata_1d)
         fdata /= j0  # Normalization
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         jdote_plot.update_plot_1d(fdata_1d)
         jdote_plot.update_fields(ct, fdata, Ay)
 
@@ -1108,7 +1132,8 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
     fname = r'$' + r'\boldsymbol{j}_' + species + r'\cdot\boldsymbol{E}' + '$'
     var_names.append(fname)
     colormaps = ['seismic'] * nj
-    text_colors = colors[0:nj]
+    # text_colors = colors[0:nj]
+    text_colors = ['r', 'g', 'b', 'k']
     xstep, zstep = 2, 2
     is_logs = [False] * nj
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
@@ -1143,7 +1168,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
     fdata = []
     fdata_1d = []
     for fname in fnames[0:3]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
         fdata_1d.append(fdata_cum)
         data_new = signal.convolve2d(data, kernel, 'same')
@@ -1151,7 +1176,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
     fdata.append(fdata[0] + fdata[1] + fdata[2])
     fdata_1d.append(fdata_1d[0] + fdata_1d[1] + fdata_1d[2])
     for fname in fnames[3:4]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
         fdata_1d.append(fdata_cum)
         data_new = signal.convolve2d(data, kernel, 'same')
@@ -1159,7 +1184,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
     jdote = 0
     jdote_cum = 0
     for fname in fnames[4:6]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
         jdote_cum += fdata_cum
         data_new = signal.convolve2d(data, kernel, 'same')
@@ -1170,7 +1195,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
     fdata_1d = np.asarray(fdata_1d)
     fdata /= j0  # Normalization
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = 'comp_' + species
     bottom_panel = True
     xlim = [0, 200]
@@ -1183,12 +1208,13 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
             'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
             'fdata_1d':fdata_1d, 'xlim':xlim, 'zlim':zlim}
     jdote_plot = PlotMultiplePanels(**kwargs_plots)
-    for ct in range(1, pic_info.ntf):
+    # for ct in range(1, pic_info.ntf):
+    for ct in range(110, 120):
         kwargs["current_time"] = ct
         fdata = []
         fdata_1d = []
         for fname in fnames[0:3]:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
             fdata_1d.append(fdata_cum)
             data_new = signal.convolve2d(data, kernel, 'same')
@@ -1196,7 +1222,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
         fdata.append(fdata[0] + fdata[1] + fdata[2])
         fdata_1d.append(fdata_1d[0] + fdata_1d[1] + fdata_1d[2])
         for fname in fnames[3:4]:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
             fdata_1d.append(fdata_cum)
             data_new = signal.convolve2d(data, kernel, 'same')
@@ -1204,7 +1230,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
         jdote = 0
         jdote_cum = 0
         for fname in fnames[4:6]:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
             jdote_cum += fdata_cum
             data_new = signal.convolve2d(data, kernel, 'same')
@@ -1215,7 +1241,7 @@ def plot_compression_fields(run_name, root_dir, pic_info, species):
         fdata_1d = np.asarray(fdata_1d)
         fdata /= j0  # Normalization
         fname2 = root_dir + 'data/Ay.gda'
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         jdote_plot.update_plot_1d(fdata_1d)
         jdote_plot.update_fields(ct, fdata, Ay)
 
@@ -1290,10 +1316,10 @@ def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
 
     gama = 0.0
     for fname in fnames[0:3]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         gama += data**2
     gama = 1.0 / np.sqrt(1.0 - gama)
-    x, z, ne = read_2d_fields(pic_info, fnames[3], **kwargs) 
+    x, z, ne = read_2d_fields(pic_info, fnames[3], **kwargs)
     if species == 'e':
         ptl_mass = 1.0
     else:
@@ -1301,11 +1327,11 @@ def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
     bulk_ene = (gama - 1.0) * ne * ptl_mass
     internal_ene = 0.0
     for fname in fnames[4:7]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         internal_ene += data
     internal_ene *= 0.5
     fdata = [bulk_ene/internal_ene, bulk_ene, internal_ene]
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
 
     fname = 'bulk_internal_' + species
     # Change with different runs
@@ -1327,10 +1353,10 @@ def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
         kwargs["current_time"] = ct
         gama = 0.0
         for fname in fnames[0:3]:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             gama += data**2
         gama = 1.0 / np.sqrt(1.0 - gama)
-        x, z, ne = read_2d_fields(pic_info, fnames[3], **kwargs) 
+        x, z, ne = read_2d_fields(pic_info, fnames[3], **kwargs)
         if species == 'e':
             ptl_mass = 1.0
         else:
@@ -1338,11 +1364,11 @@ def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
         bulk_ene = (gama - 1.0) * ne * ptl_mass
         internal_ene = 0.0
         for fname in fnames[4:7]:
-            x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+            x, z, data = read_2d_fields(pic_info, fname, **kwargs)
             internal_ene += data
         internal_ene *= 0.5
         fdata = [bulk_ene/internal_ene, bulk_ene, internal_ene]
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         bulk_plot.update_fields(ct, fdata, Ay)
 
     # plt.show()

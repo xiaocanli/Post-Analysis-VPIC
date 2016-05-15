@@ -92,6 +92,9 @@ target_link_libraries(jdote_energy_band read_config analysis_config)
 add_library(interp_emf interpolation_emf.f90 neighbors.f90)
 target_link_libraries(interp_emf get_info)
 
+add_library(interp_pfields interpolation_particle_fields.f90 neighbors.f90)
+target_link_libraries(interp_pfields get_info)
+
 add_library(particle_drift particle_drift.f90 particle_frames.f90)
 target_link_libraries(particle_drift file_header magnetic_field interp_emf
     particle_module translate_module particle_file)
