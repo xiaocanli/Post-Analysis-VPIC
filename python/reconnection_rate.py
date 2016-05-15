@@ -42,7 +42,7 @@ def calc_reconnection_rate(base_dir):
     fname = base_dir + 'data/Ay.gda'
     for ct in range(ntf):
         kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-1, "zt":1}
-        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
         nz, = z.shape
         # max_ay = np.max(np.sum(Ay[nz/2-1:nz/2+1, :], axis=0)/2)
         # min_ay = np.min(np.sum(Ay[nz/2-1:nz/2+1, :], axis=0)/2)
@@ -234,7 +234,75 @@ def plot_multi_reconnection_rate():
     plt.show()
 
 
+def plot_reconnection_rate():
+    """Calculate reconnection rate for multiple runs
+    """
+    path = '../data/rate/'
+    fname = path + 'rate_mime25_beta002.dat'
+    tf1, rate1 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta002_sigma033.dat'
+    tf2, rate2 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta002_sigma01.dat'
+    tf3, rate3 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta002_noperturb.dat'
+    tf4, rate4 = np.genfromtxt(fname)
+    fname = path + 'rate_mime100_beta002.dat'
+    tf5, rate5 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta0007.dat'
+    tf6, rate6 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta007.dat'
+    tf7, rate7 = np.genfromtxt(fname)
+    fname = path + 'rate_mime25_beta02.dat'
+    tf8, rate8 = np.genfromtxt(fname)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/rate/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+
+    # Compare different temperature
+    fig = plt.figure(figsize=[7, 5])
+    w1, h1 = 0.82, 0.4
+    xs, ys = 0.13, 0.97-h1
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    ax.plot(tf1, rate1, linewidth=2, label='R1')
+    ax.plot(tf3, rate3, linewidth=2, label='R3')
+    ax.plot(tf5, rate5, linewidth=2, label='R5')
+    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=20)
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=16)
+    ax.set_xlim([0, 1200])
+    ax.set_ylim([0, 0.12])
+    leg = ax.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color, text in zip(colors[0:3], leg.get_texts()):
+            text.set_color(color)
+
+    ys -= h1 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.set_color_cycle(colors)
+    ax1.plot(tf6, rate6, linewidth=2, label='R6', color=colors[3])
+    ax1.plot(tf8, rate8, linewidth=2, label='R8', color=colors[4])
+    ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$E_R$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlim([0, 1200])
+    ax1.set_ylim([0, 0.12])
+    leg1 = ax1.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color, text in zip(colors[3:5], leg1.get_texts()):
+            text.set_color(color)
+    fname = dir + 'rec_rate.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # plot_reconnection_rate('../../')
     # calc_multi_reconnection_rate()
-    plot_multi_reconnection_rate()
+    # plot_multi_reconnection_rate()
+    plot_reconnection_rate()
