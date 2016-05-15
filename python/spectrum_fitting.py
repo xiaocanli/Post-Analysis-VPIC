@@ -1532,15 +1532,17 @@ def plot_spectra_time_multi(species):
 
 
 if __name__ == "__main__":
-    # pic_info = pic_information.get_pic_info('../../')
-    # ntp = pic_info.ntp
+    pic_info = pic_information.get_pic_info('../../')
+    ntp = pic_info.ntp
     # vthe = pic_info.vthe
-    # plot_spectrum_series(ntp, 'e', pic_info)
+    kwargs = {"xlim":[2E-1, 3E2], "ylim":[1E-4,6E2]}
+    plot_spectrum_series('a', pic_info, '../spectrum/', **kwargs)
+    plt.show()
     # plot_spectrum_bulk(ntp, 'e', pic_info)
     # plot_maximum_energy(ntp, pic_info)
     # move_energy_spectra()
-    # calc_nonthermal_fraction('e')
-    plot_spectra_beta_electron()
+    # calc_nonthermal_fraction('h')
+    # plot_spectra_beta_electron()
     # plot_spectra_multi_electron()
     # plot_spectra_beta_ion()
     # plot_spectra_multi_ion()

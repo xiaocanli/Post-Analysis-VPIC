@@ -254,8 +254,11 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
             current_line += 1
         single_line = content[current_line]
         line_splits = single_line.split("=")
-        word_splits = line_splits[1].split("*")
-        particle_interval = int(word_splits[0]) * interval
+        if '*' in line_splits[1]:
+            word_splits = line_splits[1].split("*")
+            particle_interval = int(word_splits[0]) * interval
+        else:
+            particle_interval = interval
 
     return (fields_interval, particle_interval, trace_interval)
 

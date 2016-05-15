@@ -111,7 +111,7 @@ int main(int argc, char **argv)
         MPI_Gather(np_local, njobs, MPI_INT, np_all, njobs, MPI_INT, 0,
                 MPI_COMM_WORLD);
         if (mpi_rank == 0) {
-            save_np_pic(np_local, fpath_hdf5, species, ncpus, tstep);
+            save_np_pic(np_all, fpath_hdf5, species, ncpus, tstep);
         }
         // Get the tracer data
         char *package_data = (char *)malloc(row_size * nptl_tot);
@@ -359,18 +359,18 @@ dset_name_item *set_dname_array_13(int dataset_num)
     dset_name_item *dname_array;
     dname_array = (dset_name_item *)malloc(MAX_DATASET_NUM * sizeof(dset_name_item));
     snprintf(dname_array[0].dataset_name, NAME_MAX, "%s", "q");
-    snprintf(dname_array[1].dataset_name, NAME_MAX, "%s", "x");
-    snprintf(dname_array[2].dataset_name, NAME_MAX, "%s", "y");
-    snprintf(dname_array[3].dataset_name, NAME_MAX, "%s", "z");
-    snprintf(dname_array[4].dataset_name, NAME_MAX, "%s", "ux");
-    snprintf(dname_array[5].dataset_name, NAME_MAX, "%s", "uy");
-    snprintf(dname_array[6].dataset_name, NAME_MAX, "%s", "uz");
-    snprintf(dname_array[7].dataset_name, NAME_MAX, "%s", "ex");
-    snprintf(dname_array[8].dataset_name, NAME_MAX, "%s", "ey");
-    snprintf(dname_array[9].dataset_name, NAME_MAX, "%s", "ez");
-    snprintf(dname_array[10].dataset_name, NAME_MAX, "%s", "cbx");
-    snprintf(dname_array[11].dataset_name, NAME_MAX, "%s", "cby");
-    snprintf(dname_array[12].dataset_name, NAME_MAX, "%s", "cbz");
+    snprintf(dname_array[1].dataset_name, NAME_MAX, "%s", "dX");
+    snprintf(dname_array[2].dataset_name, NAME_MAX, "%s", "dY");
+    snprintf(dname_array[3].dataset_name, NAME_MAX, "%s", "dZ");
+    snprintf(dname_array[4].dataset_name, NAME_MAX, "%s", "Ux");
+    snprintf(dname_array[5].dataset_name, NAME_MAX, "%s", "Uy");
+    snprintf(dname_array[6].dataset_name, NAME_MAX, "%s", "Uz");
+    snprintf(dname_array[7].dataset_name, NAME_MAX, "%s", "Ex");
+    snprintf(dname_array[8].dataset_name, NAME_MAX, "%s", "Ey");
+    snprintf(dname_array[9].dataset_name, NAME_MAX, "%s", "Ez");
+    snprintf(dname_array[10].dataset_name, NAME_MAX, "%s", "Bx");
+    snprintf(dname_array[11].dataset_name, NAME_MAX, "%s", "By");
+    snprintf(dname_array[12].dataset_name, NAME_MAX, "%s", "Bz");
 
     dname_array[0].did = 0;
     dname_array[0].type_id = H5T_NATIVE_INT;
