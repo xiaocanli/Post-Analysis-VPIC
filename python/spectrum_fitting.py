@@ -84,8 +84,8 @@ def get_thermal_total(ene, f, fthermal, fnorm):
     ethermal *= fnorm
     ntot *= fnorm
     etot *= fnorm
-    print 'Thermal and total particles: ', nthermal, ntot
-    print 'Thermal and total energies: ', ethermal, etot
+    print 'Thermal and total particles: ', nthermal, ntot, nthermal/ntot
+    print 'Thermal and total energies: ', ethermal, etot, ethermal/etot
     print '---------------------------------------------------------------'
     return (nthermal, ntot, ethermal, etot)
 
@@ -271,7 +271,7 @@ def plot_spectrum(ct, species, ax, pic_info, **kwargs):
         flog /= pic_info.mime
     elog_norm = get_normalized_energy(species, elog, pic_info)
     ps = []
-    p1, = ax.loglog(elog_norm, flog, linewidth=2)
+    p1, = ax.loglog(elog, flog, linewidth=2)
     if "color" in kwargs:
         p1.set_color(kwargs["color"])
     ps.append(p1)
@@ -279,10 +279,21 @@ def plot_spectrum(ct, species, ax, pic_info, **kwargs):
     color = p1.get_color()
     fthermal = fit_thermal_core(elog, flog)
     fnonthermal = flog - fthermal
+    fthermal1 = fit_thermal_core(elog, fnonthermal)
+    fnonthermal1 = fnonthermal - fthermal1
+    get_thermal_total(elog, flog, fthermal, fnorm)
+    ax.loglog(elog, fthermal1, linewidth=2,
+            color='k', linestyle='--', label='Thermal')
     # Plot thermal core
     if "is_thermal" in kwargs and kwargs["is_thermal"] == True:
-        p2, = ax.loglog(elog_norm, fthermal, linewidth=2,
+        p2, = ax.loglog(elog, fthermal, linewidth=2,
                         color='k', linestyle='--', label='Thermal')
+        if species == 'e':
+            p2, = ax.loglog(elog[270:], fnonthermal[270:], linewidth=2,
+                            color='b', linestyle='--', label='Thermal')
+        else:
+            p2, = ax.loglog(elog[100:], fnonthermal[100:], linewidth=2,
+                            color='b', linestyle='--', label='Thermal')
         ps.append(p2)
     # Plot Power-law spectrum
     if "is_power" in kwargs and kwargs["is_power"] == True:
@@ -1162,58 +1173,66 @@ def plot_spectrum_series(species, pic_info, fpath, **kwargs):
         fpath: file path that has the particle spectra data.
     """
     ntp = pic_info.ntp
+    ntp = 138
     fig = plt.figure(figsize=[7, 5])
     xs, ys = 0.16, 0.15
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
+    ax.grid(True)
     kwargs_plot = {"fpath":fpath, "is_thermal":False, "is_power":False,
             "xlim":kwargs["xlim"], "ylim":kwargs["ylim"], "color":'k'}
-    for ct in range(1, ntp+1):
-        color = plt.cm.jet(ct/float(ntp), 1)
-        kwargs_plot["color"] = color
-        plot_spectrum(ct, species, ax, pic_info, **kwargs_plot)
+    # for ct in range(1, ntp-1):
+        # color = plt.cm.jet(ct/float(ntp), 1)
+        # kwargs_plot["color"] = color
+        # plot_spectrum(ct, species, ax, pic_info, **kwargs_plot)
+    kwargs_plot["color"] = 'k'
+    plot_spectrum(1, species, ax, pic_info, **kwargs_plot)
+    kwargs_plot["is_thermal"] = True
+    kwargs_plot["color"] = 'b'
+    plot_spectrum(ntp-1, species, ax, pic_info, **kwargs_plot)
 
-    if (species == 'e'):
-        vth = pic_info.vthe
-        ptl_mass = 1.0
-    else:
-        vth = pic_info.vthi
-        ptl_mass = pic_info.mime
-    gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
-    eth = gama - 1.0
-    fname = fpath + "spectrum-" + species + "." + str(1).zfill(len(str(1)))
-    nx = pic_info.nx
-    ny = pic_info.ny
-    nz = pic_info.nz
-    nppc = pic_info.nppc
-    fnorm = nx * ny * nz * nppc
-    ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
-    ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
-    f_intial = fitting_funcs.func_maxwellian(ene_log, fnorm, 1.5/eth)
-    nacc_ene, eacc_ene = accumulated_particle_info(ene_log, f_intial)
-    p41, = ax.loglog(ene_log_norm, f_intial/nacc_ene[-1]/ptl_mass,
-            linewidth=2, color='k', linestyle='--', label=r'Initial')
+    # if (species == 'e'):
+    #     vth = pic_info.vthe
+    #     ptl_mass = 1.0
+    # else:
+    #     vth = pic_info.vthi
+    #     ptl_mass = pic_info.mime
+    # gama = 1.0 / math.sqrt(1.0 - 3*vth**2)
+    # eth = gama - 1.0
+    # fname = fpath + "spectrum-" + species + "." + str(1).zfill(len(str(1)))
+    # nx = pic_info.nx
+    # ny = pic_info.ny
+    # nz = pic_info.nz
+    # nppc = pic_info.nppc
+    # fnorm = nx * ny * nz * nppc
+    # ene_lin, flin, ene_log, flog = get_energy_distribution(fname, fnorm)
+    # ene_log_norm = get_normalized_energy(species, ene_log, pic_info)
+    # f_intial = fitting_funcs.func_maxwellian(ene_log, fnorm, 1.5/eth)
+    # nacc_ene, eacc_ene = accumulated_particle_info(ene_log, f_intial)
+    # p41, = ax.loglog(ene_log_norm, f_intial/nacc_ene[-1]/ptl_mass,
+    #         linewidth=2, color='k', linestyle='--', label=r'Initial')
 
-    ax.set_xlabel(r'$\varepsilon/\varepsilon_{th}$', fontdict=font)
+    # ax.set_xlabel(r'$\varepsilon/\varepsilon_{th}$', fontdict=font)
+    ax.set_xlabel(r'$\gamma -1 $', fontdict=font)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font)
     ax.tick_params(labelsize=20)
 
-    # ebbed maximum energy plot
-    emax_time = maximum_energy_particle(species, pic_info, fpath)
-    tparticles = pic_info.tparticles
-    xs, ys = 0.26, 0.26
-    w1, h1 = 0.3, 0.3
-    ax1 = fig.add_axes([xs, ys, w1, h1])
-    nt1, = emax_time.shape
-    nt2, = tparticles.shape
-    nt = min(nt1, nt2)
-    tparticles /= 100
-    ax1.plot(tparticles[:nt], emax_time[:nt], linewidth=2,
-            color=colors[2])
-    ax1.set_xlabel(r'$t\Omega_{ci}/100$', fontdict=font, fontsize=16)
-    ax1.set_ylabel(r'$\varepsilon_\text{max}/\varepsilon_{th}$',
-            fontdict=font, fontsize=16)
-    ax1.tick_params(labelsize=12)
+    # # ebbed maximum energy plot
+    # emax_time = maximum_energy_particle(species, pic_info, fpath)
+    # tparticles = pic_info.tparticles
+    # xs, ys = 0.26, 0.26
+    # w1, h1 = 0.3, 0.3
+    # ax1 = fig.add_axes([xs, ys, w1, h1])
+    # nt1, = emax_time.shape
+    # nt2, = tparticles.shape
+    # nt = min(nt1, nt2)
+    # tparticles /= 100
+    # ax1.plot(tparticles[:nt], emax_time[:nt], linewidth=2,
+    #         color=colors[2])
+    # ax1.set_xlabel(r'$t\Omega_{ci}/100$', fontdict=font, fontsize=16)
+    # ax1.set_ylabel(r'$\varepsilon_\text{max}/\varepsilon_{th}$',
+    #         fontdict=font, fontsize=16)
+    # ax1.tick_params(labelsize=12)
 
 
 def plot_spectra_time_multi(species):
@@ -1287,8 +1306,11 @@ if __name__ == "__main__":
     pic_info = pic_information.get_pic_info('../../')
     ntp = pic_info.ntp
     # vthe = pic_info.vthe
-    kwargs = {"xlim":[2E-1, 3E2], "ylim":[1E-4,6E2]}
-    plot_spectrum_series('a', pic_info, '../spectrum/', **kwargs)
+    kwargs = {"xlim":[2E-3, 5E0], "ylim":[1E-10,1E2]}
+    plot_spectrum_series('e', pic_info, '../spectrum/', **kwargs)
+    # kwargs = {"xlim":[2E-4, 5E-1], "ylim":[1E-10,1E1]}
+    # plot_spectrum_series('h', pic_info, '../spectrum/', **kwargs)
+    # plt.savefig('../img/spectrum_fitting.eps')
     plt.show()
     # plot_spectrum_bulk(ntp, 'e', pic_info)
     # plot_maximum_energy(ntp, pic_info)
