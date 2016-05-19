@@ -95,6 +95,17 @@ module interpolation_particle_fields
     end subroutine open_hydro_files_tb
 
     !!--------------------------------------------------------------------------
+    !! Open the hydro fields for the whole simulation domain.
+    !!--------------------------------------------------------------------------
+    subroutine open_hydro_files(fh, tindex0, pic_mpi_id)
+        implicit none
+        integer, dimension(*), intent(in) :: fh
+        integer, intent(in) :: tindex0, pic_mpi_id
+        call open_hydro_file(fh(1), tindex0, pic_mpi_id, 'e', '')
+        call open_hydro_file(fh(2), tindex0, pic_mpi_id, 'H', '')
+    end subroutine open_hydro_files
+
+    !!--------------------------------------------------------------------------
     !! Open one hydro field file for a single MPI process of PIC simulation.
     !! Inputs:
     !!   fh: file handler.
@@ -161,31 +172,43 @@ module interpolation_particle_fields
     !! Inputs:
     !!   tindex0: the time step index.
     !!   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !!   system_type: 0 for turbulence mixing; 1 for regular system
     !!--------------------------------------------------------------------------
-    subroutine calc_vsingle(tindex0, pic_mpi_id)
+    subroutine calc_vsingle(tindex0, pic_mpi_id, system_type)
         use constants, only: fp, dp
         use neighbors_module, only: get_mpi_neighbors
         use picinfo, only: domain, mime
         use file_header, only: v0, pheader
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, system_type
         integer, dimension(4) :: fh
-        integer :: i
+        integer :: i, nf
 
         fh = [20, 21, 22, 23]
-        call open_hydro_files_tb(fh, tindex0, pic_mpi_id)
-        call read_vel_rho(fh(1:2))
-        ! Notice: the read velocities are actually q*n*v
-        ! Notice: nrho is actually charge density
-        vsx = -vx1 - vx2
-        vsy = -vy1 - vy2
-        vsz = -vz1 - vz2
-        ntot = abs(nrho1 + nrho2)
-        call read_vel_rho(fh(3:4))
-        vsx = vsx + (vx1 + vx2) * mime
-        vsy = vsy + (vy1 + vy2) * mime
-        vsz = vsz + (vz1 + vz2) * mime
-        ntot = ntot + abs((nrho1 + nrho2)) * mime
+        if (system_type == 0) then
+            nf = 4
+            call open_hydro_files_tb(fh, tindex0, pic_mpi_id)
+            call read_vel_rho(fh(1:2))
+            ! Notice: the read velocities are actually q*n*v
+            ! Notice: nrho is actually charge density
+            vsx = -vx1 - vx2
+            vsy = -vy1 - vy2
+            vsz = -vz1 - vz2
+            ntot = abs(nrho1 + nrho2)
+            call read_vel_rho(fh(3:4))
+            vsx = vsx + (vx1 + vx2) * mime
+            vsy = vsy + (vy1 + vy2) * mime
+            vsz = vsz + (vz1 + vz2) * mime
+            ntot = ntot + abs((nrho1 + nrho2)) * mime
+        else if (system_type == 1) then
+            nf = 2
+            call open_hydro_files(fh(1:2), tindex0, pic_mpi_id)
+            call read_vel_rho(fh(1:2))
+            vsx = -vx1 + vx2 * mime
+            vsy = -vy1 + vy2 * mime
+            vsz = -vz1 + vz2 * mime
+            ntot = abs(nrho1) + abs(nrho2) * mime
+        endif
         where (ntot > 0.0)
             vsx = vsx / ntot
             vsy = vsy / ntot
@@ -196,7 +219,7 @@ module interpolation_particle_fields
             vsz = 0.0
         endwhere
 
-        do i = 1, 4
+        do i = 1, nf
             close(fh(i))
         enddo
     end subroutine calc_vsingle
