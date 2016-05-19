@@ -2275,10 +2275,9 @@ def fit_nonthermal_thermal(ene, f):
         fthermal: thermal part of the particle distribution.
     """
     print('Fitting nonthermal distribution as thermal distribution')
-    imax = np.argmax(f)
-    emax = ene[imax]
+    emax = ene[np.argmax(f)]
     fthermal = fitting_funcs.func_maxwellian(ene, 1.0, 1.0/(2*emax))
-    ratio = f[338] / fthermal[0]
+    ratio = f[np.argmax(f)] / fthermal[np.argmax(f)]
     fthermal *= ratio
     return fthermal
 
@@ -2293,13 +2292,17 @@ def fit_two_maxwellian():
     img_dir = '../img/spectra/'
     if not os.path.isdir(img_dir):
         os.makedirs(img_dir)
-    fig = plt.figure(figsize=[7, 8])
-    xs, ys = 0.15, 0.47
-    w1, h1 = 0.8, 0.5
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
-    pic_info = pic_information.get_pic_info('../../')
-    dir = '../spectrum/'
+    # pic_info = pic_information.get_pic_info('../../')
+    # dir = '../spectrum/'
+    run_name = 'mime25_beta002'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    dir = '../data/spectra/' + run_name + '/'
     n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
     ct = 1
     fname = dir + 'spectrum-' + species + '.1'
