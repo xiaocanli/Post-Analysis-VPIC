@@ -30,7 +30,7 @@ program parallel_hdf5
     call init_analysis
 
     call cpu_time(step1)
-    do ct = 0, 14, 7
+    do ct = 0, 3300, 66
         if (myid == master) print*, ct
         write(ct_char, "(I0)") ct
         current_num_dset = num_dset
@@ -54,7 +54,7 @@ program parallel_hdf5
 
     call cpu_time(finish)
     if (myid == master) then
-        print '("Time = ",f6.3," seconds.")',finish-start
+        print '("Time = ",f9.4," seconds.")',finish-start
     endif
 
     contains
@@ -129,14 +129,14 @@ program parallel_hdf5
             doffset, dset_dims, icell)
 
         ptl_offset = 0
-        do dom_x = ht%start_x, ht%stop_x
+        do dom_z = ht%start_z, ht%stop_z
             do dom_y = ht%start_y, ht%stop_y
-                do dom_z = ht%start_z, ht%stop_z
+                do dom_x = ht%start_x, ht%stop_x
                     call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
                                        domain%pic_ty, domain%pic_tz, n)
                     nptl = np_local(n)
                     call read_emfields_single(tindex0, n-1)
-                    call calc_vsingle(tindex0, n-1)
+                    call calc_vsingle(tindex0, n-1, 1)
                     do iptl = ptl_offset+1, ptl_offset+nptl
                         ptl%dx = dX(iptl)
                         ptl%dy = dY(iptl)
