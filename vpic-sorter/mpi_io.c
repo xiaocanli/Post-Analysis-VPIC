@@ -155,7 +155,12 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
     H5Pset_fapl_mpio(plist_id, comm, info);
     //H5Pset_libver_bounds (plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
 
-    file_id = H5Fcreate(filename_sorted, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+    if( access( filename_sorted, F_OK ) != -1 ) {
+        file_id = H5Fopen(filename_sorted, H5F_ACC_RDWR, plist_id);
+    } else {
+        file_id = H5Fcreate(filename_sorted, H5F_ACC_TRUNC, H5P_DEFAULT,
+                plist_id);
+    }
     H5Pclose(plist_id);
 
     group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
