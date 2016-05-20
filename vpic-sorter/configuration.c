@@ -18,7 +18,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         int *local_sort_threaded, int *local_sort_threads_num, int *meta_data,
         char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta, char *filepath,
-        char *species, int *tmax, int *tinterval, int *multi_tsteps,
+        char *species, int *tmax, int *tmin, int *tinterval, int *multi_tsteps,
         int *ux_kindex, char *filename_traj, int *nptl_traj, float *ratio_emax,
         int *tracking_traj, int *load_tracer_meta)
 {
@@ -33,6 +33,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         {"filename_traj", required_argument, 0, 3},
         {"nptl_traj", required_argument, 0, 4},
         {"ratio_emax", required_argument, 0, 5},
+        {"tmin", required_argument, 0, 6},
         {"load_tracer_meta", required_argument, 0, 'r'},
         {0, 0, 0, 0},
     };
@@ -133,6 +134,9 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 5:
                 *ratio_emax = atof(optarg);
                 break;
+            case 6:
+                *tmin = atoi(optarg);
+                break;
             case 'r':
                 *load_tracer_meta = 1;
                 break;
@@ -178,6 +182,7 @@ void print_help(){
                -u the key index of ux \n\
                -q tracking the trajectories of particles\n\
                -r whether to load tracer meta data \n\
+               --tmin the particle output minimum time step \n\
                --filepath file path saving the particle tracing data \n\
                --species particle species for sorting \n\
                --filename_traj output file for particle trajectories \n\

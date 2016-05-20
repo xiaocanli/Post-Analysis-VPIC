@@ -44,7 +44,7 @@ int main(int argc, char **argv){
         collect_data, weak_scale_test, weak_scale_test_length,
         local_sort_threaded, local_sort_threads_num, meta_data,
         load_tracer_meta;
-    int tmax, tinterval; // Maximum time step and time interval
+    int tmin, tmax, tinterval; // Minimum, maximum time step and time interval
     int multi_tsteps, ux_kindex;
     char *filename, *group_name, *filename_sorted, *filename_attribute;
     char *filename_meta, *filepath, *species, *filename_traj;
@@ -66,6 +66,7 @@ int main(int argc, char **argv){
     filename_traj = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     filepath = (char *)malloc(MAX_FILENAME_LEN * sizeof(char));
     species = (char *)malloc(16 * sizeof(char));
+    tmin = 0;
     tmax = 0;
     tinterval = 1;
 
@@ -75,7 +76,7 @@ int main(int argc, char **argv){
             &collect_data, &weak_scale_test, &weak_scale_test_length,
             &local_sort_threaded, &local_sort_threads_num, &meta_data,
             filename, group_name, filename_sorted, filename_attribute,
-            filename_meta, filepath, species, &tmax, &tinterval,
+            filename_meta, filepath, species, &tmax, &tmin, &tinterval,
             &multi_tsteps, &ux_kindex, filename_traj, &nptl_traj,
             &ratio_emax, &tracking_traj, &load_tracer_meta);
 
@@ -85,7 +86,8 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    int ntf, tstep;
+    int ntf, mtf, tstep;
+    mtf = tmin / tinterval;
     ntf = tmax / tinterval + 1;
 
     /* Get the particle tags from sorted-by-energy data of the last time frame */
@@ -123,7 +125,7 @@ int main(int argc, char **argv){
     }
 
     if (multi_tsteps) {
-        for (int i = 0; i < ntf; i++) {
+        for (int i = mtf; i < ntf; i++) {
             tstep = i * tinterval;
             if (mpi_rank == 0) printf("%d\n", tstep);
             set_filenames(tstep, filepath, species, filename, group_name,
@@ -157,8 +159,8 @@ int main(int argc, char **argv){
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (tracking_traj) {
-        MPI_Reduce(tracked_particles, tracked_particles_sum, ntf*nptl_traj*row_size,
-                MPI_CHAR, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(tracked_particles, tracked_particles_sum,
+                ntf*nptl_traj*row_size, MPI_CHAR, MPI_SUM, 0, MPI_COMM_WORLD);
 
         /* Save the particle data. */
         if (mpi_rank == 0) {
