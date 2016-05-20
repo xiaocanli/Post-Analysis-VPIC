@@ -51,7 +51,7 @@ int main(int argc, char **argv){
     char *final_buff;
     float ratio_emax;
     unsigned long long rsize;
-    int nptl_traj, tracking_traj, is_recreate;
+    int nptl_traj, tracking_traj, is_recreate, nsteps;
 
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Init(&argc, &argv);
@@ -70,6 +70,7 @@ int main(int argc, char **argv){
     tmax = 0;
     tinterval = 1;
     is_recreate = 0; // Don't recreate a HDF5 file when it exists
+    nsteps = 1;
 
     t0 = MPI_Wtime();
     is_help = get_configuration(argc, argv, mpi_rank, &key_index,
@@ -79,7 +80,8 @@ int main(int argc, char **argv){
             filename, group_name, filename_sorted, filename_attribute,
             filename_meta, filepath, species, &tmax, &tmin, &tinterval,
             &multi_tsteps, &ux_kindex, filename_traj, &nptl_traj,
-            &ratio_emax, &tracking_traj, &load_tracer_meta, &is_recreate);
+            &ratio_emax, &tracking_traj, &load_tracer_meta, &is_recreate,
+            &nsteps);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {
@@ -87,9 +89,10 @@ int main(int argc, char **argv){
         return 1;
     }
 
-    int ntf, mtf, tstep;
+    int ntf, mtf, tstep, nsteps_tot;
     mtf = tmin / tinterval;
     ntf = tmax / tinterval + 1;
+    nsteps_tot = tmax;
 
     /* Get the particle tags from sorted-by-energy data of the last time frame */
     /* Then sort the tags */

@@ -20,11 +20,11 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         char *filename_attribute, char *filename_meta, char *filepath,
         char *species, int *tmax, int *tmin, int *tinterval, int *multi_tsteps,
         int *ux_kindex, char *filename_traj, int *nptl_traj, float *ratio_emax,
-        int *tracking_traj, int *load_tracer_meta, int *is_recreate)
+        int *tracking_traj, int *load_tracer_meta, int *is_recreate, int *nsteps)
 {
     int c;
     static const char *options="f:o:a:g:m:k:hsvewl:t:c:b:i:pu:qr";
-    static struct option long_options[] = 
+    static struct option long_options[] =
     {
         {"tmax", required_argument, 0, 'b'},
         {"tinterval", required_argument, 0, 'i'},
@@ -35,6 +35,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         {"ratio_emax", required_argument, 0, 5},
         {"tmin", required_argument, 0, 6},
         {"is_recreate", required_argument, 0, 7},
+        {"nsteps", required_argument, 0, 8},
         {"load_tracer_meta", required_argument, 0, 'r'},
         {0, 0, 0, 0},
     };
@@ -43,7 +44,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     extern char *optarg;
 
     /* Default values */
-    *key_index = 1;  
+    *key_index = 1;
     *sort_key_only = 0;
     *skew_data = 0;
     *verbose = 0;
@@ -61,6 +62,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
     *tracking_traj = 0;
     *load_tracer_meta = 0;
     *is_recreate = 0; // Do not recreate a HDF5 file when it exists
+    *nsteps = 1;      // # steps are saved in each time interval
 
     /* while ((c = getopt (argc, argv, options)) != -1){ */
     while ((c = getopt_long (argc, argv, options, long_options, &option_index)) != -1){
@@ -78,7 +80,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
             case 'a':
                 strcpy(filename_attribute, optarg);
                 /* strncpy(filename_attribute, optarg, NAME_MAX); */
-                /* filename_attribute = strdup(optarg); */  
+                /* filename_attribute = strdup(optarg); */
                 break;
             case 'g':
                 strcpy(group_name, optarg);
@@ -102,7 +104,7 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
                 *verbose = 1;
                 break;
             case 'l':
-                *weak_scale_test = 1; 
+                *weak_scale_test = 1;
                 *weak_scale_test_length = atoi(optarg);
                 break;
             case 'e':
@@ -141,6 +143,9 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
                 break;
             case 7:
                 *is_recreate = atoi(optarg);
+                break;
+            case 8:
+                *nsteps = atoi(optarg);
                 break;
             case 'r':
                 *load_tracer_meta = 1;
@@ -194,6 +199,7 @@ void print_help(){
                --nptl_traj number of particles for trajectory tracking \n\
                --ratio_emax ratio of Emax of all particles to that of tracked ones \n\
                --is_recreate whether to recreate a HDF5 file \n\
+               --nsteps # of steps are save in each time interval \n\
                -e only sort the key  \n\
                -v verbose  \n\
                example: ./h5group-sorter -f testf.h5p  -g /testg  -o testg-sorted.h5p -a testf.attribute -k 0 \n";
