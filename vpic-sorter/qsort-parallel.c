@@ -28,7 +28,7 @@ int skewed_data_partition(int mpi_rank, int mpi_size, char *data,
 void check_load_balance(int mpi_rank, int mpi_size, unsigned long long rsize);
 char *exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
         int64_t my_data_size, int row_size, int collect_data, int write_result, 
-        unsigned long long *rsize);
+        unsigned long long *rsize, int is_recreate);
 
 /******************************************************************************
  * Compare the key in "long long" type
@@ -179,7 +179,8 @@ int phase1(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
  ******************************************************************************/
 char *phase2(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         char *pivots, int rest_size, int row_size, int skew_data,
-        int collect_data, int write_result, unsigned long long *rsize)
+        int collect_data, int write_result, unsigned long long *rsize,
+        int is_recreate)
 {
     int dest, k;
     double t1, t2; 
@@ -243,7 +244,7 @@ char *phase2(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
 
     /* echange the data and sort it again. */
     final_buff = exchange_data(mpi_rank, mpi_size, data, scount, my_data_size,
-            row_size, collect_data, write_result, rsize);
+            row_size, collect_data, write_result, rsize, is_recreate);
 
     free(scount);
 
@@ -295,7 +296,8 @@ char *master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         int dset_num, int key_data_type, int verbosity, int omp_threaded,
         int omp_threads_num, int skew_data, int collect_data, int write_result,
         char *gname, char *fname_sorted, char *fname_attribute,
-        dset_name_item *dataname_array, unsigned long long *rsize)
+        dset_name_item *dataname_array, unsigned long long *rsize,
+        int is_recreate)
 {
     char *all_samp, *temp_samp, *final_buff;
     char *pivots;
@@ -373,7 +375,8 @@ char *master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
     //To sort and write sorted file
 
     final_buff = phase2(0, mpi_size, data, my_data_size, pivots, rest_size,
-            row_size, skew_data, collect_data, write_result, rsize);
+            row_size, skew_data, collect_data, write_result, rsize,
+            is_recreate);
     free(pivots);
 
     free_external_variable();
@@ -389,7 +392,8 @@ char *slave(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         int dset_num, int key_data_type, int verbosity, int omp_threaded,
         int omp_threads_num, int skew_data, int collect_data, int write_result,
         char *gname, char *fname_sorted, char *fname_attribute,
-        dset_name_item *dataname_array, unsigned long long *rsize)
+        dset_name_item *dataname_array, unsigned long long *rsize,
+        int is_recreate)
 {
     char  *pivots;
     char *final_buff;
@@ -410,7 +414,7 @@ char *slave(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
 
     final_buff = phase2(mpi_rank, mpi_size, data, my_data_size, pivots,
             rest_size, row_size, skew_data, collect_data, write_result,
-            rsize);
+            rsize, is_recreate);
     free(pivots);
 
     free_external_variable();
@@ -816,7 +820,7 @@ void check_load_balance(int mpi_rank, int mpi_size, unsigned long long rsize) {
  ******************************************************************************/
 char *exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
         int64_t my_data_size, int row_size, int collect_data, int write_result,
-        unsigned long long *rsize)
+        unsigned long long *rsize, int is_recreate)
 {
     int *sdisp, *rcount, *rdisp;
     unsigned long long ssize = 0;
@@ -913,7 +917,7 @@ char *exchange_data(int mpi_rank, int mpi_size, char *data, int *scount,
     if(write_result == 1) {
         write_result_file(mpi_rank, mpi_size, final_buff, *rsize, row_size,
                 dataset_num, max_type_size, key_index, group_name,
-                filename_sorted, filename_attribute, dname_array);
+                filename_sorted, filename_attribute, dname_array, is_recreate);
     }
 
     MPI_Barrier(MPI_COMM_WORLD);

@@ -1,7 +1,7 @@
-/* 
+/*
  *
  * Generally, this file sort the dataset inside a HDF5 group
- * 
+ *
  */
 
 #include "stdlib.h"
@@ -28,7 +28,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
         int ux_kindex, char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta,
-        unsigned long long *rsize, int load_tracer_meta);
+        unsigned long long *rsize, int load_tracer_meta, int is_recreate);
 void set_filenames(int tstep, char *filepath, char *species, char *filename,
         char *group_name, char *filename_sorted, char *filename_attribute,
         char *filename_meta);
@@ -51,7 +51,7 @@ int main(int argc, char **argv){
     char *final_buff;
     float ratio_emax;
     unsigned long long rsize;
-    int nptl_traj, tracking_traj;
+    int nptl_traj, tracking_traj, is_recreate;
 
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Init(&argc, &argv);
@@ -69,6 +69,7 @@ int main(int argc, char **argv){
     tmin = 0;
     tmax = 0;
     tinterval = 1;
+    is_recreate = 0; // Don't recreate a HDF5 file when it exists
 
     t0 = MPI_Wtime();
     is_help = get_configuration(argc, argv, mpi_rank, &key_index,
@@ -78,7 +79,7 @@ int main(int argc, char **argv){
             filename, group_name, filename_sorted, filename_attribute,
             filename_meta, filepath, species, &tmax, &tmin, &tinterval,
             &multi_tsteps, &ux_kindex, filename_traj, &nptl_traj,
-            &ratio_emax, &tracking_traj, &load_tracer_meta);
+            &ratio_emax, &tracking_traj, &load_tracer_meta, &is_recreate);
 
     /* when -h flag is set to seek help of how to use this program */
     if (is_help) {
@@ -135,7 +136,7 @@ int main(int argc, char **argv){
                     weak_scale_test, weak_scale_test_length, local_sort_threaded,
                     local_sort_threads_num, meta_data, ux_kindex, filename,
                     group_name, filename_sorted, filename_attribute,
-                    filename_meta, &rsize, load_tracer_meta);
+                    filename_meta, &rsize, load_tracer_meta, is_recreate);
             if (tracking_traj) {
                 get_tracked_particle_info(final_buff, qindex, row_size,
                         rsize, i, ntf, tags, nptl_traj, tracked_particles);
@@ -150,7 +151,7 @@ int main(int argc, char **argv){
                 weak_scale_test, weak_scale_test_length, local_sort_threaded,
                 local_sort_threads_num, meta_data, ux_kindex, filename,
                 group_name, filename_sorted, filename_attribute,
-                filename_meta, &rsize, load_tracer_meta);
+                filename_meta, &rsize, load_tracer_meta, is_recreate);
         if(collect_data == 1) {
             free(final_buff);
         }
@@ -176,7 +177,7 @@ int main(int argc, char **argv){
         free(dname_array);
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);		
+    MPI_Barrier(MPI_COMM_WORLD);
     t1 = MPI_Wtime();
     if(mpi_rank == 0) {
         printf("Overall time is [%f]s \n", (t1 - t0));
@@ -204,7 +205,7 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
         int local_sort_threaded, int local_sort_threads_num, int meta_data,
         int ux_kindex, char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta,
-        unsigned long long *rsize, int load_tracer_meta) {
+        unsigned long long *rsize, int load_tracer_meta, int is_recreate) {
     int max_type_size, dataset_num, key_value_type, row_size;
     hsize_t my_data_size, rest_size, my_offset;
     char *package_data, *final_buff;
@@ -239,13 +240,15 @@ char* sorting_single_tstep(int mpi_size, int mpi_rank, int key_index,
                 rest_size, row_size, max_type_size, key_index, dataset_num,
                 key_value_type, verbose, local_sort_threaded, local_sort_threads_num,
                 skew_data, collect_data, write_result, group_name,
-                filename_sorted, filename_attribute, dname_array, rsize);
+                filename_sorted, filename_attribute, dname_array, rsize,
+                is_recreate);
     }else{
         final_buff = slave(mpi_rank, mpi_size, package_data, my_data_size,
                 rest_size, row_size, max_type_size, key_index, dataset_num,
                 key_value_type, verbose, local_sort_threaded, local_sort_threads_num,
                 skew_data, collect_data, write_result, group_name,
-                filename_sorted, filename_attribute, dname_array, rsize);
+                filename_sorted, filename_attribute, dname_array, rsize,
+                is_recreate);
     }
 
     free_opic_data_type();

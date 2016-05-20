@@ -99,11 +99,14 @@ void get_one_file_data(hid_t dset_id, int mpi_rank, int mpi_size, void *data,
 int write_result_file(int mpi_rank, int mpi_size, char *data,
         hsize_t my_data_size, int row_size, int dataset_num, int max_type_size,
         int key_index, char *group_name, char *filename_sorted,
-        char *filename_attribute, dset_name_item *dname_array)
+        char *filename_attribute, dset_name_item *dname_array,
+        char is_recreate)
 {
     MPI_Comm comm = MPI_COMM_WORLD;
     MPI_Info info = MPI_INFO_NULL;
-    hid_t    plist_id, plist_id2, file_id, group_id, dataspace_id, filespace, memspace;
+    hid_t plist_id, plist_id2, file_id, group_id;
+    hid_t dataspace_id, filespace, memspace;
+    herr_t   status;
     hsize_t  i, *size_vector;
     hsize_t  file_size, my_offset[1], count[1];
 
@@ -155,7 +158,7 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
     H5Pset_fapl_mpio(plist_id, comm, info);
     //H5Pset_libver_bounds (plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
 
-    if( access( filename_sorted, F_OK ) != -1 ) {
+    if( access( filename_sorted, F_OK ) != -1 && is_recreate) {
         file_id = H5Fopen(filename_sorted, H5F_ACC_RDWR, plist_id);
     } else {
         file_id = H5Fcreate(filename_sorted, H5F_ACC_TRUNC, H5P_DEFAULT,
@@ -163,7 +166,13 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
     }
     H5Pclose(plist_id);
 
-    group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    status = H5Gget_objinfo (file_id, group_name, 0, NULL);
+    if (status != 0) {
+        group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT,
+                H5P_DEFAULT, H5P_DEFAULT);
+    } else {
+        group_id = H5Gopen(file_id, group_name, H5P_DEFAULT);
+    }
 
     count[0] = my_data_size;
     memspace = H5Screate_simple(1, count, NULL);
@@ -183,8 +192,6 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
     H5Pset_attr_phase_change(e_dpid, 0, 0);
 
     char    dataset_name_t[NAME_MAX];
-    //dset_id = H5Dcreate(group_id, "/candidate/Energy", H5T_IEEE_F32LE,
-    //        dataspace_id, H5P_DEFAULT, e_dpid, H5P_DEFAULT);
 
     hid_t typeid;
     dataspace_id = H5Screate_simple(1, &file_size, NULL);
@@ -196,9 +203,10 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
         sprintf(dataset_name_t, "%s/%s", group_name, dname_array[i].dataset_name);
         //printf("Dataset name %s \n", dataset_name_t);
         dname_array[i].did = H5Dcreate(file_id, dataset_name_t,
-                dname_array[i].type_id, dataspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+                dname_array[i].type_id, dataspace_id, H5P_DEFAULT,
+                H5P_DEFAULT, H5P_DEFAULT);
         if((dname_array[i].did < 0)){
-            printf("Error in creating file ! \n");
+            printf("Error in creating dataset ! \n");
             exit(-1);
         }
         filespace = H5Dget_space(dname_array[i].did);

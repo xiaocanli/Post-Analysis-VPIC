@@ -11,7 +11,8 @@ int phase1(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
 //Phase 2 of the parallel sampling sorting
 char *phase2(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         char *pivots, int rest_size, int row_size, int skew_data,
-        int collect_data, int write_result, unsigned long long *rsize);
+        int collect_data, int write_result, unsigned long long *rsize,
+        int is_recreate);
 
 // Master does slave's job, and also gather and sort pivots
 char *master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
@@ -19,7 +20,8 @@ char *master(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         int dset_num, int key_data_typ, int verbosity, int omp_threaded,
         int omp_threads_num, int skew_data, int collect_data, int write_result,
         char *gname, char *fname_sorted, char *fname_attribute,
-        dset_name_item *dataname_array, unsigned long long *rsize);
+        dset_name_item *dataname_array, unsigned long long *rsize,
+        int is_recreate);
 
 /*Do sort and sample*/
 char *slave(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
@@ -27,7 +29,8 @@ char *slave(int mpi_rank, int mpi_size, char *data, int64_t my_data_size,
         int dset_num, int key_data_type, int verbosity, int omp_threaded,
         int omp_threads_num, int skew_data, int collect_data, int write_result,
         char *gname, char *fname_sorted, char *fname_attribute,
-        dset_name_item *dataname_array, unsigned long long *rsize);
+        dset_name_item *dataname_array, unsigned long long *rsize,
+        int is_recreate);
 
 //Sort the data based on the type
 int qsort_type(void *data, int64_t my_data_size, size_t row_size);
