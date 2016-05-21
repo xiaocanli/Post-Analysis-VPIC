@@ -92,7 +92,11 @@ int main(int argc, char **argv){
     int ntf, mtf, tstep, nsteps_tot;
     mtf = tmin / tinterval;
     ntf = tmax / tinterval + 1;
-    nsteps_tot = tmax;
+    if (nsteps == 1) {
+        nsteps_tot = ntf;
+    } else {
+        nsteps_tot = tmax;
+    }
 
     /* Get the particle tags from sorted-by-energy data of the last time frame */
     /* Then sort the tags */
@@ -107,6 +111,7 @@ int main(int argc, char **argv){
         tstep = (ntf - 1) * tinterval;
         snprintf(filename_ene, MAX_FILENAME_LEN, "%s%s%d%s%s%s", filepath, "/T.",
                 tstep, "/", species, "_tracer_energy_sorted.h5p");
+        if (nsteps != 1) tstep--;
         get_particle_tags(filename_ene, tstep, ratio_emax, nptl_traj, tags);
         qsort(tags, nptl_traj, sizeof(int), CompareInt32Value);
         snprintf(group_name, MAX_FILENAME_LEN, "%s%d", "/Step#", tstep);
@@ -116,13 +121,13 @@ int main(int argc, char **argv){
             &max_type_size, &key_value_type, dname_array);
         free(package_data);
         qindex = get_dataset_index("q", dname_array, dataset_num);
-        tracked_particles = (char *)malloc(ntf * nptl_traj * row_size);
-        for (int j = 0; j < ntf*nptl_traj*row_size; j++) {
+        tracked_particles = (char *)malloc(nsteps_tot * nptl_traj * row_size);
+        for (int j = 0; j < nsteps_tot*nptl_traj*row_size; j++) {
             tracked_particles[j] = 0;
         }
         if (mpi_rank == 0) {
-            tracked_particles_sum = (char *)malloc(ntf * nptl_traj * row_size);
-            for (int j = 0; j < ntf*nptl_traj*row_size; j++) {
+            tracked_particles_sum = (char *)malloc(nsteps_tot * nptl_traj * row_size);
+            for (int j = 0; j < nsteps_tot*nptl_traj*row_size; j++) {
                 tracked_particles_sum[j] = 0;
             }
         }
@@ -134,18 +139,42 @@ int main(int argc, char **argv){
             if (mpi_rank == 0) printf("%d\n", tstep);
             set_filenames(tstep, filepath, species, filename, group_name,
                     filename_sorted, filename_attribute, filename_meta);
-            final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
-                    sort_key_only, skew_data, verbose, write_result, collect_data,
-                    weak_scale_test, weak_scale_test_length, local_sort_threaded,
-                    local_sort_threads_num, meta_data, ux_kindex, filename,
-                    group_name, filename_sorted, filename_attribute,
-                    filename_meta, &rsize, load_tracer_meta, is_recreate);
-            if (tracking_traj) {
-                get_tracked_particle_info(final_buff, qindex, row_size,
-                        rsize, i, ntf, tags, nptl_traj, tracked_particles);
-            }
-            if(collect_data == 1) {
-                free(final_buff);
+            if (nsteps == 1) {
+                final_buff = sorting_single_tstep(mpi_size, mpi_rank, key_index,
+                        sort_key_only, skew_data, verbose, write_result,
+                        collect_data, weak_scale_test, weak_scale_test_length,
+                        local_sort_threaded, local_sort_threads_num, meta_data,
+                        ux_kindex, filename, group_name, filename_sorted,
+                        filename_attribute, filename_meta, &rsize,
+                        load_tracer_meta, is_recreate);
+                if (tracking_traj) {
+                    get_tracked_particle_info(final_buff, qindex, row_size,
+                            rsize, i, ntf, tags, nptl_traj, tracked_particles);
+                }
+                if(collect_data == 1) {
+                    free(final_buff);
+                }
+            } else {
+                for (tstep = (i-1) * tinterval; tstep < i*tinterval; tstep++) {
+                    snprintf(group_name, MAX_FILENAME_LEN, "%s%d", "/Step#",
+                            tstep);
+                    final_buff = sorting_single_tstep(mpi_size, mpi_rank,
+                            key_index, sort_key_only, skew_data, verbose,
+                            write_result, collect_data, weak_scale_test,
+                            weak_scale_test_length, local_sort_threaded,
+                            local_sort_threads_num, meta_data,
+                            ux_kindex, filename, group_name, filename_sorted,
+                            filename_attribute, filename_meta, &rsize,
+                            load_tracer_meta, is_recreate);
+                    if (tracking_traj) {
+                        get_tracked_particle_info(final_buff, qindex, row_size,
+                                rsize, tstep, nsteps_tot, tags, nptl_traj,
+                                tracked_particles);
+                    }
+                    if(collect_data == 1) {
+                        free(final_buff);
+                    }
+                }
             }
         }
     } else {
@@ -164,12 +193,13 @@ int main(int argc, char **argv){
 
     if (tracking_traj) {
         MPI_Reduce(tracked_particles, tracked_particles_sum,
-                ntf*nptl_traj*row_size, MPI_CHAR, MPI_SUM, 0, MPI_COMM_WORLD);
+                nsteps_tot*nptl_traj*row_size, MPI_CHAR, MPI_SUM, 0,
+                MPI_COMM_WORLD);
 
         /* Save the particle data. */
         if (mpi_rank == 0) {
-            save_tracked_particles(filename_traj, tracked_particles_sum, ntf,
-                    nptl_traj, row_size, dataset_num, max_type_size,
+            save_tracked_particles(filename_traj, tracked_particles_sum,
+                    nsteps_tot, nptl_traj, row_size, dataset_num, max_type_size,
                     dname_array, tags);
         }
         free(tracked_particles);
