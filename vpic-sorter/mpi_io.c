@@ -171,13 +171,16 @@ int write_result_file(int mpi_rank, int mpi_size, char *data,
         group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT,
                 H5P_DEFAULT, H5P_DEFAULT);
     } else {
-        status = H5Lget_info(file_id, group_name, &link_buff, H5P_DEFAULT);
+        status = H5Eset_auto1(NULL, NULL);
+        status = H5Gget_objinfo (file_id, group_name, 0, NULL);
+        /* status = H5Lget_info(file_id, group_name, &link_buff, H5P_DEFAULT); */
         if (status != 0) {
             group_id = H5Gcreate(file_id, group_name, H5P_DEFAULT,
                     H5P_DEFAULT, H5P_DEFAULT);
         } else {
             group_id = H5Gopen(file_id, group_name, H5P_DEFAULT);
         }
+        status = H5Eset_auto1(NULL, NULL);
     }
 
     count[0] = my_data_size;
