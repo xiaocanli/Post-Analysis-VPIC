@@ -41,7 +41,8 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
 void read_header_multi(FILE *fp, float *q_m, int *nvar, int *tracer_interval);
 void get_package_data_multi(int njobs, int offset, char *fpath_binary,
         char *fname_binary, char *species, int tstep, int row_size,
-        int *np_local, int istep, int nsteps, char *package_data);
+        int *np_local, long int *np_offset, int istep, int nsteps,
+        char *package_data);
 
 /******************************************************************************
  * Main program to transfer the data
@@ -204,9 +205,11 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
     FILE *fp;
     int *np_local; // number of particles in each PIC mpi_rank
     int *np_all;   // for all PIC mpi_ranks
+    long int *np_offset;
     int njobs, offset;
     int nvar, tracer_interval;
     long int *nptl_tot;
+    long int offset_t;
 
     // Not actually necessary, but it is easies to use the existing code
     int key_index, key_value_type;
@@ -215,6 +218,7 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
 
     set_jobs(mpi_rank, mpi_size, ncpus, &njobs, &offset);
     np_local = (int *)malloc(sizeof(int) * njobs * nsteps);
+    np_offset = (long int *)malloc(sizeof(long int) * njobs * nsteps);
     nptl_tot = (long int *)malloc(sizeof(long int) * nsteps);
     if (mpi_rank == 0) {
         np_all = (int *)malloc(sizeof(int) * ncpus * nsteps);
@@ -223,6 +227,7 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
         if (mpi_rank == 0) printf("%d\n", tstep);
         for (int i = 0; i < njobs * nsteps; i++) {
             np_local[i] = 0;
+            np_offset[i] = 0;
         }
         for (int i = 0; i < nsteps; i++) {
             nptl_tot[i] = 0;
@@ -240,11 +245,15 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
             // nvar should be equal to dataset_num
             // tracer_interval should be equal to nsteps
             read_header_multi(fp, &q_m, &nvar, &tracer_interval);
-            fread(np_local + (icpu-offset)*tracer_interval, sizeof(int),
-                    tracer_interval, fp);
+            offset_t = (icpu - offset) * tracer_interval;
+            fread(np_local + offset_t, sizeof(int), tracer_interval, fp);
             fclose(fp);
             for (int i = 0; i < nsteps; i++) {
-                nptl_tot[i] += np_local[(icpu-offset)*tracer_interval + i];
+                nptl_tot[i] += np_local[offset_t + i];
+            }
+            for (int i = 1; i < nsteps; i++) {
+                np_offset[offset_t + i] += np_offset[offset_t + i - 1] +
+                    np_local[offset_t + i - 1];
             }
         }
         // Gather and save the particle number for each PIC mpi_rank
@@ -261,7 +270,8 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
         for (int i = 0; i < nsteps; i++) {
             char *package_data = (char *)malloc(row_size * nptl_tot[i]);
             get_package_data_multi(njobs, offset, fpath_binary, fname_binary,
-                    species, tstep, row_size, np_local, i, nsteps, package_data);
+                    species, tstep, row_size, np_local, np_offset,
+                    i, nsteps, package_data);
             hsize_t my_data_size = nptl_tot[i];
 
             // Not actually necessary, but it is easies to use the existing code
@@ -280,6 +290,7 @@ void binary_hdf5_multiple(int mpi_size, int mpi_rank, int ncpus,
     if (mpi_rank == 0) free(np_all);
     free(nptl_tot);
     free(np_local);
+    free(np_offset);
 }
 
 /******************************************************************************
@@ -583,7 +594,8 @@ void get_package_data(int njobs, int offset, char *fpath_binary,
  ******************************************************************************/
 void get_package_data_multi(int njobs, int offset, char *fpath_binary,
         char *fname_binary, char *species, int tstep, int row_size,
-        int *np_local, int istep, int nsteps, char *package_data)
+        int *np_local, long int *np_offset, int istep, int nsteps,
+        char *package_data)
 {
     unsigned long long nptl_acc;
     int nptl;
@@ -591,7 +603,7 @@ void get_package_data_multi(int njobs, int offset, char *fpath_binary,
     double t;
     FILE *fp;
     char *data;
-    long int offset_from_begining;
+    long int offset_from_begining, offset_t;
 
     // Headers: q_m, nvar, tracer_interval
     // Arrays: particle numbers, time sequence
@@ -602,8 +614,10 @@ void get_package_data_multi(int njobs, int offset, char *fpath_binary,
         snprintf(fname_binary, MAX_FILENAME_LEN, "%s%s%d%s%s%s%d",
                 fpath_binary, "/T.", tstep, "/", species, "_tracer.", i);
         fp = fopen(fname_binary, "rb");
-        fseek(fp, offset_from_begining, SEEK_SET);
         nptl = np_local[(i-offset)*nsteps + istep];
+        offset_t = np_offset[(i-offset)*nsteps + istep];
+        offset_from_begining += offset_t * row_size * sizeof(char);
+        fseek(fp, offset_from_begining, SEEK_SET);
         data = (char *)malloc(row_size*nptl*sizeof(char));
         fread(data, sizeof(char), row_size*nptl, fp);
         memcpy(package_data + nptl_acc*row_size, data, row_size*nptl);
