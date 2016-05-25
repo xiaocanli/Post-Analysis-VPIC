@@ -24,7 +24,8 @@ def get_pic_info(base_directory):
     dtwce = pic_initial_info.dtwce
     dtwci = pic_initial_info.dtwci
     dtwpi = dtwpe / math.sqrt(pic_initial_info.mime)
-    ntf = get_fields_frames(base_directory)
+    # ntf = get_fields_frames(base_directory)
+    ntf = 1064
     energy_interval = pic_initial_info.energy_interval
     fields_interval, particle_interval, trace_interval = \
             get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory)
