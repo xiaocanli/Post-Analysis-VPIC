@@ -27,7 +27,7 @@ from pic_information import list_pic_info_dir
 import palettable
 import sys
 from fields_plot import *
-from spectrum_fitting import calc_nonthermal_fraction
+from spectrum_fitting import *
 from energy_conversion import calc_jdotes_fraction_multi
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
@@ -222,8 +222,8 @@ def plot_vx_time(run_name, root_dir, pic_info):
 
 
 def plot_epara_eperp(pic_info, ct, root_dir='../../'):
-    kwargs = {"current_time": ct, "xl": 50, "xr": 150, "zb": -10, "zt": 10}
-    # kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
+    # kwargs = {"current_time": ct, "xl": 50, "xr": 150, "zb": -10, "zt": 10}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fname = root_dir + 'data/bx.gda'
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
     fname = root_dir + 'data/by.gda'
@@ -258,8 +258,8 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     ey /= 0.5*e0
 
     contour_color = ['k'] * 2
-    vmin = [-1.0] * 2
-    vmax = [1.0] * 2
+    vmin = [-0.25, -1.0]
+    vmax = [0.25, 1.0]
     xs, ys = 0.18, 0.58
     w1, h1 = 0.68, 0.38
     fig_sizes = (5, 4)
@@ -284,11 +284,12 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     Ay_data = Ay
     fname = 'epara_ey'
     fdata = np.asarray(fdata)
-    xlim = [50, 150]
-    zlim = [-10, 10]
-    # xlim = [0, 200]
-    # zlim = [-50, 50]
+    # xlim = [50, 150]
+    # zlim = [-10, 10]
+    xlim = [0, 200]
+    zlim = [-50, 50]
     save_eps = True
+    nlevels_contour = 11
     kwargs_plots = {'current_time': ct, 'x': x, 'z': z, 'Ay': Ay_data,
                     'fdata': fdata, 'contour_color': contour_color,
                     'colormaps': colormaps, 'vmin': vmin, 'vmax': vmax,
@@ -299,8 +300,11 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
                     'xlim': xlim, 'zlim': zlim, 'is_multi_Ay': False,
                     'save_eps': save_eps}
     vx_plot = PlotMultiplePanels(**kwargs_plots)
-    for cbar in vx_plot.cbar:
-        cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    # for cbar in vx_plot.cbar:
+    #     cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    cbars = vx_plot.cbar
+    cbars[0].set_ticks(np.arange(-0.2, 0.3, 0.1))
+    cbars[1].set_ticks(np.arange(-0.8, 0.9, 0.4))
     vx_plot.save_figures()
     plt.show()
 
@@ -939,9 +943,10 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
     vmin, vmax = -1.0, 1.0
     nx, = x.shape
     nz, = z.shape
-    fig = plt.figure(figsize=[6, 8])
-    xs0, ys0 = 0.15, 0.7
-    w1, h1 = 0.375, 0.28125
+    fig = plt.figure(figsize=[6, 8.5])
+    xs0, ys0 = 0.15, 0.72
+    # w1, h1 = 0.375, 0.28125
+    w1, h1 = 0.375, 0.2647
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
     p1 = ax1.imshow(bx, cmap=plt.cm.jet,
@@ -984,6 +989,11 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
              bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
                        pad=10.0), horizontalalignment='left',
              verticalalignment='center', transform=ax3.transAxes)
+    ys1 = ys - 0.1
+    cax = fig.add_axes([xs0, ys1, w1, 0.02])
+    cbar = fig.colorbar(p3, cax=cax, orientation='horizontal')
+    cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    cbar.ax.tick_params(labelsize=16)
     xs = xs0 + w1 + gap * 8.0 / 6.0
     ax4 = fig.add_axes([xs, ys0, w1, h1])
     p4 = ax4.imshow(ex, cmap=plt.cm.seismic,
@@ -1026,6 +1036,11 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
              bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
                        pad=10.0), horizontalalignment='left',
              verticalalignment='center', transform=ax6.transAxes)
+    ys1 = ys - 0.1
+    cax = fig.add_axes([xs, ys1, w1, 0.02])
+    cbar = fig.colorbar(p6, cax=cax, orientation='horizontal')
+    cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    cbar.ax.tick_params(labelsize=16)
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_jdotes_apj/'
@@ -1043,15 +1058,94 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
 def plot_emfields_multi(run_name, root_dir, pic_info):
     """Plot the electromagnetic fields for multiple time steps
     """
-    ct = 61
-    srange = np.asarray([104, 134, -15, 15])
-    plot_emfields_single(run_name, root_dir, pic_info, srange, ct)
+    # ct = 61
+    # srange = np.asarray([104, 134, -15, 15])
+    # plot_emfields_single(run_name, root_dir, pic_info, srange, ct)
     ct = 92
     srange = np.asarray([107, 154, -25, 25])
     plot_emfields_single(run_name, root_dir, pic_info, srange, ct)
     ct = 55
     srange = np.asarray([145, 185, -20, 20])
     plot_emfields_single(run_name, root_dir, pic_info, srange, ct)
+
+
+def plot_gradB_single(run_name, root_dir, pic_info, srange, ct):
+    """Plot the electromagnetic fields for a single time steps
+    """
+    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
+              "zb": srange[2], "zt": srange[3]}
+    fname = root_dir + 'data/absB.gda'
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+    fname2 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    b0 = pic_info.b0
+    e0 = 0.3 * va * b0
+
+    absB /= b0
+    gradBx = np.diff(absB, axis=1)
+    gradBz = np.diff(absB, axis=0)
+    ng = 3
+    kernel = np.ones((ng, ng)) / float(ng*ng)
+    gradBx = signal.convolve2d(gradBx, kernel, 'same')
+    gradBz = signal.convolve2d(gradBz, kernel, 'same')
+
+    xmin, xmax = np.min(x), np.max(x)
+    zmin, zmax = np.min(z), np.max(z)
+    vmin, vmax = -0.02, 0.02
+    nx, = x.shape
+    nz, = z.shape
+    fig = plt.figure(figsize=[8, 4])
+    xs0, ys0 = 0.13, 0.15
+    w1, h1 = 0.4, 0.8
+    gap = 0.03
+    ax1 = fig.add_axes([xs0, ys0, w1, h1])
+    p1 = ax1.imshow(gradBx, cmap=plt.cm.seismic,
+                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
+                    origin='lower', vmin=vmin, vmax=vmax,
+                    interpolation='bicubic')
+    ax1.tick_params(labelsize=16)
+    ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
+    ax1.set_xlabel(r'$x/d_i$', fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontsize=20)
+    ax1.text(0.02, 0.85, r'$\nabla_x B$', color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax1.transAxes)
+    xs = xs0 + w1 + gap
+    ax2 = fig.add_axes([xs, ys0, w1, h1])
+    p2 = ax2.imshow(gradBz, cmap=plt.cm.seismic,
+                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
+                    origin='lower', vmin=vmin, vmax=vmax,
+                    interpolation='bicubic')
+    ax2.tick_params(axis='y', labelleft='off')
+    ax2.tick_params(labelsize=16)
+    ax2.set_xlabel(r'$x/d_i$', fontsize=20)
+    ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
+    ax2.text(0.02, 0.85, r'$\nabla_z B$', color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax2.transAxes)
+    # cax = fig.add_axes([xs, ys1, w1, 0.02])
+    # cbar = fig.colorbar(p3, cax=cax, orientation='horizontal')
+    # cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    # cbar.ax.tick_params(labelsize=16)
+    plt.show()
+
+
+def plot_gradB_multi(run_name, root_dir, pic_info):
+    """Plot the gradient B for multiple time steps
+    """
+    # ct = 61
+    # srange = np.asarray([104, 134, -15, 15])
+    # plot_gradB_single(run_name, root_dir, pic_info, srange, ct)
+    # ct = 92
+    # srange = np.asarray([107, 154, -25, 25])
+    # plot_gradB_single(run_name, root_dir, pic_info, srange, ct)
+    ct = 55
+    srange = np.asarray([145, 185, -20, 20])
+    plot_gradB_single(run_name, root_dir, pic_info, srange, ct)
 
 
 def plot_ppara_pperp(run_name, root_dir, pic_info, srange, ct):
@@ -1694,9 +1788,9 @@ def plot_bulku_single(run_name, root_dir, pic_info, srange, ct, xcp):
     dz = z[1] - z[0]
     nx, = x.shape
     nz, = z.shape
-    fig = plt.figure(figsize=[3, 8])
-    xs0, ys0 = 0.03 * 8 / 3, 0.7
-    w1, h1 = 0.75, 0.28125
+    fig = plt.figure(figsize=[3, 8.5])
+    xs0, ys0 = 0.03 * 8 / 3, 0.72
+    w1, h1 = 0.75, 0.2647
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
     p1 = ax1.imshow(ux, cmap=plt.cm.seismic,
@@ -1744,6 +1838,11 @@ def plot_bulku_single(run_name, root_dir, pic_info, srange, ct, xcp):
              bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
                        pad=10.0), horizontalalignment='left',
              verticalalignment='center', transform=ax3.transAxes)
+    ys1 = ys - 0.1
+    cax = fig.add_axes([xs0, ys1, w1, 0.02])
+    cbar = fig.colorbar(p3, cax=cax, orientation='horizontal')
+    cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    cbar.ax.tick_params(labelsize=16)
     fname = 'bulku_' + str(ct).zfill(3) + '.eps'
     fig.savefig(fig_dir + fname)
     # plt.close()
@@ -2011,6 +2110,266 @@ def plot_eperp_xyz_multi(run_name, root_dir, pic_info):
     # plot_eperp_xyz_multi(run_name, root_dir, pic_info, srange, ct, xcp)
 
 
+def plot_spectra_electron():
+    """Plot electron spectra for multiple runs
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [50, 80, 50, 50]
+    extent = [10, 40, 100, 110]
+    run = 0
+    e_extend = 20
+    colors_plot = []
+    for run_name in run_names[:4]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        power_fit = power_law_fit(elog, flog, offset[run], extent[run])
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        color = p1.get_color()
+        es -= e_extend
+        ee += e_extend
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
+        if run > 0:
+            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                    linestyle='--', linewidth=2, label=pname)
+            colors_plot.append(color)
+        # # Help for fitting
+        # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([1E-1, 4E3])
+        ax.set_ylim([1E-8, 1E4])
+        shift *= 5
+        run += 1
+
+    fpower = elog_norm**-5
+    ax.loglog(elog_norm, fpower*1E11)
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.5, 0.05, 'R8', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.6, 0.05, 'R7', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.7, 0.05, 'R1', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.85, 0.05, 'R6', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    plt.show()
+
+
+def plot_spectra_R1_R5():
+    """Plot electron spectra for run R1 and R5
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    run_names = ['mime25_beta002', 'mime100_beta002']
+    labels = ['R1', 'R5']
+    for run_name, label in zip(run_names, labels):
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        ax.loglog(elog_norm, flog, linewidth=3, label=label)
+
+    ax.set_xlim([1E-1, 4E2])
+    ax.set_ylim([1E-8, 1E2])
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font,
+            fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+
+    plt.show()
+
+
+def fit_thermal_core(ene, f):
+    """
+    """
+    estart = 0
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    fnew = np.convolve(f, kernel, 'same')
+    eend = np.argmax(fnew) + 10  # 10 grids shift for fitting thermal core.
+    popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
+                           ene[estart:eend], f[estart:eend])
+    fthermal = fitting_funcs.func_maxwellian(ene, popt[0], popt[1])
+    print 'Energy with maximum flux: ', ene[eend - 10]
+    print 'Energy with maximum flux in fitted thermal core: ', 0.5/popt[1]
+    print 'Thermal core fitting coefficients: '
+    print popt
+    print '---------------------------------------------------------------'
+    return (fthermal, popt)
+
+
+def fit_nonthermal_thermal(ene, f):
+    """Fit nonthermal distribution as thermal
+
+    Args:
+        ene: the energy bins array.
+        f: the particle flux distribution.
+
+    Returns:
+        fthermal: thermal part of the particle distribution.
+    """
+    print('Fitting nonthermal distribution as thermal distribution')
+    emax = ene[np.argmax(f)]
+    fthermal = fitting_funcs.func_maxwellian(ene, 1.0, 1.0/(2*emax))
+    ratio = f[np.argmax(f)] / fthermal[np.argmax(f)]
+    fthermal *= ratio
+    return fthermal
+
+
+def fit_two_maxwellian():
+    """fit the spectrum with two Maxwellian
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    # pic_info = pic_information.get_pic_info('../../')
+    # dir = '../spectrum/'
+    run_name = 'mime25_beta002'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    dir = '../data/spectra/' + run_name + '/'
+    n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    ct = 1
+    fname = dir + 'spectrum-' + species + '.1'
+    file_exist = os.path.isfile(fname)
+    while file_exist:
+        ct += 1
+        fname = dir + 'spectrum-' + species + '.' + str(ct)
+        file_exist = os.path.isfile(fname)
+    fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+    elin, flin, elog, flog = get_energy_distribution(fname, n0)
+    elog_norm = get_normalized_energy(species, elog, pic_info)
+    fthermal, popt = fit_thermal_core(elog, flog)
+    fnonthermal = flog - fthermal
+    # fthermal1 = fit_nonthermal_thermal(elog, fnonthermal)
+    imax = np.argmax(fnonthermal)
+    ns = imax + 20
+    fthermal1, popt = fit_thermal_core(elog[ns:], fnonthermal[ns:])
+    fthermal1 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal1 = fnonthermal - fthermal1
+    imax = np.argmax(fnonthermal1)
+    ns = imax + 20
+    fthermal2, popt = fit_thermal_core(elog[ns:], fnonthermal1[ns:])
+    fthermal2 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal2 = fnonthermal1 - fthermal2
+    fthermal_tot = fthermal + fthermal1 + fthermal2
+    norm = fthermal_tot[1] / flog[1]
+    fthermal_tot /= norm
+    fthermal /= norm
+    fthermal1 /= norm
+    fthermal2 /= norm
+    nbins, = flog.shape
+    error_re = np.zeros(nbins)
+    index = np.nonzero(flog)
+    error_re[index] = (fthermal_tot[index] - flog[index]) / flog[index]
+
+    ax.loglog(elog, flog, linewidth=4, label='simulation')
+    ax.loglog(elog, fthermal_tot, linewidth=2, label='fitted')
+    ax.loglog(elog, fthermal, linewidth=1, linestyle='--', label='thermal1')
+    ax.loglog(elog, fthermal1, linewidth=1, linestyle='--', label='thermal2')
+    ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
+    # ax.loglog(elog, fnonthermal, linewidth=3)
+    # ax.loglog(elog, fnonthermal1, linewidth=3)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+
+    ax.set_xlim([2E-3, 5E0])
+    ax.set_ylim([1E-8, 1E-1])
+    # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=20)
+    # ax.grid(True)
+
+    h2 = 0.3
+    ys -= h2 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h2])
+    ax1.semilogx(elog, error_re, linewidth=2, color='k')
+    ax1.set_xlim(ax.get_xlim())
+    ax1.set_ylim([-0.5, 0.5])
+    ax1.tick_params(labelsize=20)
+    ax1.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax1.set_ylabel('Relative Error', fontdict=font, fontsize=24)
+    fig.savefig('../img/spect_fitting.eps')
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # scratch_dir = '/net/scratch2/xiaocanli/'
     # run_name = "mime25_beta002_noperturb"
@@ -2019,13 +2378,14 @@ if __name__ == "__main__":
     # root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
-    run_name = "mime25_beta002_track"
-    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
-    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
+    # run_name = "mime25_beta002_track"
+    # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
+    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    # pic_info = read_data_from_json(picinfo_fname)
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_vx_time(run_name, root_dir, pic_info)
-    plot_epara_eperp(pic_info, 26, root_dir)
+    # plot_epara_eperp(pic_info, 26, root_dir)
+    # plot_epara_eperp(pic_info, 61, root_dir)
     # plot_jpara_dote(run_name, root_dir, pic_info, 'i')
     # plot_jdrifts_dote_fields()
     # plot_jdotes_multi(run_name, root_dir, pic_info)
@@ -2033,5 +2393,9 @@ if __name__ == "__main__":
     # plot_epara_xyz_multi(run_name, root_dir, pic_info)
     # plot_eperp_xyz_multi(run_name, root_dir, pic_info)
     # plot_emfields_multi(run_name, root_dir, pic_info)
+    # plot_gradB_multi(run_name, root_dir, pic_info)
     # plot_ppara_pperp_multi(run_name, root_dir, pic_info)
     # plot_curvb_multi(run_name, root_dir, pic_info)
+    # plot_spectra_electron()
+    # plot_spectra_R1_R5()
+    fit_two_maxwellian()
