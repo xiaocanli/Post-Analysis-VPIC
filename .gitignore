@@ -48,3 +48,4 @@ attribute
 vpic-sorter/*.a
 parallel_hdf5
 build_intel/
+ptl_tracer_hdf5
