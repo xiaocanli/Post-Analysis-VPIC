@@ -938,5 +938,5 @@ void create_opic_data_type(int row_size)
  ******************************************************************************/
 void free_opic_data_type()
 {
-    free(OPIC_DATA_TYPE);
+    MPI_Type_free(&OPIC_DATA_TYPE);
 }
