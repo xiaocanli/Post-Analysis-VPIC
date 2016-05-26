@@ -4,6 +4,6 @@ int get_configuration(int argc, char **argv, int mpi_rank, int *key_index,
         int *local_sort_threaded, int *local_sort_threads_num, int *meta_data,
         char *filename, char *group_name, char *filename_sorted,
         char *filename_attribute, char *filename_meta, char *filepath,
-        char *species, int *tmax, int *tinterval, int *multi_tsteps,
+        char *species, int *tmax, int *tmin, int *tinterval, int *multi_tsteps,
         int *ux_kindex, char *filename_traj, int *nptl_traj, float *ratio_emax,
-        int *tracking_traj, int *load_tracer_meta);
+        int *tracking_traj, int *load_tracer_meta, int *is_recreate, int *nsteps);

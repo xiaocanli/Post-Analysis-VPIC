@@ -2245,6 +2245,25 @@ def plot_spectra_R1_R5():
     plt.show()
 
 
+def fit_thermal_core(ene, f):
+    """
+    """
+    estart = 0
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    fnew = np.convolve(f, kernel, 'same')
+    eend = np.argmax(fnew) + 10  # 10 grids shift for fitting thermal core.
+    popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
+                           ene[estart:eend], f[estart:eend])
+    fthermal = fitting_funcs.func_maxwellian(ene, popt[0], popt[1])
+    print 'Energy with maximum flux: ', ene[eend - 10]
+    print 'Energy with maximum flux in fitted thermal core: ', 0.5/popt[1]
+    print 'Thermal core fitting coefficients: '
+    print popt
+    print '---------------------------------------------------------------'
+    return (fthermal, popt)
+
+
 def fit_nonthermal_thermal(ene, f):
     """Fit nonthermal distribution as thermal
 
@@ -2278,6 +2297,8 @@ def fit_two_maxwellian():
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
+    # pic_info = pic_information.get_pic_info('../../')
+    # dir = '../spectrum/'
     run_name = 'mime25_beta002'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
@@ -2293,23 +2314,58 @@ def fit_two_maxwellian():
     fname = dir + 'spectrum-' + species + '.' + str(ct-1)
     elin, flin, elog, flog = get_energy_distribution(fname, n0)
     elog_norm = get_normalized_energy(species, elog, pic_info)
-    fthermal = fit_thermal_core(elog, flog)
+    fthermal, popt = fit_thermal_core(elog, flog)
     fnonthermal = flog - fthermal
-    fthermal1 = fit_nonthermal_thermal(elog, fnonthermal)
+    # fthermal1 = fit_nonthermal_thermal(elog, fnonthermal)
+    imax = np.argmax(fnonthermal)
+    ns = imax + 20
+    fthermal1, popt = fit_thermal_core(elog[ns:], fnonthermal[ns:])
+    fthermal1 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
     fnonthermal1 = fnonthermal - fthermal1
+    imax = np.argmax(fnonthermal1)
+    ns = imax + 20
+    fthermal2, popt = fit_thermal_core(elog[ns:], fnonthermal1[ns:])
+    fthermal2 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal2 = fnonthermal1 - fthermal2
+    fthermal_tot = fthermal + fthermal1 + fthermal2
+    norm = fthermal_tot[1] / flog[1]
+    fthermal_tot /= norm
+    fthermal /= norm
+    fthermal1 /= norm
+    fthermal2 /= norm
+    nbins, = flog.shape
+    error_re = np.zeros(nbins)
+    index = np.nonzero(flog)
+    error_re[index] = (fthermal_tot[index] - flog[index]) / flog[index]
 
-    ax.loglog(elog_norm, flog, linewidth=3)
-    ax.loglog(elog_norm, fthermal, linewidth=3)
-    ax.loglog(elog_norm, fnonthermal, linewidth=3)
-    ax.loglog(elog_norm, fthermal1, linewidth=3)
-    ax.loglog(elog_norm, fnonthermal1, linewidth=3)
+    ax.loglog(elog, flog, linewidth=4, label='simulation')
+    ax.loglog(elog, fthermal_tot, linewidth=2, label='fitted')
+    ax.loglog(elog, fthermal, linewidth=1, linestyle='--', label='thermal1')
+    ax.loglog(elog, fthermal1, linewidth=1, linestyle='--', label='thermal2')
+    ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
+    # ax.loglog(elog, fnonthermal, linewidth=3)
+    # ax.loglog(elog, fnonthermal1, linewidth=3)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
 
-    ax.set_xlim([1E-1, 4E2])
-    ax.set_ylim([1E-8, 1E2])
-    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font,
-            fontsize=24)
-    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.set_xlim([2E-3, 5E0])
+    ax.set_ylim([1E-8, 1E-1])
+    # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
+    ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=20)
+    # ax.grid(True)
+
+    h2 = 0.3
+    ys -= h2 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h2])
+    ax1.semilogx(elog, error_re, linewidth=2, color='k')
+    ax1.set_xlim(ax.get_xlim())
+    ax1.set_ylim([-0.5, 0.5])
+    ax1.tick_params(labelsize=20)
+    ax1.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax1.set_ylabel('Relative Error', fontdict=font, fontsize=24)
+    fig.savefig('../img/spect_fitting.eps')
 
     plt.show()
 

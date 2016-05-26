@@ -80,6 +80,10 @@ target_link_libraries(parallel_hdf5 ${MPI_Fortran_LIBRARIES}
     ${HDF5_Fortran_LIBRARIES} particle_drift interp_emf get_info
     translate_module interp_pfields commandline_arguments)
 
+add_executable(ptl_tracer_hdf5 ptl_tracer_hdf5.f90)
+target_link_libraries(ptl_tracer_hdf5 ${MPI_Fortran_LIBRARIES}
+    ${HDF5_Fortran_LIBRARIES} get_info translate_module commandline_arguments)
+
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS calc_agyrotropy DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -99,3 +103,4 @@ install (TARGETS particle_spectrum_box DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_vdist_box DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS parspec_cpu_based DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS parallel_hdf5 DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS ptl_tracer_hdf5 DESTINATION ${CMAKE_INSTALL_PREFIX})

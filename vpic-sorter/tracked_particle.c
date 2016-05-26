@@ -56,6 +56,7 @@ void write_data_serial_h5(hid_t file_id, char *gname, int dataset_num, int rank,
 {
     hid_t group_id;
     hid_t filespace, memspace;
+    herr_t status;
     hid_t typeid;
     int i;
 
@@ -112,12 +113,12 @@ void write_data_serial_h5(hid_t file_id, char *gname, int dataset_num, int rank,
         }
 
         /* Close/release resources */
-        H5Dclose(dname_array[i].did);
-        H5Sclose(memspace);
-        H5Sclose(filespace);
+        status = H5Dclose(dname_array[i].did);
+        status = H5Sclose(memspace);
+        status = H5Sclose(filespace);
     }
     free(temp_data);
-    H5Gclose(group_id);
+    status = H5Gclose(group_id);
 }
 
 /******************************************************************************
@@ -128,6 +129,7 @@ void save_tracked_particles(char *filename_out, char *tracked_particles,
         dset_name_item *dname_array, int *tags)
 {
     hid_t file_id;
+    herr_t status;
     hsize_t dimsf[1], count[1], offset[1];
     char *temp_data;
     char gname[MAX_FILENAME_LEN];
@@ -146,7 +148,7 @@ void save_tracked_particles(char *filename_out, char *tracked_particles,
                 dimsf, count, offset, ntf, row_size, max_type_size, temp_data);
     }
 
-    H5Fclose(file_id);
+    status = H5Fclose(file_id);
     free(temp_data);
 }
 

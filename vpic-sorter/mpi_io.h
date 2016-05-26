@@ -8,6 +8,7 @@ void get_one_file_data(hid_t dset_id, int mpi_rank, int mpi_size,
 int write_result_file(int mpi_rank, int mpi_size, char *data,
         hsize_t my_data_size, int row_size, int dataset_num, int max_type_size,
         int key_index, char *group_name, char *filename_sorted,
-        char *filename_attribute, dset_name_item *dname_array);
+        char *filename_attribute, dset_name_item *dname_array,
+        char is_recreate);
 
 void create_SDS_data_type();
