@@ -2292,14 +2292,14 @@ def fit_two_maxwellian():
     img_dir = '../img/spectra/'
     if not os.path.isdir(img_dir):
         os.makedirs(img_dir)
-    fig = plt.figure(figsize=[7, 5])
-    xs, ys = 0.15, 0.15
-    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[7, 8])
+    xs, ys = 0.15, 0.35
+    w1, h1 = 0.8, 0.6
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
     # pic_info = pic_information.get_pic_info('../../')
     # dir = '../spectrum/'
-    run_name = 'mime25_beta002'
+    run_name = 'mime25_beta0007'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     dir = '../data/spectra/' + run_name + '/'
@@ -2327,7 +2327,8 @@ def fit_two_maxwellian():
     fthermal2, popt = fit_thermal_core(elog[ns:], fnonthermal1[ns:])
     fthermal2 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
     fnonthermal2 = fnonthermal1 - fthermal2
-    fthermal_tot = fthermal + fthermal1 + fthermal2
+    # fthermal_tot = fthermal + fthermal1 + fthermal2
+    fthermal_tot = fthermal + fthermal1
     norm = fthermal_tot[1] / flog[1]
     fthermal_tot /= norm
     fthermal /= norm
@@ -2342,25 +2343,30 @@ def fit_two_maxwellian():
     ax.loglog(elog, fthermal_tot, linewidth=2, label='fitted')
     ax.loglog(elog, fthermal, linewidth=1, linestyle='--', label='thermal1')
     ax.loglog(elog, fthermal1, linewidth=1, linestyle='--', label='thermal2')
-    ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
+    # ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
     # ax.loglog(elog, fnonthermal, linewidth=3)
-    # ax.loglog(elog, fnonthermal1, linewidth=3)
+    ax.loglog(elog, fnonthermal1, linewidth=3)
+    # ax.loglog(elog, fnonthermal2, linewidth=3)
     leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
 
-    ax.set_xlim([2E-3, 5E0])
-    ax.set_ylim([1E-8, 1E-1])
+    ax.set_xlim([2E-3, 1E1])
+    ax.set_ylim([1E-8, 1E2])
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
     ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=20)
     # ax.grid(True)
 
-    h2 = 0.3
+    h2 = 0.2
     ys -= h2 + 0.05
     ax1 = fig.add_axes([xs, ys, w1, h2])
     ax1.semilogx(elog, error_re, linewidth=2, color='k')
-    ax1.set_xlim(ax.get_xlim())
+    xlims = ax.get_xlim()
+    ax1.plot(xlims, [0.2, 0.2], linestyle='--', color='k')
+    ax1.plot(xlims, [0.0, 0.0], linestyle='--', color='k')
+    ax1.plot(xlims, [-0.2, -0.2], linestyle='--', color='k')
+    ax1.set_xlim(xlims)
     ax1.set_ylim([-0.5, 0.5])
     ax1.tick_params(labelsize=20)
     ax1.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
@@ -2398,4 +2404,4 @@ if __name__ == "__main__":
     # plot_curvb_multi(run_name, root_dir, pic_info)
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
-    fit_two_maxwellian()
+    # fit_two_maxwellian()
