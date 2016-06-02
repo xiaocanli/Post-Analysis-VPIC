@@ -4,3 +4,4 @@
 [submodule "vpic-sorter"]
 	path = vpic-sorter
 	url = https://github.com/ArsenalCannon/vpic-sorter
+	branch = pfields
