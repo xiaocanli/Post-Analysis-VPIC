@@ -28,11 +28,6 @@ vdist_1d_along_fieldline
 vdist_2d_along_fieldline
 vdistribution
 xz_field.dat
-vpic-sorter/*.o
-vpic-sorter/h5group-sorter
-vpic-sorter/h5trajectory
-vpic-sorter/data/
-vpic-sorter/attribute
 python/colormap/*.pyc
 particle_based_jdote
 particle_spectrum_box
@@ -45,7 +40,6 @@ particle_tracer/*.o
 binary_to_hdf5
 electron_tracer_sorted.h5p
 attribute
-vpic-sorter/*.a
 parallel_hdf5
 build_intel/
 ptl_tracer_hdf5

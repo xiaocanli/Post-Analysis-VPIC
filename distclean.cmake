@@ -38,6 +38,8 @@ SET(TOPDIRECTORIES "${TOPDIR}/lib"
                    "${TOPDIR}/test"
                    "${TOPDIR}/bin"
 )
+LIST(REMOVE_ITEM MAKEFILE "${TOPDIR}/vpic-sorter/Makefile"
+    "${TOPDIR}/python/colormap/Makefile" "${TOPDIR}/particle_tracer/Makefile")
 
 # CMake has trouble finding directories recursively, so locate these
 # files and then save the parent directory of the files
@@ -63,6 +65,7 @@ ENDIF()
 # Loop over the directories and delete each one
 FOREACH(D ${DEL})
     IF(EXISTS ${D})
+        #MESSAGE(${D})
         FILE(REMOVE_RECURSE ${D})
     ENDIF()
 ENDFOREACH()
