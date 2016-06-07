@@ -43,3 +43,4 @@ attribute
 parallel_hdf5
 build_intel/
 ptl_tracer_hdf5
+particle_spectrum_vdist_fieldlines
