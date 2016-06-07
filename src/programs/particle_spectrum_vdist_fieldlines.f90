@@ -3,7 +3,6 @@
 ! between magnetic field lines
 !*******************************************************************************
 program particle_spectrum_vdist_fieldlines
-    use flap
     use mpi_module
     use constants, only: fp, dp
     use path_info, only: get_file_paths
@@ -25,11 +24,11 @@ program particle_spectrum_vdist_fieldlines
     use particle_info, only: species, get_ptl_mass_charge
     use commandline_arguments, only: is_species, get_cmdline_arguments
     implicit none
-    type(command_line_interface) :: cli  !< Command Line Interface (CLI).
     real(dp), allocatable, dimension(:,:) :: fieldline1, fieldline2
     integer :: nps1, nps2 ! Number of field line points
     integer :: ct, ct_field, ratio_particle_field
     integer :: ix_top_left, ix_top_right, ix_bottom_left, ix_bottom_right
+    character(len=128) :: filename_top, filename_bottom
     real(dp) :: mp_elapsed
 
     ! Initialize Message Passing
@@ -67,6 +66,7 @@ program particle_spectrum_vdist_fieldlines
 
     mp_elapsed = MPI_WTIME()
 
+    call get_fieldlines_fielnames
     call read_fieldlines_data
 
     ! Ratio of particle output interval to fields output interval
@@ -78,13 +78,13 @@ program particle_spectrum_vdist_fieldlines
     call get_ptl_mass_charge(species)
     call calc_spectrum_vdist(tframe, 'e')
 
+    call free_fieldlines_data
+
     mp_elapsed = MPI_WTIME() - mp_elapsed
 
     if (myid==master) then
         write(*,'(A, F6.1)') " Total time used (s): ", mp_elapsed
     endif
-
-    call free_fieldlines_data
 
     call free_magnetic_fields
     call free_vdist_1d
@@ -98,26 +98,53 @@ program particle_spectrum_vdist_fieldlines
     contains
 
     !---------------------------------------------------------------------------
+    ! Get the filenames of the two field lines
+    !---------------------------------------------------------------------------
+    subroutine get_fieldlines_fielnames
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'particle_spectrum_vdist_fieldlines', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Get particle spectrum and velocity distributions between two field lines', &
+            examples    = ['particle_spectrum_vdist_fieldlines -ft filename_top -fb filename_bottom'])
+        call cli%add(switch='--fieldline_top', switch_ab='-ft', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--fieldline_bottom', switch_ab='-fb', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%get(switch='-ft', val=filename_top, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-fb', val=filename_bottom, error=error)
+        if (error/=0) stop
+        if (myid == 0) then
+            print '(A)', cli%progname//' has been called with the following'// &
+                ' two filenames:'
+            print '(A)', trim(adjustl(filename_top))
+            print '(A)', trim(adjustl(filename_bottom))
+        endif
+    end subroutine get_fieldlines_fielnames
+
+    !---------------------------------------------------------------------------
     ! Read the data points of the two field lines
     !---------------------------------------------------------------------------
     subroutine read_fieldlines_data
         implicit none
         integer :: fh1, fh2
         character(len=64) :: buff
-        character(len=128) :: fname
         integer :: file_size
         fh1 = 15
         fh2 = 16
         if (myid==master) then
-            fname = 'data/field_line/field_line1.dat'
-            inquire(file=fname, size=file_size)
-            open(unit=fh1, file=fname, access='stream', status='unknown', &
-                form='unformatted', action='read')
+            inquire(file=filename_bottom, size=file_size)
+            open(unit=fh1, file=filename_bottom, access='stream', &
+                status='unknown', form='unformatted', action='read')
             nps1 = file_size / 16  ! The data type is double
-            fname = 'data/field_line/field_line2.dat'
-            inquire(file=fname, size=file_size)
-            open(unit=fh2, file=fname, access='stream', status='unknown', &
-                form='unformatted', action='read')
+            inquire(file=filename_top, size=file_size)
+            open(unit=fh2, file=filename_top, access='stream', &
+                status='unknown', form='unformatted', action='read')
             nps2 = file_size / 16  ! The data type is double
         endif
         call MPI_BCAST(nps1, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
