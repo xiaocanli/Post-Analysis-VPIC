@@ -29,7 +29,9 @@ program particle_spectrum_vdist_fieldlines
     integer :: ct, ct_field, ratio_particle_field
     integer :: ix_top_left, ix_top_right, ix_bottom_left, ix_bottom_right
     character(len=128) :: filename_top, filename_bottom
+    character(len=64) :: filepath
     real(dp) :: mp_elapsed
+    real(dp) :: xlim(2), zlim(2)
 
     ! Initialize Message Passing
     call MPI_INIT(ierr)
@@ -68,6 +70,7 @@ program particle_spectrum_vdist_fieldlines
 
     call get_fieldlines_fielnames
     call read_fieldlines_data
+    call calc_fieldline_range
 
     ! Ratio of particle output interval to fields output interval
     ratio_particle_field = domain%Particle_interval / domain%fields_interval
@@ -110,21 +113,35 @@ program particle_spectrum_vdist_fieldlines
             authors     = 'Xiaocan Li', &
             help        = 'Usage: ', &
             description = 'Get particle spectrum and velocity distributions between two field lines', &
-            examples    = ['particle_spectrum_vdist_fieldlines -ft filename_top -fb filename_bottom'])
+            examples    = ['particle_spectrum_vdist_fieldlines -ft filename_top &
+                            -fb filename_bottom -fp filepath -t 40'])
         call cli%add(switch='--fieldline_top', switch_ab='-ft', help='a string', &
             required=.true., act='store', error=error) ; if (error/=0) stop
         call cli%add(switch='--fieldline_bottom', switch_ab='-fb', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--filepath', switch_ab='-fp', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--time_frame', switch_ab='-t', help='an integer', &
             required=.true., act='store', error=error) ; if (error/=0) stop
         call cli%get(switch='-ft', val=filename_top, error=error)
         if (error/=0) stop
         call cli%get(switch='-fb', val=filename_bottom, error=error)
         if (error/=0) stop
+        call cli%get(switch='-fp', val=filepath, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-t', val=ct, error=error)
+        if (error/=0) stop
+
         if (myid == 0) then
-            print '(A)', cli%progname//' has been called with the following'// &
-                ' two filenames:'
-            print '(A)', trim(adjustl(filename_top))
-            print '(A)', trim(adjustl(filename_bottom))
+            print '(A)',     'filepath:        '//trim(adjustl(filepath))
+            print '(A)',     'filename_top:    '//trim(adjustl(filename_top))
+            print '(A)',     'filename_bottom: '//trim(adjustl(filename_bottom))
+            print '(A, I0)', 'time_frame:      ', ct
         endif
+
+        filename_top = trim(adjustl(filepath))//'/'//trim(adjustl(filename_top))
+        filename_bottom = trim(adjustl(filepath))//'/'//trim(adjustl(filename_bottom))
+
     end subroutine get_fieldlines_fielnames
 
     !---------------------------------------------------------------------------
@@ -159,6 +176,18 @@ program particle_spectrum_vdist_fieldlines
         call MPI_BCAST(fieldline1, nps1*2, MPI_DOUBLE, master, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(fieldline2, nps2*2, MPI_DOUBLE, master, MPI_COMM_WORLD, ierr)
     end subroutine read_fieldlines_data
+
+    !---------------------------------------------------------------------------
+    ! Calculate the range of the field line data
+    ! xlim, zlim are in the unit of the ion initial length di
+    !---------------------------------------------------------------------------
+    subroutine calc_fieldline_range
+        implicit none
+        xlim(1) = min(minval(fieldline1(1,:)), minval(fieldline2(1,:)))
+        xlim(2) = max(maxval(fieldline1(1,:)), maxval(fieldline2(1,:)))
+        zlim(1) = min(minval(fieldline1(2,:)), minval(fieldline2(2,:)))
+        zlim(2) = max(maxval(fieldline1(2,:)), maxval(fieldline2(2,:)))
+    end subroutine calc_fieldline_range
 
     !---------------------------------------------------------------------------
     ! Initialize the data points of the two field lines
@@ -304,6 +333,7 @@ program particle_spectrum_vdist_fieldlines
         logical :: isrange
         integer :: np, iptl
         integer :: IOstatus
+        integer :: ntot
 
         ! Read particle data in parallel to generate distributions
         do np = myid, tot_pic_mpi-1, numprocs
