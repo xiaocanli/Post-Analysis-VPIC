@@ -29,7 +29,7 @@ program particle_spectrum_vdist_fieldlines
     integer :: ct, ct_field, ratio_particle_field
     integer :: ix_top_left, ix_top_right, ix_bottom_left, ix_bottom_right
     character(len=128) :: filename_top, filename_bottom
-    character(len=64) :: filepath
+    character(len=128) :: filepath
     real(dp) :: mp_elapsed
     real(dp) :: xlim(2), zlim(2)
 
