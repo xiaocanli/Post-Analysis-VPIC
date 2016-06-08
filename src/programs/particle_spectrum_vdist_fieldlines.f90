@@ -56,6 +56,7 @@ program particle_spectrum_vdist_fieldlines
     call read_spectrum_config
     call calc_velocity_interval
 
+    species = 'e'
     call get_fieldlines_fielnames
     call read_fieldlines_data
     call calc_fieldline_range
@@ -79,9 +80,8 @@ program particle_spectrum_vdist_fieldlines
     ct_field = ratio_particle_field * tframe
     call read_magnetic_fields(ct_field)
 
-    species = 'e'
     call get_ptl_mass_charge(species)
-    call calc_spectrum_vdist(tframe, 'e')
+    call calc_spectrum_vdist(tframe, species)
 
     call free_fieldlines_data
 
@@ -116,7 +116,7 @@ program particle_spectrum_vdist_fieldlines
             help        = 'Usage: ', &
             description = 'Get particle spectrum and velocity distributions between two field lines', &
             examples    = ['particle_spectrum_vdist_fieldlines -ft filename_top &
-                            -fb filename_bottom -fp filepath -t 40'])
+                            -fb filename_bottom -fp filepath -t 40 -p e'])
         call cli%add(switch='--fieldline_top', switch_ab='-ft', help='a string', &
             required=.true., act='store', error=error) ; if (error/=0) stop
         call cli%add(switch='--fieldline_bottom', switch_ab='-fb', help='a string', &
@@ -125,6 +125,8 @@ program particle_spectrum_vdist_fieldlines
             required=.true., act='store', error=error) ; if (error/=0) stop
         call cli%add(switch='--time_frame', switch_ab='-t', help='an integer', &
             required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--species', switch_ab='-p', help='a string', &
+            required=.false., def='e', act='store', error=error) ; if (error/=0) stop
         call cli%get(switch='-ft', val=filename_top, error=error)
         if (error/=0) stop
         call cli%get(switch='-fb', val=filename_bottom, error=error)
@@ -133,12 +135,15 @@ program particle_spectrum_vdist_fieldlines
         if (error/=0) stop
         call cli%get(switch='-t', val=ct, error=error)
         if (error/=0) stop
+        call cli%get(switch='-p', val=species, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
             print '(A)',     'filepath:        '//trim(adjustl(filepath))
             print '(A)',     'filename_top:    '//trim(adjustl(filename_top))
             print '(A)',     'filename_bottom: '//trim(adjustl(filename_bottom))
             print '(A, I0)', 'time_frame:      ', ct
+            print '(A, A)',  'species:         ', species
         endif
 
         filename_top = trim(adjustl(filepath))//'/'//trim(adjustl(filename_top))
