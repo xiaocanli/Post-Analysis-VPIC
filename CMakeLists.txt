@@ -18,6 +18,9 @@ include_directories($ENV{HDF5_INCL})
 link_directories(${HDF5_Fortran_LIBRARIES})
 #MESSAGE($ENV{HDF5_INCL})
 
+include_directories(${CMAKE_SOURCE_DIR}/src/third_party/FLAP/static/mod)
+link_directories(${CMAKE_SOURCE_DIR}/src/third_party/FLAP/static)
+
 # make sure that the default is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
   set (CMAKE_BUILD_TYPE RELEASE CACHE STRING
