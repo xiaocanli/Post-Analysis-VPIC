@@ -11,14 +11,14 @@ module spectrum_config
            tot_pic_mpi, pic_mpi_ranks, config_name
     public read_spectrum_config, set_spatial_range_de, calc_pic_mpi_ids, &
            calc_energy_interval, init_pic_mpi_ranks, free_pic_mpi_ranks, &
-           calc_pic_mpi_ranks
+           calc_pic_mpi_ranks, set_time_frame
     public corners_mpi, vmax, vmin, dv, nbins_vdist, tframe
     public calc_velocity_interval
     integer :: nbins
     real(fp) :: emax, emin, dve, dlogve
     real(fp) :: vmax, vmin, dv                  ! For velocity distribution.
     integer :: nbins_vdist
-    integer :: tframe                           ! Time frame. 
+    integer :: tframe                           ! Time frame.
     real(fp), dimension(3) :: center            ! In electron skin length (de).
     real(fp), dimension(3) :: sizes             ! In number of cells.
     real(fp), dimension(2,3) :: spatial_range   ! In electron skin length (de).
@@ -26,6 +26,11 @@ module spectrum_config
     integer :: tot_pic_mpi                      ! Total number of PIC MPI process.
     integer, allocatable, dimension(:) :: pic_mpi_ranks  ! PIC MPI rank in 1D.
     character(len=64) :: config_name
+
+    interface set_spatial_range_de
+        module procedure &
+            set_spatial_range_by_cener_size, set_spatial_range_by_lims
+    end interface set_spatial_range_de
 
     contains
 
@@ -77,6 +82,20 @@ module spectrum_config
         endif
 
     end subroutine read_spectrum_config
+
+    !---------------------------------------------------------------------------
+    ! Set time frame
+    ! Input:
+    !   ct: time frame for fields.
+    !---------------------------------------------------------------------------
+    subroutine set_time_frame(ct)
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: ct
+        integer :: ratio_particle_field
+        ratio_particle_field = domain%Particle_interval / domain%fields_interval
+        tframe = ct / ratio_particle_field
+    end subroutine set_time_frame
 
     !---------------------------------------------------------------------------
     ! Calculate the energy interval for each energy bin.
@@ -135,9 +154,10 @@ module spectrum_config
 
     !---------------------------------------------------------------------------
     ! As the xsize, ysize, zsize are in number of cell, we shall set the spatial
-    ! range in electron skin length (de).
+    ! range in electron skin length (de). The spatial range is decided by the
+    ! center and sizes of the box.
     !---------------------------------------------------------------------------
-    subroutine set_spatial_range_de
+    subroutine set_spatial_range_by_cener_size
         use picinfo, only: domain
         implicit none
         real(fp) :: dx, dy, dz, lx, ly, lz
@@ -162,7 +182,30 @@ module spectrum_config
         spatial_range(2, 3) = center(3) + 0.5*sizes(3)*dz
         if (spatial_range(1, 3) < -lz/2) spatial_range(1, 3) = -lz/2
         if (spatial_range(2, 3) > lz/2) spatial_range(2, 3) = lz/2
-    end subroutine set_spatial_range_de
+    end subroutine set_spatial_range_by_cener_size
+
+    !---------------------------------------------------------------------------
+    ! Set the spatial range based on the xlim and zlim of a box.
+    ! Current version only limit the x and z directions. To make sure the limits
+    ! of the y-direction are not zeros, set_spatial_range_by_lims is called
+    ! first.
+    ! Input:
+    !   xlim, zlim: limitation along the x and z directions (in di).
+    !---------------------------------------------------------------------------
+    subroutine set_spatial_range_by_lims(xlim, zlim)
+        use picinfo, only: mime, domain
+        implicit none
+        real(dp), intent(in), dimension(2) :: xlim, zlim
+        real(fp) :: smime
+        call set_spatial_range_by_cener_size
+        smime = sqrt(mime)
+        spatial_range(:, 1) = xlim * smime
+        spatial_range(:, 3) = zlim * smime
+        center(1) = sum(xlim) * smime * 0.5
+        center(3) = sum(zlim) * smime * 0.5
+        sizes(1) = (xlim(2) - xlim(1)) * smime * domain%idx
+        sizes(3) = (zlim(2) - zlim(1)) * smime * domain%idz
+    end subroutine set_spatial_range_by_lims
 
     !---------------------------------------------------------------------------
     ! Calculate the IDs of the MPI processes which contains the bottom-left

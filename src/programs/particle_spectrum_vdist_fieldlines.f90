@@ -10,7 +10,7 @@ program particle_spectrum_vdist_fieldlines
     use particle_frames, only: get_particle_frames, nt, tinterval
     use spectrum_config, only: read_spectrum_config, set_spatial_range_de, &
             calc_pic_mpi_ids, tframe, init_pic_mpi_ranks, free_pic_mpi_ranks, &
-            calc_pic_mpi_ranks, calc_velocity_interval
+            calc_pic_mpi_ranks, calc_velocity_interval, set_time_frame
     use velocity_distribution, only: init_velocity_bins, free_velocity_bins, &
             init_vdist_2d, set_vdist_2d_zero, free_vdist_2d, init_vdist_1d, &
             set_vdist_1d_zero, free_vdist_1d, calc_vdist_2d, calc_vdist_1d
@@ -55,7 +55,13 @@ program particle_spectrum_vdist_fieldlines
     call get_relativistic_flag
     call read_spectrum_config
     call calc_velocity_interval
-    call set_spatial_range_de
+
+    call get_fieldlines_fielnames
+    call read_fieldlines_data
+    call calc_fieldline_range
+    call set_spatial_range_de(xlim, zlim)
+    call set_time_frame(ct)
+
     call calc_pic_mpi_ids
     call init_pic_mpi_ranks
     call calc_pic_mpi_ranks
@@ -67,10 +73,6 @@ program particle_spectrum_vdist_fieldlines
     call init_magnetic_fields
 
     mp_elapsed = MPI_WTIME()
-
-    call get_fieldlines_fielnames
-    call read_fieldlines_data
-    call calc_fieldline_range
 
     ! Ratio of particle output interval to fields output interval
     ratio_particle_field = domain%Particle_interval / domain%fields_interval
