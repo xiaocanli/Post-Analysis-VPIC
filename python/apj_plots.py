@@ -2,6 +2,8 @@
 Functions and classes for 2D contour plots of fields.
 """
 import os
+from os import listdir
+from os.path import isfile, join
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -29,6 +31,9 @@ import sys
 from fields_plot import *
 from spectrum_fitting import *
 from energy_conversion import calc_jdotes_fraction_multi
+from shell_functions import mkdir_p
+import re
+import stat
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -2292,14 +2297,14 @@ def fit_two_maxwellian():
     img_dir = '../img/spectra/'
     if not os.path.isdir(img_dir):
         os.makedirs(img_dir)
-    fig = plt.figure(figsize=[7, 5])
-    xs, ys = 0.15, 0.15
-    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[7, 8])
+    xs, ys = 0.15, 0.35
+    w1, h1 = 0.8, 0.6
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
     # pic_info = pic_information.get_pic_info('../../')
     # dir = '../spectrum/'
-    run_name = 'mime25_beta002'
+    run_name = 'mime25_beta0007'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     dir = '../data/spectra/' + run_name + '/'
@@ -2327,7 +2332,8 @@ def fit_two_maxwellian():
     fthermal2, popt = fit_thermal_core(elog[ns:], fnonthermal1[ns:])
     fthermal2 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
     fnonthermal2 = fnonthermal1 - fthermal2
-    fthermal_tot = fthermal + fthermal1 + fthermal2
+    # fthermal_tot = fthermal + fthermal1 + fthermal2
+    fthermal_tot = fthermal + fthermal1
     norm = fthermal_tot[1] / flog[1]
     fthermal_tot /= norm
     fthermal /= norm
@@ -2342,25 +2348,30 @@ def fit_two_maxwellian():
     ax.loglog(elog, fthermal_tot, linewidth=2, label='fitted')
     ax.loglog(elog, fthermal, linewidth=1, linestyle='--', label='thermal1')
     ax.loglog(elog, fthermal1, linewidth=1, linestyle='--', label='thermal2')
-    ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
+    # ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
     # ax.loglog(elog, fnonthermal, linewidth=3)
-    # ax.loglog(elog, fnonthermal1, linewidth=3)
+    ax.loglog(elog, fnonthermal1, linewidth=3)
+    # ax.loglog(elog, fnonthermal2, linewidth=3)
     leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
 
-    ax.set_xlim([2E-3, 5E0])
-    ax.set_ylim([1E-8, 1E-1])
+    ax.set_xlim([2E-3, 1E1])
+    ax.set_ylim([1E-8, 1E2])
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
     ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=20)
     # ax.grid(True)
 
-    h2 = 0.3
+    h2 = 0.2
     ys -= h2 + 0.05
     ax1 = fig.add_axes([xs, ys, w1, h2])
     ax1.semilogx(elog, error_re, linewidth=2, color='k')
-    ax1.set_xlim(ax.get_xlim())
+    xlims = ax.get_xlim()
+    ax1.plot(xlims, [0.2, 0.2], linestyle='--', color='k')
+    ax1.plot(xlims, [0.0, 0.0], linestyle='--', color='k')
+    ax1.plot(xlims, [-0.2, -0.2], linestyle='--', color='k')
+    ax1.set_xlim(xlims)
     ax1.set_ylim([-0.5, 0.5])
     ax1.tick_params(labelsize=20)
     ax1.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
@@ -2370,18 +2381,186 @@ def fit_two_maxwellian():
     plt.show()
 
 
+def get_contour_paths(run_name, root_dir, pic_info, ct):
+    """Get the coordinates when plotting contours
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        ct: time frame
+    """
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    # fname = root_dir + "data/jy.gda"
+    # x, z, jy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.79
+    height = 0.7
+    xs = 0.13
+    ys = 0.92 - height
+    gap = 0.05
+    fig = plt.figure(figsize=[8,4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1.0, "vmax":1.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    # p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(plt.cm.get_cmap('seismic'))
+    # p1.set_cmap(cmaps.inferno)
+    levels = np.linspace(np.min(Ay), np.max(Ay), 10)
+    cs = ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+                     colors='black', linewidths=0.5, levels=levels)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    # cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
+    # cbar1.ax.tick_params(labelsize=16)
+
+    ax1.set_color_cycle(colors)
+    i = 1
+    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001/'
+    fdir = 'pic_analysis/data/field_line/'
+    fpath = root_dir + fdir + 't' + str(ct) + '/'
+    mkdir_p(fpath)
+    for cl in cs.collections[1:]:
+        j = 1
+        sz = len(cl.get_paths())
+        for p in cl.get_paths():
+            v = p.vertices
+            x = v[:, 0]
+            if np.all(np.diff(x) >= 0) or np.all(np.diff(x) <= 0):
+                v = v[v[:, 0].argsort()]
+                x = v[:,0]
+                z = v[:,1]
+                if j == 1:
+                    p11, = ax1.plot(x, z, linewidth=2)
+                    color = p11.get_color()
+                else:
+                    p11, = ax1.plot(x, z, linewidth=2, color=color)
+                fname = 'field_line_' +  str(ct) + '_' + str(i)
+                if sz >= 2:
+                    fname += '_' + str(j) + '.dat'
+                    if j == sz:
+                        i += 1
+                else:
+                    fname += '.dat'
+                    i += 1
+                v.tofile(fpath + fname)
+            else:
+                imin = np.argmin(x)
+                imax = np.argmax(x)
+                v = np.roll(v, -imin, axis=0)
+                imin = np.argmin(v[:, 0])
+                imax = np.argmax(v[:, 0])
+                x = v[imin:imax,0]
+                z = v[imin:imax,1]
+                fname = 'field_line_' +  str(ct) + '_' + str(i)
+                if j == 1:
+                    p1, = ax1.plot(x, z, linewidth=2)
+                    color = p1.get_color()
+                else:
+                    p1, = ax1.plot(x, z, linewidth=2, color=color)
+                if sz >= 2:
+                    fname += '_' + str(j) + '_1.dat'
+                else:
+                    fname += '_1.dat'
+                v[imin:imax, :].tofile(fpath + fname)
+
+                v[imax:, :] = v[v[imax:, 0].argsort()+imax]
+                x = v[imax:-1,0]
+                z = v[imax:-1,1]
+                ax1.plot(x, z, linewidth=2, color=color)
+                fname = 'field_line_' +  str(ct) + '_' + str(i)
+                if sz >= 2:
+                    fname += '_' + str(j) + '_2.dat'
+                    if j == sz:
+                        i += 1
+                else:
+                    fname += '_2.dat'
+                    i += 1
+                v[imax:-1, :].tofile(fpath + fname)
+
+            j = j + 1
+
+    plt.show()
+    # plt.close()
+
+def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh, species,
+                                    spect_path, vdist_path):
+    """Generate script for one pair of field lines
+    """
+    cmd = 'particle_spectrum_vdist_fieldlines'
+    script = 'mpirun -np $ncpus ' + cmd + ' -fb ' + fnames[0] + ' -ft ' + \
+             fnames[1] + ' -fp ' + fpath + ' -t ' + str(ct) + '\n'
+    fh.write(script)
+
+    fname = fnames[0]
+    lname = fname[10:-6] # Remove field_line and '_1.dat' or '_2.dat'
+    pre = spect_path + 'spectrum-' + species
+    pre_ = spect_path + 'spectrum_' + species
+    script = 'mv ' + pre + '.' + str(ct_particle) + ' ' + pre_ + '_' + \
+             str(ct_particle) + lname + '.dat\n'
+    fh.write(script)
+
+    pre = vdist_path + 'vdist_1d-' + species
+    pre_ = vdist_path + 'vdist_1d_' + species
+    script = 'mv ' + pre + '.' + str(ct_particle) + ' ' + pre_ + '_' + \
+             str(ct_particle) + lname + '.dat\n'
+    fh.write(script)
+
+    pre = vdist_path + 'vdist_2d-' + species
+    pre_ = vdist_path + 'vdist_2d_' + species
+    script = 'mv ' + pre + '.' + str(ct_particle) + ' ' + pre_ + '_' + \
+             str(ct_particle) + lname + '.dat\n'
+    fh.write(script)
+    fh.write('\n')
+
+
+def gen_run_script(ct, ct_particle, species):
+    """Generate run script for spectrum between field lines
+    """
+    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001/'
+    fdir = 'pic_analysis/data/field_line/'
+    fpath = root_dir + fdir + 't' + str(ct) + '/'
+    vdist_path = root_dir + 'pic_analysis/vdistributions/'
+    spect_path = root_dir + 'pic_analysis/spectrum/'
+    files = [f for f in listdir(fpath) if isfile(join(fpath, f))]
+    files = sorted(files)
+    sz = len(files)
+    fname = root_dir + 'pic_analysis/' + 'spect.sh'
+    fh = open(fname, 'w')
+    fh.write('#!/bin/bash\n')
+    # fh.write('source module_intel.sh\n')
+    fh.write('ncpus=16\n')
+    for i in range(sz/2):
+        gen_script_one_pair_field_lines(ct, ct_particle, files[i*2:i*2+2],
+                                        fpath, fh, species, spect_path,
+                                        vdist_path)
+    fh.close()
+    st = os.stat(fname)
+    os.chmod(fname, st.st_mode | stat.S_IEXEC)
+
+
 if __name__ == "__main__":
     # scratch_dir = '/net/scratch2/xiaocanli/'
     # run_name = "mime25_beta002_noperturb"
     # root_dir = scratch_dir + 'mime25-sigma1-beta002-200-100-noperturb/'
-    # run_name = "mime25_beta002"
-    # root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
+    run_name = "mime25_beta002"
+    root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta002_track"
     # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
-    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    # pic_info = read_data_from_json(picinfo_fname)
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    ct = 480
+    ct_particle = ct * pic_info.fields_interval / pic_info.particle_interval
+    # get_contour_paths(run_name, root_dir, pic_info, ct)
+    gen_run_script(ct, ct_particle, 'e')
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_vx_time(run_name, root_dir, pic_info)
     # plot_epara_eperp(pic_info, 26, root_dir)
@@ -2398,4 +2577,4 @@ if __name__ == "__main__":
     # plot_curvb_multi(run_name, root_dir, pic_info)
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
-    fit_two_maxwellian()
+    # fit_two_maxwellian()
