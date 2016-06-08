@@ -24,7 +24,7 @@ module particle_info
             ptl_mass = 1.0
             sqrt_ptl_mass = 1.0
             ptl_charge = qe
-        else if (species == 'i') then
+        else if (species == 'i' .or. species == 'h') then
             ptl_mass = mime
             sqrt_ptl_mass = sqrt(mime)
             ptl_charge = qi
