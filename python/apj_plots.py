@@ -2224,7 +2224,7 @@ def plot_spectra_R1_R5():
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
     run_names = ['mime25_beta002', 'mime100_beta002']
-    labels = ['R1', 'R5']
+    labels = [r'R1: $c_A/c=0.2, m_i/m_e=25$', r'R5: $c_A/c=0.1, m_i/m_e=100$']
     for run_name, label in zip(run_names, labels):
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         pic_info = read_data_from_json(picinfo_fname)
@@ -2688,6 +2688,6 @@ if __name__ == "__main__":
     # plot_ppara_pperp_multi(run_name, root_dir, pic_info)
     # plot_curvb_multi(run_name, root_dir, pic_info)
     # plot_spectra_electron()
-    # plot_spectra_R1_R5()
+    plot_spectra_R1_R5()
     # fit_two_maxwellian()
-    spectrum_between_fieldlines()
+    # spectrum_between_fieldlines()
