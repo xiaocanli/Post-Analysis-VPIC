@@ -2656,6 +2656,71 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     # plt.show()
 
 
+def plot_velocity_fields(run_name, root_dir, pic_info, species):
+    """Plot magnetic fields
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        species: particle species.
+    """
+    ct = 100
+    contour_color = ['k', 'k', 'k']
+    vmin = [-1.0, -1.0, -1.0]
+    vmax = [1.0, 1.0, 1.0]
+    xs, ys = 0.15, 0.77
+    w1, h1 = 0.7, 0.21
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.025]
+    fig_sizes = (6, 10)
+    nxp, nzp = 1, 3
+    var_names = []
+    var_name = r'$V_{' + species + 'x}/V_A$'
+    var_names.append(var_name)
+    var_name = r'$V_{' + species + 'y}/V_A$'
+    var_names.append(var_name)
+    var_name = r'$V_{' + species + 'z}/V_A$'
+    var_names.append(var_name)
+    colormaps = ['seismic', 'seismic', 'seismic']
+    text_colors = colors[:3]
+    xstep, zstep = 2, 2
+    is_logs = [False, False, False]
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    fig_dir = '../img/img_apj/' + run_name + '/'
+    mkdir_p(fig_dir)
+    kwargs = {"current_time":ct, "xl":100, "xr":120, "zb":-20, "zt":20}
+    fname2 = root_dir + 'data/v' + species + 'x.gda'
+    if os.path.isfile(fname2):
+        fname3 = root_dir + 'data/v' + species + 'y.gda'
+        fname4 = root_dir + 'data/v' + species + 'z.gda'
+    else:
+        fname2 = root_dir + 'data/u' + species + 'x.gda'
+        fname3 = root_dir + 'data/u' + species + 'y.gda'
+        fname4 = root_dir + 'data/u' + species + 'z.gda'
+    x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
+    x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
+    x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
+    fname5 = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
+    nz, nx = vx.shape
+    fdata = [vx/va, vy/va, vz/va]
+    fdata_1d = [vx[nz/2,:]/va, vy[nz/2,:]/va, vz[nz/2,:]/va]
+    fname = 'v' + species
+    bottom_panel = True
+    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
+            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
+            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
+            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
+            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
+            'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
+            'fdata_1d':fdata_1d}
+    vfields_plot = PlotMultiplePanels(**kwargs_plots)
+
+    plt.show()
+
+
 def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
@@ -2694,6 +2759,8 @@ if __name__ == "__main__":
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta002_track"
     # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_vx_time(run_name, root_dir, pic_info)
     # plot_epara_eperp(pic_info, 26, root_dir)
@@ -2710,5 +2777,6 @@ if __name__ == "__main__":
     # plot_curvb_multi(run_name, root_dir, pic_info)
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
-    fit_two_maxwellian()
+    # fit_two_maxwellian()
     # spectrum_between_fieldlines()
+    plot_velocity_fields(run_name, root_dir, pic_info, 'e')
