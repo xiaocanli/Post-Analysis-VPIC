@@ -35,6 +35,9 @@ from shell_functions import mkdir_p
 import re
 import stat
 from scipy.interpolate import interp1d
+from itertools import groupby
+from particle_distribution import *
+import pprint
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -2454,7 +2457,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
                 fname = 'field_line_' +  str(ct) + '_' + str(i)
                 if sz >= 2:
                     fname += '_' + str(j) + '.dat'
-                    i += 1 if j == sz else i
+                    i += 1 if j == sz else 0
                 else:
                     fname += '.dat'
                     i += 1
@@ -2487,8 +2490,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
                 fname = 'field_line_' +  str(ct) + '_' + str(i)
                 if sz >= 2:
                     fname += '_' + str(j) + '_2.dat'
-                    if j == sz:
-                        i += 1
+                    i += 1 if j == sz else 0
                 else:
                     fname += '_2.dat'
                     i += 1
@@ -2504,7 +2506,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
 
             j = j + 1
 
-    plt.show()
+    # plt.show()
     # plt.close()
 
 
@@ -2539,10 +2541,9 @@ def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh, species,
     fh.write('\n')
 
 
-def gen_run_script(ct, ct_particle, species):
+def gen_run_script(ct, ct_particle, species, root_dir):
     """Generate run script for spectrum between field lines
     """
-    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001/'
     fdir = 'pic_analysis/data/field_line/'
     fpath = root_dir + fdir + 't' + str(ct) + '/'
     vdist_path = root_dir + 'pic_analysis/vdistributions/'
@@ -2564,11 +2565,82 @@ def gen_run_script(ct, ct_particle, species):
     os.chmod(fname, st.st_mode | stat.S_IEXEC)
 
 
+def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info):
+    """Read particle spectrum and velocity distributions in sectors
+    """
+    fdir = 'pic_analysis/data/field_line/'
+    fpath = root_dir + fdir + 't' + str(ct) + '/'
+    vdist_path = root_dir + 'pic_analysis/vdistributions/'
+    spect_path = root_dir + 'pic_analysis/spectrum/'
+    files = [f for f in listdir(fpath) if isfile(join(fpath, f))]
+    files = sorted(files)
+    fnames = []
+    for fname in files:
+        start = [m.start() for m in re.finditer('_', fname)]
+        fnames.append(fname[start[2]+1:-6])
+
+    sector_names = sorted(set(fnames))
+    snames = {k: list(v) for k, v in groupby(sector_names, key=lambda x: x[0])}
+    dists_sectors = {}
+    for key in snames:
+        dists = []
+        for fline in snames[key]:
+            fname_post = species + '_' + str(ct_particle) + '_' + str(ct) + \
+                         '_' + fline + '.dat'
+            fname_1d = 'vdist_1d_' + fname_post 
+            fname_2d = 'vdist_2d_' + fname_post
+            fvel = read_velocity_distribution('e', ct, pic_info, fname_1d,
+                                              fname_2d, vdist_path)
+            fname_ene = 'spectrum_' + fname_post
+            fene = read_energy_distribution('e', ct, pic_info, fname_ene, spect_path)
+            dists.append({'fvel': fvel, 'fene': fene})
+        dists_sectors[key] = dists
+
+    return dists_sectors
+
+
+def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
+                             run_name):
+    """Plot particle spectrum and velocity distributions in sectors
+    """
+    dists_sector = read_spectrum_vdist_in_sectors(ct, ct_particle, species, \
+                                                  root_dir, pic_info)
+    flogs = {}
+    for key in dists_sector:
+        fene = []
+        for dists in dists_sector[key]:
+            fene.append(dists['fene'].flog)
+        elog = dists['fene'].elog
+        fene = np.sum(np.asarray(fene), axis=0)
+        flogs[key] = fene
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    nsector = len(flogs)
+    for i in range(1, nsector):
+        ax.loglog(elog, flogs[str(i)] - flogs[str(i+1)], linewidth=3)
+    ax.loglog(elog, flogs[str(nsector)], linewidth=3)
+    ax.tick_params(labelsize=20)
+    ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
+    if run_name == 'mime25_beta002':
+        ax.set_xlim([1E-4, 1E1])
+        ax.set_ylim([1E-5, 1E5])
+    elif run_name == 'mime25_beta0007':
+        ax.set_xlim([1E-4, 3E1])
+        ax.set_ylim([1E-5, 1E5])
+    # plt.show()
+
+
 def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
+    species = 'e'
     run_name = "mime25_beta002"
-    root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
+    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta002_track"
@@ -2577,13 +2649,18 @@ def spectrum_between_fieldlines():
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
     ct = ct_particle * pic_info.particle_interval / pic_info.fields_interval
-    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
-    get_contour_paths(run_name, root_dir, pic_info, ct, 10)
+    nlevels = 10
     fpath = '../img/spect_vdist_fieldlines/' + run_name
-    mkdir_p(fpath)
-    fname = fpath + '/contour_' + str(ct) + '.jpg'
-    plt.savefig(fname, dpi=300)
-    # gen_run_script(ct, ct_particle, 'e')
+    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels)
+    # mkdir_p(fpath)
+    # fname = fpath + '/contour_' + str(ct) + '.jpg'
+    # plt.savefig(fname, dpi=300)
+    # gen_run_script(ct, ct_particle, 'e', root_dir)
+    plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
+                             run_name)
+    fname = fpath + '/spect_sector_' + str(ct) + '.eps'
+    plt.savefig(fname)
+    plt.show()
 
 
 if __name__ == "__main__":
