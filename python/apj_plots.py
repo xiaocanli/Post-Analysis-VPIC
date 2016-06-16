@@ -2308,6 +2308,7 @@ def fit_two_maxwellian():
     ax.set_color_cycle(colors)
     # pic_info = pic_information.get_pic_info('../../')
     # dir = '../spectrum/'
+    # run_name = 'mime25_beta002'
     run_name = 'mime25_beta0007'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
@@ -2350,16 +2351,35 @@ def fit_two_maxwellian():
 
     ax.loglog(elog, flog, linewidth=4, label='simulation')
     ax.loglog(elog, fthermal_tot, linewidth=2, label='fitted')
+    ax.loglog(elog, fnonthermal1, linewidth=2, label='Nonthermal')
     ax.loglog(elog, fthermal, linewidth=1, linestyle='--', label='thermal1')
     ax.loglog(elog, fthermal1, linewidth=1, linestyle='--', label='thermal2')
     # ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
     # ax.loglog(elog, fnonthermal, linewidth=3)
-    ax.loglog(elog, fnonthermal1, linewidth=3)
     # ax.loglog(elog, fnonthermal2, linewidth=3)
     leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
             shadow=False, fancybox=False, frameon=False)
 
-    ax.set_xlim([2E-3, 1E1])
+    if run_name == 'mime25_beta002':
+        pindex = -7.0
+        sindex = 370
+        pratio = 1
+    elif run_name == 'mime25_beta0007':
+        pindex = -5.7
+        sindex = 370
+        pratio = 1
+
+    fpower = elog[sindex:]**pindex * pratio
+    ax.loglog(elog[sindex:], fpower, color='k', linestyle='--')
+    ax.plot(elog[sindex], flog[sindex], color='k', marker='.', markersize=15,
+            markevery=10, fillstyle='full', markeredgecolor = 'none')
+    power_index = "{%0.1f}" % pindex
+    tname = r'$\sim (\gamma - 1)^{' + power_index + '}$'
+    ax.text(0.7, 0.8, tname, color='black', fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    ax.set_xlim([2E-3, 3E1])
     ax.set_ylim([1E-8, 1E2])
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
@@ -2380,7 +2400,8 @@ def fit_two_maxwellian():
     ax1.tick_params(labelsize=20)
     ax1.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax1.set_ylabel('Relative Error', fontdict=font, fontsize=24)
-    fig.savefig('../img/spect_fitting.eps')
+    fname = '../img/img_apj/' + 'spect_fitting_' + run_name + '.eps'
+    fig.savefig(fname)
 
     plt.show()
 
@@ -2688,6 +2709,6 @@ if __name__ == "__main__":
     # plot_ppara_pperp_multi(run_name, root_dir, pic_info)
     # plot_curvb_multi(run_name, root_dir, pic_info)
     # plot_spectra_electron()
-    plot_spectra_R1_R5()
-    # fit_two_maxwellian()
+    # plot_spectra_R1_R5()
+    fit_two_maxwellian()
     # spectrum_between_fieldlines()
