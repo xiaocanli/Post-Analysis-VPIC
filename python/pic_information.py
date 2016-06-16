@@ -24,8 +24,7 @@ def get_pic_info(base_directory):
     dtwce = pic_initial_info.dtwce
     dtwci = pic_initial_info.dtwci
     dtwpi = dtwpe / math.sqrt(pic_initial_info.mime)
-    # ntf = get_fields_frames(base_directory)
-    ntf = 1064
+    ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
     fields_interval, particle_interval, trace_interval = \
             get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory)
@@ -418,8 +417,8 @@ def save_pic_info_json():
     if not os.path.isdir(dir):
         os.makedirs(dir)
 
-    # base_dirs, run_names = ApJ_long_paper_runs()
-    base_dirs, run_names = guide_field_runs()
+    base_dirs, run_names = ApJ_long_paper_runs()
+    # base_dirs, run_names = guide_field_runs()
     for base_dir, run_name in zip(base_dirs, run_names):
         pic_info = get_pic_info(base_dir)
         pic_info_json = data_to_json(pic_info)
@@ -442,12 +441,12 @@ def list_pic_info_dir(filepath):
 
 
 if __name__ == "__main__":
-    base_directory = '../../'
-    pic_info = get_pic_info(base_directory)
-    pic_info_json = data_to_json(pic_info)
-    run_name = 'nersc_large'
-    fname = '../data/pic_info_' + run_name + '.json'
-    with open(fname, 'w') as f:
-        json.dump(pic_info_json, f)
-    # save_pic_info_json()
+    # base_directory = '../../'
+    # pic_info = get_pic_info(base_directory)
+    # pic_info_json = data_to_json(pic_info)
+    # run_name = 'nersc_large'
+    # fname = '../data/pic_info_' + run_name + '.json'
+    # with open(fname, 'w') as f:
+    #     json.dump(pic_info_json, f)
+    save_pic_info_json()
     # list_pic_info_dir('../data/pic_info/')
