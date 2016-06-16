@@ -34,6 +34,7 @@ from energy_conversion import calc_jdotes_fraction_multi
 from shell_functions import mkdir_p
 import re
 import stat
+from scipy.interpolate import interp1d
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -2381,7 +2382,7 @@ def fit_two_maxwellian():
     plt.show()
 
 
-def get_contour_paths(run_name, root_dir, pic_info, ct):
+def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
     """Get the coordinates when plotting contours
 
     Args:
@@ -2411,7 +2412,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct):
     # p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
     # p1.set_cmap(plt.cm.get_cmap('seismic'))
     # p1.set_cmap(cmaps.inferno)
-    levels = np.linspace(np.min(Ay), np.max(Ay), 10)
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
     cs = ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
                      colors='black', linewidths=0.5, levels=levels)
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
@@ -2422,11 +2423,10 @@ def get_contour_paths(run_name, root_dir, pic_info, ct):
 
     ax1.set_color_cycle(colors)
     i = 1
-    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001/'
     fdir = 'pic_analysis/data/field_line/'
     fpath = root_dir + fdir + 't' + str(ct) + '/'
     mkdir_p(fpath)
-    for cl in cs.collections[1:]:
+    for cl in cs.collections[1:-1]:
         j = 1
         sz = len(cl.get_paths())
         for p in cl.get_paths():
@@ -2439,13 +2439,22 @@ def get_contour_paths(run_name, root_dir, pic_info, ct):
                 if j == 1:
                     p11, = ax1.plot(x, z, linewidth=2)
                     color = p11.get_color()
+                    x1 = x
+                    z1 = z
                 else:
                     p11, = ax1.plot(x, z, linewidth=2, color=color)
+                    xmin = np.min(x)
+                    xmax = np.max(x)
+                    index = (x1 >= xmin) & (x1 <= xmax)
+                    x1 = x1[index]
+                    z1 = z1[index]
+                    f = interp1d(x, z, kind='linear')
+                    z = f(x1)
+                    ax1.fill_between(x1, z1, z, color=color)
                 fname = 'field_line_' +  str(ct) + '_' + str(i)
                 if sz >= 2:
                     fname += '_' + str(j) + '.dat'
-                    if j == sz:
-                        i += 1
+                    i += 1 if j == sz else i
                 else:
                     fname += '.dat'
                     i += 1
@@ -2469,6 +2478,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct):
                 else:
                     fname += '_1.dat'
                 v[imin:imax, :].tofile(fpath + fname)
+                x1, z1 = x, z
 
                 v[imax:, :] = v[v[imax:, 0].argsort()+imax]
                 x = v[imax:-1,0]
@@ -2483,11 +2493,20 @@ def get_contour_paths(run_name, root_dir, pic_info, ct):
                     fname += '_2.dat'
                     i += 1
                 v[imax:-1, :].tofile(fpath + fname)
+                xmin = np.min(x)
+                xmax = np.max(x)
+                index = (x1 >= xmin) & (x1 <= xmax)
+                x1 = x1[index]
+                z1 = z1[index]
+                f = interp1d(x, z, kind='linear')
+                z = f(x1)
+                ax1.fill_between(x1, z1, z, color=color)
 
             j = j + 1
 
     plt.show()
     # plt.close()
+
 
 def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh, species,
                                     spect_path, vdist_path):
@@ -2545,6 +2564,28 @@ def gen_run_script(ct, ct_particle, species):
     os.chmod(fname, st.st_mode | stat.S_IEXEC)
 
 
+def spectrum_between_fieldlines():
+    """Analysis for particle spectrum between field lines
+    """
+    run_name = "mime25_beta002"
+    root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
+    # run_name = "mime25_beta0007"
+    # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
+    # run_name = "mime25_beta002_track"
+    # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    ct_particle = pic_info.ntp
+    ct = ct_particle * pic_info.particle_interval / pic_info.fields_interval
+    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    get_contour_paths(run_name, root_dir, pic_info, ct, 10)
+    fpath = '../img/spect_vdist_fieldlines/' + run_name
+    mkdir_p(fpath)
+    fname = fpath + '/contour_' + str(ct) + '.jpg'
+    plt.savefig(fname, dpi=300)
+    # gen_run_script(ct, ct_particle, 'e')
+
+
 if __name__ == "__main__":
     # scratch_dir = '/net/scratch2/xiaocanli/'
     # run_name = "mime25_beta002_noperturb"
@@ -2555,12 +2596,6 @@ if __name__ == "__main__":
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta002_track"
     # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
-    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
-    ct = 480
-    ct_particle = ct * pic_info.fields_interval / pic_info.particle_interval
-    # get_contour_paths(run_name, root_dir, pic_info, ct)
-    gen_run_script(ct, ct_particle, 'e')
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_vx_time(run_name, root_dir, pic_info)
     # plot_epara_eperp(pic_info, 26, root_dir)
@@ -2578,3 +2613,4 @@ if __name__ == "__main__":
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
     # fit_two_maxwellian()
+    spectrum_between_fieldlines()
