@@ -1,5 +1,5 @@
 """
-Analysis procedures for particle energy spectrum.
+Analysis procedures for particle tracking
 """
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -16,6 +16,8 @@ import collections
 import pic_information
 from scipy.interpolate import interp1d
 import h5py
+from shell_functions import *
+from energy_conversion import *
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -36,8 +38,8 @@ def read_var(group, dset_name, sz):
         var: the dataset name
         sz: the size of the data
     """
-    fdata = np.zeros(sz)
-    dset= group[dset_name]
+    dset = group[dset_name]
+    fdata = np.zeros(sz, dtype=dset.dtype)
     dset.read_direct(fdata)
     return fdata
 
@@ -232,35 +234,99 @@ def save_new_data(iptl, particle_tags, pic_info, fh_in, fh_out):
         grp.create_dataset(key, (sz_new, ), data=ptl[key])
 
 
+def plot_particle_energy_conversion(fh, particle_tags, pic_info):
+    """Plot particle energy conversion w.r.t to local magnetic field
+    """
+    odir = '../img/ptl_ene/'
+    mkdir_p(odir)
+
+    for i in range(1):
+        stride = 2**i
+        for iptl in range(1):
+            print(iptl)
+            particle_energy(iptl, particle_tags, pic_info, stride, odir, fh)
+    
+
+def save_shifted_trajectory(fh, filepath, particle_tags, pic_info):
+    """Save shifted particle trajectory at boundaries
+    """
+    fname_out = filepath + 'electrons_interp.h5p'
+    with h5py.File(fname_out, 'w') as fh_out:
+        for iptl in range(1):
+            print(iptl)
+            save_new_data(iptl, particle_tags, pic_info, fh, fh_out)
+
+
+def transfer_to_h5part(particle_tags, pic_info, fh, filepath):
+    """Transfer current HDF5 file to H5Part format, in which all particles
+    at the same time step are stored in the same time step
+    """
+    nptl = len(particle_tags)
+    ptl, sz = read_particle_data(0, particle_tags, pic_info, fh)
+    Ux = np.zeros(sz * nptl, dtype = ptl['Ux'].dtype)
+    Uy = np.zeros(sz * nptl, dtype = ptl['Uy'].dtype)
+    Uz = np.zeros(sz * nptl, dtype = ptl['Uz'].dtype)
+    dX = np.zeros(sz * nptl, dtype = ptl['dX'].dtype)
+    dY = np.zeros(sz * nptl, dtype = ptl['dY'].dtype)
+    dZ = np.zeros(sz * nptl, dtype = ptl['dZ'].dtype)
+    i = np.zeros(sz * nptl, dtype = ptl['i'].dtype)
+    q = np.zeros(sz * nptl, dtype = ptl['q'].dtype)
+    gamma = np.zeros(sz * nptl, dtype = ptl['gamma'].dtype)
+    for iptl in range(nptl):
+        print iptl
+        ptl, sz = read_particle_data(iptl, particle_tags, pic_info, fh)
+        Ux[iptl::nptl] = ptl['Ux']
+        Uy[iptl::nptl] = ptl['Uy']
+        Uz[iptl::nptl] = ptl['Uz']
+        dX[iptl::nptl] = ptl['dX']
+        dY[iptl::nptl] = ptl['dY']
+        dZ[iptl::nptl] = ptl['dZ']
+        i[iptl::nptl] = ptl['i']
+        q[iptl::nptl] = ptl['q']
+        gamma[iptl::nptl] = ptl['gamma']
+
+    nx, ny, nz = pic_info.nx, pic_info.ny, pic_info.nz
+    lx, ly, lz = pic_info.lx_di, pic_info.ly_di, pic_info.lz_di
+    dX *= nx / lx * 0.5
+    dY *= ny / ly * 0.5
+    dZ *= nz / lz * 0.5
+    dY += ny * 0.25
+    dZ += nz * 0.25
+
+    tinterval = 13
+    tratio = 8
+    fname = filepath + 'electrons.h5part'
+    with h5py.File(fname, 'w') as fh_out:
+        for t in range(0, sz*tinterval):
+            print t
+            ct = t / tinterval
+            # grp = fh_out.create_group('Step#'+str(ct))
+            grp = fh_out.create_group('Step#'+str(t))
+            index = range(ct*nptl, (ct+1)*nptl)
+            grp.create_dataset('Ux', (nptl, ), data=Ux[index])
+            grp.create_dataset('Uy', (nptl, ), data=Uy[index])
+            grp.create_dataset('Uz', (nptl, ), data=Uz[index])
+            grp.create_dataset('dX', (nptl, ), data=dX[index])
+            grp.create_dataset('dY', (nptl, ), data=dY[index])
+            grp.create_dataset('dZ', (nptl, ), data=dZ[index])
+            grp.create_dataset('i', (nptl, ), data=i[index])
+            grp.create_dataset('q', (nptl, ), data=q[index])
+            grp.create_dataset('gamma', (nptl, ), data=gamma[index])
+
+
 if __name__ == "__main__":
-    filepath = '/net/scratch3/guofan/trinity/turbulent-sheet3D-mixing-sigma100/'
-    # filepath = '/net/scratch3/xiaocanli/turbulence-large-dB-tracking/'
-    pic_info = pic_information.get_pic_info(filepath)
+    filepath = '/net/scratch3/xiaocanli/open3d-full/'
+    # pic_info = pic_information.get_pic_info(filepath)
+    run_name = 'nersc_large'
+    picinfo_fname = '../data/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     filepath += 'pic_analysis/vpic-sorter/data/'
     species = 'e'
     if species == 'i':
         fname = filepath + 'ions.h5p'
     else:
         fname = filepath + 'electrons_2.h5p'
-    fname2 = filepath + 'electrons_interp.h5p'
-    fh = h5py.File(fname, 'r')
-    particle_tags = []
-    for item in fh:
-        particle_tags.append(item)
-    nptl = len(particle_tags)
-    if not os.path.isdir('../img/'):
-        os.makedirs('../img/')
-    odir = '../img/ptl_ene/'
-
-    fh2 = h5py.File(fname2, 'w')
-
-    if not os.path.isdir(odir):
-        os.makedirs(odir)
-    for i in range(1):
-        stride = 2**i
-        for iptl in range(1):
-            print(iptl)
-            # particle_energy(iptl, particle_tags, pic_info, stride, odir, fh)
-            save_new_data(iptl, particle_tags, pic_info, fh, fh2)
-    fh.close()
-    fh2.close()
+    with h5py.File(fname, 'r') as fh:
+        particle_tags = fh.keys()
+        # save_shifted_trajectory(fh, filepath, particle_tags, pic_info)
+        transfer_to_h5part(particle_tags, pic_info, fh, filepath)
