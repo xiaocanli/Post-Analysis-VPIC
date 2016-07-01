@@ -142,10 +142,10 @@ program calc_agyrotropy
     !   ct: current time point.
     !---------------------------------------------------------------------------
     subroutine read_pic_fields(ct)
-        use pic_fields, only: read_mangeitc_fields, read_pressure_tensor
+        use pic_fields, only: read_magneitc_fields, read_pressure_tensor
         implicit none
         integer, intent(in) :: ct
-        call read_mangeitc_fields(ct)
+        call read_magneitc_fields(ct)
         call read_pressure_tensor(ct)
     end subroutine read_pic_fields
 
