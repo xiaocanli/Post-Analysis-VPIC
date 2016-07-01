@@ -35,7 +35,7 @@ target_link_libraries(electric_field get_info parameters)
 add_library(fieldline_tracing STATIC fieldline_tracing.f90 global.f90)
 target_link_libraries(fieldline_tracing magnetic_field)
 
-add_library(pic_fields pic_fields.f90 global.f90)
+add_library(pic_fields pic_fields.f90 global.f90 mpi_setup.f90 mpi_io_fields.f90)
 target_link_libraries(pic_fields get_info saving_flags)
 
 add_library(usingle usingle.f90 global.f90)
