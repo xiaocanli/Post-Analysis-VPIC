@@ -24,7 +24,7 @@ module pic_fields
            open_current_density_files, open_pressure_tensor_files, &
            open_velocity_field_files, open_number_density_file, &
            open_fraction_eband_file
-    public read_magneitc_fields, read_electric_fields, read_current_desities, &
+    public read_magnetic_fields, read_electric_fields, read_current_desities, &
            read_pressure_tensor, read_velocity_fields, read_number_density, &
            read_fraction_eband
     public close_magnetic_field_files, close_electric_field_files, &
@@ -220,7 +220,7 @@ module pic_fields
     !---------------------------------------------------------------------------
     ! Read magnetic field.
     !---------------------------------------------------------------------------
-    subroutine read_magneitc_fields(ct)
+    subroutine read_magnetic_fields(ct)
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
@@ -234,7 +234,7 @@ module pic_fields
             subsizes_ghost, disp, offset, bz)
         call read_data_mpi_io(bfields_fh(4), filetype_ghost, &
             subsizes_ghost, disp, offset, absB)
-    end subroutine read_magneitc_fields
+    end subroutine read_magnetic_fields
     
     !---------------------------------------------------------------------------
     ! Read electric field.
@@ -360,7 +360,7 @@ module pic_fields
     subroutine read_pic_fields(ct)
         implicit none
         integer, intent(in) :: ct
-        call read_magneitc_fields(ct)
+        call read_magnetic_fields(ct)
         call read_electric_fields(ct)
         call read_current_desities(ct)
         call read_pressure_tensor(ct)
