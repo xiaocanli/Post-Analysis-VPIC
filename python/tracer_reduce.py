@@ -119,6 +119,10 @@ def sort_tracer_data(pic_info, pmin, meta_data, ct, species, root_path='../../')
     dX = ((dX - ix * dx_mpi - xmin) * idx - ixp + 1) * 2 - 1
     dY = ((dY - iy * dy_mpi - ymin) * idy - iyp + 1) * 2 - 1
     dZ = ((dZ - iz * dz_mpi - zmin) * idz - izp + 1) * 2 - 1
+    dX = dX.astype(np.float32)
+    dY = dX.astype(np.float32)
+    dZ = dX.astype(np.float32)
+
     dX[(dX < -1) & (ixp == nx)] = 1.0
     dX[(dX > 1) & (ixp == 1)] = -1.0
     dY[(dY < -1) & (iyp == ny)] = 1.0
@@ -138,8 +142,9 @@ def sort_tracer_data(pic_info, pmin, meta_data, ct, species, root_path='../../')
     
     ncpu = tpx * tpy * tpz
     elements, repeats = np.unique(mpi_rank, return_counts=True)
+    repeats = repeats.astype(np.int32)
 
-    fname = fpath + 'grid_metadata' + species + '_tracer_reduced.h5p'
+    fname = fpath + 'grid_metadata_' + species + '_tracer_reduced.h5p'
     with h5py.File(fname, 'w') as fh:
         gname = 'Step#' + str(ct)
         grp = fh.create_group(gname)
@@ -156,7 +161,7 @@ def sort_tracer_data(pic_info, pmin, meta_data, ct, species, root_path='../../')
 
     nptl, = dX.shape
     fname_reduced_sorted = fpath + species + '_tracer_reduced_sorted.h5p'
-    with h5py.File(fname_reduced, 'w') as fh:
+    with h5py.File(fname_reduced_sorted, 'w') as fh:
         gname = 'Step#' + str(ct)
         grp = fh.create_group(gname)
         grp.create_dataset('dX', (nptl, ), data=dX)
@@ -176,6 +181,6 @@ if __name__ == "__main__":
     ymin = np.min(meta_data['y0'])
     zmin = np.min(meta_data['z0'])
     pmin = [xmin, ymin, zmin]
-    for ct in xrange(0, 770, 7):
+    for ct in xrange(0, 2640, 7):
         print ct
         sort_tracer_data(pic_info, pmin, meta_data, ct, 'ion')
