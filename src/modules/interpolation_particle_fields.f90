@@ -7,7 +7,8 @@ module interpolation_particle_fields
     implicit none
     private
     public init_velocity_fields, free_velocity_fields, calc_vsingle, &
-        init_number_density, free_number_density, trilinear_interp_vel
+        init_number_density, free_number_density, trilinear_interp_vel, &
+        set_usingle
     public vsx, vsy, vsz, vx1, vy1, vz1, vx2, vy2, vz2, nrho1, nrho2, ntot, &
         vsx0, vsy0, vsz0
     real(fp), allocatable, dimension(:,:,:) :: vx1, vy1, vz1, vsx, vsy, vsz
@@ -279,4 +280,96 @@ module interpolation_particle_fields
         vsz0 = sum(vsz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_vel
 
+    !<--------------------------------------------------------------------------
+    !< Decide the starting and ending indices
+    !<--------------------------------------------------------------------------
+    subroutine bounding_indcies(ix, pic_nx, tx, sx, ixs_local, ixe_local, &
+            ixs_global, ixe_global)
+        implicit none
+        integer, intent(in) :: ix, pic_nx, tx, sx
+        integer, intent(out) :: ixs_local, ixe_local, ixs_global, ixe_global
+        if (tx == 1) then
+            ixs_local = 1
+            ixe_local = pic_nx
+            ixs_global = 1
+            ixe_global = pic_nx
+        else if (ix == 0 .and. ix < tx - 1) then
+            ixs_local = 1
+            ixe_local = pic_nx + 1
+            ixs_global = 1
+            ixe_global = pic_nx + 1
+        else if (ix == tx - 1 .and. ix > 0) then
+            ixs_local = 0
+            ixe_local = pic_nx
+            ixs_global = pic_nx * (ix - sx) + 1
+            ixe_global = pic_nx * (ix - sx + 1) + 1
+        else
+            ixs_local = 0
+            ixe_local = pic_nx + 1
+            if (sx /= 0) then
+                ixs_global = pic_nx * (ix - sx) + 1
+                ixe_global = pic_nx * (ix - sx + 1) + 2
+            else
+                ixs_global = pic_nx * (ix - sx)
+                ixe_global = pic_nx * (ix - sx + 1) + 1
+            endif
+        endif
+    end subroutine bounding_indcies
+
+    !<--------------------------------------------------------------------------
+    !< Set single fluid velocity, which is read from translated files rather
+    !< than directly from the PIC simulations
+    !<--------------------------------------------------------------------------
+    subroutine set_usingle(i, j, k, tx, ty, tz, sx, sy, sz)
+        use usingle, only: vsxt => vsx, vsyt => vsy, vszt => vsz
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: i, j, k, tx, ty, tz, sx, sy, sz
+        integer :: ixs_lo, ixe_lo, ixs_gl, ixe_gl
+        integer :: iys_lo, iye_lo, iys_gl, iye_gl
+        integer :: izs_lo, ize_lo, izs_gl, ize_gl
+        integer :: pnx, pny, pnz
+        pnx = domain%pic_nx
+        pny = domain%pic_ny
+        pnz = domain%pic_nz
+        call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
+        call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
+        call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        vsx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            vsxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        vsy(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            vsyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        vsz(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            vszt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        if (ixs_lo == 1) then
+            vsx(0, :, :) = vsx(1, :, :)
+            vsy(0, :, :) = vsy(1, :, :)
+            vsz(0, :, :) = vsz(1, :, :)
+        endif
+        if (ixe_lo == pnx) then
+            vsx(pnx+1, :, :) = vsx(pnx, :, :)
+            vsy(pnx+1, :, :) = vsy(pnx, :, :)
+            vsz(pnx+1, :, :) = vsz(pnx, :, :)
+        endif
+        if (iys_lo == 1) then
+            vsx(:, 0, :) = vsx(:, 1, :)
+            vsy(:, 0, :) = vsy(:, 1, :)
+            vsz(:, 0, :) = vsz(:, 1, :)
+        endif
+        if (iye_lo == pny) then
+            vsx(:, pny+1, :) = vsx(:, pny, :)
+            vsy(:, pny+1, :) = vsy(:, pny, :)
+            vsz(:, pny+1, :) = vsz(:, pny, :)
+        endif
+        if (izs_lo == 1) then
+            vsx(:, :, 0) = vsx(:, :, 1)
+            vsy(:, :, 0) = vsy(:, :, 1)
+            vsz(:, :, 0) = vsz(:, :, 1)
+        endif
+        if (ize_lo == pnz) then
+            vsx(:, :, pnz+1) = vsx(:, :, pnz)
+            vsy(:, :, pnz+1) = vsy(:, :, pnz)
+            vsz(:, :, pnz+1) = vsz(:, :, pnz)
+        endif
+    end subroutine set_usingle
 end module interpolation_particle_fields
