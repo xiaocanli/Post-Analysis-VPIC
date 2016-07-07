@@ -12,13 +12,18 @@ module path_info
 
     contains
 
-    subroutine get_file_paths
+    subroutine get_file_paths(rpath)
         use mpi_module
         implicit none
+        character(*), intent(in), optional :: rpath
         integer :: status1, getcwd, index1
-        status1 = getcwd(rootpath)
-        index1 = index(rootpath, '/', back=.true.)
-        rootpath = rootpath(1:index1)
+        if (present(rpath)) then
+            rootpath = trim(adjustl(rpath))
+        else
+            status1 = getcwd(rootpath)
+            index1 = index(rootpath, '/', back=.true.)
+            rootpath = rootpath(1:index1)
+        endif
         filepath = trim(rootpath)//'data/'
         outputpath = trim(rootpath)//'data1/'
         if (myid == master) then
