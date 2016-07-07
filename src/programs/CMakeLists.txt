@@ -82,7 +82,7 @@ add_executable(parallel_hdf5 parallel_hdf5.f90)
 #target_include_directories(parallel_hdf5)
 target_link_libraries(parallel_hdf5 ${MPI_Fortran_LIBRARIES}
     ${HDF5_Fortran_LIBRARIES} particle_drift interp_emf get_info
-    translate_module interp_pfields commandline_arguments)
+    translate_module interp_pfields fields flap)
 
 add_executable(ptl_tracer_hdf5 ptl_tracer_hdf5.f90)
 target_link_libraries(ptl_tracer_hdf5 ${MPI_Fortran_LIBRARIES}
