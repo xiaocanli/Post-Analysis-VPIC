@@ -16,7 +16,9 @@ import collections
 import pic_information
 import h5py
 from shell_functions import *
-from particle_emf import *
+from particle_emf import read_var
+from joblib import Parallel, delayed
+import multiprocessing
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -175,12 +177,17 @@ def sort_tracer_data(pic_info, pmin, meta_data, ct, species, root_path='../../')
 
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
+    root_dir = '/scratch3/scratchdirs/guofan/open3d-full/'
+    pic_info = pic_information.get_pic_info(root_dir)
     meta_data = get_meta_data(pic_info)
     xmin = np.min(meta_data['x0'])
     ymin = np.min(meta_data['y0'])
     zmin = np.min(meta_data['z0'])
     pmin = [xmin, ymin, zmin]
-    for ct in xrange(0, 2640, 7):
+    cts = range(4394, 16615, 13)
+    def processInput(ct):
         print ct
-        sort_tracer_data(pic_info, pmin, meta_data, ct, 'ion')
+        sort_tracer_data(pic_info, pmin, meta_data, ct, 'electron', root_dir)
+
+    num_cores = multiprocessing.cpu_count()
+    Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
