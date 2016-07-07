@@ -12,7 +12,8 @@ program parallel_hdf5
         read_electric_fields, read_magnetic_fields, close_electric_field_files, &
         close_magnetic_field_files
     use usingle, only: open_velocity_density_files, read_velocity_density, &
-        calc_usingle, close_velocity_density_files
+        calc_usingle, close_velocity_density_files, open_one_fluid_velocity, &
+        close_one_fluid_velocity, read_one_fluid_velocity
     use hdf5
     implicit none
     integer :: ct
@@ -22,13 +23,13 @@ program parallel_hdf5
     integer(hid_t), dimension(num_dset) :: dset_id
     integer, allocatable, dimension(:) :: np_local, offset_local
     integer :: error
-    character(len=256) :: filename, filename_metadata
+    character(len=256) :: filename, filename_metadata, rpath
     character(len=64) :: fname_tracer, fname_metadata
     character(len=16) :: groupname
     character(len=8) :: ct_char
     integer :: current_num_dset
     real :: start, finish, step1, step2
-    logical :: is_translated_file
+    logical :: is_translated_file, if_read_one_fluid_velocity
     character(len=32) :: dir_tracer_hdf5
     integer :: tstart, tend, tinterval
 
@@ -41,11 +42,18 @@ program parallel_hdf5
     call get_cmd_args
 
     call init_analysis
+    if (myid == master) then
+        print '(A)', 'Finished initializing the analysis'
+    endif
 
-    if (output_format == 1) then
+    if (is_translated_file .and. output_format == 1) then
         call open_electric_field_files
         call open_magnetic_field_files
-        call open_velocity_density_files
+        if (if_read_one_fluid_velocity) then
+            call open_one_fluid_velocity
+        else
+            call open_velocity_density_files
+        endif
     endif
 
     call cpu_time(step1)
@@ -65,20 +73,32 @@ program parallel_hdf5
                 ! Fields at each time step are saved in different files
                 call open_electric_field_files(ct)
                 call open_magnetic_field_files(ct)
-                call open_velocity_density_files(ct)
                 call read_electric_fields(tp1)
                 call read_magnetic_fields(tp1)
-                call read_velocity_density(tp1)
-                call close_electric_field_files
                 call close_magnetic_field_files
-                call close_velocity_density_files
+                call close_electric_field_files
+                if (if_read_one_fluid_velocity) then
+                    call open_one_fluid_velocity(ct)
+                    call read_one_fluid_velocity(tp1)
+                    call close_one_fluid_velocity
+                else
+                    call open_velocity_density_files(ct)
+                    call read_velocity_density(tp1)
+                    call close_velocity_density_files
+                endif
             else
                 ! Fields at all time steps are saved in the same file
                 call read_electric_fields(ct)
                 call read_magnetic_fields(ct)
-                call read_velocity_density(ct)
+                if (if_read_one_fluid_velocity) then
+                    call read_one_fluid_velocity(ct)
+                else
+                    call read_velocity_density(ct)
+                endif
             endif
-            call calc_usingle
+            if (.not. if_read_one_fluid_velocity) then
+                call calc_usingle
+            endif
         endif
         call get_particle_emf(filename, groupname, ct, 0)
         call free_np_offset_local
@@ -89,10 +109,14 @@ program parallel_hdf5
         step1 = step2
     enddo
 
-    if (output_format == 1) then
+    if (is_translated_file .and. output_format == 1) then
         call close_electric_field_files
         call close_magnetic_field_files
-        call close_velocity_density_files
+        if (if_read_one_fluid_velocity) then
+            call close_one_fluid_velocity
+        else
+            call close_velocity_density_files
+        endif
     endif
 
     call end_analysis
@@ -661,12 +685,16 @@ program parallel_hdf5
         use neighbors_module, only: init_neighbors, get_neighbors
         use commandline_arguments, only: get_dir_tracer_hdf5
         use pic_fields, only: init_electric_fields, init_magnetic_fields
-        use usingle, only: init_usingle
+        use usingle, only: init_usingle, init_one_fluild_velocity
         implicit none
         integer :: nx, ny, nz
 
         call get_ptl_mass_charge(species)
-        call get_file_paths
+        if (if_read_one_fluid_velocity) then
+            call get_file_paths(rpath)
+        else
+            call get_file_paths
+        endif
         if (myid == master) then
             call read_domain
             call write_pic_info
@@ -683,9 +711,6 @@ program parallel_hdf5
         call get_total_time_frames(tp2)
         call set_topology
         call set_start_stop_cells
-        call get_nout
-        call adjust_tindex_start
-        call set_output_record
         call set_mpi_io
 
         nx = domain%pic_nx + 2  ! Including ghost cells
@@ -705,7 +730,11 @@ program parallel_hdf5
         if (is_translated_file) then
             call init_electric_fields(htg%nx, htg%ny, htg%nz)
             call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
-            call init_usingle(species)
+            if (if_read_one_fluid_velocity) then
+                call init_one_fluild_velocity
+            else
+                call init_usingle(species)
+            endif
         endif
     end subroutine init_analysis
 
@@ -726,7 +755,7 @@ program parallel_hdf5
         use mpi_datatype_fields, only: filetype_ghost, filetype_nghost
         use mpi_info_module, only: fileinfo
         use pic_fields, only: free_electric_fields, free_magnetic_fields
-        use usingle, only: free_usingle
+        use usingle, only: free_usingle, free_one_fluild_velocity
         implicit none
         call free_neighbors
         call free_emfields
@@ -736,7 +765,11 @@ program parallel_hdf5
         if (is_translated_file) then
             call free_electric_fields
             call free_magnetic_fields
-            call free_usingle(species)
+            if (if_read_one_fluid_velocity) then
+                call free_one_fluild_velocity
+            else
+                call free_usingle(species)
+            endif
         endif
         call MPI_TYPE_FREE(datatype, ierror)
         call MPI_INFO_FREE(fileinfo, ierror)
@@ -790,6 +823,10 @@ program parallel_hdf5
             help='whether using translated fields file', required=.false., &
             act='store_true', def='.false.', error=error)
         if (error/=0) stop
+        call cli%add(switch='--read_one_fluid_vel', switch_ab='-ro', &
+            help='reading one fluid velocity', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%add(switch='--dir_tracer_hdf5', switch_ab='-dt', &
             help='HDF5 tracer directory', required=.false., &
             act='store', def='tracer', error=error)
@@ -811,11 +848,18 @@ program parallel_hdf5
         call cli%add(switch='--fname_metadata', switch_ab='-fm', &
             help='Particle tracer metadata file name', required=.false., &
             act='store', def='grid_metadata_electron_tracer.h5p', error=error)
+        if (error/=0) stop
         call cli%add(switch='--species', switch_ab='-sp', &
             help="Particle species: 'e' or 'h'", required=.false., &
             act='store', def='e', error=error)
         if (error/=0) stop
+        call cli%add(switch='--root_directory', switch_ab='-rp', &
+            help='Run root directory', required=.false., &
+            act='store', def='../../', error=error)
+        if (error/=0) stop
         call cli%get(switch='-tf', val=is_translated_file, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ro', val=if_read_one_fluid_velocity, error=error)
         if (error/=0) stop
         call cli%get(switch='-dt', val=dir_tracer_hdf5, error=error)
         if (error/=0) stop
@@ -831,9 +875,13 @@ program parallel_hdf5
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
         if (error/=0) stop
+        call cli%get(switch='-rp', val=rpath, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
             print '(A,L1)', 'Whether using translated fields file: ', is_translated_file
+            print '(A,L1)', 'Whether reading one-fluid velocity: ', &
+                if_read_one_fluid_velocity
             print '(A,A)', 'Tracer directory: ', dir_tracer_hdf5
             print '(A,I0,A,I0,A,I0)', 'Min, max and interval: ', &
                 tstart, ' ', tend, ' ', tinterval
@@ -844,6 +892,7 @@ program parallel_hdf5
             endif
             print '(A,A)', 'Tracer filename: ', trim(fname_tracer)
             print '(A,A)', 'Metadata filename: ', trim(fname_metadata)
+            print '(A,A)', 'Root directory: ', trim(rpath)
         endif
     end subroutine get_cmd_args
 end program parallel_hdf5
