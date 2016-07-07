@@ -11,7 +11,7 @@ module interpolation_emf
            calc_gradient_B, calc_curvature, trilinear_interp_bx,&
            trilinear_interp_by, trilinear_interp_bz, trilinear_interp_ex, &
            trilinear_interp_ey, trilinear_interp_ez, trilinear_interp_only_bx, &
-           trilinear_interp_only_by, trilinear_interp_only_bz
+           trilinear_interp_only_by, trilinear_interp_only_bz, set_emf
     public bx0, by0, bz0, ex0, ey0, ez0, absB0, dbxdx0, dbxdy0, dbxdz0, &
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
@@ -453,4 +453,122 @@ module interpolation_emf
         kappay = (bxn*dbydx0 + byn*dbydy0 + bzn*dbydz0)*ib - by0*b_dot_gradB*ib2
         kappaz = (bxn*dbzdx0 + byn*dbzdy0 + bzn*dbzdz0)*ib - bz0*b_dot_gradB*ib2
     end subroutine calc_curvature
+
+    !<--------------------------------------------------------------------------
+    !< Decide the starting and ending indices
+    !<--------------------------------------------------------------------------
+    subroutine bounding_indcies(ix, pic_nx, tx, sx, ixs_local, ixe_local, &
+            ixs_global, ixe_global)
+        implicit none
+        integer, intent(in) :: ix, pic_nx, tx, sx
+        integer, intent(out) :: ixs_local, ixe_local, ixs_global, ixe_global
+        if (tx == 1) then
+            ixs_local = 1
+            ixe_local = pic_nx
+            ixs_global = 1
+            ixe_global = pic_nx
+        else if (ix == 0 .and. ix < tx - 1) then
+            ixs_local = 1
+            ixe_local = pic_nx + 1
+            ixs_global = 1
+            ixe_global = pic_nx + 1
+        else if (ix == tx - 1 .and. ix > 0) then
+            ixs_local = 0
+            ixe_local = pic_nx
+            ixs_global = pic_nx * (ix - sx) + 1
+            ixe_global = pic_nx * (ix - sx + 1) + 1
+        else
+            ixs_local = 0
+            ixe_local = pic_nx + 1
+            if (sx /= 0) then
+                ixs_global = pic_nx * (ix - sx) + 1
+                ixe_global = pic_nx * (ix - sx + 1) + 2
+            else
+                ixs_global = pic_nx * (ix - sx)
+                ixe_global = pic_nx * (ix - sx + 1) + 1
+            endif
+        endif
+    end subroutine bounding_indcies
+
+    !<--------------------------------------------------------------------------
+    !< Set electromagnetic fields, which is read from translated files rather
+    !< than directly from the PIC simulations
+    !<--------------------------------------------------------------------------
+    subroutine set_emf(i, j, k, tx, ty, tz, sx, sy, sz)
+        use pic_fields, only: ext => ex, eyt => ey, ezt => ez, &
+                              bxt => bx, byt => by, bzt => bz
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: i, j, k, tx, ty, tz, sx, sy, sz
+        integer :: ixs_lo, ixe_lo, ixs_gl, ixe_gl
+        integer :: iys_lo, iye_lo, iys_gl, iye_gl
+        integer :: izs_lo, ize_lo, izs_gl, ize_gl
+        integer :: pnx, pny, pnz
+        pnx = domain%pic_nx
+        pny = domain%pic_ny
+        pnz = domain%pic_nz
+        call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
+        call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
+        call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        ex(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            ext(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        ey(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            eyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        ez(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            ezt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        bx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            bxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        by(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            byt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        bz(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            bzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+        if (ixs_lo == 1) then
+            ex(0, :, :) = ex(1, :, :)
+            ey(0, :, :) = ey(1, :, :)
+            ez(0, :, :) = ez(1, :, :)
+            bx(0, :, :) = bx(1, :, :)
+            by(0, :, :) = by(1, :, :)
+            bz(0, :, :) = bz(1, :, :)
+        endif
+        if (ixe_lo == pnx) then
+            ex(pnx+1, :, :) = ex(pnx, :, :)
+            ey(pnx+1, :, :) = ey(pnx, :, :)
+            ez(pnx+1, :, :) = ez(pnx, :, :)
+            bx(pnx+1, :, :) = bx(pnx, :, :)
+            by(pnx+1, :, :) = by(pnx, :, :)
+            bz(pnx+1, :, :) = bz(pnx, :, :)
+        endif
+        if (iys_lo == 1) then
+            ex(:, 0, :) = ex(:, 1, :)
+            ey(:, 0, :) = ey(:, 1, :)
+            ez(:, 0, :) = ez(:, 1, :)
+            bx(:, 0, :) = bx(:, 1, :)
+            by(:, 0, :) = by(:, 1, :)
+            bz(:, 0, :) = bz(:, 1, :)
+        endif
+        if (iye_lo == pny) then
+            ex(:, pny+1, :) = ex(:, pny, :)
+            ey(:, pny+1, :) = ey(:, pny, :)
+            ez(:, pny+1, :) = ez(:, pny, :)
+            bx(:, pny+1, :) = bx(:, pny, :)
+            by(:, pny+1, :) = by(:, pny, :)
+            bz(:, pny+1, :) = bz(:, pny, :)
+        endif
+        if (izs_lo == 1) then
+            ex(:, :, 0) = ex(:, :, 1)
+            ey(:, :, 0) = ey(:, :, 1)
+            ez(:, :, 0) = ez(:, :, 1)
+            bx(:, :, 0) = bx(:, :, 1)
+            by(:, :, 0) = by(:, :, 1)
+            bz(:, :, 0) = bz(:, :, 1)
+        endif
+        if (ize_lo == pnz) then
+            ex(:, :, pnz+1) = ex(:, :, pnz)
+            ey(:, :, pnz+1) = ey(:, :, pnz)
+            ez(:, :, pnz+1) = ez(:, :, pnz)
+            bx(:, :, pnz+1) = bx(:, :, pnz)
+            by(:, :, pnz+1) = by(:, :, pnz)
+            bz(:, :, pnz+1) = bz(:, :, pnz)
+        endif
+    end subroutine set_emf
 end module interpolation_emf
