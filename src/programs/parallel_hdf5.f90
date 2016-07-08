@@ -4,7 +4,7 @@
 program parallel_hdf5
     use constants, only: fp, dp
     use mpi_module
-    use path_info, only: rootpath
+    use path_info, only: rootpath, set_filepath
     use particle_info, only: species
     use parameters, only: tp1
     use configuration_translate, only: output_format
@@ -14,6 +14,7 @@ program parallel_hdf5
     use usingle, only: open_velocity_density_files, read_velocity_density, &
         calc_usingle, close_velocity_density_files, open_one_fluid_velocity, &
         close_one_fluid_velocity, read_one_fluid_velocity
+    use picinfo, only: domain
     use hdf5
     implicit none
     integer :: ct
@@ -25,13 +26,15 @@ program parallel_hdf5
     integer :: error
     character(len=256) :: filename, filename_metadata, rpath
     character(len=64) :: fname_tracer, fname_metadata
-    character(len=16) :: groupname
+    character(len=16) :: groupname, dir_emf, dir_hydro
     character(len=8) :: ct_char
     integer :: current_num_dset
     real :: start, finish, step1, step2
     logical :: is_translated_file, if_read_one_fluid_velocity
     character(len=32) :: dir_tracer_hdf5
-    integer :: tstart, tend, tinterval
+    integer :: tstart, tend, tinterval, hydro_emf_tratio
+    integer :: tp_emf, tp_hydro
+    logical :: hydro_dump
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -46,9 +49,14 @@ program parallel_hdf5
         print '(A)', 'Finished initializing the analysis'
     endif
 
+    hydro_emf_tratio = domain%hydro_interval / domain%fields_interval
+
     if (is_translated_file .and. output_format == 1) then
+        call set_filepath(dir_emf)
         call open_electric_field_files
         call open_magnetic_field_files
+        ! In cast emf and hydro are saved in different directory
+        call set_filepath(dir_hydro)
         if (if_read_one_fluid_velocity) then
             call open_one_fluid_velocity
         else
@@ -59,6 +67,13 @@ program parallel_hdf5
     call cpu_time(step1)
     do ct = tstart, tend, tinterval
         if (myid == master) print*, ct
+        tp_emf = ct / tinterval
+        tp_hydro = tp_emf / hydro_emf_tratio
+        if (mod(tp_emf, hydro_emf_tratio) == 0) then
+            hydro_dump = .true.
+        else
+            hydro_dump = .false.
+        endif
         write(ct_char, "(I0)") ct
         current_num_dset = num_dset
         filename = trim(adjustl(rootpath))//"/"//trim(dir_tracer_hdf5)//"/T."
@@ -71,35 +86,41 @@ program parallel_hdf5
         if (is_translated_file) then
             if (output_format /= 1) then
                 ! Fields at each time step are saved in different files
+                call set_filepath(dir_emf)
                 call open_electric_field_files(ct)
                 call open_magnetic_field_files(ct)
                 call read_electric_fields(tp1)
                 call read_magnetic_fields(tp1)
                 call close_magnetic_field_files
                 call close_electric_field_files
-                if (if_read_one_fluid_velocity) then
-                    call open_one_fluid_velocity(ct)
-                    call read_one_fluid_velocity(tp1)
-                    call close_one_fluid_velocity
-                else
-                    call open_velocity_density_files(ct)
-                    call read_velocity_density(tp1)
-                    call close_velocity_density_files
+                if (hydro_dump) then
+                    call set_filepath(dir_hydro)
+                    if (if_read_one_fluid_velocity) then
+                        call open_one_fluid_velocity(ct)
+                        call read_one_fluid_velocity(tp1)
+                        call close_one_fluid_velocity
+                    else
+                        call open_velocity_density_files(ct)
+                        call read_velocity_density(tp1)
+                        call close_velocity_density_files
+                    endif
                 endif
             else
                 ! Fields at all time steps are saved in the same file
-                call read_electric_fields(ct)
-                call read_magnetic_fields(ct)
-                if (if_read_one_fluid_velocity) then
-                    call read_one_fluid_velocity(ct)
-                else
-                    call read_velocity_density(ct)
+                call read_electric_fields(tp_emf + 1)
+                call read_magnetic_fields(tp_emf + 1)
+                if (hydro_dump) then
+                    if (if_read_one_fluid_velocity) then
+                        call read_one_fluid_velocity(tp_hydro + 1)
+                    else
+                        call read_velocity_density(tp_hydro + 1)
+                    endif
                 endif
             endif
-            if (.not. if_read_one_fluid_velocity) then
+            if ((.not. if_read_one_fluid_velocity) .and. hydro_dump) then
                 call calc_usingle
             endif
-        endif
+        endif  ! is_translated_file
         call get_particle_emf(filename, groupname, ct, 0)
         call free_np_offset_local
         call cpu_time(step2)
@@ -191,9 +212,11 @@ program parallel_hdf5
         allocate(Bx(dcount(1)))
         allocate(By(dcount(1)))
         allocate(Bz(dcount(1)))
-        allocate(Vx(dcount(1)))
-        allocate(Vy(dcount(1)))
-        allocate(Vz(dcount(1)))
+        if (hydro_dump) then
+            allocate(Vx(dcount(1)))
+            allocate(Vy(dcount(1)))
+            allocate(Vz(dcount(1)))
+        endif
         call read_hdf5_parallel_real(dset_id(4), dcount, doffset, &
             dset_dims, dX)
         call read_hdf5_parallel_real(dset_id(5), dcount, doffset, &
@@ -229,11 +252,15 @@ program parallel_hdf5
                             domain%pic_nz, x0, y0, z0, dx_grid, dy_grid, dz_grid)
                         call set_emf(dom_x, dom_y, dom_z, tx, ty, tz, &
                             ht%start_x, ht%start_y, ht%start_z)
-                        call set_usingle(dom_x, dom_y, dom_z, tx, ty, tz, &
-                            ht%start_x, ht%start_y, ht%start_z)
+                        if (hydro_dump) then
+                            call set_usingle(dom_x, dom_y, dom_z, tx, ty, tz, &
+                                ht%start_x, ht%start_y, ht%start_z)
+                        endif
                     else
                         call read_emfields_single(tindex0, n-1)
-                        call calc_vsingle(tindex0, n-1, 0)
+                        if (hydro_dump) then
+                            call calc_vsingle(tindex0, n-1, 0)
+                        endif
                     endif
                     do iptl = ptl_offset+1, ptl_offset+nptl
                         ptl%dx = dX(iptl)
@@ -247,16 +274,18 @@ program parallel_hdf5
                         call trilinear_interp_ex(iex, jex, kex, dx_ex, dy_ex, dz_ex)
                         call trilinear_interp_ey(iey, jey, key, dx_ey, dy_ey, dz_ey)
                         call trilinear_interp_ez(iez, jez, kez, dx_ez, dy_ez, dz_ez)
-                        call trilinear_interp_vel(ino, jno, kno, dnx, dny, dnz)
                         Ex(iptl) = ex0
                         Ey(iptl) = ey0
                         Ez(iptl) = ez0
                         Bx(iptl) = bx0
                         By(iptl) = by0
                         Bz(iptl) = bz0
-                        Vx(iptl) = vsx0
-                        Vy(iptl) = vsy0
-                        Vz(iptl) = vsz0
+                        if (hydro_dump) then
+                            call trilinear_interp_vel(ino, jno, kno, dnx, dny, dnz)
+                            Vx(iptl) = vsx0
+                            Vy(iptl) = vsy0
+                            Vz(iptl) = vsz0
+                        endif
                     enddo
                     ptl_offset = ptl_offset + nptl
                 enddo ! x
@@ -265,8 +294,10 @@ program parallel_hdf5
 
         call create_emf_datasets(group_id, dset_dims, ex_id, ey_id, ez_id, &
             bx_id, by_id, bz_id, filespace)
-        call create_vel_datasets(group_id, dset_dims, vsx_id, vsy_id, &
-            vsz_id, filespace)
+        if (hydro_dump) then
+            call create_vel_datasets(group_id, dset_dims, vsx_id, vsy_id, &
+                vsz_id, filespace)
+        endif
         ! call MPI_BARRIER(MPI_COMM_WORLD, ierror)
         call write_hdf5_parallel_real(ex_id, dcount, doffset, dset_dims, Ex)
         call write_hdf5_parallel_real(ey_id, dcount, doffset, dset_dims, Ey)
@@ -274,16 +305,20 @@ program parallel_hdf5
         call write_hdf5_parallel_real(bx_id, dcount, doffset, dset_dims, Bx)
         call write_hdf5_parallel_real(by_id, dcount, doffset, dset_dims, By)
         call write_hdf5_parallel_real(bz_id, dcount, doffset, dset_dims, Bz)
-        call write_hdf5_parallel_real(vsx_id, dcount, doffset, dset_dims, Vx)
-        call write_hdf5_parallel_real(vsy_id, dcount, doffset, dset_dims, Vy)
-        call write_hdf5_parallel_real(vsz_id, dcount, doffset, dset_dims, Vz)
+        if (hydro_dump) then
+            call write_hdf5_parallel_real(vsx_id, dcount, doffset, dset_dims, Vx)
+            call write_hdf5_parallel_real(vsy_id, dcount, doffset, dset_dims, Vy)
+            call write_hdf5_parallel_real(vsz_id, dcount, doffset, dset_dims, Vz)
+        endif
         deallocate(dX, dY, dZ, icell)
         deallocate(Ex, Ey, Ez, Bx, By, Bz)
-        deallocate(Vx, Vy, Vz)
+        if (hydro_dump) then
+            deallocate(Vx, Vy, Vz)
+            call h5dclose_f(vsx_id, error)
+            call h5dclose_f(vsy_id, error)
+            call h5dclose_f(vsz_id, error)
+        endif
 
-        call h5dclose_f(vsx_id, error)
-        call h5dclose_f(vsy_id, error)
-        call h5dclose_f(vsz_id, error)
         call h5dclose_f(ex_id, error)
         call h5dclose_f(ey_id, error)
         call h5dclose_f(ez_id, error)
@@ -719,13 +754,13 @@ program parallel_hdf5
         call init_neighbors(nx, ny, nz)
         call get_neighbors
 
-        call init_emfields
-        call init_velocity_fields
-        call init_number_density
-
         call set_mpi_topology(1)   ! MPI topology
         call set_mpi_datatype_fields
         call set_mpi_info
+
+        call init_emfields
+        call init_velocity_fields
+        call init_number_density
 
         if (is_translated_file) then
             call init_electric_fields(htg%nx, htg%ny, htg%nz)
@@ -758,10 +793,10 @@ program parallel_hdf5
         use usingle, only: free_usingle, free_one_fluild_velocity
         implicit none
         call free_neighbors
+        call free_start_stop_cells
         call free_emfields
         call free_velocity_fields
         call free_number_density
-        call free_start_stop_cells
         if (is_translated_file) then
             call free_electric_fields
             call free_magnetic_fields
@@ -816,9 +851,10 @@ program parallel_hdf5
             authors     = 'Xiaocan Li', &
             help        = 'Usage: ', &
             description = 'Get eletromagnetic fields and bulk velocity at particle positions', &
-            examples    = ['parallel_hdf5 -tf -ts 0 -te 7 -ti 7 -sp e&
+            examples    = ['parallel_hdf5 -tf -ro -ts 0 -te 7 -ti 7 -sp e &
                                 -ft ion_tracer_reduced_sorted.h5p &
-                                -fm grid_metadata_electron_tracer.h5p'])
+                                -fm grid_metadata_electron_tracer.h5p &
+                                -rp ../../ -dt tracer -de data -dh data'])
         call cli%add(switch='--translated_file', switch_ab='-tf', &
             help='whether using translated fields file', required=.false., &
             act='store_true', def='.false.', error=error)
@@ -857,6 +893,14 @@ program parallel_hdf5
             help='Run root directory', required=.false., &
             act='store', def='../../', error=error)
         if (error/=0) stop
+        call cli%add(switch='--dir_emf', switch_ab='-de', &
+            help='EMF data directory', required=.false., &
+            act='store', def='data', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--dir_hydro', switch_ab='-dh', &
+            help='Hydro data directory', required=.false., &
+            act='store', def='data', error=error)
+        if (error/=0) stop
         call cli%get(switch='-tf', val=is_translated_file, error=error)
         if (error/=0) stop
         call cli%get(switch='-ro', val=if_read_one_fluid_velocity, error=error)
@@ -877,6 +921,10 @@ program parallel_hdf5
         if (error/=0) stop
         call cli%get(switch='-rp', val=rpath, error=error)
         if (error/=0) stop
+        call cli%get(switch='-de', val=dir_emf, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-dh', val=dir_hydro, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
             print '(A,L1)', 'Whether using translated fields file: ', is_translated_file
@@ -893,6 +941,8 @@ program parallel_hdf5
             print '(A,A)', 'Tracer filename: ', trim(fname_tracer)
             print '(A,A)', 'Metadata filename: ', trim(fname_metadata)
             print '(A,A)', 'Root directory: ', trim(rpath)
+            print '(A,A)', 'EMF data directory: ', trim(dir_emf)
+            print '(A,A)', 'Hydro data directory: ', trim(dir_hydro)
         endif
     end subroutine get_cmd_args
 end program parallel_hdf5
