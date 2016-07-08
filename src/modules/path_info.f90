@@ -7,7 +7,7 @@ module path_info
     implicit none
     save
     private
-    public rootpath, filepath, outputpath, get_file_paths
+    public rootpath, filepath, outputpath, get_file_paths, set_filepath
     character(len=150) :: rootpath, filepath, outputpath
 
     contains
@@ -30,6 +30,12 @@ module path_info
             call create_directories
         endif
     end subroutine get_file_paths
+
+    subroutine set_filepath(fpath)
+        implicit none
+        character(*), intent(in), optional :: fpath
+        filepath = trim(rootpath)//trim(fpath)//'/'
+    end subroutine set_filepath
 
     subroutine create_directories
         implicit none
