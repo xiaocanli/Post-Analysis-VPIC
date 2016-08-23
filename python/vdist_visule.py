@@ -19,6 +19,7 @@ import pic_information
 from contour_plots import read_2d_fields, plot_2d_contour
 from particle_distribution import *
 from spectrum_fitting import get_normalized_energy, fit_thermal_core
+from json_module import *
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
@@ -49,7 +50,8 @@ class EspectrumVdist(object):
         self.fpath_vdist = kwargs['fpath_vdist']
         self.fpath_spect = kwargs['fpath_spect']
         self.get_kwargs_dist()
-        self.pic_info = pic_information.get_pic_info('../../')
+        self.pic_info = kwargs['pic_info']
+        self.root_dir = kwargs['root_dir']
         self.smime = math.sqrt(pic_info.mime)
         self.get_box_coords()
         self.get_dists_info()
@@ -89,10 +91,13 @@ class EspectrumVdist(object):
     def read_distributions(self):
         """Read velocity and energy distributions
         """
+        fname_1d = 'vdist_1d-' +  self.species + '.' + str(self.ct_ptl)
+        fname_2d = 'vdist_2d-' +  self.species + '.' + str(self.ct_ptl)
         self.fvel = read_velocity_distribution(self.species, self.ct_ptl,
-                self.pic_info, self.fpath_vdist)
+                self.pic_info, fname_1d, fname_2d, self.fpath_vdist)
+        fname_ene = 'spectrum-' + self.species + '.' + str(self.ct_ptl)
         self.fene = read_energy_distribution(self.species, self.ct_ptl,
-                self.pic_info, self.fpath_spect)
+                self.pic_info, fname_ene, self.fpath_spect)
 
     def get_box_coords(self):
         """Get the coordinates to plot the box
@@ -113,8 +118,8 @@ class EspectrumVdist(object):
         self.zb, self.zt = self.field_range[2:4]
         kwargs = {"current_time":self.ct_field, "xl":self.xl, "xr":self.xr,
                 "zb":self.zb, "zt":self.zt}
-        fname_field = '../../data/' + self.var_field + '.gda'
-        fname_Ay = '../../data/Ay.gda'
+        fname_field = self.root_dir + 'data/' + self.var_field + '.gda'
+        fname_Ay = self.root_dir + 'data/Ay.gda'
         self.x1, self.z1, data = read_2d_fields(self.pic_info, fname_field,
                 **kwargs)
         ng = 5
@@ -319,7 +324,7 @@ class EspectrumVdist(object):
             print xpos, ypos
             pos = np.asarray([xpos, 0.0, ypos]) * self.smime
             if event.button==1:
-                self.kwargs_dist['center'] = pos 
+                self.kwargs_dist['center'] = pos
                 print self.kwargs_dist
                 self.get_box_coords()
                 self.update_box_plot()
@@ -353,13 +358,17 @@ class EspectrumVdist(object):
 
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
+    # pic_info = pic_information.get_pic_info('../../')
+    run_name = "mime25_beta002"
+    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     ntp = pic_info.ntp
     vthe = pic_info.vthe
     var_field = 'ey'
     var_name = '$E_y$'
     field_range = [0, 200, -20, 20]
-    ct_ptl = 16
+    ct_ptl = ntp
 
     smime = math.sqrt(pic_info.mime)
     lx_de = pic_info.lx_di * smime
@@ -371,11 +380,12 @@ if __name__ == "__main__":
     sizes = np.asarray(sizes)
     nbins = 64
     vmin, vmax = 0, 2.0
-    fpath_vdist = '../vdistributions/'
-    fpath_spect = '../spectrum/'
+    fpath_vdist = root_dir + 'pic_analysis/vdistributions/'
+    fpath_spect = root_dir + 'pic_analysis/spectrum/'
     kwargs = {'ct_ptl':ct_ptl, 'var_field':var_field, 'var_name':var_name,
             'species':species, 'field_range':field_range, 'center':center,
             'sizes':sizes, 'nbins':nbins, 'vmax':vmax, 'vmin':vmin,
-            'fpath_vdist':fpath_vdist, 'fpath_spect':fpath_spect}
+            'fpath_vdist':fpath_vdist, 'fpath_spect':fpath_spect,
+            'pic_info': pic_info, 'root_dir': root_dir}
     fig_v = EspectrumVdist(**kwargs)
     plt.show()

@@ -52,10 +52,10 @@ module  mpi_info_module
         implicit none
         call MPI_INFO_CREATE(fileinfo, ierror)
         !! Disable ROMIO's data-sieving
-        !call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
-        call MPI_INFO_SET(fileinfo, "romio_ds_write", "disable", ierror)
+        call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
+        call MPI_INFO_SET(fileinfo, "romio_ds_write", "automatic", ierror)
         !! Enable ROMIO's collective buffering
-        !call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
+        call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
         call MPI_INFO_SET(fileinfo, "romio_cb_write", "enable", ierror)
 
         ! ! For panfs parallel file system.

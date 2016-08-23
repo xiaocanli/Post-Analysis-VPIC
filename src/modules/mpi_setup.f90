@@ -127,28 +127,39 @@ module mpi_topology
     !   htg: the MPI topology with ghost cells.
     !   range_out the range for data output.
     !---------------------------------------------------------------------------
-    subroutine set_mpi_topology
+    subroutine set_mpi_topology(is_using_translate_config)
         use mpi_module
         use picinfo, only: domain
+        use configuration_translate, only: httx, htty, httz
         implicit none
+        integer, intent(in), optional :: is_using_translate_config
         integer :: d1, d2
-        call get_middle_divisors(numprocs, d1, d2)
-        if (domain%ny == 1) then
-            ! 2D case
-            ht%tx = d1
-            ht%ty = 1
-            ht%tz = d2
-            ht%iz = myid / ht%tx
-            ht%ix = mod(myid, ht%tx)
-            ht%iy = 0
+        if (present(is_using_translate_config)) then
+            ht%tx = httx
+            ht%ty = htty
+            ht%tz = httz
+            ht%iz = myid / (ht%tx * ht%ty)
+            ht%iy = mod(myid, ht%tx * ht%ty) / ht%tx
+            ht%ix = myid - ht%iz * ht%tx * ht%ty - ht%iy * ht%tx
         else
-            ! 3D case
-            ht%tx = 1
-            ht%ty = d1
-            ht%tz = d2
-            ht%iz = myid / ht%ty 
-            ht%iy = mod(myid, ht%ty)
-            ht%ix = 0
+            call get_middle_divisors(numprocs, d1, d2)
+            if (domain%ny == 1) then
+                ! 2D case
+                ht%tx = d1
+                ht%ty = 1
+                ht%tz = d2
+                ht%iz = myid / ht%tx 
+                ht%ix = mod(myid, ht%tx)
+                ht%iy = 0
+            else
+                ! 3D case
+                ht%tx = 1
+                ht%ty = d1
+                ht%tz = d2
+                ht%iz = myid / ht%ty 
+                ht%iy = mod(myid, ht%ty)
+                ht%ix = 0
+            endif
         endif
         call distribute_tasks(domain%nx, ht%tx, ht%ix, ht%nx, &
                               ht%start_x, ht%stop_x)

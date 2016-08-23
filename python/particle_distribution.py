@@ -375,8 +375,8 @@ def get_spectrum_vdist(pic_info, dir='../',
     # with cd('../'):
     #     psv.particle_spectrum_vdist_box()
 
-def read_velocity_distribution(species, tframe, pic_info,
-        fpath='../vdistributions/'):
+def read_velocity_distribution(species, tframe, pic_info, fname_1d, fname_2d,
+                               fpath='../vdistributions/'):
     """Read velocity distribution from a file.
 
     Args:
@@ -386,11 +386,7 @@ def read_velocity_distribution(species, tframe, pic_info,
         pic_info: particle information namedtuple.
     """
     # 2D distributions
-    if species == 'e':
-        fname = fpath + 'vdist_2d-' + species + '.' + str(tframe)
-    else:
-        fname = fpath + 'vdist_2d-h.' + str(tframe)
-    f = open(fname, 'r')
+    f = open(fpath + fname_2d, 'r')
     center = np.zeros(3)
     sizes = np.zeros(3)
     offset = 0
@@ -431,11 +427,7 @@ def read_velocity_distribution(species, tframe, pic_info,
             offset=offset, shape=(2*nbins, 2*nbins), order='C')
     f.close()
 
-    if species == 'e':
-        fname = fpath + 'vdist_1d-' + species + '.' + str(tframe)
-    else:
-        fname = fpath + 'vdist_1d-h.' + str(tframe)
-    f = open(fname, 'r')
+    f = open(fpath + fname_1d, 'r')
     # skip headers
     offset = 9 * 4 + 8 * nbins * 3
     fvel_para = np.zeros(2*nbins)
@@ -495,7 +487,8 @@ def read_velocity_distribution(species, tframe, pic_info,
     return fvel
 
 
-def read_energy_distribution(species, tframe, pic_info, fpath='../spectrum/'):
+def read_energy_distribution(species, tframe, pic_info, fname,
+                             fpath='../spectrum/'):
     """Read particle energy spectrum from a file.
 
     Args:
@@ -504,20 +497,176 @@ def read_energy_distribution(species, tframe, pic_info, fpath='../spectrum/'):
         tframe: time frame.
         pic_info: particle information namedtuple.
     """
-    if species == 'e':
-        fname = fpath + 'spectrum-' + species + '.' + str(tframe)
-    else:
-        fname = fpath + 'spectrum-h.' + str(tframe)
     ntot = pic_info.nx * pic_info.ny + pic_info.nz * pic_info.nppc
-    elin, flin, elog, flog = get_energy_distribution(fname, ntot)
+    elin, flin, elog, flog = get_energy_distribution(fpath + fname, ntot)
     fenergy = collections.namedtuple('fenergy',
             ['species', 'elin', 'flin', 'elog', 'flog'])
     fene = fenergy(species=species, elin=elin, flin=flin, elog=elog, flog=flog)
     return fene
 
 
+def plot_ptl_vdist(species, pic_info, base_directory):
+    """Plot particle velocity distribution.
+    """
+    ct = 14
+    fname_1d = 'vdist_1d-' +  species + '.' + str(ct)
+    fname_2d = 'vdist_2d-' +  species + '.' + str(ct)
+    fpath = base_directory + 'pic_analysis/' + 'vdistributions/'
+    fvel1 = read_velocity_distribution('e', 14, pic_info, fname_1d, fname_2d, fpath)
+    vbins_long = fvel1.vbins_long
+    fxy1 = fvel1.fvel_xy
+    fxz1 = fvel1.fvel_xz
+    fyz1 = fvel1.fvel_yz
+    ct = 15
+    fname_1d = 'vdist_1d-' +  species + '.' + str(ct)
+    fname_2d = 'vdist_2d-' +  species + '.' + str(ct)
+    fvel2 = read_velocity_distribution('e', 15, pic_info, fname_1d, fname_2d, fpath)
+    fxy2 = fvel2.fvel_xy
+    fxz2 = fvel2.fvel_xz
+    fyz2 = fvel2.fvel_yz
+    ct = 17
+    fname_1d = 'vdist_1d-' +  species + '.' + str(ct)
+    fname_2d = 'vdist_2d-' +  species + '.' + str(ct)
+    fvel3 = read_velocity_distribution('e', 17, pic_info, fname_1d, fname_2d, fpath)
+    fxy3 = fvel3.fvel_xy
+    fxz3 = fvel3.fvel_xz
+    fyz3 = fvel3.fvel_yz
+    nbins = fvel1.nbins * 2
+    ns = nbins / 10
+    ne = nbins * 9 / 10
+    width = 0.2
+    height = 0.25
+    xs = xs0 = 0.1
+    ys = 0.98 - height
+    gap = 0.1
+    gapv = 0.07
+    fig = plt.figure(figsize=[10, 8])
+    cmap = plt.cm.jet
+    extent = [-0.8, 0.8, -0.8, 0.8]
+    ax11 = fig.add_axes([xs, ys, width, height])
+    pvxy1 = ax11.imshow(fxy1[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax11.tick_params(labelsize=16)
+    ax11.set_xlabel(r'$u_x$', fontsize=20)
+    ax11.set_ylabel(r'$u_y$', fontsize=20)
+    ax11.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax11.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs1 = xs + 3 * width + 2 * gap + 0.02
+    ys1 = ys - 2 * height - 2 * gapv
+    h1 = 3 * height + 2 * gapv
+    cax = fig.add_axes([xs1, ys1, 0.02, h1])
+    cbar = fig.colorbar(pvxy1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+
+    xs += width + gap
+    ax12 = fig.add_axes([xs, ys, width, height])
+    pvxz1 = ax12.imshow(fxz1[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax12.tick_params(labelsize=16)
+    ax12.set_xlabel(r'$u_x$', fontsize=20)
+    ax12.set_ylabel(r'$u_z$', fontsize=20)
+    ax12.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax12.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs += width + gap
+    ax13 = fig.add_axes([xs, ys, width, height])
+    pvyz1 = ax13.imshow(fyz1[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax13.tick_params(labelsize=16)
+    ax13.set_xlabel(r'$u_y$', fontsize=20)
+    ax13.set_ylabel(r'$u_z$', fontsize=20)
+    ax13.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax13.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs = xs0
+    ys -= height + gapv
+    ax21 = fig.add_axes([xs, ys, width, height])
+    pvxy2 = ax21.imshow(fxy2[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax21.tick_params(labelsize=16)
+    ax21.set_xlabel(r'$u_x$', fontsize=20)
+    ax21.set_ylabel(r'$u_y$', fontsize=20)
+    ax21.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax21.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs += width + gap
+    ax22 = fig.add_axes([xs, ys, width, height])
+    pvxz2 = ax22.imshow(fxz2[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax22.tick_params(labelsize=16)
+    ax22.set_xlabel(r'$u_x$', fontsize=20)
+    ax22.set_ylabel(r'$u_z$', fontsize=20)
+    ax22.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax22.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs += width + gap
+    ax23 = fig.add_axes([xs, ys, width, height])
+    pvyz2 = ax23.imshow(fyz2[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax23.tick_params(labelsize=16)
+    ax23.set_xlabel(r'$u_y$', fontsize=20)
+    ax23.set_ylabel(r'$u_z$', fontsize=20)
+    ax23.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax23.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs = xs0
+    ys -= height + gapv
+    ax31 = fig.add_axes([xs, ys, width, height])
+    pvxy3 = ax31.imshow(fxy3[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax31.tick_params(labelsize=16)
+    ax31.set_xlabel(r'$u_x$', fontsize=20)
+    ax31.set_ylabel(r'$u_y$', fontsize=20)
+    ax31.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax31.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs += width + gap
+    ax32 = fig.add_axes([xs, ys, width, height])
+    pvxz3 = ax32.imshow(fxz3[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax32.tick_params(labelsize=16)
+    ax32.set_xlabel(r'$u_x$', fontsize=20)
+    ax32.set_ylabel(r'$u_z$', fontsize=20)
+    ax32.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax32.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    xs += width + gap
+    ax33 = fig.add_axes([xs, ys, width, height])
+    pvyz3 = ax33.imshow(fyz3[ns:ne, ns:ne], cmap=cmap, extent=extent,
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=fvel1.vmin_2d, vmax=fvel1.vmax_2d),
+            interpolation='bicubic')
+    ax33.tick_params(labelsize=16)
+    ax33.set_xlabel(r'$u_y$', fontsize=20)
+    ax33.set_ylabel(r'$u_z$', fontsize=20)
+    ax33.xaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+    ax33.yaxis.set_ticks(np.arange(-0.8, 0.9, 0.4))
+
+    # fig.savefig('../img/vdist.eps')
+
+    plt.show()
+
+
 if __name__ == "__main__":
-    base_directory = '../../'
+    # base_directory = '../../'
+    base_directory = '/net/scratch2/guofan/sigma1-mime25-beta001/'
     pic_info = pic_information.get_pic_info(base_directory)
     ntp = pic_info.ntp
     vthe = pic_info.vthe
@@ -532,8 +681,14 @@ if __name__ == "__main__":
     sizes = [256, 1, 256]
     kwargs = {'center':center, 'sizes':sizes, 'nbins':64, 'vmax':2.0,
             'vmin':0, 'tframe':10, 'species':'e'}
-    get_spectrum_vdist(pic_info, **kwargs)
-    # fpath = '../vdistributions/'
-    # fvel = read_velocity_distribution(fpath, 'e', 10)
-    # fpath = '../spectrum/'
-    # fene = read_energy_distribution(fpath, 'e', 10, pic_info)
+    # get_spectrum_vdist(pic_info, **kwargs)
+    species = 'e'
+    ct = 10
+    fpath = base_directory + 'pic_analysis/' + 'vdistributions/'
+    fname_1d = 'vdist_1d-' +  species + '.' + str(ct)
+    fname_2d = 'vdist_2d-' +  species + '.' + str(ct)
+    fvel = read_velocity_distribution('e', ct, pic_info, fname_1d, fname_2d, fpath)
+    fpath = base_directory + 'pic_analysis/' + 'spectrum/'
+    fname_ene = 'spectrum-' + species + '.' + str(ct)
+    fene = read_energy_distribution('e', ct, pic_info, fname_ene, fpath)
+    plot_ptl_vdist('e', pic_info, base_directory)

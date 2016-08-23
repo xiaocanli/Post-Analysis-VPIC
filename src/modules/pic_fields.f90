@@ -24,7 +24,7 @@ module pic_fields
            open_current_density_files, open_pressure_tensor_files, &
            open_velocity_field_files, open_number_density_file, &
            open_fraction_eband_file
-    public read_mangeitc_fields, read_electric_fields, read_current_desities, &
+    public read_magnetic_fields, read_electric_fields, read_current_desities, &
            read_pressure_tensor, read_velocity_fields, read_number_density, &
            read_fraction_eband
     public close_magnetic_field_files, close_electric_field_files, &
@@ -58,6 +58,7 @@ module pic_fields
     integer, dimension(3) :: ufields_fh, pre_rel_fh
     integer, dimension(6) :: pre_fh
     integer :: nrho_fh, eband_fh
+    logical :: absB_file_exist
 
     interface open_pic_fields
         module procedure &
@@ -220,7 +221,7 @@ module pic_fields
     !---------------------------------------------------------------------------
     ! Read magnetic field.
     !---------------------------------------------------------------------------
-    subroutine read_mangeitc_fields(ct)
+    subroutine read_magnetic_fields(ct)
         implicit none
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
@@ -232,9 +233,13 @@ module pic_fields
             subsizes_ghost, disp, offset, by)
         call read_data_mpi_io(bfields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, bz)
-        call read_data_mpi_io(bfields_fh(4), filetype_ghost, &
-            subsizes_ghost, disp, offset, absB)
-    end subroutine read_mangeitc_fields
+        if (absB_file_exist) then
+            call read_data_mpi_io(bfields_fh(4), filetype_ghost, &
+                subsizes_ghost, disp, offset, absB)
+        else
+            absB = sqrt(bx**2 + by**2 + bz**2)
+        endif
+    end subroutine read_magnetic_fields
     
     !---------------------------------------------------------------------------
     ! Read electric field.
@@ -360,7 +365,7 @@ module pic_fields
     subroutine read_pic_fields(ct)
         implicit none
         integer, intent(in) :: ct
-        call read_mangeitc_fields(ct)
+        call read_magnetic_fields(ct)
         call read_electric_fields(ct)
         call read_current_desities(ct)
         call read_pressure_tensor(ct)
@@ -382,7 +387,10 @@ module pic_fields
         fname = trim(adjustl(filepath))//'bz.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
         fname = trim(adjustl(filepath))//'absB.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+        inquire(file=fname, exist=absB_file_exist)
+        if (absB_file_exist) then
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+        endif
     end subroutine open_magnetic_field_files_single
 
     !---------------------------------------------------------------------------
@@ -544,7 +552,10 @@ module pic_fields
         fname = trim(adjustl(filepath))//'bz_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
         fname = trim(adjustl(filepath))//'absB_'//trim(cfname)//'.gda'
-        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+        inquire(file=fname, exist=absB_file_exist)
+        if (absB_file_exist) then
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+        endif
     end subroutine open_magnetic_field_files_multiple
 
     !---------------------------------------------------------------------------
@@ -836,7 +847,9 @@ module pic_fields
         call MPI_FILE_CLOSE(bfields_fh(1), ierror)
         call MPI_FILE_CLOSE(bfields_fh(2), ierror)
         call MPI_FILE_CLOSE(bfields_fh(3), ierror)
-        call MPI_FILE_CLOSE(bfields_fh(4), ierror)
+        if (absB_file_exist) then
+            call MPI_FILE_CLOSE(bfields_fh(4), ierror)
+        endif
     end subroutine close_magnetic_field_files
 
     !---------------------------------------------------------------------------

@@ -417,8 +417,8 @@ def save_pic_info_json():
     if not os.path.isdir(dir):
         os.makedirs(dir)
 
-    # base_dirs, run_names = ApJ_long_paper_runs()
-    base_dirs, run_names = guide_field_runs()
+    base_dirs, run_names = ApJ_long_paper_runs()
+    # base_dirs, run_names = guide_field_runs()
     for base_dir, run_name in zip(base_dirs, run_names):
         pic_info = get_pic_info(base_dir)
         pic_info_json = data_to_json(pic_info)
@@ -443,5 +443,10 @@ def list_pic_info_dir(filepath):
 if __name__ == "__main__":
     # base_directory = '../../'
     # pic_info = get_pic_info(base_directory)
+    # pic_info_json = data_to_json(pic_info)
+    # run_name = 'nersc_large'
+    # fname = '../data/pic_info_' + run_name + '.json'
+    # with open(fname, 'w') as f:
+    #     json.dump(pic_info_json, f)
     save_pic_info_json()
     # list_pic_info_dir('../data/pic_info/')

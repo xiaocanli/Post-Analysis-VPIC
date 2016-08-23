@@ -67,6 +67,10 @@ add_executable(particle_spectrum_vdist_box particle_spectrum_vdist_box.f90)
 target_link_libraries(particle_spectrum_vdist_box ${MPI_Fortran_LIBRARIES}
     particle_spectrum_vdist)
 
+add_executable(particle_spectrum_vdist_fieldlines particle_spectrum_vdist_fieldlines.f90)
+target_link_libraries(particle_spectrum_vdist_fieldlines ${MPI_Fortran_LIBRARIES}
+    particle_spectrum vdist get_info flap)
+
 add_executable(cla_test cla_test.f90)
 target_link_libraries(cla_test ${MPI_Fortran_LIBRARIES} cla)
 
@@ -78,7 +82,11 @@ add_executable(parallel_hdf5 parallel_hdf5.f90)
 #target_include_directories(parallel_hdf5)
 target_link_libraries(parallel_hdf5 ${MPI_Fortran_LIBRARIES}
     ${HDF5_Fortran_LIBRARIES} particle_drift interp_emf get_info
-    translate_module interp_pfields commandline_arguments)
+    translate_module interp_pfields fields flap)
+
+add_executable(ptl_tracer_hdf5 ptl_tracer_hdf5.f90)
+target_link_libraries(ptl_tracer_hdf5 ${MPI_Fortran_LIBRARIES}
+    ${HDF5_Fortran_LIBRARIES} get_info translate_module commandline_arguments)
 
 set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR})
 install (TARGETS dissipation DESTINATION ${CMAKE_INSTALL_PREFIX})
@@ -97,5 +105,7 @@ install (TARGETS jdote_eband DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_based_jdote DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_box DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS particle_spectrum_vdist_box DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS particle_spectrum_vdist_fieldlines DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS parspec_cpu_based DESTINATION ${CMAKE_INSTALL_PREFIX})
 install (TARGETS parallel_hdf5 DESTINATION ${CMAKE_INSTALL_PREFIX})
+install (TARGETS ptl_tracer_hdf5 DESTINATION ${CMAKE_INSTALL_PREFIX})
