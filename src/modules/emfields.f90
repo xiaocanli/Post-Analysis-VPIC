@@ -73,6 +73,7 @@ module emfields
         use constants, only: fp
         use file_header, only: read_boilerplate, read_fields_header, fheader
         use topology_translate, only: idxstart, idxstop
+        use parameters, only: is_only_emf
         implicit none
         integer, intent(in) :: tindex0, pic_mpi_id
         real(fp), allocatable, dimension(:,:,:) :: buffer
@@ -136,6 +137,9 @@ module emfields
         ez(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
             buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
             buffer(3:nc1+1, 3:nc2+1, 2:nc3)) * 0.25
+        if (is_only_emf == 0) then
+            read(fh) buffer  ! Skip div_e_err
+        endif
         read(fh) buffer
         bx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
             buffer(3:nc1+1, 2:nc2, 2:nc3)) * 0.5
