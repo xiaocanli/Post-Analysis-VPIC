@@ -46,8 +46,8 @@ def plot_energy_evolution(pic_info):
     """
     tenergy = pic_info.tenergy
     ene_electric = pic_info.ene_electric
-    # ene_magnetic = pic_info.ene_magnetic
-    ene_magnetic = pic_info.ene_bx
+    ene_magnetic = pic_info.ene_magnetic
+    # ene_magnetic = pic_info.ene_bx
     kene_e = pic_info.kene_e
     kene_i = pic_info.kene_i
     ene_bx = pic_info.ene_bx
@@ -65,8 +65,8 @@ def plot_energy_evolution(pic_info):
             label=r'$\varepsilon_{b}$')
     p2, = ax.plot(tenergy, kene_i/enorm, linewidth=2, label=r'$K_i$')
     p3, = ax.plot(tenergy, kene_e/enorm, linewidth=2, label=r'$K_e$')
-    p4, = ax.plot(tenergy, 100*ene_electric/enorm, linewidth=2,
-            label=r'$100\varepsilon_{e}$')
+    p4, = ax.plot(tenergy, 10*ene_electric/enorm, linewidth=2,
+            label=r'$10\varepsilon_{e}$')
     # ax.set_xlim([0, np.max(tenergy)])
     ax.set_xlim([0, np.max(tenergy)])
     ax.set_ylim([0, 1.05])
@@ -111,7 +111,7 @@ def plot_energy_evolution(pic_info):
     final_ene = pic_info.ene_electric[-1] + pic_info.ene_magnetic[-1] + \
                kene_e[-1] + kene_i[-1]
     print('Energy conservation: %5.3f' % (final_ene / init_ene))
-    # plt.show()
+    plt.show()
 
 
 def plot_particle_energy_gain():
@@ -1178,11 +1178,13 @@ def plot_jpara_jperp_dotein_multi():
 
 if __name__ == "__main__":
     # species = 'e'
-    # pic_info = pic_information.get_pic_info('../../')
+    # base_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
+    base_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
+    pic_info = pic_information.get_pic_info(base_dir)
     # jdote = read_jdote_data(species)
     # jdote_e = read_jdote_data('e')
     # jdote_i = read_jdote_data('i')
-    # plot_energy_evolution(pic_info)
+    plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
     # plot_jdotes_evolution(pic_info, jdote, species)
     # plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
@@ -1198,5 +1200,5 @@ if __name__ == "__main__":
     # calc_jdotes_fraction_multi('i')
     # plot_jdotes_evolution_both_multi()
     # plot_jpolar_dote_evolution_both_multi()
-    plot_jpolar_dote_evolution_multi()
+    # plot_jpolar_dote_evolution_multi()
     # plot_jpara_jperp_dotein_multi()
