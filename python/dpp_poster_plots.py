@@ -29,6 +29,7 @@ import sys
 from fields_plot import *
 from spectrum_fitting import calc_nonthermal_fraction
 from energy_conversion import calc_jdotes_fraction_multi
+from shell_functions import *
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -795,6 +796,7 @@ def plot_energy_conversion_fraction():
     if not os.path.isdir(odir):
         os.makedirs(odir)
     fnames = list_pic_info_dir(dir)
+    print fnames
     # run_id = [2, 5, 1, 6, 7, 8, 0, 4]
     run_id = [2, 8, 1, 9, 10, 12, 0, 7]
     nrun = len(run_id)
@@ -803,8 +805,7 @@ def plot_energy_conversion_fraction():
     irun = 0
     i = 0
     for fname in fnames:
-        print i
-        print fname
+        print i, fname
         i += 1
     for i in run_id:
         fname = fnames[i]
@@ -1022,6 +1023,79 @@ def plot_jdrifts_fraction(species):
     fig.savefig(fname)
     plt.show()
 
+
+def plot_energy_conversion_fraction_beta():
+    """Plot energy evolution for multiple runs with different beta
+    """
+    picinfo_dir = '../data/pic_info/'
+    mkdir_p(picinfo_dir)
+    odir = '../img/ene_evolution/'
+    mkdir_p(odir)
+    # run_names = ['mime25_beta0007', 'mime25_beta002', 'mime25_beta007',
+    #         'mime25_beta02']
+    # labels = ['R6\n 0.007', 'R1\n 0.02', 'R7\n 0.07', 'R8\n 0.2']
+    # run_label = r'$\beta_e = $'
+    # fname = 'ene_fraction_beta.eps'
+    run_names = ['mime25_beta002', 'mime25_beta002_sigma033',
+            'mime25_beta002_sigma01']
+    labels = ['R1\n $1.0$', 'R2\n $\sqrt{3}$', 'R3\n $\sqrt{10}$']
+    run_label = r'$\omega_{pe} / \Omega_{ce} = $'
+    fname = 'ene_fraction_wpe_wce.eps'
+    nrun = len(run_names)
+    ene_fraction = np.zeros(nrun)
+    dke_dki = np.zeros(nrun)
+    irun = 0
+    for run_name in run_names:
+        print run_name
+        rname = run_name.replace(".json", ".eps")
+        oname = rname.replace("pic_info", "enes")
+        oname = odir + oname
+        picinfo_fname = picinfo_dir + 'pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        tenergy = pic_info.tenergy
+        ene_magnetic = pic_info.ene_magnetic
+        kene_e = pic_info.kene_e
+        kene_i = pic_info.kene_i
+        dke = kene_e[-1] - kene_e[0]
+        dki = kene_i[-1] - kene_i[0]
+        enorm = ene_magnetic[0]
+        ene_fraction[irun] = 1.0 - ene_magnetic[-1] / enorm
+        dke_dki[irun] = dke / dki
+        irun += 1
+    x = np.arange(nrun)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.16, 0.13
+    w1, h1 = 0.7, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.plot(x, ene_fraction, color='r', marker='o', markersize=10,
+            linestyle='', markeredgecolor = 'r')
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_xlim([-0.5, nrun - 0.5])
+    ax.set_ylabel(r'$|\Delta\varepsilon_b|/\varepsilon_{b0}$', color='r',
+            fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    ax.text(-0.12, -0.12, run_label, color='k', fontsize=20, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    for tl in ax.get_yticklabels():
+        tl.set_color('r')
+    ax1 = ax.twinx()
+    ax1.plot(x, dke_dki, color='b', marker='D', markersize=10,
+            linestyle='', markeredgecolor = 'b')
+    ax1.set_xlim([-0.5, nrun - 0.5])
+    ax1.set_ylabel(r'$\Delta K_e/\Delta K_i$', color='b',
+            fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=20)
+    for tl in ax1.get_yticklabels():
+        tl.set_color('b')
+    img_dir = '../img/img_dpp/'
+    mkdir_p(img_dir)
+    fig.savefig(img_dir + fname)
+    plt.show()
+
+
 if __name__ == "__main__":
     run_name = "mime25_beta002_noperturb"
     root_dir = '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/'
@@ -1046,7 +1120,8 @@ if __name__ == "__main__":
     # plot_compression_time_beta('e')
     # plot_compression_time_temp('e')
     # plot_by_time(run_name, root_dir, pic_info)
-    plot_energy_conversion_fraction()
+    # plot_energy_conversion_fraction()
+    plot_energy_conversion_fraction_beta()
     # plot_nonthermal_fraction()
     # plot_jpara_dote_fraction()
     # plot_jdrifts_fraction('i')
