@@ -763,7 +763,8 @@ def plot_spectra_beta_electron():
         elin, flin, elog, flog = get_energy_distribution(fname, n0)
         elog_norm = get_normalized_energy(species, elog, pic_info)
         flog *= shift
-        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        # p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        p1, = ax.semilogy(elog_norm, flog, linewidth=2)
         power_fit = power_law_fit(elog, flog, offset[run], extent[run])
         es, ee = power_fit.es, power_fit.ee
         fpower = power_fit.fpower
@@ -775,6 +776,8 @@ def plot_spectra_beta_electron():
         if run > 0:
             p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
                     linestyle='--', linewidth=2, label=pname)
+            # p23, = ax.semilogy(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+            #         linestyle='--', linewidth=2, label=pname)
             colors_plot.append(color)
         # # Help for fitting
         # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
@@ -782,8 +785,9 @@ def plot_spectra_beta_electron():
         # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
         #         linestyle='None', color=color)
         # p23, = ax.loglog(elog_norm, fpower)
-        ax.set_xlim([1E-1, 1E3])
-        ax.set_ylim([1E-3, 1E4])
+        ax.set_xlim([1E-1, 2E3])
+        # ax.set_xlim([1E-3, 1E3])
+        ax.set_ylim([1E-5, 1E4])
         shift *= 5
         run += 1
 
@@ -814,6 +818,117 @@ def plot_spectra_beta_electron():
         os.makedirs(dir)
     fname = dir + 'spect_beta_electron.eps'
     fig.savefig(fname, transparent=True)
+
+    plt.show()
+
+
+def plot_spectra_beta_electron_fitted():
+    """Plot spectra for multiple runs with different beta.
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [50, 90, 20, 25]
+    extent = [10, 30, 45, 50]
+    shift = [1, 5, 25, 125]
+    run = 0
+    e_extend = 20
+    colors_plot = []
+    e_nth = 200
+    # run = 3
+    for run_name in run_names[:4]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift[run]
+        fthermal = fit_thermal_core(elog, flog)
+        fnonthermal = flog - fthermal
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        color = p1.get_color()
+        if run > 0:
+            p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
+
+        if run < 2:
+            power_fit = power_law_fit(elog, flog, offset[run], extent[run])
+        else:
+            power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
+        # power_fit = power_law_fit(elog, flog, 90, 30)
+        # power_fit = power_law_fit(elog, fnonthermal, 35, 70)
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        es -= e_extend
+        ee += e_extend
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
+        if run > 0:
+            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                    linestyle='--', linewidth=2, label=pname)
+            colors_plot.append(color)
+        # # Help for fitting
+        # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p21, = ax.loglog(elog_norm[es], fnonthermal[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], fnonthermal[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([1E-1, 2E3])
+        ax.set_ylim([1E-5, 1E4])
+        # shift *= 5
+        run += 1
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.50, 0.05, 'R8', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.59, 0.05, 'R7', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.7, 0.05, 'R1', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.85, 0.05, 'R6', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'spect_beta_electron_fitted.eps'
+    fig.savefig(fname)
 
     plt.show()
 
@@ -870,14 +985,14 @@ def plot_spectra_multi_electron():
         p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
                 linestyle='--', linewidth=2, label=pname)
         colors_plot.append(color)
-        # # Help for fitting
-        # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
-        #         linestyle='None', color=color)
-        # p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
-        #         linestyle='None', color=color)
-        # p23, = ax.loglog(elog_norm, fpower)
+        # Help for fitting
+        p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
+                linestyle='None', color=color)
+        p22, = ax.loglog(elog_norm[ee], flog[ee], marker='.', markersize=10,
+                linestyle='None', color=color)
+        p23, = ax.loglog(elog_norm, fpower)
         ax.set_xlim([1E-1, 3E2])
-        ax.set_ylim([1E-4, 1E4])
+        ax.set_ylim([1E-5, 1E4])
         shift *= 5
         run += 1
 
@@ -888,16 +1003,16 @@ def plot_spectra_multi_electron():
             shadow=False, fancybox=False, frameon=False)
     for color,text in zip(colors_plot, leg.get_texts()):
             text.set_color(color)
-    ax.text(0.05, 0.62, 'R5', color=colors[0], fontsize=20,
+    ax.text(0.05, 0.66, 'R5', color=colors[0], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
-    ax.text(0.05, 0.88, 'R3', color=colors[1], fontsize=20,
+    ax.text(0.05, 0.9, 'R3', color=colors[1], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
-    ax.text(0.05, 0.8, 'R2', color=colors[2], fontsize=20,
+    ax.text(0.05, 0.82, 'R2', color=colors[2], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
-    ax.text(0.05, 0.73, 'R4', color=colors[3], fontsize=20,
+    ax.text(0.05, 0.76, 'R4', color=colors[3], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
 
@@ -907,6 +1022,110 @@ def plot_spectra_multi_electron():
     if not os.path.isdir(dir):
         os.makedirs(dir)
     fname = dir + 'spect_multi_electron.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def plot_spectra_multi_electron_fitted():
+    """Plot spectra for multiple runs with the same beta for electron.
+
+    """
+    species = 'e'
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    img_dir = '../img/spectra/'
+    if not os.path.isdir(img_dir):
+        os.makedirs(img_dir)
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    base_dirs, run_names = ApJ_long_paper_runs()
+    nruns = len(run_names)
+    shift = 1
+    offset = [15, 15, 15, 15]
+    extent = [40, 40, 40, 40]
+    shift = [1, 1, 20, 400]
+    run = 0
+    e_extend = 20
+    colors_plot = []
+    e_nth = [400, 300, 350, 400]
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    for run_name in run_names[4:8]:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dir = '../data/spectra/' + run_name + '/'
+        n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        ct = 1
+        fname = dir + 'spectrum-' + species + '.1'
+        file_exist = os.path.isfile(fname)
+        while file_exist:
+            ct += 1
+            fname = dir + 'spectrum-' + species + '.' + str(ct)
+            file_exist = os.path.isfile(fname)
+        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        elin, flin, elog, flog = get_energy_distribution(fname, n0)
+        elog_norm = get_normalized_energy(species, elog, pic_info)
+        flog *= shift[run]
+        flog = np.convolve(flog, kernel, 'same')
+        fthermal = fit_thermal_core(elog, flog)
+        fnonthermal = flog - fthermal
+        p1, = ax.loglog(elog_norm, flog, linewidth=2)
+        color = p1.get_color()
+        p11, = ax.loglog(elog_norm[e_nth[run]:], fnonthermal[e_nth[run]:],
+                color=color)
+        # power_fit = power_law_fit(elog, fnonthermal, 310, 50)
+        power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
+        es, ee = power_fit.es, power_fit.ee
+        fpower = power_fit.fpower
+        powerIndex = "{%0.2f}" % power_fit.params[0]
+        pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
+        es -= e_extend
+        ee += e_extend
+        p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+                linestyle='--', linewidth=2, label=pname)
+        colors_plot.append(color)
+        # # Help for fitting
+        # p12, = ax.loglog(elog_norm, fthermal, color=color)
+        # p21, = ax.loglog(elog_norm[es], fnonthermal[es], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p22, = ax.loglog(elog_norm[ee], fnonthermal[ee], marker='.', markersize=10,
+        #         linestyle='None', color=color)
+        # p23, = ax.loglog(elog_norm, fpower)
+        ax.set_xlim([1E-1, 3E2])
+        ax.set_ylim([1E-5, 4E4])
+        # shift *= 5
+        run += 1
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=20)
+    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color,text in zip(colors_plot, leg.get_texts()):
+            text.set_color(color)
+    ax.text(0.05, 0.65, 'R5', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.74, 'R3', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.83, 'R2', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+    ax.text(0.05, 0.91, 'R4', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes)
+
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/spectra/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fname = dir + 'spect_multi_electron_fitted.eps'
     fig.savefig(fname)
 
     plt.show()
@@ -930,7 +1149,7 @@ def plot_spectra_beta_ion():
     base_dirs, run_names = ApJ_long_paper_runs()
     nruns = len(run_names)
     shift = 1
-    offset = [50, 90, 40, 35]
+    offset = [50, 350, 40, 35]
     extent = [10, 30, 25, 70]
     shift = [1, 10, 500, 10000]
     run = 0
@@ -957,10 +1176,10 @@ def plot_spectra_beta_ion():
         fnonthermal = flog - fthermal
         p1, = ax.loglog(elog_norm, flog, linewidth=2)
         color = p1.get_color()
-        if run > 1:
+        if run > 0:
             p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
 
-        if run < 2:
+        if run < 1:
             power_fit = power_law_fit(elog, flog, offset[run], extent[run])
         else:
             power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
@@ -1400,7 +1619,7 @@ def plot_spectrum_series(species, pic_info, fpath, **kwargs):
         fpath: file path that has the particle spectra data.
     """
     ntp = pic_info.ntp
-    ntp = 138
+    # ntp = 138
     fig = plt.figure(figsize=[7, 5])
     xs, ys = 0.16, 0.15
     w1, h1 = 0.8, 0.8
@@ -1408,15 +1627,15 @@ def plot_spectrum_series(species, pic_info, fpath, **kwargs):
     ax.grid(True)
     kwargs_plot = {"fpath":fpath, "is_thermal":False, "is_power":False,
             "xlim":kwargs["xlim"], "ylim":kwargs["ylim"], "color":'k'}
-    # for ct in range(1, ntp-1):
-        # color = plt.cm.jet(ct/float(ntp), 1)
-        # kwargs_plot["color"] = color
-        # plot_spectrum(ct, species, ax, pic_info, **kwargs_plot)
+    for ct in range(1, ntp-1):
+        color = plt.cm.jet(ct/float(ntp), 1)
+        kwargs_plot["color"] = color
+        plot_spectrum(ct, species, ax, pic_info, **kwargs_plot)
     kwargs_plot["color"] = 'k'
-    plot_spectrum(1, species, ax, pic_info, **kwargs_plot)
-    kwargs_plot["is_thermal"] = True
-    kwargs_plot["color"] = 'b'
-    plot_spectrum(ntp-1, species, ax, pic_info, **kwargs_plot)
+    # plot_spectrum(1, species, ax, pic_info, **kwargs_plot)
+    # kwargs_plot["is_thermal"] = True
+    # kwargs_plot["color"] = 'b'
+    # plot_spectrum(ntp-1, species, ax, pic_info, **kwargs_plot)
 
     # if (species == 'e'):
     #     vth = pic_info.vthe
@@ -1468,8 +1687,8 @@ def plot_spectra_time_multi(species):
     Args:
         species: particle species. 'e' for electron, 'h' for ion.
     """
-    # base_dirs, run_names = ApJ_long_paper_runs()
-    base_dirs, run_names = guide_field_runs()
+    base_dirs, run_names = ApJ_long_paper_runs()
+    # base_dirs, run_names = guide_field_runs()
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     fig_dir = '../img/spectra/'
@@ -1479,64 +1698,64 @@ def plot_spectra_time_multi(species):
     xlims = np.zeros((nrun, 2))
     ylims = np.zeros((nrun, 2))
     if species == 'e':
-        # xlims[0,:] = [5E-2, 2E2]
-        # ylims[0,:] = [1E-5, 2E2]
-        # xlims[1,:] = [5E-2, 2E2]
-        # ylims[1,:] = [1E-5, 2E2]
-        # xlims[2,:] = [5E-2, 2E2]
-        # ylims[2,:] = [1E-5, 2E2]
-        # xlims[3,:] = [5E-2, 6E2]
-        # ylims[3,:] = [1E-5, 2E2]
-        # xlims[4,:] = [5E-2, 2E2]
-        # ylims[4,:] = [1E-5, 2E2]
-        # xlims[5,:] = [5E-2, 3E2]
-        # ylims[5,:] = [1E-5, 2E3]
-        # xlims[6,:] = [5E-2, 3E2]
-        # ylims[6,:] = [1E-5, 5E2]
-        # xlims[7,:] = [5E-2, 3E2]
-        # ylims[7,:] = [1E-5, 2E2]
-        # xlims[8,:] = [5E-2, 3E2]
-        # ylims[8,:] = [1E-5, 2E2]
         xlims[0,:] = [5E-2, 2E2]
         ylims[0,:] = [1E-5, 2E2]
         xlims[1,:] = [5E-2, 2E2]
         ylims[1,:] = [1E-5, 2E2]
         xlims[2,:] = [5E-2, 2E2]
         ylims[2,:] = [1E-5, 2E2]
-        xlims[3,:] = [5E-2, 2E2]
+        xlims[3,:] = [5E-2, 6E2]
         ylims[3,:] = [1E-5, 2E2]
         xlims[4,:] = [5E-2, 2E2]
         ylims[4,:] = [1E-5, 2E2]
-    else:
+        xlims[5,:] = [5E-2, 3E2]
+        ylims[5,:] = [1E-5, 2E3]
+        xlims[6,:] = [5E-2, 3E2]
+        ylims[6,:] = [1E-5, 5E2]
+        xlims[7,:] = [5E-2, 3E2]
+        ylims[7,:] = [1E-5, 2E2]
+        xlims[8,:] = [5E-2, 3E2]
+        ylims[8,:] = [1E-5, 2E2]
         # xlims[0,:] = [5E-2, 2E2]
         # ylims[0,:] = [1E-5, 2E2]
         # xlims[1,:] = [5E-2, 2E2]
         # ylims[1,:] = [1E-5, 2E2]
-        # xlims[2,:] = [2E-1, 7E2]
+        # xlims[2,:] = [5E-2, 2E2]
         # ylims[2,:] = [1E-5, 2E2]
-        # xlims[3,:] = [2E-1, 2E3]
+        # xlims[3,:] = [5E-2, 2E2]
         # ylims[3,:] = [1E-5, 2E2]
-        # xlims[4,:] = [5E-2, 7E2]
+        # xlims[4,:] = [5E-2, 2E2]
         # ylims[4,:] = [1E-5, 2E2]
-        # xlims[5,:] = [5E-2, 6E2]
-        # ylims[5,:] = [1E-5, 2E3]
-        # xlims[6,:] = [5E-2, 7E2]
-        # ylims[6,:] = [1E-5, 5E2]
-        # xlims[7,:] = [5E-2, 7E2]
-        # ylims[7,:] = [1E-5, 2E2]
-        # xlims[8,:] = [2E-1, 3E2]
-        # ylims[8,:] = [1E-5, 2E2]
-        xlims[0,:] = [2E-1, 7E2]
+    else:
+        xlims[0,:] = [5E-2, 2E2]
         ylims[0,:] = [1E-5, 2E2]
-        xlims[1,:] = [2E-1, 5E2]
+        xlims[1,:] = [5E-2, 2E2]
         ylims[1,:] = [1E-5, 2E2]
-        xlims[2,:] = [2E-1, 5E2]
+        xlims[2,:] = [2E-1, 7E2]
         ylims[2,:] = [1E-5, 2E2]
-        xlims[3,:] = [2E-1, 3E2]
+        xlims[3,:] = [2E-1, 2E3]
         ylims[3,:] = [1E-5, 2E2]
-        xlims[4,:] = [2E-1, 2E2]
+        xlims[4,:] = [5E-2, 7E2]
         ylims[4,:] = [1E-5, 2E2]
-    for i in range(5):
+        xlims[5,:] = [5E-2, 6E2]
+        ylims[5,:] = [1E-5, 2E3]
+        xlims[6,:] = [5E-2, 7E2]
+        ylims[6,:] = [1E-5, 5E2]
+        xlims[7,:] = [5E-2, 7E2]
+        ylims[7,:] = [1E-5, 2E2]
+        xlims[8,:] = [2E-1, 3E2]
+        ylims[8,:] = [1E-5, 2E2]
+        # xlims[0,:] = [2E-1, 7E2]
+        # ylims[0,:] = [1E-5, 2E2]
+        # xlims[1,:] = [2E-1, 5E2]
+        # ylims[1,:] = [1E-5, 2E2]
+        # xlims[2,:] = [2E-1, 5E2]
+        # ylims[2,:] = [1E-5, 2E2]
+        # xlims[3,:] = [2E-1, 3E2]
+        # ylims[3,:] = [1E-5, 2E2]
+        # xlims[4,:] = [2E-1, 2E2]
+        # ylims[4,:] = [1E-5, 2E2]
+    for i in range(1):
         run_name = run_names[i]
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         pic_info = read_data_from_json(picinfo_fname)
@@ -1551,25 +1770,27 @@ def plot_spectra_time_multi(species):
 
 
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
-    ntp = pic_info.ntp
+    # pic_info = pic_information.get_pic_info('../../')
+    # ntp = pic_info.ntp
     # vthe = pic_info.vthe
-    kwargs = {"xlim":[2E-3, 5E0], "ylim":[1E-10,1E2]}
-    plot_spectrum_series('e', pic_info, '../spectrum/', **kwargs)
+    # kwargs = {"xlim":[2E-3, 5E0], "ylim":[1E-10,1E2]}
+    # plot_spectrum_series('e', pic_info, '../spectrum/', **kwargs)
     # kwargs = {"xlim":[2E-4, 5E-1], "ylim":[1E-10,1E1]}
     # plot_spectrum_series('h', pic_info, '../spectrum/', **kwargs)
     # plt.savefig('../img/spectrum_fitting.eps')
-    plt.show()
+    # plt.show()
     # plot_spectrum_bulk(ntp, 'e', pic_info)
     # plot_maximum_energy(ntp, pic_info)
     # move_energy_spectra()
     # calc_nonthermal_fraction('h')
     # plot_spectra_beta_electron()
+    # plot_spectra_beta_electron_fitted()
     # plot_spectra_multi_electron()
-    # plot_spectra_beta_ion()
+    # plot_spectra_multi_electron_fitted()
+    plot_spectra_beta_ion()
     # plot_spectra_multi_ion()
     # plot_guide_electron()
     # plot_guide_ion()
     # get_maximum_energy_multi('h')
     # plot_maximum_energy_multi()
-    # plot_spectra_time_multi('h')
+    # plot_spectra_time_multi('e')
