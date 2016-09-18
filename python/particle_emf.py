@@ -257,33 +257,94 @@ def save_shifted_trajectory(fh, filepath, particle_tags, pic_info):
             save_new_data(iptl, particle_tags, pic_info, fh, fh_out)
 
 
-def transfer_to_h5part(particle_tags, pic_info, fh, filepath):
-    """Transfer current HDF5 file to H5Part format, in which all particles
-    at the same time step are stored in the same time step
+def transfer_to_h5part(particle_tags, pic_info, fh, filepath,
+        tinterval, species='electrons', interp_kind='linear'):
+    """Transfer current HDF5 file to H5Part format
+    
+    All particles at the same time step are stored in the same time step
+
+    Args:
+        particle_tags: particles tags
+        pic_info: PIC simulation information
+        fh: file handle for the particle data
+        filepath: the file path including the particle data
+        tinterval: (# of time points + 1) between original two time points
+        species: particle species
+        interp_kind: interpolate kind
     """
     nptl = len(particle_tags)
-    ptl, sz = read_particle_data(0, particle_tags, pic_info, fh)
-    Ux = np.zeros(sz * nptl, dtype = ptl['Ux'].dtype)
-    Uy = np.zeros(sz * nptl, dtype = ptl['Uy'].dtype)
-    Uz = np.zeros(sz * nptl, dtype = ptl['Uz'].dtype)
-    dX = np.zeros(sz * nptl, dtype = ptl['dX'].dtype)
-    dY = np.zeros(sz * nptl, dtype = ptl['dY'].dtype)
-    dZ = np.zeros(sz * nptl, dtype = ptl['dZ'].dtype)
-    i = np.zeros(sz * nptl, dtype = ptl['i'].dtype)
-    q = np.zeros(sz * nptl, dtype = ptl['q'].dtype)
-    gamma = np.zeros(sz * nptl, dtype = ptl['gamma'].dtype)
-    for iptl in range(nptl):
-        print iptl
-        ptl, sz = read_particle_data(iptl, particle_tags, pic_info, fh)
-        Ux[iptl::nptl] = ptl['Ux']
-        Uy[iptl::nptl] = ptl['Uy']
-        Uz[iptl::nptl] = ptl['Uz']
-        dX[iptl::nptl] = ptl['dX']
-        dY[iptl::nptl] = ptl['dY']
-        dZ[iptl::nptl] = ptl['dZ']
-        i[iptl::nptl] = ptl['i']
-        q[iptl::nptl] = ptl['q']
-        gamma[iptl::nptl] = ptl['gamma']
+    ptl, ntf = read_particle_data(0, particle_tags, pic_info, fh)
+    told = np.linspace(0, ntf, ntf, endpoint=False)
+    ntf_new = (ntf-1)*tinterval + 1
+    tnew = np.linspace(0, ntf-1, ntf_new)
+    Ux = np.zeros(ntf_new * nptl, dtype = ptl['Ux'].dtype)
+    Uy = np.zeros(ntf_new * nptl, dtype = ptl['Uy'].dtype)
+    Uz = np.zeros(ntf_new * nptl, dtype = ptl['Uz'].dtype)
+    dX = np.zeros(ntf_new * nptl, dtype = ptl['dX'].dtype)
+    dY = np.zeros(ntf_new * nptl, dtype = ptl['dY'].dtype)
+    dZ = np.zeros(ntf_new * nptl, dtype = ptl['dZ'].dtype)
+    i = np.zeros(ntf_new * nptl, dtype = ptl['i'].dtype)
+    q = np.zeros(ntf_new * nptl, dtype = ptl['q'].dtype)
+    gamma = np.zeros(ntf_new * nptl, dtype = ptl['gamma'].dtype)
+    if 'Bx' in ptl:
+        Bx = np.zeros(ntf_new * nptl, dtype = ptl['Bx'].dtype)
+        By = np.zeros(ntf_new * nptl, dtype = ptl['By'].dtype)
+        Bz = np.zeros(ntf_new * nptl, dtype = ptl['Bz'].dtype)
+        Ex = np.zeros(ntf_new * nptl, dtype = ptl['Ex'].dtype)
+        Ey = np.zeros(ntf_new * nptl, dtype = ptl['Ey'].dtype)
+        Ez = np.zeros(ntf_new * nptl, dtype = ptl['Ez'].dtype)
+        Vx = np.zeros(ntf_new * nptl, dtype = ptl['Vx'].dtype)
+        Vy = np.zeros(ntf_new * nptl, dtype = ptl['Vy'].dtype)
+        Vz = np.zeros(ntf_new * nptl, dtype = ptl['Vz'].dtype)
+
+    # Additional information besides the original particle data
+    additional_info = ''
+    if 'Bx' in ptl:
+        additional_info += '_emf'
+
+    if 'Vx' in ptl:
+        additional_info += '_vel'
+
+    if tinterval > 1:
+        additional_info += '_' + interp_kind + '_t' +  str(tinterval)
+
+    # Save the interpolated particle data
+    if 'Bx' in ptl:
+        file_name = species + additional_info + '.h5p'
+    else:
+        file_name = species + additional_info + '.h5p'
+    fname = filepath + file_name
+    with h5py.File(fname, 'w') as fh_out:
+        for iptl in range(nptl):
+            print iptl
+            ptl, ntf = read_particle_data(iptl, particle_tags, pic_info, fh)
+            for key in ptl:
+                f = interp1d(told, ptl[key], kind=interp_kind)
+                ptl[key] = f(tnew).astype(ptl[key].dtype)
+            grp = fh_out.create_group(particle_tags[iptl])
+            for key in ptl:
+                grp.create_dataset(key, (ntf_new, ), data=ptl[key],
+                                   dtype=ptl[key].dtype)
+            Ux[iptl::nptl] = ptl['Ux']
+            Uy[iptl::nptl] = ptl['Uy']
+            Uz[iptl::nptl] = ptl['Uz']
+            dX[iptl::nptl] = ptl['dX']
+            dY[iptl::nptl] = ptl['dY']
+            dZ[iptl::nptl] = ptl['dZ']
+            i[iptl::nptl] = ptl['i']
+            q[iptl::nptl] = ptl['q']
+            gamma[iptl::nptl] = ptl['gamma']
+            if 'Bx' in ptl:
+                Bx[iptl::nptl] = ptl['Bx']
+                By[iptl::nptl] = ptl['By']
+                Bz[iptl::nptl] = ptl['Bz']
+                Ex[iptl::nptl] = ptl['Ex']
+                Ey[iptl::nptl] = ptl['Ey']
+                Ez[iptl::nptl] = ptl['Ez']
+            if 'Vx' in ptl:
+                Vx[iptl::nptl] = ptl['Vx']
+                Vy[iptl::nptl] = ptl['Vy']
+                Vz[iptl::nptl] = ptl['Vz']
 
     nx, ny, nz = pic_info.nx, pic_info.ny, pic_info.nz
     lx, ly, lz = pic_info.lx_di, pic_info.ly_di, pic_info.lz_di
@@ -293,16 +354,16 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath):
     dY += ny * 0.25
     dZ += nz * 0.25
 
-    tinterval = 13
-    tratio = 8
-    fname = filepath + 'electrons.h5part'
+    if 'Bx' in ptl:
+        file_name = species + additional_info + '.h5part'
+    else:
+        file_name = species + additional_info + '.h5part'
+    fname = filepath + file_name
     with h5py.File(fname, 'w') as fh_out:
-        for t in range(0, sz*tinterval):
-            print t
-            ct = t / tinterval
-            # grp = fh_out.create_group('Step#'+str(ct))
-            grp = fh_out.create_group('Step#'+str(t))
-            index = range(ct*nptl, (ct+1)*nptl)
+        for tindex in range(0, ntf_new):
+            print tindex
+            grp = fh_out.create_group('Step#'+str(tindex))
+            index = range(tindex*nptl, (tindex+1)*nptl)
             grp.create_dataset('Ux', (nptl, ), data=Ux[index])
             grp.create_dataset('Uy', (nptl, ), data=Uy[index])
             grp.create_dataset('Uz', (nptl, ), data=Uz[index])
@@ -312,21 +373,62 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath):
             grp.create_dataset('i', (nptl, ), data=i[index])
             grp.create_dataset('q', (nptl, ), data=q[index])
             grp.create_dataset('gamma', (nptl, ), data=gamma[index])
+            if 'Bx' in ptl:
+                grp.create_dataset('Bx', (nptl, ), data=Bx[index])
+                grp.create_dataset('By', (nptl, ), data=By[index])
+                grp.create_dataset('Bz', (nptl, ), data=Bz[index])
+                grp.create_dataset('Ex', (nptl, ), data=Ex[index])
+                grp.create_dataset('Ey', (nptl, ), data=Ey[index])
+                grp.create_dataset('Ez', (nptl, ), data=Ez[index])
+            if 'Vx' in ptl:
+                grp.create_dataset('Vx', (nptl, ), data=Vx[index])
+                grp.create_dataset('Vy', (nptl, ), data=Vy[index])
+                grp.create_dataset('Vz', (nptl, ), data=Vz[index])
+
+
+def save_reduced_data_in_same_file(rootpath):
+    tracer_root_dir = rootpath + 'reduced_tracer/'
+    tracer_name = 'electron_tracer_reduced_sorted.h5p'
+    fname_new = rootpath + 'reduced_tracer/electron_tracer_reduced_sorted.h5p'
+    tinterval = 130
+    tmax = 16614
+    with h5py.File(fname_new, 'w') as fh_out:
+        for tindex in range(0, tmax+1, tinterval):
+            print tindex
+            group_name = 'Step#'+str(tindex/tinterval)
+            grp = fh_out.create_group(group_name)
+            fname = tracer_root_dir + 'T.' + str(tindex) + '/' + tracer_name
+            with h5py.File(fname, 'r') as fh_in:
+                gname = 'Step#'+str(tindex)
+                group_id = fh_in[gname]
+                dset = group_id['q']
+                sz, = dset.shape
+                ptl = {}
+                for dset in group_id:
+                    dset = str(dset)
+                    pdata = read_var(group_id, dset, sz)
+                    grp.create_dataset(str(dset), (sz, ), data=pdata)
 
 
 if __name__ == "__main__":
-    filepath = '/net/scratch3/xiaocanli/open3d-full/'
+    rootpath = '/net/scratch3/xiaocanli/open3d-full/'
     # pic_info = pic_information.get_pic_info(filepath)
     run_name = 'nersc_large'
     picinfo_fname = '../data/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    filepath += 'pic_analysis/vpic-sorter/data/'
+    filepath = rootpath + 'pic_analysis/vpic-sorter/data/'
     species = 'e'
     if species == 'i':
         fname = filepath + 'ions.h5p'
+        species = 'ions'
     else:
         fname = filepath + 'electrons_2.h5p'
+        species = 'electrons'
+    tinterval = 104
+    interp_kind = 'cubic'
     with h5py.File(fname, 'r') as fh:
         particle_tags = fh.keys()
         # save_shifted_trajectory(fh, filepath, particle_tags, pic_info)
-        transfer_to_h5part(particle_tags, pic_info, fh, filepath)
+        transfer_to_h5part(particle_tags, pic_info, fh, filepath, tinterval,
+                species, interp_kind)
+    # save_reduced_data_in_same_file(rootpath)
