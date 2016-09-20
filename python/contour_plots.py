@@ -478,6 +478,7 @@ def plot_by(pic_info):
     plt.show()
     # plt.close()
 
+
 def plot_number_density(pic_info, species, ct, run_name, base_dir='../../'):
     """Plot plasma beta and number density.
 
@@ -543,6 +544,77 @@ def plot_number_density(pic_info, species, ct, run_name, base_dir='../../'):
     fig_dir = '../img/img_number_densities/' + run_name + '/'
     mkdir_p(fig_dir)
     fname = fig_dir + '/nrho_' + species + '_' + str(ct).zfill(3) + '.jpg'
+    # fig.savefig(fname)
+
+    plt.show()
+    # plt.close()
+
+
+def plot_vx(pic_info, species, ct, run_name, base_dir='../../'):
+    """Plot vx
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data/v' + species + 'x.gda'
+    x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data/Ay.gda'
+    # x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    nrho_cum = np.sum(num_rho, axis=0) / nz
+    nrho_grad = np.abs(np.gradient(nrho_cum))
+    xs = 5
+    max_index = np.argmax(nrho_grad[xs:])
+    xm = x[max_index]
+    print xm, max_index
+
+    w1, h1 = 0.7, 0.52
+    xs, ys = 0.15, 0.94 - h1
+    gap = 0.05
+
+    width, height = 10, 12
+    fig = plt.figure(figsize=[10,12])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-0.1, "vmax":0.1}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, num_rho, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.jet)
+    # ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+    #         colors='black', linewidths=0.5)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    lname = r'$v_{' + species + 'x}$'
+    cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=24)
+    cbar1.ax.tick_params(labelsize=24)
+
+    ax1.plot([xm, xm], [zmin, zmax], color='k', linestyle='--')
+    
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    h2 = 0.3
+    ys -= gap + h2
+    w2 = w1 * 0.98 - 0.05 / width
+    ax2 = fig.add_axes([xs, ys, w2, h2])
+    ax2.plot(x, nrho_cum, linewidth=2, color='k')
+    ax2.plot([xm, xm], ax2.get_ylim(), color='k', linestyle='--')
+    ax2.set_xlim([xmin, xmax])
+    ax2.tick_params(labelsize=24)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+
+    fig_dir = '../img/img_velocity/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/v' + species + 'x_' + str(ct).zfill(3) + '.jpg'
     fig.savefig(fname)
 
     # plt.show()
@@ -1389,6 +1461,9 @@ if __name__ == "__main__":
     cts = range(pic_info.ntf - 1)
     def processInput(ct):
         print ct
-        plot_number_density(pic_info, 'i', ct, run_name, base_dir)
+        # plot_number_density(pic_info, 'i', ct, run_name, base_dir)
+        plot_vx(pic_info, 'i', ct, run_name, base_dir)
     num_cores = multiprocessing.cpu_count()
     Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    # plot_number_density(pic_info, 'i', ct, run_name, base_dir)
+    # plot_vx(pic_info, 'i', ct, run_name, base_dir)
