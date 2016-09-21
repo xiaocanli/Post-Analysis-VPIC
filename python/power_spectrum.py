@@ -43,7 +43,7 @@ def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
     xmin, xmax = 0, 105
     zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
     kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data/vex.gda'
+    fname = base_dir + 'data1/vex.gda'
     x, z, vel = read_2d_fields(pic_info, fname, **kwargs) 
     nx, = x.shape
     nz, = z.shape
@@ -54,11 +54,11 @@ def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
     xm = x[max_index]
 
     xmin, xmax = 0, xm
-    fname = base_dir + 'data/bx.gda'
+    fname = base_dir + 'data1/bx.gda'
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data/by.gda'
+    fname = base_dir + 'data1/by.gda'
     x, z, by = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data/bz.gda'
+    fname = base_dir + 'data1/bz.gda'
     x, z, bz = read_2d_fields(pic_info, fname, **kwargs) 
     smime = math.sqrt(pic_info.mime)
     lx = np.max(x) - np.min(x)
@@ -90,7 +90,7 @@ def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
     pindex = -3.0
     power_k = kbins[psm:]**-3.0
     shift = 400
-    ax1.loglog(kbins[psm:psm+shift], power_k[:shift]*2.0E2/power_k[psm],
+    ax1.loglog(kbins[psm:psm+shift], power_k[:shift]*5.0E2/power_k[0],
             linestyle='--', linewidth=2, color='k')
     power_index = "{%0.1f}" % pindex
     tname = r'$\sim k^{' + power_index + '}$'
