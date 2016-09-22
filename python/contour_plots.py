@@ -623,60 +623,6 @@ def plot_vx(pic_info, species, ct, run_name, shock_pos, base_dir='../../'):
     plt.close()
 
 
-def plot_electric_field(pic_info, ct, run_name, shock_pos, base_dir='../../'):
-    """Plot electric field
-
-    Args:
-        pic_info: namedtuple for the PIC simulation information.
-        species: 'e' for electrons, 'i' for ions.
-        ct current time frame.
-    """
-    xmin, xmax = 0, pic_info.lx_di
-    xmax = 105
-    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
-    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data1/ex.gda'
-    x, z, efield = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
-    nx, = x.shape
-    nz, = z.shape
-    xm = x[shock_pos]
-
-    w1, h1 = 0.85, 0.85
-    xs, ys = 0.1, 0.95 - h1
-    gap = 0.05
-
-    width, height = 14, 10
-    fig = plt.figure(figsize=[width, height])
-    ax1 = fig.add_axes([xs, ys, w1, h1])
-    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-0.2, "vmax":0.2}
-    xstep = kwargs_plot["xstep"]
-    zstep = kwargs_plot["zstep"]
-    p1, cbar1 = plot_2d_contour(x, z, efield, ax1, fig, **kwargs_plot)
-    p1.set_cmap(plt.cm.seismic)
-    nlevels = 15
-    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5, levels=levels)
-    ax1.plot([xm, xm], [z[0], z[-1]], color='black', linestyle='--', linewidth=2)
-    ax1.set_xlim([xmin, xmax])
-    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
-    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
-    ax1.tick_params(labelsize=24)
-    # lname = r'$n_' + species + '$'
-    # cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=24)
-    # cbar1.ax.tick_params(labelsize=24)
-
-    fig_dir = '../img/img_number_densities/' + run_name + '/'
-    mkdir_p(fig_dir)
-    # fname = fig_dir + '/nrho_linear_' + species + '_' + str(ct).zfill(3) + '.jpg'
-    # fig.savefig(fname)
-
-    plt.show()
-    # plt.close()
-
-
 def get_anisotropy_data(pic_info, species, ct, rootpath='../../'):
     """
     Args:
@@ -1538,6 +1484,573 @@ def combine_shock_files(ntf):
     np.savetxt(fname, shock_loc, fmt='%d')
 
 
+def find_closest(A, target):
+    #A must be sorted
+    idx = A.searchsorted(target)
+    idx = np.clip(idx, 1, len(A)-1)
+    left = A[idx-1]
+    right = A[idx]
+    idx -= target - left < right - target
+    return idx
+
+
+def plot_pressure(pic_info, species, ct, run_name, xm, base_dir='../../'):
+    """Plot plasma pressure
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = xm - 5, xm + 5
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/p' + species + '-xx.gda'
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/p' + species + '-yy.gda'
+    # x, z, pyy = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/p' + species + '-zz.gda'
+    # x, z, pzz = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/p' + species + '-xy.gda'
+    # x, z, pxy = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/p' + species + '-xz.gda'
+    # x, z, pxz = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/p' + species + '-yz.gda'
+    # x, z, pyz = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/bx.gda'
+    # x, z, bx = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/by.gda'
+    # x, z, by = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/bz.gda'
+    # x, z, bz = read_2d_fields(pic_info, fname, **kwargs) 
+    # fname = base_dir + 'data1/absB.gda'
+    # x, z, absB = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    # ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + \
+    #         pxy*bx*by*2.0 + pxz*bx*bz*2.0 + pyz*by*bz*2.0
+    # ppara /= absB * absB
+    # pperp = 0.5 * (pxx+pyy+pzz-ppara)
+    # pscalar = (ppara + 2 * pperp) / 3
+    nx, = x.shape
+    nz, = z.shape
+
+    fdata = pxx
+
+    xcut = xm + 0.5
+    xindex = find_closest(x, xcut)
+    fdata_cut = fdata[:, xindex]
+    # fdata_cut_smooth = signal.savgol_filter(fdata_cut, 11, 2)
+    ng = 11
+    kernel = np.ones(ng) / float(ng)
+    fdata_cut_smooth = np.convolve(fdata_cut, kernel, 'same')
+
+    w1, h1 = 0.4, 0.8
+    xs, ys = 0.2, 0.94 - h1
+    gap = 0.05
+
+    width, height = 5, 12
+    fig = plt.figure(figsize=[width, height])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    cbar_min, cbar_max = 0.025, 0.5
+    kwargs_plot = {"xstep":2, "zstep":2, "is_cbar": False,
+                    "vmin":cbar_min, "vmax":cbar_max}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1 = plot_2d_contour(x, z, fdata, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.jet)
+    nlevels = 15
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=16)
+
+    hcbar = 0.03
+    wcbar = 0.9
+    xs1 = 0.05
+    ys1 = ys - 0.06 - hcbar
+    cax = fig.add_axes([xs, ys1, w1, hcbar])
+    cbar = fig.colorbar(p1, cax=cax, orientation='horizontal')
+    cbar.ax.tick_params(labelsize=16)
+    cbar.set_ticks(np.arange(0.1, cbar_max+0.01, 0.2))
+
+    ax1.plot([xcut, xcut], [zmin, zmax], color='white', linestyle='--')
+    
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    xs += w1 + 0.05
+    w2 = 0.3
+    ax2 = fig.add_axes([xs, ys, w2, h1])
+    # ax2.plot(fdata_cut, z, linewidth=1, color='k')
+    ax2.plot(fdata_cut_smooth, z, linewidth=2, color='r')
+    print np.min(fdata_cut), np.max(fdata_cut)
+    ax2.set_xlim([0.0, 0.12])
+    ax2.set_ylim([zmin, zmax])
+    ax2.xaxis.set_ticks([0.0, 0.05, 0.1])
+    ax2.tick_params(labelsize=16)
+    ax2.tick_params(axis='y', labelleft='off')
+
+    # fig_dir = '../img/img_number_densities/' + run_name + '/'
+    # mkdir_p(fig_dir)
+    # fname = fig_dir + '/nrho_linear_' + species + '_' + str(ct).zfill(3) + '.jpg'
+    # fig.savefig(fname)
+
+    plt.show()
+    # plt.close()
+
+
+def plot_magnetic_field(pic_info, ct, run_name, xm, base_dir='../../'):
+    """Plot magnetic field 
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = xm - 5, xm + 5
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/bx.gda'
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/by.gda'
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/bz.gda'
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+
+    xcut = xm + 0.5
+    xindex = find_closest(x, xcut)
+    ng = 11
+    kernel = np.ones(ng) / float(ng)
+    bx_cut = bx[:, xindex]
+    by_cut = by[:, xindex]
+    bz_cut = bz[:, xindex]
+    # bx_cut_smooth = np.convolve(bx_cut, kernel, 'same')
+    # by_cut_smooth = np.convolve(by_cut, kernel, 'same')
+    # bz_cut_smooth = np.convolve(bz_cut, kernel, 'same')
+
+    w1, h1 = 0.2, 0.8
+    xs, ys = 0.1, 0.94 - h1
+    xs0, ys0 = xs, ys
+    gap = 0.03
+    cmap = plt.cm.seismic
+    cbar_min, cbar_max = -1.0, 1.0
+
+    width, height = 10, 12
+    fig = plt.figure(figsize=[width, height])
+    ax11 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":2, "zstep":2, "is_cbar": False,
+                    "vmin":cbar_min, "vmax":cbar_max}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1 = plot_2d_contour(x, z, bx, ax11, fig, **kwargs_plot)
+    p1.set_cmap(cmap)
+    nlevels = 15
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    ax11.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax11.set_xlim([xmin, xmax])
+    ax11.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax11.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax11.tick_params(labelsize=16)
+
+    xs += w1 + gap
+    ax12 = fig.add_axes([xs, ys, w1, h1])
+    p2 = plot_2d_contour(x, z, by, ax12, fig, **kwargs_plot)
+    p2.set_cmap(cmap)
+    ax12.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax12.set_xlim([xmin, xmax])
+    ax12.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax12.set_ylabel('')
+    ax12.tick_params(axis='y', labelleft='off')
+    ax12.tick_params(labelsize=16)
+
+    xs += w1 + gap
+    ax13 = fig.add_axes([xs, ys, w1, h1])
+    p3 = plot_2d_contour(x, z, bz, ax13, fig, **kwargs_plot)
+    p3.set_cmap(cmap)
+    ax13.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax13.set_xlim([xmin, xmax])
+    ax13.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax13.set_ylabel('')
+    ax13.tick_params(axis='y', labelleft='off')
+    ax13.tick_params(labelsize=16)
+
+    ax11.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+    ax12.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+    ax13.plot([xcut, xcut], [zmin, zmax], color='w', linestyle='--')
+
+    hcbar = 0.02
+    wcbar = w1 * 3 + gap * 2
+    ys1 = ys - 0.06 - hcbar
+    cax = fig.add_axes([xs0, ys1, wcbar, hcbar])
+    cbar = fig.colorbar(p1, cax=cax, orientation='horizontal')
+    cbar.ax.tick_params(labelsize=16)
+
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax12.set_title(title, fontdict=font, fontsize=24)
+
+    ax11.text(0.98, 0.95, r'$B_x$', color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax11.transAxes)
+    ax12.text(0.98, 0.95, r'$B_y$', color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax12.transAxes)
+    ax13.text(0.98, 0.95, r'$B_z$', color='w', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax13.transAxes)
+
+    xs += w1 + gap
+    w2 = 0.2
+    ax2 = fig.add_axes([xs, ys, w2, h1])
+    # ax2.plot(fdata_cut, z, linewidth=1, color='k')
+    ax2.plot(bx_cut, z, linewidth=2, color='r')
+    ax2.plot(by_cut, z, linewidth=2, color='g')
+    ax2.plot(bz_cut, z, linewidth=2, color='b')
+    ax2.set_ylim([zmin, zmax])
+    ax2.set_xlim([-1.2, 1.2])
+    ax2.xaxis.set_ticks([-1.2, -0.6, 0.0, 0.6, 1.2])
+    ax2.tick_params(labelsize=16)
+    ax2.tick_params(axis='y', labelleft='off')
+
+    ax2.text(0.3, 1.0, r'$B_x$', color='r', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+    ax2.text(0.5, 1.0, r'$B_y$', color='g', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+    ax2.text(0.7, 1.0, r'$B_z$', color='b', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+
+    fig_dir = '../img/img_bfields/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/bf_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname)
+
+    # plt.show()
+    plt.close()
+
+
+def plot_electric_field(pic_info, ct, run_name, xm, base_dir='../../'):
+    """Plot electric field 
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = xm - 5, xm + 5
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/ex.gda'
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/ey.gda'
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/ez.gda'
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+
+    ng = 5
+    kernel = np.ones((ng, ng)) / float(ng*ng)
+    ex = signal.convolve2d(ex, kernel, 'same')
+    ey = signal.convolve2d(ey, kernel, 'same')
+    ez = signal.convolve2d(ez, kernel, 'same')
+
+    xcut = xm + 0.5
+    xindex = find_closest(x, xcut)
+    ng = 11
+    kernel = np.ones(ng) / float(ng)
+    ex_cut = ex[:, xindex]
+    ex_cut_smooth = np.convolve(ex_cut, kernel, 'same')
+    ey_cut = ey[:, xindex]
+    ey_cut_smooth = np.convolve(ey_cut, kernel, 'same')
+    ez_cut = ez[:, xindex]
+    ez_cut_smooth = np.convolve(ez_cut, kernel, 'same')
+
+    w1, h1 = 0.2, 0.8
+    xs, ys = 0.1, 0.94 - h1
+    xs0, ys0 = xs, ys
+    gap = 0.03
+    cmap = plt.cm.seismic
+
+    width, height = 10, 12
+    fig = plt.figure(figsize=[width, height])
+    ax11 = fig.add_axes([xs, ys, w1, h1])
+    cbar_min, cbar_max = -0.2, 0.2
+    kwargs_plot = {"xstep":2, "zstep":2, "is_cbar": False,
+                    "vmin":cbar_min, "vmax":cbar_max}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1 = plot_2d_contour(x, z, ex, ax11, fig, **kwargs_plot)
+    p1.set_cmap(cmap)
+    nlevels = 15
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    ax11.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax11.set_xlim([xmin, xmax])
+    ax11.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax11.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax11.tick_params(labelsize=16)
+
+    xs += w1 + gap
+    ax12 = fig.add_axes([xs, ys, w1, h1])
+    p2 = plot_2d_contour(x, z, ey, ax12, fig, **kwargs_plot)
+    p2.set_cmap(cmap)
+    ax12.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax12.set_xlim([xmin, xmax])
+    ax12.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax12.set_ylabel('')
+    ax12.tick_params(axis='y', labelleft='off')
+    ax12.tick_params(labelsize=16)
+
+    xs += w1 + gap
+    ax13 = fig.add_axes([xs, ys, w1, h1])
+    p3 = plot_2d_contour(x, z, ez, ax13, fig, **kwargs_plot)
+    p3.set_cmap(cmap)
+    ax13.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax13.set_xlim([xmin, xmax])
+    ax13.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax13.set_ylabel('')
+    ax13.tick_params(axis='y', labelleft='off')
+    ax13.tick_params(labelsize=16)
+
+    ax11.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+    ax12.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+    ax13.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+
+    hcbar = 0.02
+    wcbar = w1 * 3 + gap * 2
+    ys1 = ys - 0.06 - hcbar
+    cax = fig.add_axes([xs0, ys1, wcbar, hcbar])
+    cbar = fig.colorbar(p1, cax=cax, orientation='horizontal')
+    cbar.ax.tick_params(labelsize=16)
+
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax12.set_title(title, fontdict=font, fontsize=24)
+
+    ax11.text(0.98, 0.95, r'$E_x$', color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax11.transAxes)
+    ax12.text(0.98, 0.95, r'$E_y$', color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax12.transAxes)
+    ax13.text(0.98, 0.95, r'$E_z$', color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax13.transAxes)
+
+    xs += w1 + gap
+    w2 = 0.2
+    ax2 = fig.add_axes([xs, ys, w2, h1])
+    # ax2.plot(fdata_cut, z, linewidth=1, color='k')
+    ax2.plot(ex_cut, z, linewidth=2, color='r')
+    ax2.plot(ey_cut, z, linewidth=2, color='g')
+    ax2.plot(ez_cut, z, linewidth=2, color='b')
+    ax2.set_ylim([zmin, zmax])
+    ax2.set_xlim([-0.15, 0.15])
+    ax2.xaxis.set_ticks([-0.1, 0.0, 0.1])
+    ax2.tick_params(labelsize=16)
+    ax2.tick_params(axis='y', labelleft='off')
+
+    ax2.text(0.3, 1.0, r'$E_x$', color='r', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+    ax2.text(0.5, 1.0, r'$E_y$', color='g', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+    ax2.text(0.7, 1.0, r'$E_z$', color='b', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+
+    fig_dir = '../img/img_efields/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/ef_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname)
+
+    # plt.show()
+    plt.close()
+
+
+def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../'):
+    """Plot velocity field 
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = xm - 5, xm + 5
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/v' + species + 'x.gda'
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/v' + species + 'y.gda'
+    x, z, vy = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/v' + species + 'z.gda'
+    x, z, vz = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+
+    xcut = xm + 0.5
+    xindex = find_closest(x, xcut)
+    ng = 11
+    kernel = np.ones(ng) / float(ng)
+    vx_cut = vx[:, xindex]
+    vx_cut_smooth = np.convolve(vx_cut, kernel, 'same')
+    vy_cut = vy[:, xindex]
+    vy_cut_smooth = np.convolve(vy_cut, kernel, 'same')
+    vz_cut = vz[:, xindex]
+    vz_cut_smooth = np.convolve(vz_cut, kernel, 'same')
+
+    w1, h1 = 0.2, 0.8
+    xs, ys = 0.1, 0.94 - h1
+    xs0, ys0 = xs, ys
+    gap = 0.03
+    cmap = plt.cm.seismic
+    cbar_min, cbar_max = -0.2, 0.2
+
+    width, height = 10, 12
+    fig = plt.figure(figsize=[width, height])
+    ax11 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":2, "zstep":2, "is_cbar": False,
+                    "vmin":cbar_min, "vmax":cbar_max}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1 = plot_2d_contour(x, z, vx, ax11, fig, **kwargs_plot)
+    p1.set_cmap(cmap)
+    nlevels = 15
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    ax11.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax11.set_xlim([xmin, xmax])
+    ax11.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax11.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax11.tick_params(labelsize=16)
+
+    xs += w1 + gap
+    ax12 = fig.add_axes([xs, ys, w1, h1])
+    p2 = plot_2d_contour(x, z, vy, ax12, fig, **kwargs_plot)
+    p2.set_cmap(cmap)
+    ax12.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax12.set_xlim([xmin, xmax])
+    ax12.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax12.set_ylabel('')
+    ax12.tick_params(axis='y', labelleft='off')
+    ax12.tick_params(labelsize=16)
+
+    xs += w1 + gap
+    ax13 = fig.add_axes([xs, ys, w1, h1])
+    p3 = plot_2d_contour(x, z, vz, ax13, fig, **kwargs_plot)
+    p3.set_cmap(cmap)
+    ax13.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax13.set_xlim([xmin, xmax])
+    ax13.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax13.set_ylabel('')
+    ax13.tick_params(axis='y', labelleft='off')
+    ax13.tick_params(labelsize=16)
+
+    ax11.plot([xcut, xcut], [zmin, zmax], color='w', linestyle='--')
+    ax12.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+    ax13.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+
+    hcbar = 0.02
+    wcbar = w1 * 3 + gap * 2
+    ys1 = ys - 0.06 - hcbar
+    cax = fig.add_axes([xs0, ys1, wcbar, hcbar])
+    cbar = fig.colorbar(p1, cax=cax, orientation='horizontal')
+    cbar.ax.tick_params(labelsize=16)
+
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax12.set_title(title, fontdict=font, fontsize=24)
+
+    fname = '$V_{' + species + 'x}$'
+    ax11.text(0.98, 0.95, fname, color='w', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax11.transAxes)
+    fname = '$V_{' + species + 'y}$'
+    ax12.text(0.98, 0.95, fname, color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax12.transAxes)
+    fname = '$V_{' + species + 'z}$'
+    ax13.text(0.98, 0.95, fname, color='k', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform = ax13.transAxes)
+
+    xs += w1 + gap
+    w2 = 0.2
+    ax2 = fig.add_axes([xs, ys, w2, h1])
+    # ax2.plot(fdata_cut, z, linewidth=1, color='k')
+    ax2.plot(vx_cut, z, linewidth=2, color='r')
+    ax2.plot(vy_cut, z, linewidth=2, color='g')
+    ax2.plot(vz_cut, z, linewidth=2, color='b')
+    ax2.set_ylim([zmin, zmax])
+    ax2.set_xlim([-0.2, 0.15])
+    ax2.xaxis.set_ticks([-0.2, -0.1, 0.0, 0.1])
+    ax2.tick_params(labelsize=16)
+    ax2.tick_params(axis='y', labelleft='off')
+
+    fname = '$V_{' + species + 'x}$'
+    ax2.text(0.2, 1.0, fname, color='r', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+    fname = '$V_{' + species + 'y}$'
+    ax2.text(0.5, 1.0, fname, color='g', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+    fname = '$V_{' + species + 'z}$'
+    ax2.text(0.8, 1.0, fname, color='b', fontsize=24, 
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='bottom',
+            transform = ax2.transAxes)
+
+    fig_dir = '../img/img_velocity_shock/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/v' + species + '_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname)
+
+    # plt.show()
+    plt.close()
+
+
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
@@ -1578,16 +2091,31 @@ if __name__ == "__main__":
     ntf = pic_info.ntf
     # combine_shock_files(ntf)
     # ct = ntf - 2
-    ct = 302
+    ct = 270
     cts = range(ntf - 1)
     shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
-    def processInput(ct):
+    xmin, xmax = 0, 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/vex.gda'
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
+    xm = x[shock_loc[ct]]
+    def processInput(ct, species):
         print ct
-        plot_number_density(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
+        xm = x[shock_loc[ct]]
+        # plot_number_density(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
         # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
         # shock_pos = locate_shock(pic_info, ct, run_name, base_dir)
+        # plot_electric_field(pic_info, ct, run_name, xm, base_dir)
+        # plot_magnetic_field(pic_info, ct, run_name, xm, base_dir)
+        plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir)
     num_cores = multiprocessing.cpu_count()
-    # Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    Parallel(n_jobs=num_cores)(delayed(processInput)(ct, 'e') for ct in cts)
+    Parallel(n_jobs=num_cores)(delayed(processInput)(ct, 'i') for ct in cts)
     # plot_number_density(pic_info, 'e', ct, run_name, shock_loc[ct], base_dir)
     # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
-    plot_electric_field(pic_info, ct, run_name, shock_loc[ct], base_dir)
+    # plot_electric_field(pic_info, ct, run_name, shock_loc[ct], base_dir)
+    # plot_pressure(pic_info, 'e', ct, run_name, xm, base_dir)
+    # plot_electric_field(pic_info, ct, run_name, xm, base_dir)
+    # plot_magnetic_field(pic_info, ct, run_name, xm, base_dir)
+    plot_velocity_field(pic_info, 'i', ct, run_name, xm, base_dir)
