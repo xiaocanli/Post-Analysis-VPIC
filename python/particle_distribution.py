@@ -305,7 +305,7 @@ def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
         pmax = 4.0
     else:
         ptl_mass = pic_info.mime
-        pmax = 30.0
+        pmax = 40.0
     for ix in range(mpi_ranks[0, 0], mpi_ranks[0, 1]+1):
         for iy in range(mpi_ranks[1, 0], mpi_ranks[1, 1]+1):
             for iz in range(mpi_ranks[2, 0], mpi_ranks[2, 1]+1):
@@ -776,7 +776,8 @@ def traj_sigma1():
     plot_ptl_vdist('e', pic_info, base_directory)
 
 
-def plot_particle_phase_distribution(pic_info, ct, base_dir, run_name, species):
+def plot_particle_phase_distribution(pic_info, ct, base_dir, run_name, species,
+                                     shock_pos):
     """
     """
     particle_interval = pic_info.particle_interval
@@ -786,20 +787,22 @@ def plot_particle_phase_distribution(pic_info, ct, base_dir, run_name, species):
     xmin, xmax = 0, 105
     zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
     kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data/vex.gda'
+    fname = base_dir + 'data1/vex.gda'
     x, z, vel = read_2d_fields(pic_info, fname, **kwargs) 
-    nx, = x.shape
-    nz, = z.shape
-    data_cum = np.sum(vel, axis=0) / nz
-    data_grad = np.abs(np.gradient(data_cum))
-    xs = 5
-    max_index = np.argmax(data_grad[xs:])
-    xm = x[max_index]
+    # nx, = x.shape
+    # nz, = z.shape
+    # data_cum = np.sum(vel, axis=0) / nz
+    # data_grad = np.abs(np.gradient(data_cum))
+    # xs = 5
+    # max_index = np.argmax(data_grad[xs:])
+    # xm = x[max_index]
+    xm = x[shock_pos]
+    max_index = shock_pos
 
     pos = [xm/2, 0.0, 0.0]
     nxc = max_index
-    # csizes = [max_index, pic_info.ny, pic_info.nz]
-    csizes = [max_index/4, pic_info.ny, pic_info.nz/4]
+    csizes = [max_index, pic_info.ny, pic_info.nz]
+    # csizes = [max_index/4, pic_info.ny, pic_info.nz/4]
     corners, mpi_ranks = set_mpi_ranks(pic_info, pos, sizes=csizes)
 
     get_phase_distribution(base_dir, pic_info, species, ptl_tindex, corners,
@@ -824,13 +827,14 @@ if __name__ == "__main__":
 
     ct = 370
     cts = range(10, pic_info.ntf - 1, tratio)
+    shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
     def processInput(ct):
         print ct
         plot_particle_phase_distribution(pic_info, ct, base_dir,
-                run_name, 'electron')
+                run_name, 'electron', shock_loc[ct])
         plot_particle_phase_distribution(pic_info, ct, base_dir,
-                run_name, 'ion')
+                run_name, 'ion', shock_loc[ct])
     num_cores = multiprocessing.cpu_count()
     Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
     # plot_particle_phase_distribution(pic_info, ct, base_dir,
-    #         run_name, 'ion')
+    #         run_name, 'electron', shock_loc[ct])
