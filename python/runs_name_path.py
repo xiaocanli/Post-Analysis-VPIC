@@ -64,5 +64,15 @@ def high_sigma_runs():
     return (base_dirs, run_names)
 
 
+def shock_sheet_runs():
+    base_dirs = []
+    fname = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
+    base_dirs.append(fname)
+    run_names = []
+    run_names.append('2D-90-Mach4-sheet4-multi')
+
+    return (base_dirs, run_names)
+
+
 if __name__ == "__main__":
     ApJ_long_paper_runs()

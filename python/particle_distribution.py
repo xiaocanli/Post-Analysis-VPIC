@@ -22,6 +22,11 @@ import colormap.colormaps as cmaps
 import subprocess
 from spectrum_fitting import get_energy_distribution
 from mpi4py import MPI
+from energy_conversion import read_data_from_json
+from contour_plots import read_2d_fields, plot_2d_contour
+from shell_functions import mkdir_p
+import multiprocessing
+from joblib import Parallel, delayed
 # import particle_spectrum_vdist as psv
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
@@ -122,7 +127,8 @@ def read_particle_data(fname):
     return (v0, pheader, data)
 
 
-def calc_velocity_distribution(v0, pheader, ptl, pic_info, corners, nbins):
+def calc_velocity_distribution(v0, pheader, ptl, pic_info, corners,
+                               nbins, ptl_mass=1, pmax=1.0):
     """Calculate particle velocity distribution
 
     Args:
@@ -136,9 +142,9 @@ def calc_velocity_distribution(v0, pheader, ptl, pic_info, corners, nbins):
     dy = ptl['dxyz'][:, 1]
     dz = ptl['dxyz'][:, 2]
     icell = ptl['icell']
-    ux = ptl['u'][:, 0]
-    uy = ptl['u'][:, 1]
-    uz = ptl['u'][:, 2]
+    ux = ptl['u'][:, 0] * ptl_mass
+    uy = ptl['u'][:, 1] * ptl_mass
+    uz = ptl['u'][:, 2] * ptl_mass
 
     nx = v0.nx + 2
     ny = v0.ny + 2
@@ -163,29 +169,36 @@ def calc_velocity_distribution(v0, pheader, ptl, pic_info, corners, nbins):
     ux_d = ux[mask]
     uy_d = uy[mask]
     uz_d = uz[mask]
+    
+    # Assumes that magnetic field is along the z-direction
+    upara = uz_d
+    uperp = np.sqrt(ux_d*ux_d + uy_d*uy_d)
 
-    range = [[-1.0, 1.0], [-1.0, 1.0]]
+    drange = [[-pmax, pmax], [-pmax, pmax]]
     hist_xy, xedges, yedges = np.histogram2d(uy_d, ux_d, 
-            bins=nbins, range=range)
+            bins=nbins, range=drange)
     hist_xz, xedges, yedges = np.histogram2d(uz_d, ux_d, 
-            bins=nbins, range=range)
+            bins=nbins, range=drange)
     hist_yz, xedges, yedges = np.histogram2d(uz_d, uy_d, 
-            bins=nbins, range=range)
+            bins=nbins, range=drange)
+    drange = [[-pmax, pmax], [0, pmax]]
+    hist_para_perp, upara_edges, uperp_edges = np.histogram2d(upara, uperp, 
+            bins=[nbins, nbins/2], range=drange)
 
-    return (hist_xy, hist_xz, hist_yz, xedges, yedges)
+    return (hist_xy, hist_xz, hist_yz, hist_para_perp, xedges, yedges,
+            upara_edges, uperp_edges)
 
 
-def get_particle_distribution(base_directory, tindex, corners, mpi_ranks):
+def get_particle_distribution(base_dir, pic_info, tindex, corners, mpi_ranks):
     """Read particle information.
 
     Args:
-        base_directory: the base directory for the simulation data.
+        base_dir: the base directory for the simulation data.
         tindex: the time index.
         corners: the corners of the box in di.
         mpi_ranks: PIC simulation MPI ranks for a selected region.
     """
-    pic_info = pic_information.get_pic_info(base_directory)
-    dir_name = base_directory + 'particle/T.' + str(tindex) + '/'
+    dir_name = base_dir + 'particle/T.' + str(tindex) + '/'
     fbase = dir_name + 'eparticle' + '.' + str(tindex) + '.'
     tx = pic_info.topology_x
     ty = pic_info.topology_y
@@ -201,12 +214,12 @@ def get_particle_distribution(base_directory, tindex, corners, mpi_ranks):
                 mpi_rank = ix + iy*tx + iz*tx*ty
                 fname = fbase + str(mpi_rank)
                 (v0, pheader, data) = read_particle_data(fname)
-                (vhist_xy, vhist_xz, vhist_yz, x, y) = \
-                        calc_velocity_distribution(v0, pheader,
-                        data, pic_info, corners, nbins)
-                hist_xy += vhist_xy
-                hist_xz += vhist_xz
-                hist_yz += vhist_yz
+                # (vhist_xy, vhist_xz, vhist_yz, x, y) = \
+                #         calc_velocity_distribution(v0, pheader,
+                #         data, pic_info, corners, nbins)
+                # hist_xy += vhist_xy
+                # hist_xz += vhist_xz
+                # hist_yz += vhist_yz
     # uold = np.linspace(-1.0, 1.0, 64)
     # u1, u2 = np.meshgrid(uold, uold)
     # ng = 3
@@ -266,7 +279,73 @@ def get_particle_distribution(base_directory, tindex, corners, mpi_ranks):
     # plt.show()
 
 
-def set_mpi_ranks(pic_info, center=np.zeros(3), sizes=np.ones(3)*400):
+def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
+                           mpi_ranks):
+    """Read particle information.
+
+    Args:
+        base_dir: the base directory for the simulation data.
+        tindex: the time index.
+        corners: the corners of the box in di.
+        mpi_ranks: PIC simulation MPI ranks for a selected region.
+    """
+    dir_name = base_dir + 'particles/T.' + str(tindex) + '/'
+    fbase = dir_name + species + '.' + str(tindex) + '.'
+    tx = pic_info.topology_x
+    ty = pic_info.topology_y
+    tz = pic_info.topology_z
+    nbins = 128
+    hist_xy = np.zeros((nbins, nbins))
+    hist_xz = np.zeros((nbins, nbins))
+    hist_yz = np.zeros((nbins, nbins))
+    hist_para_perp = np.zeros((nbins, nbins/2))
+    mpi_ranks = np.asarray(mpi_ranks)
+    if species == 'electron':
+        ptl_mass = 1
+        pmax = 4.0
+    else:
+        ptl_mass = pic_info.mime
+        pmax = 40.0
+    for ix in range(mpi_ranks[0, 0], mpi_ranks[0, 1]+1):
+        for iy in range(mpi_ranks[1, 0], mpi_ranks[1, 1]+1):
+            for iz in range(mpi_ranks[2, 0], mpi_ranks[2, 1]+1):
+                mpi_rank = ix + iy*tx + iz*tx*ty
+                fname = fbase + str(mpi_rank)
+                (v0, pheader, data) = read_particle_data(fname)
+                (vhist_xy, vhist_xz, vhist_yz, vhist_para_perp, x, y, upara,
+                        uperp) = calc_velocity_distribution(v0, pheader,
+                                data, pic_info, corners, nbins, ptl_mass, pmax)
+                hist_xy += vhist_xy
+                hist_xz += vhist_xz
+                hist_yz += vhist_yz
+                hist_para_perp += vhist_para_perp
+
+    du = upara[1] - upara[0]
+
+    hist_para_perp /= np.sum(hist_para_perp) * du
+    if species is 'ion':
+        vmin, vmax = 1E-6, 1E-1
+    else:
+        vmin, vmax = 1E-6, 1E-1
+    xs, ys = 0.09, 0.15
+    w1, h1 = 0.8, 0.8
+    gap = 0.08
+    fig = plt.figure(figsize=(8, 4))
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p1 = ax1.imshow(hist_para_perp.T, cmap=plt.cm.jet,
+            extent=[np.min(upara), np.max(upara), np.min(uperp), np.max(uperp)],
+            aspect='auto', origin='lower', norm=LogNorm(vmin=vmin, vmax=vmax))
+    xs1 = xs + w1 + 0.02
+    cax = fig.add_axes([xs1, ys, 0.02, h1])
+    cbar = fig.colorbar(p1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$p_\parallel$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$p_\perp$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    # plt.show()
+
+
+def set_mpi_ranks(pic_info, center=np.zeros(3), sizes=[400, 400, 400]):
     """Set MPI ranks for getting particle data
 
     Args:
@@ -289,6 +368,7 @@ def set_mpi_ranks(pic_info, center=np.zeros(3), sizes=np.ones(3)*400):
     dx_di = pic_info.dx_di
     dy_di = pic_info.dy_di
     dz_di = pic_info.dz_di
+    sizes = np.asarray(sizes)
     hsize = sizes / 2.0
     xs = center[0] - hsize[0] * dx_di
     xe = center[0] + hsize[0] * dx_di
@@ -664,7 +744,9 @@ def plot_ptl_vdist(species, pic_info, base_directory):
     plt.show()
 
 
-if __name__ == "__main__":
+def traj_sigma1():
+    """
+    """
     # base_directory = '../../'
     base_directory = '/net/scratch2/guofan/sigma1-mime25-beta001/'
     pic_info = pic_information.get_pic_info(base_directory)
@@ -674,7 +756,7 @@ if __name__ == "__main__":
     pos = [pic_info.lx_di/10, 0.0, 2.0]
     corners, mpi_ranks = set_mpi_ranks(pic_info, pos)
     ct = 5 * particle_interval
-    # get_particle_distribution(base_directory, ct, corners, mpi_ranks)
+    get_particle_distribution(base_directory, pic_info, ct, corners, mpi_ranks)
     smime = math.sqrt(pic_info.mime)
     lx_de = pic_info.lx_di * smime
     center = [0.5*lx_de, 0, 0]
@@ -692,3 +774,67 @@ if __name__ == "__main__":
     fname_ene = 'spectrum-' + species + '.' + str(ct)
     fene = read_energy_distribution('e', ct, pic_info, fname_ene, fpath)
     plot_ptl_vdist('e', pic_info, base_directory)
+
+
+def plot_particle_phase_distribution(pic_info, ct, base_dir, run_name, species,
+                                     shock_pos):
+    """
+    """
+    particle_interval = pic_info.particle_interval
+    tratio = particle_interval / pic_info.fields_interval
+    ptl_tindex = ct * particle_interval / tratio
+    xmin, xmax = 0, pic_info.lx_di
+    xmin, xmax = 0, 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/vex.gda'
+    x, z, vel = read_2d_fields(pic_info, fname, **kwargs) 
+    # nx, = x.shape
+    # nz, = z.shape
+    # data_cum = np.sum(vel, axis=0) / nz
+    # data_grad = np.abs(np.gradient(data_cum))
+    # xs = 5
+    # max_index = np.argmax(data_grad[xs:])
+    # xm = x[max_index]
+    xm = x[shock_pos]
+    max_index = shock_pos
+
+    pos = [xm/2, 0.0, 0.0]
+    nxc = max_index
+    csizes = [max_index, pic_info.ny, pic_info.nz]
+    # csizes = [max_index/4, pic_info.ny, pic_info.nz/4]
+    corners, mpi_ranks = set_mpi_ranks(pic_info, pos, sizes=csizes)
+
+    get_phase_distribution(base_dir, pic_info, species, ptl_tindex, corners,
+                           mpi_ranks)
+
+    fig_dir = '../img/img_phase_distribution/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/vdist_para_perp_' + species + '_' + str(ct).zfill(3) + '.jpg'
+    plt.savefig(fname, dpi=300)
+
+    # plt.show()
+    plt.close()
+
+
+if __name__ == "__main__":
+    # traj_sigma1()
+    base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
+    run_name = '2D-90-Mach4-sheet4-multi'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    tratio = pic_info.particle_interval / pic_info.fields_interval
+
+    ct = 370
+    cts = range(10, pic_info.ntf - 1, tratio)
+    shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
+    def processInput(ct):
+        print ct
+        plot_particle_phase_distribution(pic_info, ct, base_dir,
+                run_name, 'electron', shock_loc[ct])
+        plot_particle_phase_distribution(pic_info, ct, base_dir,
+                run_name, 'ion', shock_loc[ct])
+    num_cores = multiprocessing.cpu_count()
+    Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    # plot_particle_phase_distribution(pic_info, ct, base_dir,
+    #         run_name, 'electron', shock_loc[ct])

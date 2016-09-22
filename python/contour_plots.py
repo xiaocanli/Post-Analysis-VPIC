@@ -22,6 +22,9 @@ import color_maps as cm
 import colormap.colormaps as cmaps
 from runs_name_path import ApJ_long_paper_runs
 from energy_conversion import read_data_from_json
+from shell_functions import mkdir_p
+from joblib import Parallel, delayed
+import multiprocessing
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -33,6 +36,7 @@ font = {'family' : 'serif',
         'weight' : 'normal',
         'size'   : 24,
         }
+mpl.rcParams['contour.negative_linestyle'] = 'solid'
 
 def read_2d_fields(pic_info, fname, current_time, xl, xr, zb, zt):
     """Read 2D fields data from file.
@@ -475,52 +479,202 @@ def plot_by(pic_info):
     plt.show()
     # plt.close()
 
-def plot_number_density(pic_info, species, current_time):
+
+def plot_number_density(pic_info, species, ct, run_name, shock_pos,
+                        base_dir='../../'):
     """Plot plasma beta and number density.
 
     Args:
         pic_info: namedtuple for the PIC simulation information.
         species: 'e' for electrons, 'i' for ions.
-        current_time: current time frame.
+        ct current time frame.
     """
-    kwargs = {"current_time":current_time, "xl":0, "xr":200, "zb":-50, "zt":50}
-    x, z, num_rho = read_2d_fields(pic_info, "../data/ne.gda", **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../data/Ay.gda", **kwargs) 
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/n' + species + '.gda'
+    x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
     nx, = x.shape
     nz, = z.shape
-    width = 0.8
-    height = 0.78
-    xs = 0.10
-    ys = 0.9 - height
-    fig = plt.figure(figsize=[16,8])
-    ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":2, "zstep":2, "is_log":True, "vmin":0.1, "vmax":10}
+    nrho_cum = np.sum(num_rho, axis=0) / nz
+    xm = x[shock_pos]
+
+    w1, h1 = 0.7, 0.52
+    xs, ys = 0.15, 0.94 - h1
+    gap = 0.05
+
+    width, height = 10, 12
+    fig = plt.figure(figsize=[10,12])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    # kwargs_plot = {"xstep":2, "zstep":2, "is_log":True, "vmin":0.1, "vmax":10}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":0.5, "vmax":5}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, num_rho, ax1, fig, **kwargs_plot)
-    p1.set_cmap(plt.cm.seismic)
+    p1.set_cmap(plt.cm.jet)
+    nlevels = 15
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
     ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
-    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=32)
-    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=32)
-    ax1.tick_params(labelsize=32)
-    cbar1.ax.set_ylabel(r'$n_e$', fontdict=font, fontsize=32)
-    cbar1.ax.tick_params(labelsize=32)
-    
-    t_wci = current_time*pic_info.dt_fields
-    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
-    ax1.set_title(title, fontdict=font, fontsize=32)
+            colors='black', linewidths=0.5, levels=levels)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    lname = r'$n_' + species + '$'
+    cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=24)
+    cbar1.ax.tick_params(labelsize=24)
 
-    if not os.path.isdir('../img/'):
-        os.makedirs('../img/')
-    if not os.path.isdir('../img/img_num_rho/'):
-        os.makedirs('../img/img_num_rho/')
-    fname = '../img/img_num_rho/num_rho_' + species + '_' + \
-            str(current_time).zfill(3) + '.jpg'
+    ax1.plot([xm, xm], [zmin, zmax], color='white', linestyle='--')
+    
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    h2 = 0.3
+    ys -= gap + h2
+    w2 = w1 * 0.98 - 0.05 / width
+    ax2 = fig.add_axes([xs, ys, w2, h2])
+    ax2.plot(x, nrho_cum, linewidth=2, color='k')
+    ax2.set_xlim([xmin, xmax])
+    ax2.set_ylim([0.5, 4.5])
+    ax2.plot([xm, xm], ax2.get_ylim(), color='k', linestyle='--')
+    ax2.tick_params(labelsize=24)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+
+    fig_dir = '../img/img_number_densities/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/nrho_linear_' + species + '_' + str(ct).zfill(3) + '.jpg'
     fig.savefig(fname)
 
+    # plt.show()
+    plt.close()
+
+
+def plot_vx(pic_info, species, ct, run_name, shock_pos, base_dir='../../'):
+    """Plot vx
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/v' + species + 'x.gda'
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    vx_cum = np.sum(vx, axis=0) / nz
+    vx_grad = np.abs(np.gradient(vx_cum))
+    xm = x[shock_pos]
+
+    w1, h1 = 0.7, 0.52
+    xs, ys = 0.15, 0.94 - h1
+    gap = 0.05
+
+    width, height = 10, 12
+    fig = plt.figure(figsize=[10,12])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-0.1, "vmax":0.1}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, vx, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.jet)
+    nlevels = 20
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    lname = r'$v_{' + species + 'x}$'
+    cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=24)
+    cbar1.ax.tick_params(labelsize=24)
+
+    ax1.plot([xm, xm], [zmin, zmax], color='k', linestyle='--')
+    
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    h2 = 0.3
+    ys -= gap + h2
+    w2 = w1 * 0.98 - 0.05 / width
+    ax2 = fig.add_axes([xs, ys, w2, h2])
+    ax2.plot(x, vx_cum, linewidth=2, color='k')
+    ax2.set_xlim([xmin, xmax])
+    ax2.set_ylim([-0.25, 0.10])
+    ax2.plot([xm, xm], ax2.get_ylim(), color='k', linestyle='--')
+    ax2.tick_params(labelsize=24)
+    ax2.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+
+    fig_dir = '../img/img_velocity/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/v' + species + 'x_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname)
+
+    # plt.show()
+    plt.close()
+
+
+def plot_electric_field(pic_info, ct, run_name, shock_pos, base_dir='../../'):
+    """Plot electric field
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/ex.gda'
+    x, z, efield = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    xm = x[shock_pos]
+
+    w1, h1 = 0.85, 0.85
+    xs, ys = 0.1, 0.95 - h1
+    gap = 0.05
+
+    width, height = 14, 10
+    fig = plt.figure(figsize=[width, height])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-0.2, "vmax":0.2}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, efield, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.seismic)
+    nlevels = 15
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+            colors='black', linewidths=0.5, levels=levels)
+    ax1.plot([xm, xm], [z[0], z[-1]], color='black', linestyle='--', linewidth=2)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
+    ax1.tick_params(labelsize=24)
+    # lname = r'$n_' + species + '$'
+    # cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=24)
+    # cbar1.ax.tick_params(labelsize=24)
+
+    fig_dir = '../img/img_number_densities/' + run_name + '/'
+    mkdir_p(fig_dir)
+    # fname = fig_dir + '/nrho_linear_' + species + '_' + str(ct).zfill(3) + '.jpg'
+    # fig.savefig(fname)
+
     plt.show()
-    #plt.close()
+    # plt.close()
 
 
 def get_anisotropy_data(pic_info, species, ct, rootpath='../../'):
@@ -1320,16 +1474,78 @@ def plot_uy(pic_info, current_time):
     # plt.close()
 
 
+def locate_shock(pic_info, ct, run_name, base_dir='../../'):
+    """Locate the location of shocks
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct current time frame.
+    """
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/ne.gda'
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/ni.gda'
+    x, z, ni = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/vex.gda'
+    x, z, vex = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/vix.gda'
+    x, z, vix = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = base_dir + 'data1/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    xs = 0
+    ne_cum = np.sum(ne, axis=0) / nz
+    ne_grad = np.abs(np.gradient(ne_cum))
+    max_index1 = np.argmax(ne_grad[xs:])
+    ni_cum = np.sum(ni, axis=0) / nz
+    ni_grad = np.abs(np.gradient(ni_cum))
+    max_index2 = np.argmax(ni_grad[xs:])
+    vex_cum = np.sum(vex, axis=0) / nz
+    vex_grad = np.abs(np.gradient(vex_cum))
+    max_index3 = np.argmax(vex_grad[xs:])
+    vix_cum = np.sum(vix, axis=0) / nz
+    vix_grad = np.abs(np.gradient(vix_cum))
+    max_index4 = np.argmax(vix_grad[xs:])
+    max_indices = [max_index1, max_index2, max_index3, max_index4]
+    fdir = '../data/shock_pos/'
+    mkdir_p(fdir)
+    fname = fdir + 'shock_pos_' + str(ct) + '.txt'
+    np.savetxt(fname, [max(max_indices)])
+
+
+def combine_shock_files(ntf):
+    """Combine all shock location files at different time frame
+
+    The shock position is saved in different file because Parallel
+    in joblib cannot shock one global array
+    
+    """
+    fdir = '../data/shock_pos/'
+    shock_loc = np.zeros(ntf - 1)
+    for ct in range(ntf - 1):
+        print ct
+        fname = fdir + 'shock_pos_' + str(ct) + '.txt'
+        shock_loc[ct] = np.genfromtxt(fname)
+    shock_loc[0] = 0
+    # plt.plot(shock_loc)
+    # plt.show()
+    fname = fdir + 'shock_pos.txt'
+    np.savetxt(fname, shock_loc, fmt='%d')
+
+
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
     # plot_beta_rho(pic_info)
     # plot_jdote_2d(pic_info)
     # plot_anistropy(pic_info, 'e')
-    plot_phi_parallel(29, pic_info)
-    # maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
-    # nmaps = len(maps) + 1
-    # print nmaps
+    # plot_phi_parallel(29, pic_info)
+    # maps = sorted(m for m in plt.cm.datad if not m.endswith("_r")) # nmaps = len(maps) + 1 # print nmaps
     # for i in range(200):
     #     # plot_number_density(pic_info, 'e', i)
     #     # plot_jy(pic_info, 'e', i)
@@ -1340,7 +1556,7 @@ if __name__ == "__main__":
     # for i in range(90, 170, 10):
     #     plot_absB_jy(pic_info, 'e', i)
     # plot_by(pic_info)
-    plot_by_multi()
+    # plot_by_multi()
     # plot_ux(pic_info, 'e', 160)
     # plot_uy(pic_info, 160)
     # plot_diff_fields(pic_info, 'e', 120)
@@ -1355,3 +1571,23 @@ if __name__ == "__main__":
     # plot_jpolar_dote(pic_info, 'e', 30)
     # plot_epara(pic_info, 'e', 35)
     # plot_anisotropy_multi('e')
+    base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
+    run_name = '2D-90-Mach4-sheet4-multi'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    ntf = pic_info.ntf
+    # combine_shock_files(ntf)
+    # ct = ntf - 2
+    ct = 302
+    cts = range(ntf - 1)
+    shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
+    def processInput(ct):
+        print ct
+        plot_number_density(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
+        # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
+        # shock_pos = locate_shock(pic_info, ct, run_name, base_dir)
+    num_cores = multiprocessing.cpu_count()
+    # Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    # plot_number_density(pic_info, 'e', ct, run_name, shock_loc[ct], base_dir)
+    # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
+    plot_electric_field(pic_info, ct, run_name, shock_loc[ct], base_dir)
