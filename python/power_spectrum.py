@@ -32,7 +32,7 @@ font = {'family' : 'serif',
         }
 
 
-def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
+def calc_power_spectrum(pic_info, ct, run_name, shock_pos, base_dir='../../'):
     """Plot plasma beta and number density.
 
     Args:
@@ -47,11 +47,12 @@ def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
     x, z, vel = read_2d_fields(pic_info, fname, **kwargs) 
     nx, = x.shape
     nz, = z.shape
-    data_cum = np.sum(vel, axis=0) / nz
-    data_grad = np.abs(np.gradient(data_cum))
-    xs = 5
-    max_index = np.argmax(data_grad[xs:])
-    xm = x[max_index]
+    # data_cum = np.sum(vel, axis=0) / nz
+    # data_grad = np.abs(np.gradient(data_cum))
+    # xs = 5
+    # max_index = np.argmax(data_grad[xs:])
+    # xm = x[max_index]
+    xm = x[shock_pos]
 
     xmin, xmax = 0, xm
     fname = base_dir + 'data1/bx.gda'
@@ -80,17 +81,17 @@ def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
     ks = np.sqrt(kxs*kxs + kzs*kzs)
     kmin, kmax = np.min(ks), np.max(ks)
     kbins = np.linspace(kmin, kmax, nx//2+1, endpoint=True)
-    ps, kbins_edges = np.histogram(ks, bins=kbins, weights=b2_k, normed=True)
+    ps, kbins_edges = np.histogram(ks, bins=kbins, weights=b2_k*ks, normed=True)
     w1, h1 = 0.8, 0.8
     xs, ys = 0.15, 0.95 - h1
     fig = plt.figure(figsize=[7, 5])
     ax1 = fig.add_axes([xs, ys, w1, h1])
     ax1.loglog(kbins_edges[:-1], ps, linewidth=2)
     psm = np.argmax(ps)
-    pindex = -3.0
-    power_k = kbins[psm:]**-3.0
+    pindex = -2.0
+    power_k = kbins[psm:]**pindex
     shift = 400
-    ax1.loglog(kbins[psm:psm+shift], power_k[:shift]*5.0E2/power_k[0],
+    ax1.loglog(kbins[psm:psm+shift], power_k[:shift]*2.0E1/power_k[0],
             linestyle='--', linewidth=2, color='k')
     power_index = "{%0.1f}" % pindex
     tname = r'$\sim k^{' + power_index + '}$'
@@ -100,8 +101,8 @@ def calc_power_spectrum(pic_info, ct, run_name, base_dir='../../'):
     ax1.tick_params(labelsize=16)
     ax1.set_xlabel(r'$kd_i$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$E_B(k)$', fontdict=font, fontsize=20)
-    ax1.set_ylim([1E-2, 3E1])
-    ax1.set_ylim([1E-7, 1E3])
+    ax1.set_xlim([1E-2, 3E1])
+    ax1.set_ylim([1E-3, 3E1])
 
     fig_dir = '../img/img_power_spectrum/' + run_name + '/'
     mkdir_p(fig_dir)
@@ -118,10 +119,11 @@ if __name__ == "__main__":
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct = pic_info.ntf - 2
-    # calc_power_spectrum(pic_info, ct, run_name, base_dir)
     cts = range(10, pic_info.ntf - 1)
+    shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
     def processInput(ct):
         print ct
-        calc_power_spectrum(pic_info, ct, run_name, base_dir)
+        calc_power_spectrum(pic_info, ct, run_name, shock_loc[ct], base_dir)
     num_cores = multiprocessing.cpu_count()
     Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    # calc_power_spectrum(pic_info, ct, run_name, base_dir)
