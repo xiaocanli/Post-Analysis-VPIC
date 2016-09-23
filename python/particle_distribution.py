@@ -281,7 +281,7 @@ def get_particle_distribution(base_dir, pic_info, tindex, corners, mpi_ranks):
 
 def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
                            mpi_ranks):
-    """Read particle information.
+    """Get particle phase space distributions
 
     Args:
         base_dir: the base directory for the simulation data.
@@ -817,6 +817,102 @@ def plot_particle_phase_distribution(pic_info, ct, base_dir, run_name, species,
     plt.close()
 
 
+def get_particle_spectrum_rank(base_dir, pic_info, species, ct, ix):
+    """Get particle spectrum for different mpi_rank
+
+    Args:
+        base_dir: the base directory for the simulation data.
+        pic_info: PIC simulation information
+        species: particle species
+        ct: hydro fields time frame index
+        ix: x index of mpi_rank
+    """
+    particle_interval = pic_info.particle_interval
+    tratio = particle_interval / pic_info.fields_interval
+    tindex = ct * particle_interval / tratio
+    dir_name = base_dir + 'particles/T.' + str(tindex) + '/'
+    fbase = dir_name + species + '.' + str(tindex) + '.'
+    tx = pic_info.topology_x
+    ty = pic_info.topology_y
+    tz = pic_info.topology_z
+    nbins = 601
+    emin, emax = 1E-4, 1E2
+    emin_log, emax_log = math.log10(emin), math.log10(emax)
+    espectrum = np.zeros(nbins-1)
+    ene_bins = 10**np.linspace(emin_log, emax_log, nbins)
+    if species == 'electron':
+        ptl_mass = 1
+    else:
+        ptl_mass = pic_info.mime
+    for iy in range(ty):
+        for iz in range(tz):
+            mpi_rank = ix + iy*tx + iz*tx*ty
+            fname = fbase + str(mpi_rank)
+            (v0, pheader, ptl) = read_particle_data(fname)
+            gama = np.sqrt(np.sum(ptl['u']**2, axis=1) + 1)
+            hist, ebins_edge = np.histogram((gama - 1)*ptl_mass, bins=ene_bins)
+            espectrum += hist
+
+    ene_interval = np.diff(ene_bins)
+    espectrum /= ene_interval
+    spect_data = np.vstack((ene_bins[:-1], espectrum))
+    fname = dir_name + species + '_spect.' + str(tindex) + '.' + str(ix)
+    spect_data.tofile(fname)
+
+    # plt.loglog(ene_bins[:-1], espectrum/ene_interval)
+    # plt.show()
+
+
+def plot_particle_spectrum_rank(base_dir, pic_info, species, ct, xshock):
+    """Plot particle spectrum for different mpi_rank
+
+    Args:
+        base_dir: the base directory for the simulation data.
+        pic_info: PIC simulation information
+        species: particle species
+        ct: hydro fields time frame index
+        xshock: x position of the shock
+    """
+    particle_interval = pic_info.particle_interval
+    tratio = particle_interval / pic_info.fields_interval
+    tindex = ct * particle_interval / tratio
+    dir_name = base_dir + 'particles/T.' + str(tindex) + '/'
+    fbase = dir_name + species + '.' + str(tindex) + '.'
+    tx = pic_info.topology_x
+    lx = pic_info.lx_di
+    dx_mpi = lx / tx
+
+    # Decide the maximum ix to plot using the shock location
+    ix_max = int((xshock) / dx_mpi) # shift 10 di
+
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=(7, 5))
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    fname_pre = dir_name + species + '_spect.' + str(tindex)
+    fname =  fname_pre + '.0'
+    spect_data = np.fromfile(fname)
+    sz, = spect_data.shape
+    nbins = sz/2
+    espectrum_tot = np.zeros(nbins)
+    cmap = plt.cm.jet
+    print 'shock position ', ix_max
+    for ix in range(ix_max):
+        print ix
+        fname = fname_pre + '.' + str(ix)
+        spect_data = np.fromfile(fname)
+        espectrum_tot += spect_data[nbins:]
+        ax1.loglog(spect_data[:sz/2], spect_data[sz/2:],
+                color=cmap(1-ix/float(ix_max), 1), linewidth=3)
+
+    # ax1.loglog(spect_data[:nbins], espectrum_tot)
+    ax1.set_xlim([1E-3, 30])
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$\varepsilon$', fontsize=20)
+    ax1.set_ylabel(r'$dN/d\varepsilon$', fontsize=20)
+    plt.show()
+
+
 if __name__ == "__main__":
     # traj_sigma1()
     base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
@@ -827,14 +923,25 @@ if __name__ == "__main__":
 
     ct = 370
     cts = range(10, pic_info.ntf - 1, tratio)
+    ixs = range(pic_info.topology_x)
     shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
-    def processInput(ct):
-        print ct
-        plot_particle_phase_distribution(pic_info, ct, base_dir,
-                run_name, 'electron', shock_loc[ct])
-        plot_particle_phase_distribution(pic_info, ct, base_dir,
-                run_name, 'ion', shock_loc[ct])
+    xmin, xmax = 0, 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fname = base_dir + 'data1/vex.gda'
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs) 
+    xm = x[shock_loc[ct]]
+    def processInput(job_id):
+        print job_id
+        # plot_particle_phase_distribution(pic_info, ct, base_dir,
+        #         run_name, 'electron', shock_loc[job_id)
+        # plot_particle_phase_distribution(pic_info, ct, base_dir,
+        #         run_name, 'ion', shock_loc[job_id])
+        get_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, job_id)
     num_cores = multiprocessing.cpu_count()
-    Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    # Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
     # plot_particle_phase_distribution(pic_info, ct, base_dir,
     #         run_name, 'electron', shock_loc[ct])
+    # Parallel(n_jobs=num_cores)(delayed(processInput)(ix) for ix in ixs)
+    # get_particle_spectrum_rank(base_dir, pic_info, 'electron', ct, 30)
+    plot_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, xm)
