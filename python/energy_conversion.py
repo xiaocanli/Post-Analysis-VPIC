@@ -17,7 +17,7 @@ import pic_information
 from pic_information import list_pic_info_dir
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
-from runs_name_path import ApJ_long_paper_runs, guide_field_runs
+from runs_name_path import *
 from scipy.interpolate import interp1d
 import palettable
 import re
@@ -204,15 +204,15 @@ def plot_particle_energy_gain():
             rotation=0, fontsize=16)
     plt.show()
 
-def read_jdote_data(species, rootpath='../../', is_inductive=False):
+def read_jdote_data(species, pic_info, rootpath='../../', is_inductive=False):
     """Read j.E data.
 
     Args:
         species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: PIC simulation information
         rootpath: rootpath of this run
         fpath_jdote: filepath of the jdote file.
     """
-    pic_info = pic_information.get_pic_info(rootpath)
     ntf = pic_info.ntf
     dt_fields = pic_info.dt_fields
     dtf_wpe = dt_fields * pic_info.dtwpe / pic_info.dtwci
@@ -543,10 +543,10 @@ def plot_jtot_dote():
     tfields = pic_info.tfields
     tenergy = pic_info.tenergy
 
-    jdote = read_jdote_data('e')
+    jdote = read_jdote_data(pic_info, 'e')
     jtot_dote = jdote.jqnupara_dote + jdote.jqnuperp_dote
     jtot_dote_int = jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
-    # jdote = read_jdote_data('i')
+    # jdote = read_jdote_data(pic_info, 'i')
     # jtot_dote += jdote.jqnupara_dote + jdote.jqnuperp_dote
     # jtot_dote_int += jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
 
@@ -678,13 +678,16 @@ def save_jdote_json(species, is_inductive=False):
         os.makedirs(dir)
 
     # base_dirs, run_names = ApJ_long_paper_runs()
-    base_dirs, run_names = guide_field_runs()
+    # base_dirs, run_names = guide_field_runs()
+    base_dirs, run_names = shock_sheet_runs()
     for base_dir, run_name in zip(base_dirs, run_names):
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
         if is_inductive:
-            jdote = read_jdote_data(species, base_dir, is_inductive)
+            jdote = read_jdote_data(species, pic_info, base_dir, is_inductive)
             fname = dir + 'jdote_in_' + run_name + '_' + species + '.json'
         else:
-            jdote = read_jdote_data(species, base_dir)
+            jdote = read_jdote_data(species, pic_info, base_dir)
             fname = dir + 'jdote_' + run_name + '_' + species + '.json'
         jdote_json = data_to_json(jdote)
         with open(fname, 'w') as f:
@@ -1179,20 +1182,20 @@ def plot_jpara_jperp_dotein_multi():
 if __name__ == "__main__":
     # species = 'e'
     # base_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
-    base_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
-    pic_info = pic_information.get_pic_info(base_dir)
-    # jdote = read_jdote_data(species)
-    # jdote_e = read_jdote_data('e')
-    # jdote_i = read_jdote_data('i')
-    plot_energy_evolution(pic_info)
+    # base_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
+    # pic_info = pic_information.get_pic_info(base_dir)
+    # jdote = read_jdote_data(pic_info, species)
+    # jdote_e = read_jdote_data(pic_info, 'e')
+    # jdote_i = read_jdote_data(pic_info, 'i')
+    # plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
     # plot_jdotes_evolution(pic_info, jdote, species)
     # plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
-    # save_jdote_json('e')
-    # save_jdote_json('i')
+    save_jdote_json('e')
+    save_jdote_json('i')
     # save_jdote_json('e', True)
     # save_jdote_json('i', True)
     # plot_jpara_jperp_dote_multi()
