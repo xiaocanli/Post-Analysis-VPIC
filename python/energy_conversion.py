@@ -69,7 +69,9 @@ def plot_energy_evolution(pic_info):
             label=r'$10\varepsilon_{e}$')
     # ax.set_xlim([0, np.max(tenergy)])
     ax.set_xlim([0, np.max(tenergy)])
-    ax.set_ylim([0, 1.05])
+    emax = max(np.max(ene_magnetic/enorm), np.max(kene_e/enorm),
+               np.max(kene_i/enorm))
+    ax.set_ylim([0, max(emax, 1.05)])
 
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'Energy/$\varepsilon_{b0}$', fontdict=font, fontsize=24)
@@ -341,10 +343,15 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     w1, h1 = 0.8, 0.4
     xs, ys = 0.96-w1, 0.96-h1
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    ax1.plot(tfields, jdote.jcpara_dote, lw=2, color='b')
-    ax1.plot(tfields, jdote.jgrad_dote, lw=2, color='g')
-    ax1.plot(tfields, jdote.jmag_dote, lw=2, color='r')
-    ax1.plot(tfields, jdote_tot_drifts, lw=2, color='m')
+    # Decide the maximum time frame. The original data may not be processed for
+    # all time frames.
+    sz1, = tfields.shape
+    sz2, = jdote.jcpara_dote.shape
+    mt = min(sz1, sz2)
+    ax1.plot(tfields[:mt], jdote.jcpara_dote[:mt], lw=2, color='b')
+    ax1.plot(tfields[:mt], jdote.jgrad_dote[:mt], lw=2, color='g')
+    ax1.plot(tfields[:mt], jdote.jmag_dote[:mt], lw=2, color='r')
+    ax1.plot(tfields[:mt], jdote_tot_drifts[:mt], lw=2, color='m')
     ax1.plot(tenergy, dkene, lw=2, color='k', label=kename)
     ax1.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
     ax1.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
@@ -356,10 +363,10 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     enorm = pic_info.ene_magnetic[0]
     ys -= h1 + 0.05
     ax2 = fig.add_axes([xs, ys, w1, h1])
-    ax2.plot(tfields, jdote.jcpara_dote_int/enorm, lw=2, color='b')
-    ax2.plot(tfields, jdote.jgrad_dote_int/enorm, lw=2, color='g')
-    ax2.plot(tfields, jdote.jmag_dote_int/enorm, lw=2, color='r')
-    ax2.plot(tfields, jdote_tot_drifts_int/enorm, lw=2, color='m')
+    ax2.plot(tfields[:mt], jdote.jcpara_dote_int[:mt]/enorm, lw=2, color='b')
+    ax2.plot(tfields[:mt], jdote.jgrad_dote_int[:mt]/enorm, lw=2, color='g')
+    ax2.plot(tfields[:mt], jdote.jmag_dote_int[:mt]/enorm, lw=2, color='r')
+    ax2.plot(tfields[:mt], jdote_tot_drifts_int[:mt]/enorm, lw=2, color='m')
     ax2.plot(tenergy, (kene-kene[0])/enorm, color='k', lw=2)
     ax2.plot([np.min(tenergy), np.max(tenergy)], [0,0], 'k--')
 
@@ -732,8 +739,9 @@ def plot_jdotes_evolution_multi(species):
     if not os.path.isdir(odir):
         os.makedirs(odir)
     # base_dirs, run_names = ApJ_long_paper_runs()
-    base_dirs, run_names = guide_field_runs()
-    for run_name in run_names[3:4]:
+    # base_dirs, run_names = guide_field_runs()
+    base_dirs, run_names = shock_sheet_runs()
+    for run_name in run_names:
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         jdote_fname = '../data/jdote_data/jdote_' + \
                 run_name + '_' + species + '.json'
@@ -1184,22 +1192,26 @@ if __name__ == "__main__":
     # base_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
     # base_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
     # pic_info = pic_information.get_pic_info(base_dir)
+    base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
+    run_name = '2D-90-Mach4-sheet4-multi'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     # jdote = read_jdote_data(pic_info, species)
     # jdote_e = read_jdote_data(pic_info, 'e')
     # jdote_i = read_jdote_data(pic_info, 'i')
-    # plot_energy_evolution(pic_info)
+    plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
     # plot_jdotes_evolution(pic_info, jdote, species)
     # plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
-    save_jdote_json('e')
-    save_jdote_json('i')
+    # save_jdote_json('e')
+    # save_jdote_json('i')
     # save_jdote_json('e', True)
     # save_jdote_json('i', True)
     # plot_jpara_jperp_dote_multi()
-    # plot_jdotes_evolution_multi('i')
+    # plot_jdotes_evolution_multi('e')
     # calc_jdotes_fraction_multi('i')
     # plot_jdotes_evolution_both_multi()
     # plot_jpolar_dote_evolution_both_multi()
