@@ -8,6 +8,7 @@ from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LogNorm
 from matplotlib import rc
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.collections import LineCollection
 import numpy as np
 import math
 import os.path
@@ -18,6 +19,8 @@ from scipy.interpolate import interp1d
 import h5py
 from shell_functions import *
 from energy_conversion import *
+from joblib import Parallel, delayed
+import multiprocessing
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -286,6 +289,7 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath,
     i = np.zeros(ntf_new * nptl, dtype = ptl['i'].dtype)
     q = np.zeros(ntf_new * nptl, dtype = ptl['q'].dtype)
     gamma = np.zeros(ntf_new * nptl, dtype = ptl['gamma'].dtype)
+    t = np.zeros(ntf_new * nptl, dtype = ptl['t'].dtype)
     if 'Bx' in ptl:
         Bx = np.zeros(ntf_new * nptl, dtype = ptl['Bx'].dtype)
         By = np.zeros(ntf_new * nptl, dtype = ptl['By'].dtype)
@@ -293,6 +297,7 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath,
         Ex = np.zeros(ntf_new * nptl, dtype = ptl['Ex'].dtype)
         Ey = np.zeros(ntf_new * nptl, dtype = ptl['Ey'].dtype)
         Ez = np.zeros(ntf_new * nptl, dtype = ptl['Ez'].dtype)
+    if 'Vx' in ptl:
         Vx = np.zeros(ntf_new * nptl, dtype = ptl['Vx'].dtype)
         Vy = np.zeros(ntf_new * nptl, dtype = ptl['Vy'].dtype)
         Vz = np.zeros(ntf_new * nptl, dtype = ptl['Vz'].dtype)
@@ -318,9 +323,10 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath,
         for iptl in range(nptl):
             print iptl
             ptl, ntf = read_particle_data(iptl, particle_tags, pic_info, fh)
-            for key in ptl:
-                f = interp1d(told, ptl[key], kind=interp_kind)
-                ptl[key] = f(tnew).astype(ptl[key].dtype)
+            if tinterval > 1:
+                for key in ptl:
+                    f = interp1d(told, ptl[key], kind=interp_kind)
+                    ptl[key] = f(tnew).astype(ptl[key].dtype)
             grp = fh_out.create_group(particle_tags[iptl])
             for key in ptl:
                 grp.create_dataset(key, (ntf_new, ), data=ptl[key],
@@ -334,6 +340,7 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath,
             i[iptl::nptl] = ptl['i']
             q[iptl::nptl] = ptl['q']
             gamma[iptl::nptl] = ptl['gamma']
+            t[iptl::nptl] = ptl['t']
             if 'Bx' in ptl:
                 Bx[iptl::nptl] = ptl['Bx']
                 By[iptl::nptl] = ptl['By']
@@ -373,6 +380,7 @@ def transfer_to_h5part(particle_tags, pic_info, fh, filepath,
             grp.create_dataset('i', (nptl, ), data=i[index])
             grp.create_dataset('q', (nptl, ), data=q[index])
             grp.create_dataset('gamma', (nptl, ), data=gamma[index])
+            grp.create_dataset('t', (nptl, ), data=t[index])
             if 'Bx' in ptl:
                 grp.create_dataset('Bx', (nptl, ), data=Bx[index])
                 grp.create_dataset('By', (nptl, ), data=By[index])
@@ -410,6 +418,191 @@ def save_reduced_data_in_same_file(rootpath):
                     grp.create_dataset(str(dset), (sz, ), data=pdata)
 
 
+def sort_particles_by_energies(fname):
+    """Sort particles by their energies
+    """
+    with h5py.File(fname, 'r') as fh:
+        gnames = fh.keys()
+        nt = len(gnames)
+        gname = 'Step#' + str(nt-1)
+        group = fh[gname]
+        dset = group['dX']
+        nptl, = dset.shape
+        ptl = {}
+        for dset in group:
+            dset = str(dset)
+            ptl[str(dset)] = read_var(group, dset, nptl)
+    wtype = np.dtype([('q', ptl['q'].dtype), ('index', np.int32),
+        ('gamma', ptl['gamma'].dtype)])
+    w = np.empty(nptl, dtype=wtype)
+    w['q'] = ptl['q']
+    w['gamma'] = ptl['gamma']
+    w['index'] = np.arange(nptl)
+    ptl_sorted = np.sort(w, order='gamma')
+    return ptl_sorted
+
+
+def plot_particle_trajectory(fname_h5traj, fname_h5part, iptl, gamma_type=1):
+    """
+
+    Args:
+        fname_h5traj: each particle is saved in its own group
+        fname_h5part: particle at each step are saved in the same group
+        iptl: particle index
+        gamma_type: 1 for the simulation frame. 2 for Vx frame.
+                    3 for vector V frame.
+    """
+    ptl_sorted_by_energy = sort_particles_by_energies(fname_h5part)
+    nptl, = ptl_sorted_by_energy.shape
+    pindex = ptl_sorted_by_energy[iptl][1]
+    with h5py.File(fname_h5traj, 'r') as fh:
+        particle_tags = fh.keys()
+        nptl = len(particle_tags)
+        group = fh[particle_tags[pindex]]
+        dset = group['dX']
+        ntf, = dset.shape
+        ptl = {}
+        for dset in group:
+            dset = str(dset)
+            ptl[str(dset)] = read_var(group, dset, ntf)
+
+    vx = ptl['Vx']
+    vy = ptl['Vy']
+    vz = ptl['Vz']
+    ux = ptl['Ux']
+    uy = ptl['Uy']
+    uz = ptl['Uz']
+    gamma = ptl['gamma']
+    x = ptl['dX']
+    vxmax = np.max(vx)
+    vxmin = np.min(vx)
+    vmax = max(abs(vxmax), abs(vxmin))
+    v = np.sqrt(vx**2 + vy**2 + vz**2)
+    vnx = vx / v
+    vny = vy / v
+    vnz = vz / v
+    udot_vnorm = vnx*ux + vny*uy + vnz*uz
+    gamma_v = 1.0 / np.sqrt(1.0 - vx**2 - vy**2 - vz**2)
+    g2 = gamma_v * gamma_v
+    uxp = ux + (gamma_v - 1) * udot_vnorm * vnx - g2 * vx
+    uyp = uy + (gamma_v - 1) * udot_vnorm * vny - g2 * vy
+    uzp = uz + (gamma_v - 1) * udot_vnorm * vnz - g2 * vz
+
+    gamma_trans = np.sqrt(1 + uxp**2 + uyp**2 + uzp**2)
+    gamma_trans_x = np.sqrt(1 + uxp**2 + uy**2 + uz**2)
+
+    if gamma_type == 1:
+        gamma_p = gamma
+    elif gamma_type == 2:
+        gamma_p = gamma_trans_x
+    else:
+        gamma_p = gamma_trans
+
+    cmap = plt.cm.seismic
+    fig = plt.figure(figsize=[7, 6])
+    xs, ys = 0.12, 0.12
+    w1, h1 = 0.8, 0.75
+    color1 = 'k'
+    color2 = 'b'
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.plot(x, gamma_p - 1, linewidth=3, color=color1)
+    # for i in xrange(ntf-1):
+    #     ax1.plot(x[i:i+2], gamma[i:i+2] - 1, linewidth=3,
+    #             color=cmap(int(255*(vx[i]+vmax)/(2*vmax)), 1))
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$x/d_e$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    for tl in ax1.get_xticklabels():
+        tl.set_color(color1)
+    ax2 = ax1.twiny()
+    for i in xrange(ntf-1):
+        ax2.plot(vx[i:i+2], gamma_p[i:i+2] - 1, linewidth=3,
+                color=cmap(int(255*(vx[i]+vmax)/(2*vmax)), 1))
+    ylims = ax2.get_ylim()
+    ax2.plot([0, 0], ylims, color='k', linestyle='--')
+    ax2.tick_params(labelsize=16)
+    ax2.set_xlabel(r'$V_x/c$', fontdict=font, fontsize=24)
+    img_dir = '../img/vx_gamma_x/' 
+    # mkdir_p(img_dir)
+    fname = img_dir + 'vx_gamma_x_' + str(iptl) + '_' + str(gamma_type) + '.jpg'
+    fig.savefig(fname)
+    plt.close()
+    # plt.show()
+
+
+def plot_particle_energy(fname_h5traj, fname_h5part, iptl):
+    """
+
+    Args:
+        fname_h5traj: each particle is saved in its own group
+        fname_h5part: particle at each step are saved in the same group
+    """
+    ptl_sorted_by_energy = sort_particles_by_energies(fname_h5part)
+    nptl, = ptl_sorted_by_energy.shape
+    pindex = ptl_sorted_by_energy[iptl][1]
+    with h5py.File(fname_h5traj, 'r') as fh:
+        particle_tags = fh.keys()
+        nptl = len(particle_tags)
+        group = fh[particle_tags[pindex]]
+        dset = group['dX']
+        ntf, = dset.shape
+        ptl = {}
+        for dset in group:
+            dset = str(dset)
+            ptl[str(dset)] = read_var(group, dset, ntf)
+
+    vx = ptl['Vx']
+    vy = ptl['Vy']
+    vz = ptl['Vz']
+    ux = ptl['Ux']
+    uy = ptl['Uy']
+    uz = ptl['Uz']
+    gamma = ptl['gamma']
+    x = ptl['dX']
+    v = np.sqrt(vx**2 + vy**2 + vz**2)
+    vnx = vx / v
+    vny = vy / v
+    vnz = vz / v
+    udot_vnorm = vnx*ux + vny*uy + vnz*uz
+    gamma_v = 1.0 / np.sqrt(1.0 - vx**2 - vy**2 - vz**2)
+    g2 = gamma_v * gamma_v
+    uxp = ux + (gamma_v - 1) * udot_vnorm * vnx - g2 * vx
+    uyp = uy + (gamma_v - 1) * udot_vnorm * vny - g2 * vy
+    uzp = uz + (gamma_v - 1) * udot_vnorm * vnz - g2 * vz
+
+    gamma_trans = np.sqrt(1 + uxp**2 + uyp**2 + uzp**2)
+    gamma_trans_x = np.sqrt(1 + uxp**2 + uy**2 + uz**2)
+
+    t = ptl['t']
+    vxmax = np.max(vx)
+    vxmin = np.min(vx)
+    vmax = max(abs(vxmax), abs(vxmin))
+
+    cmap = plt.cm.seismic
+    fig = plt.figure(figsize=[7, 6])
+    xs, ys = 0.12, 0.12
+    w1, h1 = 0.8, 0.8
+    color1 = 'k'
+    color2 = 'b'
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.plot(t, gamma-1, linewidth=3, label=r'$\gamma - 1$')
+    ax1.plot(t, gamma_trans_x-1, linewidth=3, label=r'$\gamma(V_x) - 1$')
+    ax1.plot(t, gamma_trans-1, linewidth=3,
+             label=r'$\gamma(\boldsymbol{V}) - 1$')
+    ax1.set_xlim([t[0], t[-1]])
+    leg = ax1.legend(loc=2, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$t\Omega_{ce}$', fontdict=font, fontsize=24)
+    ax1.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    img_dir = '../img/time_gamma/' 
+    mkdir_p(img_dir)
+    fname = img_dir + 't_gamma_' + str(iptl) + '.jpg'
+    fig.savefig(fname)
+    # plt.show()
+    plt.close()
+
+
 if __name__ == "__main__":
     rootpath = '/net/scratch3/xiaocanli/open3d-full/'
     # pic_info = pic_information.get_pic_info(filepath)
@@ -419,16 +612,32 @@ if __name__ == "__main__":
     filepath = rootpath + 'pic_analysis/vpic-sorter/data/'
     species = 'e'
     if species == 'i':
-        fname = filepath + 'ions.h5p'
+        fname_traj = filepath + 'ions.h5p'
         species = 'ions'
     else:
-        fname = filepath + 'electrons_2.h5p'
+        fname_traj = filepath + 'electrons_2.h5p'
         species = 'electrons'
     tinterval = 104
     interp_kind = 'cubic'
-    with h5py.File(fname, 'r') as fh:
-        particle_tags = fh.keys()
-        # save_shifted_trajectory(fh, filepath, particle_tags, pic_info)
-        transfer_to_h5part(particle_tags, pic_info, fh, filepath, tinterval,
-                species, interp_kind)
+    with h5py.File(fname_traj, 'r') as fh:
+        # particle_tags = fh.keys()
+        # transfer_to_h5part(particle_tags, pic_info, fh, filepath, tinterval,
+        #         species, interp_kind)
+        # # # save_shifted_trajectory(fh, filepath, particle_tags, pic_info)
+        pass
     # save_reduced_data_in_same_file(rootpath)
+    fname = species + '_emf_vel'
+    if tinterval > 1:
+        fname += '_' + interp_kind + '_t' +  str(tinterval)
+    fname_h5part = filepath + fname + '.h5part'
+    fname_h5traj = filepath + fname + '.h5p'
+    nptl = 1000
+    ptl_indices = range(nptl)
+    def processInput(iptl):
+        print iptl
+        plot_particle_trajectory(fname_h5traj, fname_h5part, iptl, gamma_type=3)
+        # plot_particle_energy(fname_h5traj, fname_h5part, iptl)
+    ncores = multiprocessing.cpu_count()
+    Parallel(n_jobs=ncores)(delayed(processInput)(iptl) for iptl in ptl_indices)
+    # plot_particle_trajectory(fname_h5traj, fname_h5part, nptl-1)
+    # plot_particle_energy(fname_h5traj, fname_h5part, nptl-1)
