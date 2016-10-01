@@ -157,7 +157,7 @@ def calc_velocity_distribution(v0, pheader, ptl, pic_info, corners,
     y = v0.y0 + ((iy - 1.0) + (dy + 1.0) * 0.5) * v0.dy
     x = v0.x0 + ((ix - 1.0) + (dx + 1.0) * 0.5) * v0.dx
 
-    # di -> de
+    # de -> di
     smime = math.sqrt(pic_info.mime)
     x /= smime
     y /= smime
@@ -173,20 +173,35 @@ def calc_velocity_distribution(v0, pheader, ptl, pic_info, corners,
     # Assumes that magnetic field is along the z-direction
     upara = uz_d
     uperp = np.sqrt(ux_d*ux_d + uy_d*uy_d)
+    upara_abs = np.abs(uz_d)
+    utot = np.sqrt(ux_d*ux_d + uy_d*uy_d + uz_d*uz_d)
 
     drange = [[-pmax, pmax], [-pmax, pmax]]
-    hist_xy, xedges, yedges = np.histogram2d(uy_d, ux_d, 
+    hist_xy, ubins_edges, ubins_edges = np.histogram2d(uy_d, ux_d, 
             bins=nbins, range=drange)
-    hist_xz, xedges, yedges = np.histogram2d(uz_d, ux_d, 
+    hist_xz, ubins_edges, ubins_edges = np.histogram2d(uz_d, ux_d, 
             bins=nbins, range=drange)
-    hist_yz, xedges, yedges = np.histogram2d(uz_d, uy_d, 
+    hist_yz, ubins_edges, ubins_edges = np.histogram2d(uz_d, uy_d, 
             bins=nbins, range=drange)
     drange = [[-pmax, pmax], [0, pmax]]
     hist_para_perp, upara_edges, uperp_edges = np.histogram2d(upara, uperp, 
             bins=[nbins, nbins/2], range=drange)
 
-    return (hist_xy, hist_xz, hist_yz, hist_para_perp, xedges, yedges,
-            upara_edges, uperp_edges)
+    # 1D
+    pmin = 1E-4
+    pmin_log, pmax_log = math.log10(pmin), math.log10(pmax)
+    pbins_log = 10**np.linspace(pmin_log, pmax_log, nbins)
+    ppara_dist, pedge = np.histogram(upara_abs, bins=pbins_log)
+    pperp_dist, pedge = np.histogram(uperp, bins=pbins_log)
+    pdist, pedge = np.histogram(utot, bins=pbins_log)
+
+    hists = {'hist_xy': hist_xy, 'hist_xz': hist_xz, 'hist_yz': hist_yz,
+            'hist_para_perp': hist_para_perp, 'ppara_dist': ppara_dist,
+            'pperp_dist': pperp_dist, 'pdist': pdist}
+    bins = {'pbins_long': ubins_edges, 'pbins_short': uperp_edges,
+            'pbins_log': pbins_log}
+
+    return (hists, bins)
 
 
 def get_particle_distribution(base_dir, pic_info, tindex, corners, mpi_ranks):
@@ -214,69 +229,70 @@ def get_particle_distribution(base_dir, pic_info, tindex, corners, mpi_ranks):
                 mpi_rank = ix + iy*tx + iz*tx*ty
                 fname = fbase + str(mpi_rank)
                 (v0, pheader, data) = read_particle_data(fname)
-                # (vhist_xy, vhist_xz, vhist_yz, x, y) = \
-                #         calc_velocity_distribution(v0, pheader,
-                #         data, pic_info, corners, nbins)
-                # hist_xy += vhist_xy
-                # hist_xz += vhist_xz
-                # hist_yz += vhist_yz
-    # uold = np.linspace(-1.0, 1.0, 64)
-    # u1, u2 = np.meshgrid(uold, uold)
-    # ng = 3
-    # kernel = np.ones((ng,ng)) / float(ng*ng)
-    # hist_xy = signal.convolve2d(hist_xy, kernel, 'same')
-    # hist_xz = signal.convolve2d(hist_xz, kernel, 'same')
-    # hist_yz = signal.convolve2d(hist_yz, kernel, 'same')
-    # fxy = interpolate.interp2d(u1, u2, np.log10(hist_xy+0.5), kind='cubic')
-    # fxz = interpolate.interp2d(u1, u2, np.log10(hist_xz+0.5), kind='cubic')
-    # fyz = interpolate.interp2d(u1, u2, np.log10(hist_yz+0.5), kind='cubic')
-    # unew = np.linspace(-1.0, 1.0, 200)
-    # fxy_new = fxy(unew, unew)
-    # fxz_new = fxz(unew, unew)
-    # fyz_new = fyz(unew, unew)
+                hists, bins = calc_velocity_distribution(v0, pheader,
+                        data, pic_info, corners, nbins)
+                hist_xy += hists['hist_xy']
+                hist_xz += hists['hist_xz']
+                hist_yz += hists['hist_yz']
+    pbins = bins['bins_long']
+    pmin = pbins[0]
+    pmax = pbins[-1]
+    u1, u2 = np.meshgrid(pbins[-1], pbins[-1])
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    hist_xy = signal.convolve2d(hist_xy, kernel, 'same')
+    hist_xz = signal.convolve2d(hist_xz, kernel, 'same')
+    hist_yz = signal.convolve2d(hist_yz, kernel, 'same')
+    fxy = interpolate.interp2d(u1, u2, np.log10(hist_xy+0.5), kind='cubic')
+    fxz = interpolate.interp2d(u1, u2, np.log10(hist_xz+0.5), kind='cubic')
+    fyz = interpolate.interp2d(u1, u2, np.log10(hist_yz+0.5), kind='cubic')
+    unew = np.linspace(-1.0, 1.0, 200)
+    fxy_new = fxy(unew, unew)
+    fxz_new = fxz(unew, unew)
+    fyz_new = fyz(unew, unew)
 
-    # fxy = fxy_new
-    # fxz = fxz_new
-    # fyz = fyz_new
+    fxy = fxy_new
+    fxz = fxz_new
+    fyz = fyz_new
 
-    # vmax = np.max([np.max(hist_xy), np.max(hist_xz), np.max(hist_yz)])
-    # vmax = math.log10(vmax)
-    # xs, ys = 0.08, 0.17
-    # w1, h1 = 0.24, 0.72
-    # gap = 0.08
-    # fig = plt.figure(figsize=(12, 4))
-    # ax1 = fig.add_axes([xs, ys, w1, h1])
-    # p1 = ax1.imshow(fxy_new, cmap=plt.cm.jet,
-    #         extent=[np.min(x), np.max(x), np.min(y), np.max(y)],
-    #         aspect='auto', origin='lower',
-    #         vmin = 0.0, vmax = vmax)
-    #         # interpolation='bicubic')
-    # ax1.set_xlabel(r'$u_x$', fontdict=font, fontsize=20)
-    # ax1.set_ylabel(r'$u_y$', fontdict=font, fontsize=20)
-    # ax1.tick_params(labelsize=16)
-    # xs += w1 + gap
-    # ax2 = fig.add_axes([xs, ys, w1, h1])
-    # p2 = ax2.imshow(fxz_new, cmap=plt.cm.jet,
-    #         extent=[np.min(x), np.max(x), np.min(y), np.max(y)],
-    #         aspect='auto', origin='lower',
-    #         vmin = 0.0, vmax = vmax)
-    # ax2.set_xlabel(r'$u_x$', fontdict=font, fontsize=20)
-    # ax2.set_ylabel(r'$u_z$', fontdict=font, fontsize=20)
-    # ax2.tick_params(labelsize=16)
-    # xs += w1 + gap
-    # ax3 = fig.add_axes([xs, ys, w1, h1])
-    # p3 = ax3.imshow(fyz_new, cmap=plt.cm.jet,
-    #         extent=[np.min(x), np.max(x), np.min(y), np.max(y)],
-    #         aspect='auto', origin='lower',
-    #         vmin = 0.0, vmax = vmax)
-    #         # interpolation='bicubic')
-    # ax3.set_xlabel(r'$u_y$', fontdict=font, fontsize=20)
-    # ax3.set_ylabel(r'$u_z$', fontdict=font, fontsize=20)
-    # ax3.tick_params(labelsize=16)
-    # p1.set_cmap(plt.cm.get_cmap('hot'))
-    # p2.set_cmap(plt.cm.get_cmap('hot'))
-    # p3.set_cmap(plt.cm.get_cmap('hot'))
-    # plt.show()
+    vmax = np.max([np.max(hist_xy), np.max(hist_xz), np.max(hist_yz)])
+    vmax = math.log10(vmax)
+    xs, ys = 0.08, 0.17
+    w1, h1 = 0.24, 0.72
+    gap = 0.08
+    fig = plt.figure(figsize=(12, 4))
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p1 = ax1.imshow(fxy_new, cmap=plt.cm.jet,
+            extent=[pmin, pmax, pmin, pmax],
+            aspect='auto', origin='lower',
+            vmin = 0.0, vmax = vmax)
+            # interpolation='bicubic')
+    ax1.set_xlabel(r'$u_x$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$u_y$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    xs += w1 + gap
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    p2 = ax2.imshow(fxz_new, cmap=plt.cm.jet,
+            extent=[pmin, pmax, pmin, pmax],
+            aspect='auto', origin='lower',
+            vmin = 0.0, vmax = vmax)
+    ax2.set_xlabel(r'$u_x$', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'$u_z$', fontdict=font, fontsize=20)
+    ax2.tick_params(labelsize=16)
+    xs += w1 + gap
+    ax3 = fig.add_axes([xs, ys, w1, h1])
+    p3 = ax3.imshow(fyz_new, cmap=plt.cm.jet,
+            extent=[pmin, pmax, pmin, pmax],
+            aspect='auto', origin='lower',
+            vmin = 0.0, vmax = vmax)
+            # interpolation='bicubic')
+    ax3.set_xlabel(r'$u_y$', fontdict=font, fontsize=20)
+    ax3.set_ylabel(r'$u_z$', fontdict=font, fontsize=20)
+    ax3.tick_params(labelsize=16)
+    p1.set_cmap(plt.cm.get_cmap('hot'))
+    p2.set_cmap(plt.cm.get_cmap('hot'))
+    p3.set_cmap(plt.cm.get_cmap('hot'))
+    plt.show()
 
 
 def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
@@ -299,6 +315,9 @@ def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
     hist_xz = np.zeros((nbins, nbins))
     hist_yz = np.zeros((nbins, nbins))
     hist_para_perp = np.zeros((nbins, nbins/2))
+    ppara_dist = np.zeros(nbins - 1)
+    pperp_dist = np.zeros(nbins - 1)
+    pdist = np.zeros(nbins - 1)
     mpi_ranks = np.asarray(mpi_ranks)
     if species == 'electron':
         ptl_mass = 1
@@ -312,17 +331,24 @@ def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
                 mpi_rank = ix + iy*tx + iz*tx*ty
                 fname = fbase + str(mpi_rank)
                 (v0, pheader, data) = read_particle_data(fname)
-                (vhist_xy, vhist_xz, vhist_yz, vhist_para_perp, x, y, upara,
-                        uperp) = calc_velocity_distribution(v0, pheader,
-                                data, pic_info, corners, nbins, ptl_mass, pmax)
-                hist_xy += vhist_xy
-                hist_xz += vhist_xz
-                hist_yz += vhist_yz
-                hist_para_perp += vhist_para_perp
+                hists, bins = calc_velocity_distribution(v0, pheader, data,
+                        pic_info, corners, nbins, ptl_mass, pmax)
+                hist_xy += hists['hist_xy']
+                hist_xz += hists['hist_xz']
+                hist_yz += hists['hist_yz']
+                hist_para_perp += hists['hist_para_perp']
+                ppara_dist += hists['ppara_dist']
+                pperp_dist += hists['pperp_dist']
+                pdist += hists['pdist']
 
-    du = upara[1] - upara[0]
+    pbins_lin_long = bins['pbins_long']
+    pbins_lin_short = bins['pbins_short']
+    pbins_log = bins['pbins_log']
+    pmin = pbins_lin_long[0]
+    pmax = pbins_lin_long[-1]
+    dp = pbins_lin_long[1] - pbins_lin_long[0]
+    hist_para_perp /= np.sum(hist_para_perp) * dp
 
-    hist_para_perp /= np.sum(hist_para_perp) * du
     if species is 'ion':
         vmin, vmax = 1E-6, 1E-1
     else:
@@ -330,18 +356,44 @@ def get_phase_distribution(base_dir, pic_info, species, tindex, corners,
     xs, ys = 0.09, 0.15
     w1, h1 = 0.8, 0.8
     gap = 0.08
-    fig = plt.figure(figsize=(8, 4))
-    ax1 = fig.add_axes([xs, ys, w1, h1])
+    fig1 = plt.figure(figsize=(8, 4))
+    ax1 = fig1.add_axes([xs, ys, w1, h1])
     p1 = ax1.imshow(hist_para_perp.T, cmap=plt.cm.jet,
-            extent=[np.min(upara), np.max(upara), np.min(uperp), np.max(uperp)],
-            aspect='auto', origin='lower', norm=LogNorm(vmin=vmin, vmax=vmax))
+            extent=[pmin, pmax, 0, pmax],
+            aspect='auto', origin='lower',
+            norm=LogNorm(vmin=vmin, vmax=vmax))
     xs1 = xs + w1 + 0.02
-    cax = fig.add_axes([xs1, ys, 0.02, h1])
-    cbar = fig.colorbar(p1, cax=cax)
+    cax = fig1.add_axes([xs1, ys, 0.02, h1])
+    cbar = fig1.colorbar(p1, cax=cax)
     cbar.ax.tick_params(labelsize=16)
     ax1.set_xlabel(r'$p_\parallel$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$p_\perp$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
+
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    fig2 = plt.figure(figsize=(7, 5))
+    ax1 = fig2.add_axes([xs, ys, w1, h1])
+    pintervals = np.diff(pbins_log)
+    ax1.loglog(pbins_log[:-1], ppara_dist/pintervals, color='r',
+               linewidth=2, label=r'$f(p_\parallel)$')
+    ax1.loglog(pbins_log[:-1], pperp_dist/pintervals, color='b',
+               linewidth=2, label=r'$f(p_\perp)$')
+    ax1.loglog(pbins_log[:-1], pdist/pintervals, color='k',
+               linewidth=2, label=r'$f(p)$')
+    leg = ax1.legend(loc=3, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    if species == 'electron':
+        ax1.set_xlim([1E-4, 1E1])
+        ax1.set_ylim([1E3, 1E10])
+    else:
+        ax1.set_xlim([1E-3, 1E2])
+        ax1.set_ylim([1E2, 1E9])
+    ax1.set_xlabel(r'$p_\parallel, p_\perp, p$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$f$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+
+    return (fig1, fig2)
     # plt.show()
 
 
@@ -805,16 +857,19 @@ def plot_particle_phase_distribution(pic_info, ct, base_dir, run_name, species,
     # csizes = [max_index/4, pic_info.ny, pic_info.nz/4]
     corners, mpi_ranks = set_mpi_ranks(pic_info, pos, sizes=csizes)
 
-    get_phase_distribution(base_dir, pic_info, species, ptl_tindex, corners,
-                           mpi_ranks)
+    fig1, fig2 = get_phase_distribution(base_dir, pic_info, species, ptl_tindex,
+                                        corners, mpi_ranks)
 
     fig_dir = '../img/img_phase_distribution/' + run_name + '/'
     mkdir_p(fig_dir)
     fname = fig_dir + '/vdist_para_perp_' + species + '_' + str(ct).zfill(3) + '.jpg'
-    plt.savefig(fname, dpi=300)
+    fig1.savefig(fname, dpi=300)
+
+    fname = fig_dir + '/vdist_para_perp_1d_' + species + '_' + str(ct).zfill(3) + '.jpg'
+    fig2.savefig(fname, dpi=300)
 
     # plt.show()
-    plt.close()
+    plt.close("all")
 
 
 def get_particle_spectrum_rank(base_dir, pic_info, species, ct, ix):
@@ -854,6 +909,7 @@ def get_particle_spectrum_rank(base_dir, pic_info, species, ct, ix):
             espectrum += hist
 
     ene_interval = np.diff(ene_bins)
+    print 'number of particles:', np.sum(espectrum)
     espectrum /= ene_interval
     spect_data = np.vstack((ene_bins[:-1], espectrum))
     fname = dir_name + species + '_spect.' + str(tindex) + '.' + str(ix)
@@ -933,15 +989,16 @@ if __name__ == "__main__":
     xm = x[shock_loc[ct]]
     def processInput(job_id):
         print job_id
-        # plot_particle_phase_distribution(pic_info, ct, base_dir,
-        #         run_name, 'electron', shock_loc[job_id)
-        # plot_particle_phase_distribution(pic_info, ct, base_dir,
-        #         run_name, 'ion', shock_loc[job_id])
-        get_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, job_id)
+        ct = job_id
+        plot_particle_phase_distribution(pic_info, ct, base_dir,
+                run_name, 'electron', shock_loc[ct])
+        plot_particle_phase_distribution(pic_info, ct, base_dir,
+                run_name, 'ion', shock_loc[ct])
+        # get_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, job_id)
     num_cores = multiprocessing.cpu_count()
-    # Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
     # plot_particle_phase_distribution(pic_info, ct, base_dir,
-    #         run_name, 'electron', shock_loc[ct])
+    #         run_name, 'ion', shock_loc[ct])
     # Parallel(n_jobs=num_cores)(delayed(processInput)(ix) for ix in ixs)
-    # get_particle_spectrum_rank(base_dir, pic_info, 'electron', ct, 30)
-    plot_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, xm)
+    # get_particle_spectrum_rank(base_dir, pic_info, 'electron', ct, 0)
+    # plot_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, xm)
