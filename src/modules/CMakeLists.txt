@@ -97,7 +97,7 @@ add_library(jdote_energy_band jdote_energy_band.f90 global.f90)
 target_link_libraries(jdote_energy_band read_config analysis_config)
 
 add_library(interp_emf interpolation_emf.f90 neighbors.f90)
-target_link_libraries(interp_emf get_info fields)
+target_link_libraries(interp_emf get_info fields file_header)
 
 add_library(interp_pfields interpolation_particle_fields.f90 neighbors.f90)
 target_link_libraries(interp_pfields get_info usingle)
