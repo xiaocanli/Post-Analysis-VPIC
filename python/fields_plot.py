@@ -455,10 +455,11 @@ def plot_number_densities(run_name, root_dir, pic_info):
         root_dir: the root directory of this run.
         pic_info: PIC simulation information in a namedtuple.
     """
-    ct = 0
+    ntf = pic_info.ntf
+    ct = ntf - 1
     contour_color = ['k', 'k']
-    vmin = [0.1, 0.1]
-    vmax = [10, 10]
+    vmin = [0, 0]
+    vmax = [3, 3]
     xs, ys = 0.18, 0.60
     w1, h1 = 0.72, 0.36
     axis_pos = [xs, ys, w1, h1]
@@ -466,10 +467,10 @@ def plot_number_densities(run_name, root_dir, pic_info):
     fig_sizes = (5, 5)
     nxp, nzp = 1, 2
     var_names = [r'$n_e$', r'$n_i$']
-    colormaps = ['seismic', 'seismic']
+    colormaps = ['jet', 'jet']
     text_colors = ['k', 'k']
     xstep, zstep = 2, 2
-    is_logs = [True, True]
+    is_logs = [False, False]
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_number_densities/'
@@ -494,15 +495,14 @@ def plot_number_densities(run_name, root_dir, pic_info):
             'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
             'fname':fname, 'fig_dir':fig_dir}
     nfields_plot = PlotMultiplePanels(**kwargs_plots)
-    for ct in range(1, pic_info.ntf):
-        kwargs["current_time"] = ct
-        x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
-        x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
-        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
-        fdata = [ne, ni]
-        nfields_plot.update_fields(ct, fdata, Ay)
-
-    # plt.show()
+    # for ct in range(1, pic_info.ntf):
+    #     kwargs["current_time"] = ct
+    #     x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
+    #     x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+    #     x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
+    #     fdata = [ne, ni]
+    #     nfields_plot.update_fields(ct, fdata, Ay)
+    plt.show()
 
 
 def plot_energy_band(run_name, root_dir, pic_info, species):
@@ -671,10 +671,11 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
         pic_info: PIC simulation information in a namedtuple.
         species: particle species.
     """
-    ct = 0
+    ct = pic_info.ntf - 1
     contour_color = ['k', 'k', 'k']
-    vmin = [-1.0, -1.0, -1.0]
-    vmax = [1.0, 1.0, 1.0]
+    v0 = 0.02
+    vmin = [-v0, -v0, -v0]
+    vmax = [v0, v0, v0]
     xs, ys = 0.15, 0.70
     w1, h1 = 0.7, 0.2625
     axis_pos = [xs, ys, w1, h1]
@@ -716,7 +717,8 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
-    fdata = [vx/va, vy/va, vz/va]
+    # fdata = [vx/va, vy/va, vz/va]
+    fdata = [vx, vy, vz]
     fname = 'v' + species
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
             'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
@@ -725,16 +727,16 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
             'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
             'fname':fname, 'fig_dir':fig_dir}
     vfields_plot = PlotMultiplePanels(**kwargs_plots)
-    for ct in range(1, pic_info.ntf):
-        kwargs["current_time"] = ct
-        x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
-        x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
-        x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
-        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
-        fdata = [vx/va, vy/va, vz/va]
-        vfields_plot.update_fields(ct, fdata, Ay)
+    # for ct in range(1, pic_info.ntf):
+    #     kwargs["current_time"] = ct
+    #     x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
+    #     x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
+    #     x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
+    #     x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
+    #     fdata = [vx/va, vy/va, vz/va]
+    #     vfields_plot.update_fields(ct, fdata, Ay)
 
-    # plt.show()
+    plt.show()
 
 
 def plot_thermal_temperature(run_name, root_dir, pic_info):
@@ -1374,15 +1376,419 @@ def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
     # plt.show()
 
 
+def plot_force(run_name, root_dir, pic_info):
+    """Plot force on tether
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    n0 = 5.2
+    ntf = pic_info.ntf
+    force = np.zeros((3, ntf))
+    dx = pic_info.dx_di
+    dz = pic_info.dz_di
+    # for ct in range(ntf):
+    #     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    #     fname1 = root_dir + 'data/ne.gda'
+    #     x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
+    #     fname2 = root_dir + 'data/ni.gda'
+    #     x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+    #     fname = root_dir + 'data/ex.gda'
+    #     x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    #     fname = root_dir + 'data/ey.gda'
+    #     x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    #     fname = root_dir + 'data/ez.gda'
+    #     x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+    #     ntot = ni - ne
+    #     force[0, ct] = np.sum(ntot * ex)
+    #     force[1, ct] = np.sum(ntot * ey)
+    #     force[2, ct] = np.sum(ntot * ez)
+    # force.tofile('../data/force.dat')
+    c0 = 3.0E5   # km/s
+    e0 = 1.6E-19
+    me = 9.1E-31
+    mi_me = 1836.0
+    Ti_Te = 1.0
+    Te = 1.5E5
+    Ti = Ti_Te * Te
+    ne = 9.0    # cm^-3
+    ni_ne = 1.0
+    ni = ni_ne * ne
+    B = 6.2E-5  # Gauss
+    vthe = 3.88E3 * math.sqrt(Te/1E6)  # Te is normalized by 1E6
+    vthi = vthe * math.sqrt(Ti_Te) / math.sqrt(mi_me)
+    wpe = 1.78E9 * math.sqrt(ne/1E9)   # ne is normalized by 1E9
+    wce = 1.76E8 * B / 10.0       # B is normalized by 10 Gauss
+    wpi = wpe * math.sqrt(ni_ne) / math.sqrt(mi_me)
+    wci = wce / mi_me
+    de = c0 * 1E5 / wpe # cm
+    di = c0 * 1E5 / wpi
+    va = 6.89E2 * (B/10.0) / math.sqrt(ni/1E9) # km/s
+    force = np.fromfile('../data/force.dat')
+    force = force.reshape((3, ntf))
+    b0 = 6.462036E-03
+    norm = dx*dz * (di**2/1E4) * (ni*1E6) * 1.6E-19 * (B/1E4/b0) * 3E8 / 1E-9
+    force *= norm
+    force_tot = np.sqrt(force[0,:]**2 + force[1,:]**2 + force[2,:]**2)
+
+    dtf = pic_info.dt_fields * wpe / wci
+    dt = dtf / wpe * 1E3
+    t = np.arange(ntf) * dt * 10
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.13
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    ax.plot(t[:-10], np.abs(force[0, :-10]), color='k', linewidth=2)
+    # ax.plot(force[1, :])
+    # ax.plot(force[2, :])
+    tr = t[:-10]
+    ax.set_xlim([tr[0], tr[-1]])
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel('t/ms', fontdict=font, fontsize=20)
+    ax.set_ylabel('nN/m', fontdict=font, fontsize=20)
+    fig.savefig('../img/force.jpg', dpi=300)
+    plt.show()
+
+
+def plot_nrho(run_name, root_dir, pic_info):
+    """Plot particle number densities
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    ct = pic_info.ntf - 1
+    # ct = 50
+    n0 = 5.2
+    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    fname1 = root_dir + 'data/ne.gda'
+    x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
+    fname2 = root_dir + 'data/ni.gda'
+    x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+    ne *= n0
+    ni *= n0
+    vmin, vmax = 0, 15
+    xmax = np.max(x)
+    norm = xmax * 1.16
+    x /= norm
+    z /= norm
+    xmin = np.min(x)
+    xmax = np.max(x)
+    zmin = np.min(z)
+    zmax = np.max(z)
+    nx, = x.shape
+    nz, = z.shape
+    fig = plt.figure(figsize=[10, 10])
+    xs, ys = 0.09, 0.56
+    w1, h1 = 0.83, 0.415
+    ax = fig.add_axes([xs, ys, w1, h1])
+    print 'Maximum and minimum electron density', np.max(ne), np.min(ne)
+    p1 = ax.imshow(ne, cmap=plt.cm.rainbow,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            # norm=LogNorm(vmin=0.1, vmax=30),
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax.tick_params(labelsize=16)
+    ax.tick_params(axis='x', labelleft='off')
+    ax.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+    
+    ys -= h1 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    print 'Maximum and minimum ion density', np.max(ni), np.min(ni)
+    p2 = ax1.imshow(ni, cmap=plt.cm.rainbow,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$x$ / km', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+
+    divider = make_axes_locatable(ax1)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p2, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+
+    ax.text(0.1, 0.9, r'$n_e$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax.transAxes)
+    ax1.text(0.1, 0.9, r'$n_i$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax1.transAxes)
+
+    fig.savefig('../img/ne_ni.jpg', dpi=300)
+
+    plt.show()
+
+
+def plot_emf(run_name, root_dir, pic_info):
+    """Plot electromagnetic fields
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    ct = pic_info.ntf - 1
+    # ct = 50
+    n0 = 5.2
+    kwargs = {"current_time":ct, "xl":0.005, "xr":0.008,
+              "zb":-0.00075, "zt":0.00075}
+    fname1 = root_dir + 'data/ex.gda'
+    x, z, ex = read_2d_fields(pic_info, fname1, **kwargs)
+    fname2 = root_dir + 'data/ey.gda'
+    x, z, ey = read_2d_fields(pic_info, fname2, **kwargs)
+    fname2 = root_dir + 'data/ez.gda'
+    x, z, ez = read_2d_fields(pic_info, fname2, **kwargs)
+    vmin, vmax = -0.1, 0.1
+    xmax = np.max(x)
+    norm = xmax * 1.16
+    x /= norm
+    z /= norm
+    xmin = np.min(x)
+    xmax = np.max(x)
+    zmin = np.min(z)
+    zmax = np.max(z)
+    nx, = x.shape
+    nz, = z.shape
+    fig = plt.figure(figsize=[10, 14])
+    xs, ys = 0.12, 0.70
+    w1, h1 = 0.78, 0.27
+    ax = fig.add_axes([xs, ys, w1, h1])
+    p1 = ax.imshow(ex, cmap=plt.cm.seismic,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            # norm=LogNorm(vmin=0.1, vmax=30),
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax.tick_params(labelsize=16)
+    ax.tick_params(axis='x', labelleft='off')
+    ax.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+    
+    ys -= h1 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p2 = ax1.imshow(ez, cmap=plt.cm.seismic,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$x$ / km', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+
+    divider = make_axes_locatable(ax1)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p2, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+
+    ys -= h1 + 0.05
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    p2 = ax2.imshow(ey, cmap=plt.cm.seismic,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax2.tick_params(labelsize=16)
+    ax2.set_xlabel(r'$x$ / km', fontdict=font, fontsize=20)
+    ax2.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+
+    divider = make_axes_locatable(ax2)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p2, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+
+    ax.text(0.1, 0.9, r'$E_x$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax.transAxes)
+    ax1.text(0.1, 0.9, r'$E_y$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax2.text(0.1, 0.9, r'$E_z$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax2.transAxes)
+
+    fig.savefig('../img/emf.jpg', dpi=300)
+
+    plt.show()
+
+
+def plot_force_2d(run_name, root_dir, pic_info):
+    """Plot 2d force distributions
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    ct = pic_info.ntf - 1
+    # ct = 50
+    n0 = 5.2
+    kwargs = {"current_time":ct, "xl":0, "xr":1, "zb":-0.5, "zt":0.5}
+    fname1 = root_dir + 'data/ex.gda'
+    x, z, ex = read_2d_fields(pic_info, fname1, **kwargs)
+    fname2 = root_dir + 'data/ey.gda'
+    x, z, ey = read_2d_fields(pic_info, fname2, **kwargs)
+    fname2 = root_dir + 'data/ez.gda'
+    x, z, ez = read_2d_fields(pic_info, fname2, **kwargs)
+    fname2 = root_dir + 'data/ne.gda'
+    x, z, ne = read_2d_fields(pic_info, fname2, **kwargs)
+    fname2 = root_dir + 'data/ni.gda'
+    x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+
+    # force_ex = -ne * ex
+    # force_ey = -ne * ey
+    # force_ez = -ne * ez
+    # force_ex = ni * ex
+    # force_ey = ni * ey
+    # force_ez = ni * ez
+    force_ex = (ni - ne) * ex
+    force_ey = (ni - ne) * ey
+    force_ez = (ni - ne) * ez
+
+    force_cumx = np.cumsum(np.sum(force_ex, axis=0))
+    force_cumy = np.cumsum(np.sum(force_ey, axis=0))
+    force_cumz = np.cumsum(np.sum(force_ez, axis=0))
+
+    vmin, vmax = -0.1, 0.1
+    xmax = np.max(x)
+    norm = xmax * 1.16
+    x /= norm
+    z /= norm
+    xmin = np.min(x)
+    xmax = np.max(x)
+    zmin = np.min(z)
+    zmax = np.max(z)
+    nx, = x.shape
+    nz, = z.shape
+    fig = plt.figure(figsize=[10, 14])
+    xs, ys = 0.12, 0.70
+    w1, h1 = 0.78, 0.27
+    ax = fig.add_axes([xs, ys, w1, h1])
+    p1 = ax.imshow(force_ex, cmap=plt.cm.seismic,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            # norm=LogNorm(vmin=0.1, vmax=30),
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax.tick_params(labelsize=16)
+    ax.tick_params(axis='x', labelleft='off')
+    ax.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p1, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+    
+    ys -= h1 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p2 = ax1.imshow(force_ez, cmap=plt.cm.seismic,
+            extent=[xmin, xmax, zmin, zmax],
+            aspect='auto', origin='lower',
+            vmin=vmin, vmax=vmax,
+            interpolation='bicubic')
+    ax1.tick_params(labelsize=16)
+    ax1.tick_params(axis='x', labelleft='off')
+    ax1.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+
+    divider = make_axes_locatable(ax1)
+    cax = divider.append_axes("right", size="3%", pad=0.05)
+    cbar = fig.colorbar(p2, cax=cax)
+    cbar.ax.tick_params(labelsize=16)
+    cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+
+    ys -= h1 + 0.05
+    width1, height1 = fig.get_size_inches()
+    w1 = w1 * 0.97 - 0.05 / width1
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    # p2 = ax2.imshow(force_ey, cmap=plt.cm.seismic,
+    #         extent=[xmin, xmax, zmin, zmax],
+    #         aspect='auto', origin='lower',
+    #         vmin=vmin, vmax=vmax,
+    #         interpolation='bicubic')
+    # ax2.tick_params(labelsize=16)
+    # ax2.set_xlabel(r'$x$ / km', fontdict=font, fontsize=20)
+    # ax2.set_ylabel(r'$y$ / km', fontdict=font, fontsize=20)
+
+    # divider = make_axes_locatable(ax2)
+    # cax = divider.append_axes("right", size="3%", pad=0.05)
+    # cbar = fig.colorbar(p2, cax=cax)
+    # cbar.ax.tick_params(labelsize=16)
+    # cbar.ax.set_ylabel('cm$^{-3}$', fontdict=font, fontsize=20)
+    ax2.plot(x, force_cumx, linewidth=2, color='r')
+    ax2.plot(x, force_cumy, linewidth=2, color='g')
+    ax2.plot(x, force_cumz, linewidth=2, color='b')
+    ax2.set_xlim([xmin, xmax])
+    ax2.tick_params(labelsize=16)
+    ax2.set_xlabel(r'$x$ / km', fontdict=font, fontsize=20)
+
+    ax.text(0.1, 0.9, r'$qE_x$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax.transAxes)
+    ax1.text(0.1, 0.9, r'$qE_y$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax1.transAxes)
+    ax2.text(0.1, 0.9, r'$qE_z$',
+            color='k', fontsize=24,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform = ax2.transAxes)
+
+    fig.savefig('../img/emf.jpg', dpi=300)
+
+    plt.show()
+
+
 if __name__ == "__main__":
-    run_name = "mime25_beta002"
-    root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
-    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
+    # run_name = "mime25_beta002"
+    # root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
+    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    # pic_info = read_data_from_json(picinfo_fname)
+    run_name = 'test'
+    root_dir = '../../'
+    pic_info = pic_information.get_pic_info(root_dir)
     # plot_maximum_energy(run_name, root_dir, pic_info)
     # plot_jdote_fields(run_name, root_dir, pic_info, 'e')
     # plot_compression_fields(run_name, root_dir, pic_info, 'e')
     # plot_bulk_internal_energy(run_name, root_dir, pic_info, 'e')
     # plot_fields_multi()
-    plot_fields_cmdline()
+    # plot_fields_cmdline()
     # plot_jdotes_cmdline()
+    # plot_number_densities(run_name, root_dir, pic_info)
+    # plot_velocity_fields(run_name, root_dir, pic_info, 'e')
+    # plot_nrho(run_name, root_dir, pic_info)
+    # plot_emf(run_name, root_dir, pic_info)
+    # plot_force_2d(run_name, root_dir, pic_info)
+    plot_force(run_name, root_dir, pic_info)
