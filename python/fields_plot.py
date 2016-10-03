@@ -25,6 +25,7 @@ from energy_conversion import read_data_from_json
 from contour_plots import read_2d_fields, plot_2d_contour
 import palettable
 import sys
+from shell_functions import mkdir_p
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -1389,23 +1390,24 @@ def plot_force(run_name, root_dir, pic_info):
     force = np.zeros((3, ntf))
     dx = pic_info.dx_di
     dz = pic_info.dz_di
-    # for ct in range(ntf):
-    #     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
-    #     fname1 = root_dir + 'data/ne.gda'
-    #     x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
-    #     fname2 = root_dir + 'data/ni.gda'
-    #     x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
-    #     fname = root_dir + 'data/ex.gda'
-    #     x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
-    #     fname = root_dir + 'data/ey.gda'
-    #     x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
-    #     fname = root_dir + 'data/ez.gda'
-    #     x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
-    #     ntot = ni - ne
-    #     force[0, ct] = np.sum(ntot * ex)
-    #     force[1, ct] = np.sum(ntot * ey)
-    #     force[2, ct] = np.sum(ntot * ez)
-    # force.tofile('../data/force.dat')
+    for ct in range(ntf):
+        kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+        fname1 = root_dir + 'data/ne.gda'
+        x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
+        fname2 = root_dir + 'data/ni.gda'
+        x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+        fname = root_dir + 'data/ex.gda'
+        x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+        fname = root_dir + 'data/ey.gda'
+        x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+        fname = root_dir + 'data/ez.gda'
+        x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+        ntot = ni - ne
+        force[0, ct] = np.sum(ntot * ex)
+        force[1, ct] = np.sum(ntot * ey)
+        force[2, ct] = np.sum(ntot * ez)
+    mkdir_p('../data/')
+    force.tofile('../data/force.dat')
     c0 = 3.0E5   # km/s
     e0 = 1.6E-19
     me = 9.1E-31
