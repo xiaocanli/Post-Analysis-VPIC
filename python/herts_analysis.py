@@ -26,6 +26,8 @@ from plasma_params import calc_plasma_parameters
 from scipy import signal
 import multiprocessing
 from joblib import Parallel, delayed
+from particle_distribution import *
+import itertools
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -910,6 +912,25 @@ def plot_vel_xyz(run_name, root_dir, pic_info, species, ct,
     # plt.show()
 
 
+def get_particle_number(base_dir, pic_info, species, tindex):
+    """Get the total particle number at a time frame
+    """
+    dir_name = base_dir + 'particle/T.' + str(tindex) + '/'
+    fbase = dir_name + species + '.' + str(tindex) + '.'
+    tx = pic_info.topology_x
+    ty = pic_info.topology_y
+    tz = pic_info.topology_z
+    ntot = 0
+    for (ix, iy, iz) in itertools.product(range(tx), range(ty), range(tz)):
+        mpi_rank = ix + iy*tx + iz*tx*ty
+        fname = fbase + str(mpi_rank)
+        with open(fname, 'r') as fh:
+            read_boilerplate(fh)
+            v0, pheader, offset = read_particle_header(fh)
+            ntot += pheader.dim
+    print ntot
+
+
 if __name__ == "__main__":
     run_name = 'test'
     root_dir = '../../'
@@ -928,7 +949,7 @@ if __name__ == "__main__":
         # plot_vel_xyz(run_name, root_dir, pic_info, 'e', job_id, plasma_type, drange)
         plot_nrho(run_name, root_dir, pic_info, job_id, plasma_type, drange)
     ncores = multiprocessing.cpu_count()
-    Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
+    # Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
     # plot_nrho(run_name, root_dir, pic_info, ct, plasma_type, drange)
     # plot_vel(run_name, root_dir, pic_info, 'e', plasma_type)
     # plot_vel_xyz(run_name, root_dir, pic_info, 'e', ct, plasma_type, drange)
@@ -937,3 +958,6 @@ if __name__ == "__main__":
     # plot_force_2d(run_name, root_dir, pic_info)
     # calc_force_charge_efield(root_dir, pic_info, drange)
     # plot_force(run_name, root_dir, pic_info, plasma_type, force_norm)
+    tindex = 1600700
+    get_particle_number(root_dir, pic_info, 'eparticle', tindex)
+    get_particle_number(root_dir, pic_info, 'hparticle', tindex)
