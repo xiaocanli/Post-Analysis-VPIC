@@ -931,6 +931,34 @@ def get_particle_number(base_dir, pic_info, species, tindex):
     print ntot
 
 
+def read_particle_number(base_dir, pic_info):
+    """Get the total particle number for all time frames
+    """
+    fbase = base_dir + 'rundata/particle_number.'
+    tx = pic_info.topology_x
+    ty = pic_info.topology_y
+    tz = pic_info.topology_z
+    ntot = [0, 0]
+    fname = fbase + str(0)
+    with open(fname, 'r') as fh:
+        data = np.genfromtxt(fh)
+        nt, sz = data.shape
+    ntot = np.zeros((nt, 2))
+    t = np.zeros(nt)
+    for (ix, iy, iz) in itertools.product(range(tx), range(ty), range(tz)):
+        mpi_rank = ix + iy*tx + iz*tx*ty
+        fname = fbase + str(mpi_rank)
+        with open(fname, 'r') as fh:
+            data = np.genfromtxt(fh)
+            ntot += data[:, 1:3]
+    t = data[:, 0]
+    dt = pic_info.dtwpe
+    t *= dt
+
+    plt.plot(t, ntot[:, 0] / ntot[:, 1], linewidth=2)
+    plt.show()
+
+
 if __name__ == "__main__":
     run_name = 'test'
     root_dir = '../../'
@@ -958,6 +986,7 @@ if __name__ == "__main__":
     # plot_force_2d(run_name, root_dir, pic_info)
     # calc_force_charge_efield(root_dir, pic_info, drange)
     # plot_force(run_name, root_dir, pic_info, plasma_type, force_norm)
-    tindex = 1600700
-    get_particle_number(root_dir, pic_info, 'eparticle', tindex)
-    get_particle_number(root_dir, pic_info, 'hparticle', tindex)
+    # tindex = 1600700
+    # get_particle_number(root_dir, pic_info, 'eparticle', tindex)
+    # get_particle_number(root_dir, pic_info, 'hparticle', tindex)
+    read_particle_number(root_dir, pic_info)
