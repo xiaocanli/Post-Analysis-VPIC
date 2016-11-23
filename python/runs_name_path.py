@@ -74,5 +74,15 @@ def shock_sheet_runs():
     return (base_dirs, run_names)
 
 
+def low_beta_runs():
+    base_dirs = []
+    fname = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
+    base_dirs.append(fname)
+    run_names = []
+    run_names.append('mime25_beta0001')
+
+    return (base_dirs, run_names)
+
+
 if __name__ == "__main__":
     ApJ_long_paper_runs()

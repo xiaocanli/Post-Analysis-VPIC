@@ -14,7 +14,7 @@ import fitting_funcs
 import palettable
 import color_maps as cm
 import colormap.colormaps as cmaps
-from runs_name_path import ApJ_long_paper_runs, guide_field_runs
+from runs_name_path import *
 from energy_conversion import read_data_from_json
 import palettable
 
@@ -592,16 +592,23 @@ def plot_maximum_energy(pic_info, dir):
 def move_energy_spectra():
     if not os.path.isdir('../data/'):
         os.makedirs('../data/')
-    dir = '../data/spectra/'
-    if not os.path.isdir(dir):
-        os.makedirs(dir)
+    fdir = '../data/spectra/'
+    if not os.path.isdir(fdir):
+        os.makedirs(fdir)
     # base_dirs, run_names = ApJ_long_paper_runs()
-    base_dirs, run_names = guide_field_runs()
+    # base_dirs, run_names = guide_field_runs()
+    base_dirs, run_names = low_beta_runs()
     for base_dir, run_name in zip(base_dirs, run_names):
-        fpath = dir + run_name
+        fpath = fdir + run_name
         if not os.path.isdir(fpath):
             os.makedirs(fpath)
-        command = "cp " + base_dir + "/pic_analysis/spectrum/* " + fpath
+        fname = base_dir + "/pic_analysis/spectrum/*"
+        if os.path.isfile(fname):
+            command = "cp " +  fname + " " + fpath
+        else:
+            fname = base_dir + "/spectrum*"
+            command = "cp " +  fname + " " + fpath
+
         os.system(command)
 
 
@@ -811,6 +818,7 @@ def plot_spectra_beta_electron():
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
 
+
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/spectra/'
@@ -921,6 +929,18 @@ def plot_spectra_beta_electron_fitted():
     ax.text(0.85, 0.05, 'R6', color=colors[3], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
+    ax.text(0.5, 0.27, r'$\beta_e=0.2$', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-75)
+    ax.text(0.6, 0.25, r'$\beta_e=0.07$', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-75)
+    ax.text(0.7, 0.25, r'$\beta_e=0.02$', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-68)
+    ax.text(0.82, 0.25, r'$\beta_e=0.007$', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-62)
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
@@ -1229,6 +1249,19 @@ def plot_spectra_beta_ion():
     ax.text(0.92, 0.05, 'R6', color=colors[3], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
+
+    ax.text(0.42, 0.25, r'$\beta_e=0.2$', color=colors[0], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-60)
+    ax.text(0.55, 0.25, r'$\beta_e=0.07$', color=colors[1], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-60)
+    ax.text(0.75, 0.25, r'$\beta_e=0.02$', color=colors[2], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-60)
+    ax.text(0.85, 0.33, r'$\beta_e=0.007$', color=colors[3], fontsize=20,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax.transAxes, rotation=-60)
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
@@ -1781,13 +1814,13 @@ if __name__ == "__main__":
     # plt.show()
     # plot_spectrum_bulk(ntp, 'e', pic_info)
     # plot_maximum_energy(ntp, pic_info)
-    # move_energy_spectra()
+    move_energy_spectra()
     # calc_nonthermal_fraction('h')
     # plot_spectra_beta_electron()
     # plot_spectra_beta_electron_fitted()
     # plot_spectra_multi_electron()
     # plot_spectra_multi_electron_fitted()
-    plot_spectra_beta_ion()
+    # plot_spectra_beta_ion()
     # plot_spectra_multi_ion()
     # plot_guide_electron()
     # plot_guide_ion()
