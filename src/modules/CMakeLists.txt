@@ -72,6 +72,7 @@ target_link_libraries(particle_module get_info file_header interp_emf
     magnetic_field particle_info)
 
 add_library(particle_file particle_file.f90)
+target_link_libraries(particle_file file_header)
 
 add_library(particle_spectrum particle_frames.f90 particle_spectrum.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field

@@ -1,6 +1,6 @@
-module load intel/14.0.2
+module load intel
 module load openmpi
 module load friendly-testing
 module load cmake
 module load git
-module load hdf5-parallel/1.8.13
+module load hdf5-parallel/1.8.16
