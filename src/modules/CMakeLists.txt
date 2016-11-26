@@ -26,7 +26,7 @@ target_link_libraries(mpi_setup get_info)
 add_library(particle_info particle_info.f90 global.f90)
 
 add_library(mpi_io_fields mpi_io_fields.f90 global.f90)
-target_link_libraries(mpi_io_fields get_info particle_info mpi_io)
+target_link_libraries(mpi_io_fields get_info particle_info mpi_io mpi_setup)
 
 add_library(analysis_config STATIC analysis_config.f90 translate_config.f90
     get_info_translate.f90)
