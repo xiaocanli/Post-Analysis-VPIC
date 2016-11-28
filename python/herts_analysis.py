@@ -18,16 +18,18 @@ import color_maps as cm
 import colormap.colormaps as cmaps
 from runs_name_path import ApJ_long_paper_runs
 from energy_conversion import read_data_from_json
-from contour_plots import read_2d_fields, plot_2d_contour
+# from contour_plots import read_2d_fields, plot_2d_contour
 import palettable
 import sys
 from shell_functions import mkdir_p
 from plasma_params import calc_plasma_parameters
 from scipy import signal
 import multiprocessing
-from joblib import Parallel, delayed
-from particle_distribution import *
+# from joblib import Parallel, delayed
+# from particle_distribution import *
 import itertools
+import simplejson as json
+from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -955,13 +957,65 @@ def read_particle_number(base_dir, pic_info):
     dt = pic_info.dtwpe
     t *= dt
 
-    plt.plot(t, ntot[:, 0] / ntot[:, 1], linewidth=2)
-    plt.show()
+    # print np.gradient(ntot, axis=0)
+    # print t[1] - t[0]
+    # plt.plot(t, ntot[:, 0] / ntot[:, 1], linewidth=2)
+    # plt.show()
+
+    return (t, ntot)
+
+
+def plot_particle_number():
+    """
+    """
+    root_dir = '../../../tether_potential_tests/'
+    run_names = ['v50', 'v100', 'v150', 'v200']
+    mkdir_p('../data/pic_info/')
+    mkdir_p('../data/particle_number/')
+    for run_name in run_names:
+        fdir = root_dir + run_name + '/'
+        pic_info = pic_information.get_pic_info(fdir)
+        pic_info_json = data_to_json(pic_info)
+        fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        with open(fname, 'w') as f:
+            json.dump(pic_info_json, f)
+        t, ntot = read_particle_number(fdir, pic_info)
+        fname = '../data/particle_number/nptl_' + run_name + '.dat'
+        data = np.column_stack((t, ntot))
+        np.savetxt(fname, data)
+        # plt.plot(t, np.gradient(ntot, axis=0), linewidth=2)
+
+    # mkdir_p('../img')
+    # plt.savefig('../img/ptl_number.eps')
+    # plt.close()
+    # plt.show()
+    
+
+
+def calc_electric_current(pic_info, params):
+    """
+    """
+    e0 = 1.6E-19
+    dn = 7700.0
+    dt = 1.8919  # in wpe^-1
+    ntot = pic_info.nx * pic_info.nz * pic_info.nppc
+    smime = math.sqrt(pic_info.mime)
+    lx = smime * pic_info.lx_di
+    lz = smime * pic_info.lz_di
+    vol = lx * lz  # in de**2
+    de = params['de'] / 100  # in m
+    ne = params['ne'] * 1E6  # in m^-3
+    ntot_real = vol * de**2 * ne
+    dntot_real = dn * ntot_real / ntot
+    dt_wpe = dt / params['wpe']
+    current = dntot_real * e0 / dt_wpe
+    print current * 1000
 
 
 if __name__ == "__main__":
     run_name = 'test'
     root_dir = '../../'
+    root_dir = '../../../tether_potential_tests/v200/'
     pic_info = pic_information.get_pic_info(root_dir)
     # force_norm = 1E3
     # plasma_type = 'lab'
@@ -989,4 +1043,6 @@ if __name__ == "__main__":
     # tindex = 1600700
     # get_particle_number(root_dir, pic_info, 'eparticle', tindex)
     # get_particle_number(root_dir, pic_info, 'hparticle', tindex)
-    read_particle_number(root_dir, pic_info)
+    # read_particle_number(root_dir, pic_info)
+    # calc_electric_current(pic_info, params)
+    plot_particle_number()
