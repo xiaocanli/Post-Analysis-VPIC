@@ -1,7 +1,7 @@
 # Install Guide
 
 ## Overview
-This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand line arguments.The FLAP pacakge is recommended to install using the [FoBiS](https://github.com/szaghi/FoBiS), which is building system for Fortran projects.
+This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand line arguments.The FLAP package is recommended to install using the [FoBiS](https://github.com/szaghi/FoBiS), which is building system for Fortran projects.
 
 ## Requirments
 - **Git**. The newer the better.
