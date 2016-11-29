@@ -1,15 +1,15 @@
 # Install Guide
 
 ## Overview
-This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand line arguments.The FLAP package is recommended to install using the [FoBiS](https://github.com/szaghi/FoBiS), which is building system for Fortran projects.
+This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand line arguments.The FLAP package is recommended to be installed using the [FoBiS](https://github.com/szaghi/FoBiS) package, which is building system for Fortran projects.
 
 ## Requirments
-- **Git**. The newer the better.
+- **Git** The newer the better.
 - **CMake** 3.0.0 or higher
 - **GCC** or **Intel** compilers. Not sure if it works for different versions.
 - **OpenMPI** and **MVAPICH2**. Minimum versions are unknown.
 - Parallel **HDF5**. Tested with version 1.8.13 and 1.8.16
-- On a LANL cluster, `source module_intel_lanl.sh` to load the above packages. On a Cray cluster, `source module_cray.sh`
+- On a LANL cluster, `source module_intel_lanl.sh` to load above packages. On a Cray cluster, `source module_cray.sh`.
 - [FoBiS](https://github.com/szaghi/FoBiS)
   - The installation wiki: https://github.com/szaghi/FoBiS/wiki/Install.
   - It is recommended to use PyPI to install it. Before installation, load a python module on a cluster.
