@@ -23,10 +23,15 @@ target_link_libraries(parameters read_config)
 add_library(mpi_setup mpi_setup.f90 global.f90 translate_config.f90)
 target_link_libraries(mpi_setup get_info)
 
-add_library(analysis_config STATIC analysis_config.f90 mpi_io_fields.f90
-    particle_info.f90 translate_config.f90 get_info_translate.f90)
+add_library(particle_info particle_info.f90 global.f90)
+
+add_library(mpi_io_fields mpi_io_fields.f90 global.f90)
+target_link_libraries(mpi_io_fields get_info particle_info mpi_io mpi_setup)
+
+add_library(analysis_config STATIC analysis_config.f90 translate_config.f90
+    get_info_translate.f90)
 target_link_libraries(analysis_config get_info mpi_io parameters
-    commandline_arguments mpi_setup)
+    commandline_arguments mpi_setup mpi_io_fields)
 
 add_library(magnetic_field STATIC magnetic_field.f90 global.f90)
 target_link_libraries(magnetic_field get_info parameters)
@@ -37,8 +42,9 @@ target_link_libraries(electric_field get_info parameters)
 add_library(fieldline_tracing STATIC fieldline_tracing.f90 global.f90)
 target_link_libraries(fieldline_tracing magnetic_field)
 
-add_library(pic_fields pic_fields.f90 global.f90 mpi_io_fields.f90)
-target_link_libraries(pic_fields get_info saving_flags mpi_io mpi_setup)
+add_library(pic_fields pic_fields.f90 global.f90)
+target_link_libraries(pic_fields get_info saving_flags mpi_io mpi_setup
+    get_info mpi_io_fields)
 
 add_library(usingle usingle.f90 global.f90)
 target_link_libraries(usingle get_info pic_fields)
@@ -61,11 +67,12 @@ target_link_libraries(translate_module file_header get_info mpi_io parameters)
 add_library(spectrum_config spectrum_config.f90)
 target_link_libraries(spectrum_config read_config get_info)
 
-add_library(particle_module particle_module.f90 particle_info.f90)
+add_library(particle_module particle_module.f90)
 target_link_libraries(particle_module get_info file_header interp_emf
-    magnetic_field)
+    magnetic_field particle_info)
 
 add_library(particle_file particle_file.f90)
+target_link_libraries(particle_file file_header)
 
 add_library(particle_spectrum particle_frames.f90 particle_spectrum.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field
@@ -91,7 +98,7 @@ add_library(jdote_energy_band jdote_energy_band.f90 global.f90)
 target_link_libraries(jdote_energy_band read_config analysis_config)
 
 add_library(interp_emf interpolation_emf.f90 neighbors.f90)
-target_link_libraries(interp_emf get_info fields)
+target_link_libraries(interp_emf get_info fields file_header)
 
 add_library(interp_pfields interpolation_particle_fields.f90 neighbors.f90)
 target_link_libraries(interp_pfields get_info usingle)
@@ -106,9 +113,9 @@ target_link_libraries(particle_spectrum_vdist particle_spectrum vdist
 
 add_library(cla cla.f90 kinds.f90)
 
-add_library(commandline_arguments commandline_arguments.f90 global.f90
-    particle_info.f90)
-target_link_libraries(commandline_arguments cla spectrum_config parameters)
+add_library(commandline_arguments commandline_arguments.f90 global.f90)
+target_link_libraries(commandline_arguments cla spectrum_config parameters
+    particle_info)
 
 add_library(maximum_energy maximum_energy.f90 global.f90)
 target_link_libraries(maximum_energy get_info spectrum_config mpi_io

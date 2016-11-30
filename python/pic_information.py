@@ -11,7 +11,7 @@ import simplejson as json
 from serialize_json import data_to_json, json_to_data
 from os import listdir
 from os.path import isfile, join
-from runs_name_path import ApJ_long_paper_runs, guide_field_runs
+from runs_name_path import *
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.
@@ -417,8 +417,10 @@ def save_pic_info_json():
     if not os.path.isdir(dir):
         os.makedirs(dir)
 
-    base_dirs, run_names = ApJ_long_paper_runs()
+    # base_dirs, run_names = ApJ_long_paper_runs()
     # base_dirs, run_names = guide_field_runs()
+    # base_dirs, run_names = high_sigma_runs()
+    base_dirs, run_names = shock_sheet_runs()
     for base_dir, run_name in zip(base_dirs, run_names):
         pic_info = get_pic_info(base_dir)
         pic_info_json = data_to_json(pic_info)
@@ -445,8 +447,12 @@ if __name__ == "__main__":
     # pic_info = get_pic_info(base_directory)
     # pic_info_json = data_to_json(pic_info)
     # run_name = 'nersc_large'
-    # fname = '../data/pic_info_' + run_name + '.json'
-    # with open(fname, 'w') as f:
-    #     json.dump(pic_info_json, f)
-    save_pic_info_json()
+    base_directory = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
+    pic_info = get_pic_info(base_directory)
+    pic_info_json = data_to_json(pic_info)
+    run_name = 'mime25_beta0001'
+    fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    with open(fname, 'w') as f:
+        json.dump(pic_info_json, f)
+    # save_pic_info_json()
     # list_pic_info_dir('../data/pic_info/')

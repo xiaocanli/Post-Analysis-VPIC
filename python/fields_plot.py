@@ -25,6 +25,8 @@ from energy_conversion import read_data_from_json
 from contour_plots import read_2d_fields, plot_2d_contour
 import palettable
 import sys
+from shell_functions import mkdir_p
+from plasma_params import calc_plasma_parameters
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -455,10 +457,11 @@ def plot_number_densities(run_name, root_dir, pic_info):
         root_dir: the root directory of this run.
         pic_info: PIC simulation information in a namedtuple.
     """
-    ct = 0
+    ntf = pic_info.ntf
+    ct = ntf - 1
     contour_color = ['k', 'k']
-    vmin = [0.1, 0.1]
-    vmax = [10, 10]
+    vmin = [0, 0]
+    vmax = [3, 3]
     xs, ys = 0.18, 0.60
     w1, h1 = 0.72, 0.36
     axis_pos = [xs, ys, w1, h1]
@@ -466,10 +469,10 @@ def plot_number_densities(run_name, root_dir, pic_info):
     fig_sizes = (5, 5)
     nxp, nzp = 1, 2
     var_names = [r'$n_e$', r'$n_i$']
-    colormaps = ['seismic', 'seismic']
+    colormaps = ['jet', 'jet']
     text_colors = ['k', 'k']
     xstep, zstep = 2, 2
-    is_logs = [True, True]
+    is_logs = [False, False]
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_number_densities/'
@@ -494,15 +497,14 @@ def plot_number_densities(run_name, root_dir, pic_info):
             'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
             'fname':fname, 'fig_dir':fig_dir}
     nfields_plot = PlotMultiplePanels(**kwargs_plots)
-    for ct in range(1, pic_info.ntf):
-        kwargs["current_time"] = ct
-        x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
-        x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
-        x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
-        fdata = [ne, ni]
-        nfields_plot.update_fields(ct, fdata, Ay)
-
-    # plt.show()
+    # for ct in range(1, pic_info.ntf):
+    #     kwargs["current_time"] = ct
+    #     x, z, ne = read_2d_fields(pic_info, fname1, **kwargs)
+    #     x, z, ni = read_2d_fields(pic_info, fname2, **kwargs)
+    #     x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
+    #     fdata = [ne, ni]
+    #     nfields_plot.update_fields(ct, fdata, Ay)
+    plt.show()
 
 
 def plot_energy_band(run_name, root_dir, pic_info, species):
@@ -671,10 +673,11 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
         pic_info: PIC simulation information in a namedtuple.
         species: particle species.
     """
-    ct = 0
+    ct = pic_info.ntf - 1
     contour_color = ['k', 'k', 'k']
-    vmin = [-1.0, -1.0, -1.0]
-    vmax = [1.0, 1.0, 1.0]
+    v0 = 0.02
+    vmin = [-v0, -v0, -v0]
+    vmax = [v0, v0, v0]
     xs, ys = 0.15, 0.70
     w1, h1 = 0.7, 0.2625
     axis_pos = [xs, ys, w1, h1]
@@ -716,7 +719,8 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
-    fdata = [vx/va, vy/va, vz/va]
+    # fdata = [vx/va, vy/va, vz/va]
+    fdata = [vx, vy, vz]
     fname = 'v' + species
     kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
             'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
@@ -725,16 +729,16 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
             'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
             'fname':fname, 'fig_dir':fig_dir}
     vfields_plot = PlotMultiplePanels(**kwargs_plots)
-    for ct in range(1, pic_info.ntf):
-        kwargs["current_time"] = ct
-        x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
-        x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
-        x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
-        x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
-        fdata = [vx/va, vy/va, vz/va]
-        vfields_plot.update_fields(ct, fdata, Ay)
+    # for ct in range(1, pic_info.ntf):
+    #     kwargs["current_time"] = ct
+    #     x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
+    #     x, z, vy = read_2d_fields(pic_info, fname3, **kwargs)
+    #     x, z, vz = read_2d_fields(pic_info, fname4, **kwargs)
+    #     x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
+    #     fdata = [vx/va, vy/va, vz/va]
+    #     vfields_plot.update_fields(ct, fdata, Ay)
 
-    # plt.show()
+    plt.show()
 
 
 def plot_thermal_temperature(run_name, root_dir, pic_info):
@@ -1375,14 +1379,19 @@ def plot_bulk_internal_energy(run_name, root_dir, pic_info, species):
 
 
 if __name__ == "__main__":
-    run_name = "mime25_beta002"
-    root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
-    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
+    # run_name = "mime25_beta002"
+    # root_dir = "/scratch3/xiaocanli/sigma1-mime25-beta001/"
+    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    # pic_info = read_data_from_json(picinfo_fname)
+    run_name = 'test'
+    root_dir = '../../'
+    pic_info = pic_information.get_pic_info(root_dir)
     # plot_maximum_energy(run_name, root_dir, pic_info)
     # plot_jdote_fields(run_name, root_dir, pic_info, 'e')
     # plot_compression_fields(run_name, root_dir, pic_info, 'e')
     # plot_bulk_internal_energy(run_name, root_dir, pic_info, 'e')
     # plot_fields_multi()
-    plot_fields_cmdline()
+    # plot_fields_cmdline()
     # plot_jdotes_cmdline()
+    # plot_number_densities(run_name, root_dir, pic_info)
+    # plot_velocity_fields(run_name, root_dir, pic_info, 'e')

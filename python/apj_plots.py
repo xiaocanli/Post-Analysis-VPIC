@@ -37,6 +37,7 @@ import stat
 from scipy.interpolate import interp1d
 from itertools import groupby
 from particle_distribution import *
+from distinguishable_colors import *
 import pprint
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
@@ -2406,7 +2407,7 @@ def fit_two_maxwellian():
     plt.show()
 
 
-def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
+def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     """Get the coordinates when plotting contours
 
     Args:
@@ -2414,6 +2415,8 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
         root_dir: the root directory of this run.
         pic_info: PIC simulation information in a namedtuple.
         ct: time frame
+        nlevels: total levels of contour
+        ilevel: additional contour line plot
     """
     kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
     # fname = root_dir + "data/jy.gda"
@@ -2445,7 +2448,9 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
     # cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
     # cbar1.ax.tick_params(labelsize=16)
 
-    ax1.set_color_cycle(colors)
+    colors_jet = plt.cm.Paired(np.arange(nlevels)/float(nlevels), 1)
+    colors_d = distinguishable_colors()
+    ax1.set_color_cycle(colors_jet)
     i = 1
     fdir = 'pic_analysis/data/field_line/'
     fpath = root_dir + fdir + 't' + str(ct) + '/'
@@ -2527,6 +2532,14 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels):
 
             j = j + 1
 
+    for cl in cs.collections[ilevel:ilevel+1]:
+        sz = len(cl.get_paths())
+        for p in cl.get_paths():
+            v = p.vertices
+            x = v[:, 0]
+            y = v[:, 1]
+            ax1.plot(x, y, color='k', linewidth=2)
+
     # plt.show()
     # plt.close()
 
@@ -2537,7 +2550,8 @@ def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh, species,
     """
     cmd = 'particle_spectrum_vdist_fieldlines'
     script = 'mpirun -np $ncpus ' + cmd + ' -fb ' + fnames[0] + ' -ft ' + \
-             fnames[1] + ' -fp ' + fpath + ' -t ' + str(ct) + '\n'
+             fnames[1] + ' -fp ' + fpath + ' -t ' + str(ct) + \
+             ' -p ' + species + '\n'
     fh.write(script)
 
     fname = fnames[0]
@@ -2576,7 +2590,7 @@ def gen_run_script(ct, ct_particle, species, root_dir):
     fh = open(fname, 'w')
     fh.write('#!/bin/bash\n')
     # fh.write('source module_intel.sh\n')
-    fh.write('ncpus=16\n')
+    fh.write('ncpus=64\n')
     for i in range(sz/2):
         gen_script_one_pair_field_lines(ct, ct_particle, files[i*2:i*2+2],
                                         fpath, fh, species, spect_path,
@@ -2601,7 +2615,8 @@ def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info)
         fnames.append(fname[start[2]+1:-6])
 
     sector_names = sorted(set(fnames))
-    snames = {k: list(v) for k, v in groupby(sector_names, key=lambda x: x[0])}
+    snames = {k: list(v) for k, v in groupby(sector_names,
+        key=lambda x: x[0:x.find('_')] if x.find('_') > 0 else x)}
     dists_sectors = {}
     for key in snames:
         dists = []
@@ -2610,18 +2625,20 @@ def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info)
                          '_' + fline + '.dat'
             fname_1d = 'vdist_1d_' + fname_post 
             fname_2d = 'vdist_2d_' + fname_post
-            fvel = read_velocity_distribution('e', ct, pic_info, fname_1d,
-                                              fname_2d, vdist_path)
             fname_ene = 'spectrum_' + fname_post
-            fene = read_energy_distribution('e', ct, pic_info, fname_ene, spect_path)
-            dists.append({'fvel': fvel, 'fene': fene})
+            if os.path.isfile(vdist_path + fname_1d):
+                fvel = read_velocity_distribution('e', ct, pic_info, fname_1d,
+                                                  fname_2d, vdist_path)
+                fene = read_energy_distribution('e', ct, pic_info, fname_ene, \
+                        spect_path)
+                dists.append({'fvel': fvel, 'fene': fene})
         dists_sectors[key] = dists
 
     return dists_sectors
 
 
 def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
-                             run_name):
+                             run_name, nlevels, ilevel):
     """Plot particle spectrum and velocity distributions in sectors
     """
     dists_sector = read_spectrum_vdist_in_sectors(ct, ct_particle, species, \
@@ -2635,24 +2652,112 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         fene = np.sum(np.asarray(fene), axis=0)
         flogs[key] = fene
 
-    fig = plt.figure(figsize=[7, 5])
-    xs, ys = 0.15, 0.15
-    w1, h1 = 0.8, 0.8
+    # fig = plt.figure(figsize=[7, 5])
+    # xs, ys = 0.15, 0.15
+    # w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[5, 5])
+    xs, ys = 0.21, 0.15
+    w1, h1 = 0.75, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.set_color_cycle(colors)
+    colors_jet = plt.cm.Paired(np.arange(nlevels)/float(nlevels), 1)
+    colors_d = distinguishable_colors()
+    ax.set_color_cycle(colors_jet)
     nsector = len(flogs)
+    norm = 1
     for i in range(1, nsector):
-        ax.loglog(elog, flogs[str(i)] - flogs[str(i+1)], linewidth=3)
-    ax.loglog(elog, flogs[str(nsector)], linewidth=3)
+        f = (flogs[str(i)] - flogs[str(i+1)]) * norm
+        ax.loglog(elog, f, linewidth=3)
+        # norm *= 1.4
+    flog = flogs[str(nsector)] * norm
+    # flog = flogs[str(nsector-1)] - flogs[str(nsector)]
+    fthermal1, popt = fit_thermal_core(elog, flog)
+    fnonthermal1 = flog - fthermal1
+    imax = np.argmax(fnonthermal1)
+    ns = imax + 20
+    fthermal2, popt = fit_thermal_core(elog[ns:], fnonthermal1[ns:])
+    fthermal2 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal2 = fnonthermal1 - fthermal2
+    pindex = -5.5
+    fpower = elog**pindex
+    fpower *= flog[ns] / fpower[ns]
+    fpower *= 1E3
+    powerIndex = "{%0.2f}" % pindex
+    pname = '$\sim (\gamma - 1)^{' + powerIndex + '}$'
+    ax.loglog(elog, flog, linewidth=3)
+    ax.loglog(elog, flogs[str(ilevel)], linewidth=3, color='k',
+            label='Reconnection region')
+    # ax.loglog(elog[ns:], fpower[ns:], linewidth=2, linestyle='--',
+    #         color='k', label=pname)
+    ax.loglog(elog, fthermal1, color='k', linestyle='--', linewidth=2,
+            label='Fitted Maxwellian')
+    # ax.loglog(elog, fnonthermal1, color='k', linestyle='-', linewidth=2)
+    # ax.loglog(elog, fthermal2, color='k', linestyle='--', linewidth=2)
+    # ax.loglog(elog, fnonthermal2, color='k', linestyle='--', linewidth=2)
+    leg = ax.legend(loc=3, prop={'size':16}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax.xaxis.grid()
     ax.tick_params(labelsize=20)
     ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
-    if run_name == 'mime25_beta002':
-        ax.set_xlim([1E-4, 1E1])
-        ax.set_ylim([1E-5, 1E5])
+    if run_name == 'mime25_beta02':
+        if species == 'e':
+            ax.set_xlim([1E-3, 1E0])
+            ax.set_ylim([1E-5, 2E5])
+        else:
+            ax.set_xlim([1E-4, 1E0])
+            ax.set_ylim([1E-4, 5E6])
+    elif run_name == 'mime25_beta002':
+        if species == 'e':
+            ax.set_xlim([1E-3, 1E1])
+            ax.set_ylim([1E-5, 1E5])
+        else:
+            ax.set_xlim([1E-4, 1E0])
+            ax.set_ylim([1E-4, 5E6])
     elif run_name == 'mime25_beta0007':
-        ax.set_xlim([1E-4, 3E1])
-        ax.set_ylim([1E-5, 1E5])
+        if species == 'e':
+            ax.set_xlim([1E-4, 3E1])
+            ax.set_ylim([1E-5, 1E5])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 5E6])
+    elif run_name == 'mime25_beta0002':
+        if species == 'e':
+            ax.set_xlim([1E-4, 3E2])
+            ax.set_ylim([1E-6, 2E4])
+        else:
+            ax.set_xlim([1E-4, 1E1])
+            ax.set_ylim([1E-4, 1E6])
+    elif run_name == 'mime25_sigma30':
+        if species == 'e':
+            ax.set_xlim([1E-4, 2E3])
+            ax.set_ylim([1E-5, 1E6])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
+    elif run_name == 'mime25_sigma100':
+        if species == 'e':
+            ax.set_xlim([1E-4, 2E3])
+            ax.set_ylim([1E-5, 5E5])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
+
+    # fig = plt.figure(figsize=[7, 5])
+    # xs, ys = 0.15, 0.15
+    # w1, h1 = 0.8, 0.8
+    # ax = fig.add_axes([xs, ys, w1, h1])
+    # colors_jet = plt.cm.jet(np.arange(nlevels)/float(nlevels), 1)
+    # ax.set_color_cycle(colors_jet)
+    # for i in range(nsector-1):
+    #     ntot, etot = accumulated_particle_info(elog,
+    #             flogs[str(i+1)] - flogs[str(i+2)])
+    #     ax.semilogx(elog, ntot, linewidth=2)
+    # ntot, etot = accumulated_particle_info(elog, flog)
+    # ax.semilogx(elog, ntot, linewidth=2)
+    # ax.xaxis.grid()
+    # ax.tick_params(labelsize=20)
+    # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+
     # plt.show()
 
 
@@ -2725,26 +2830,40 @@ def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
     species = 'e'
-    run_name = "mime25_beta002"
-    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    run_name = "mime25_beta02"
+    root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
+    # run_name = "mime25_beta002"
+    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
+    # run_name = "mime25_beta0002"
+    # root_dir = "/net/scratch3/xiaocanli/mime25-sigma1-beta0002/"
     # run_name = "mime25_beta002_track"
     # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
+    # run_name = "mime25_sigma30"
+    # root_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
+    # run_name = "mime25_sigma100"
+    # root_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
     ct = ct_particle * pic_info.particle_interval / pic_info.fields_interval
-    nlevels = 10
+    nlevels = 20
     fpath = '../img/spect_vdist_fieldlines/' + run_name
-    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels)
-    # mkdir_p(fpath)
-    # fname = fpath + '/contour_' + str(ct) + '.jpg'
-    # plt.savefig(fname, dpi=300)
-    # gen_run_script(ct, ct_particle, 'e', root_dir)
+    if run_name == 'mime25_beta02':
+        ilevel = 8
+    elif run_name == 'mime25_beta002':
+        ilevel = 6
+    elif run_name == 'mime25_beta0007':
+        ilevel = 5
+    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
+    mkdir_p(fpath)
+    fname = fpath + '/contour_' + str(ct) + '.jpg'
+    plt.savefig(fname, dpi=300)
+    # gen_run_script(ct, ct_particle, species, root_dir)
     plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
-                             run_name)
-    fname = fpath + '/spect_sector_' + str(ct) + '.eps'
+                             run_name, nlevels, ilevel)
+    fname = fpath + '/spect_sector_' + species + '_' + str(ct) + '.eps'
     plt.savefig(fname)
     plt.show()
 
@@ -2753,8 +2872,10 @@ if __name__ == "__main__":
     # scratch_dir = '/net/scratch2/xiaocanli/'
     # run_name = "mime25_beta002_noperturb"
     # root_dir = scratch_dir + 'mime25-sigma1-beta002-200-100-noperturb/'
-    run_name = "mime25_beta002"
-    root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
+    # run_name = "mime25_beta002"
+    # root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
+    run_name = "mime25_beta0002"
+    root_dir = "/net/scratch3/xiaocanli/sigma1-mime25-beta0002/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta002_track"
@@ -2778,5 +2899,5 @@ if __name__ == "__main__":
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
     # fit_two_maxwellian()
-    # spectrum_between_fieldlines()
-    plot_velocity_fields(run_name, root_dir, pic_info, 'e')
+    spectrum_between_fieldlines()
+    # plot_velocity_fields(run_name, root_dir, pic_info, 'e')
