@@ -1,7 +1,7 @@
 # Install Guide
 
 ## Overview
-This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand line arguments.The FLAP package is recommended to be installed using the [FoBiS](https://github.com/szaghi/FoBiS) package, which is building system for Fortran projects.
+This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand line arguments.The FLAP package is recommended to be installed using the [FoBiS](https://github.com/szaghi/FoBiS) package, which is a building system for Fortran projects.
 
 ## Requirments
 - **Git** The newer the better.
@@ -30,7 +30,7 @@ Don't ask me why I have to change the repository name after cloning it.
 $ cd src/third_party/FLAP/
 $ FoBiS.py build -mode static-intel
 ```
-- In the top directory of a run,
+- In the directory `pic_analysis`,
 ```sh
 $ mkdir build
 $ cd build
