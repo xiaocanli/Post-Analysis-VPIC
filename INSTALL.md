@@ -38,3 +38,7 @@ $ cmake ..
 $ make
 $ make install
 ```
+- On a cray system, the above `cmake ..` should be
+```sh
+CC=cc CXX=CC FC=ftn cmake ..
+```
