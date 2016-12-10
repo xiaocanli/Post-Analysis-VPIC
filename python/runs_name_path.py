@@ -78,8 +78,11 @@ def low_beta_runs():
     base_dirs = []
     fname = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
     base_dirs.append(fname)
+    fname = '/net/scratch2/guofan/sigma1-mime25-beta0002-1127/'
+    base_dirs.append(fname)
     run_names = []
     run_names.append('mime25_beta0001')
+    run_names.append('sigma1-mime25-beta0002')
 
     return (base_dirs, run_names)
 

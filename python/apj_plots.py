@@ -2310,7 +2310,8 @@ def fit_two_maxwellian():
     # pic_info = pic_information.get_pic_info('../../')
     # dir = '../spectrum/'
     # run_name = 'mime25_beta002'
-    run_name = 'mime25_beta0007'
+    # run_name = 'mime25_beta0007'
+    run_name = 'mime25_beta0001'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     dir = '../data/spectra/' + run_name + '/'
@@ -2369,6 +2370,10 @@ def fit_two_maxwellian():
         pindex = -5.7
         sindex = 370
         pratio = 1
+    elif run_name == 'mime25_beta0001':
+        pindex = -4.0
+        sindex = 400
+        pratio = 1
 
     fpower = elog[sindex:]**pindex * pratio
     ax.loglog(elog[sindex:], fpower, color='k', linestyle='--')
@@ -2380,7 +2385,7 @@ def fit_two_maxwellian():
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
 
-    ax.set_xlim([2E-3, 3E1])
+    ax.set_xlim([2E-3, 5E1])
     ax.set_ylim([1E-8, 1E2])
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
@@ -2741,6 +2746,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         else:
             ax.set_xlim([1E-4, 3E0])
             ax.set_ylim([1E-4, 1E6])
+    elif run_name == 'mime25_beta0001':
+        if species == 'e':
+            ax.set_xlim([1E-4, 1E2])
+            ax.set_ylim([1E-5, 5E5])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
 
     # fig = plt.figure(figsize=[7, 5])
     # xs, ys = 0.15, 0.15
@@ -2830,8 +2842,8 @@ def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
     species = 'e'
-    run_name = "mime25_beta02"
-    root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
+    # run_name = "mime25_beta02"
+    # root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
     # run_name = "mime25_beta002"
     # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
@@ -2844,6 +2856,8 @@ def spectrum_between_fieldlines():
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
     # run_name = "mime25_sigma100"
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
+    run_name = "mime25_beta0001"
+    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta0001/"
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
@@ -2856,6 +2870,8 @@ def spectrum_between_fieldlines():
         ilevel = 6
     elif run_name == 'mime25_beta0007':
         ilevel = 5
+    elif run_name == 'mime25_beta0001':
+        ilevel = 6
     get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
     mkdir_p(fpath)
     fname = fpath + '/contour_' + str(ct) + '.jpg'
