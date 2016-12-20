@@ -1031,16 +1031,16 @@ def plot_energy_conversion_fraction_beta():
     mkdir_p(picinfo_dir)
     odir = '../img/ene_evolution/'
     mkdir_p(odir)
-    # run_names = ['mime25_beta0007', 'mime25_beta002', 'mime25_beta007',
-    #         'mime25_beta02']
-    # labels = ['R6\n 0.007', 'R1\n 0.02', 'R7\n 0.07', 'R8\n 0.2']
-    # run_label = r'$\beta_e = $'
-    # fname = 'ene_fraction_beta.eps'
-    run_names = ['mime25_beta002', 'mime25_beta002_sigma033',
-            'mime25_beta002_sigma01']
-    labels = ['R1\n $1.0$', 'R2\n $\sqrt{3}$', 'R3\n $\sqrt{10}$']
-    run_label = r'$\omega_{pe} / \Omega_{ce} = $'
-    fname = 'ene_fraction_wpe_wce.eps'
+    run_names = ['sigma1-mime25-beta0002', 'mime25_beta0007',
+                 'mime25_beta002', 'mime25_beta007', 'mime25_beta02']
+    labels = ['R7\n 0.0002', 'R6\n 0.007', 'R1\n 0.02', 'R7\n 0.07', 'R8\n 0.2']
+    run_label = r'$\beta_e = $'
+    fname = 'ene_fraction_beta.eps'
+    # run_names = ['mime25_beta002', 'mime25_beta002_sigma033',
+    #         'mime25_beta002_sigma01']
+    # labels = ['R1\n $1.0$', 'R2\n $\sqrt{3}$', 'R3\n $\sqrt{10}$']
+    # run_label = r'$\omega_{pe} / \Omega_{ce} = $'
+    # fname = 'ene_fraction_wpe_wce.eps'
     nrun = len(run_names)
     ene_fraction = np.zeros(nrun)
     dke_dki = np.zeros(nrun)
