@@ -61,7 +61,7 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
         dte_wpe: the time interval for energies diagnostics (in 1/wpe).
         base_directory: the base directory for different runs.
     """
-    fname = base_directory + '/energies'
+    fname = base_directory + '/rundata/energies'
     try:
         f = open(fname, 'r')
     except IOError:
@@ -316,8 +316,14 @@ def read_pic_info(base_directory):
     nppc, current_line = get_variable_value('nppc', current_line, content)
     b0, current_line = get_variable_value('b0', current_line, content)
     dtwpe, current_line = get_variable_value('dt*wpe', current_line, content)
-    dtwce, current_line = get_variable_value('dt*wce', current_line, content)
-    dtwci, current_line = get_variable_value('dt*wci', current_line, content)
+    try:
+        dtwce, current_line = get_variable_value_h('dt*wce', content)
+    except:
+        dtwce = dtwpe * b0
+    try:
+        dtwci, current_line = get_variable_value_h('dt*wci', content)
+    except:
+        dtwci = dtwce / mime
     while not 'energies_interval' in content[current_line]: current_line += 1
     single_line = content[current_line]
     line_splits = single_line.split(":")
@@ -362,11 +368,26 @@ def get_variable_value(variable_name, current_line, content):
         line_number: current line number after the operations.
     """
     line_number = current_line
-    while not variable_name in content[line_number]: line_number += 1
+    while not variable_name in content[line_number]:
+        line_number += 1
     single_line = content[line_number]
     line_splits = single_line.split("=")
     variable_value = float(line_splits[1])
     return (variable_value, line_number)
+
+
+def get_variable_value_h(variable_name, content):
+    """
+    """
+    line_number = 0
+    for i, s in enumerate(content):
+        if variable_name in s:
+            single_line = content[i]
+            line_splits = single_line.split("=")
+            variable_value = float(line_splits[1])
+            return (variable_value, line_number)
+
+    raise StandardError(variable_name + ' is not found')
 
 
 def get_pic_topology(base_directory):
@@ -447,10 +468,16 @@ if __name__ == "__main__":
     # pic_info = get_pic_info(base_directory)
     # pic_info_json = data_to_json(pic_info)
     # run_name = 'nersc_large'
-    base_directory = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
+    # base_directory = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
+    # run_name = 'mime25_beta0001'
+    # base_directory = '/net/scratch2/guofan/sigma1-mime25-beta0002-1127'
+    # run_name = 'sigma1-mime25-beta0002'
+    # base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-2'
+    # run_name = '2D-90-Mach4-sheet6-2'
+    base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-3'
+    run_name = '2D-90-Mach4-sheet6-3'
     pic_info = get_pic_info(base_directory)
     pic_info_json = data_to_json(pic_info)
-    run_name = 'mime25_beta0001'
     fname = '../data/pic_info/pic_info_' + run_name + '.json'
     with open(fname, 'w') as f:
         json.dump(pic_info_json, f)
