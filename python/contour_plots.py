@@ -481,7 +481,7 @@ def plot_by(pic_info):
 
 
 def plot_number_density(pic_info, species, ct, run_name, shock_pos,
-                        base_dir='../../'):
+                        base_dir='../../', single_file=True):
     """Plot plasma beta and number density.
 
     Args:
@@ -492,11 +492,22 @@ def plot_number_density(pic_info, species, ct, run_name, shock_pos,
     xmin, xmax = 0, pic_info.lx_di
     xmax = 105
     zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
-    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data1/n' + species + '.gda'
-    x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    if single_file:
+        kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fname = base_dir + 'data1/n' + species + '.gda'
+        x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data1/Ay.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs)
+    else:
+        kwargs = {"current_time":0, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fields_interval = pic_info.fields_interval
+        tframe = str(fields_interval * ct)
+        fname = base_dir + 'data/n' + species + '_' + tframe + '.gda'
+        x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data/Ay_' + tframe + '.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs) 
     nx, = x.shape
     nz, = z.shape
     nrho_cum = np.sum(num_rho, axis=0) / nz
@@ -516,9 +527,10 @@ def plot_number_density(pic_info, species, ct, run_name, shock_pos,
     p1, cbar1 = plot_2d_contour(x, z, num_rho, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.jet)
     nlevels = 15
-    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5, levels=levels)
+    if os.path.isfile(fname_Ay):
+        levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+        ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+                colors='black', linewidths=0.5, levels=levels)
     ax1.set_xlim([xmin, xmax])
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=24)
@@ -546,10 +558,10 @@ def plot_number_density(pic_info, species, ct, run_name, shock_pos,
     fig_dir = '../img/img_number_densities/' + run_name + '/'
     mkdir_p(fig_dir)
     fname = fig_dir + '/nrho_linear_' + species + '_' + str(ct).zfill(3) + '.jpg'
-    fig.savefig(fname)
+    # fig.savefig(fname)
 
-    # plt.show()
-    plt.close()
+    plt.show()
+    # plt.close()
 
 
 def plot_vx(pic_info, species, ct, run_name, shock_pos, base_dir='../../'):
@@ -1420,7 +1432,7 @@ def plot_uy(pic_info, current_time):
     # plt.close()
 
 
-def locate_shock(pic_info, ct, run_name, base_dir='../../'):
+def locate_shock(pic_info, ct, run_name, base_dir='../../', single_file=True):
     """Locate the location of shocks
 
     Args:
@@ -1431,17 +1443,34 @@ def locate_shock(pic_info, ct, run_name, base_dir='../../'):
     xmin, xmax = 0, pic_info.lx_di
     xmax = 105
     zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
-    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data1/ne.gda'
-    x, z, ne = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/ni.gda'
-    x, z, ni = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/vex.gda'
-    x, z, vex = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/vix.gda'
-    x, z, vix = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    if single_file:
+        kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fname = base_dir + 'data1/ne.gda'
+        x, z, ne = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data1/ni.gda'
+        x, z, ni = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data1/vex.gda'
+        x, z, vex = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data1/vix.gda'
+        x, z, vix = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data1/Ay.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs) 
+    else:
+        kwargs = {"current_time":0, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fields_interval = pic_info.fields_interval
+        tframe = str(fields_interval * ct)
+        fname = base_dir + 'data/ne_' + tframe + '.gda'
+        x, z, ne = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data/ni_' + tframe + '.gda'
+        x, z, ni = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data/vex_' + tframe + '.gda'
+        x, z, vex = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data/vix_' + tframe + '.gda'
+        x, z, vix = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data/Ay_' + tframe + '.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs) 
     nx, = x.shape
     nz, = z.shape
     xs = 0
@@ -1458,13 +1487,68 @@ def locate_shock(pic_info, ct, run_name, base_dir='../../'):
     vix_grad = np.abs(np.gradient(vix_cum))
     max_index4 = np.argmax(vix_grad[xs:])
     max_indices = [max_index1, max_index2, max_index3, max_index4]
+    imax = max(max_indices)
+    imin = min(max_indices)
+    shock_xindex = (sum(max_indices) - imax - imin) / 2
     fdir = '../data/shock_pos/'
     mkdir_p(fdir)
     fname = fdir + 'shock_pos_' + str(ct) + '.txt'
-    np.savetxt(fname, [max(max_indices)])
+    # imax = max(max_indices)
+    np.savetxt(fname, [shock_xindex])
+
+    w1, h1 = 0.75, 0.76
+    xs, ys = 0.13, 0.92 - h1
+    gap = 0.05
+
+    width, height = 7, 5
+    fig = plt.figure(figsize=[width, height])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":0.5, "vmax":5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, ni, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.viridis)
+    nlevels = 15
+    if os.path.isfile(fname_Ay):
+        levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+        ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+                colors='black', linewidths=0.5, levels=levels)
+
+    xm = x[shock_xindex]
+    shift = 1.0
+    ax1.plot([xm, xm], [zmin, zmax], color='white', linewidth=1, linestyle='-')
+    xs = xm + shift
+    ax1.plot([xs, xs], [zmin, zmax], color='white', linewidth=1, linestyle='--')
+    xe = xm - shift
+    ax1.plot([xe, xe], [zmin, zmax], color='white', linewidth=1, linestyle='--')
+    shift = 5.0
+    xs = xm + shift
+    ax1.plot([xs, xs], [zmin, zmax], color='red', linewidth=1, linestyle='--')
+    xe = xm - shift
+    ax1.plot([xe, xe], [zmin, zmax], color='red', linewidth=1, linestyle='--')
+    
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    lname = r'$n_i$'
+    cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=20)
+    cbar1.ax.tick_params(labelsize=16)
+
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    fig_dir = '../img/img_shock_pos/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/nrho_linear_i_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname, dpi=200)
+
+    # plt.show()
+    plt.close()
 
 
-def combine_shock_files(ntf):
+def combine_shock_files(ntf, run_name):
     """Combine all shock location files at different time frame
 
     The shock position is saved in different file because Parallel
@@ -1478,10 +1562,15 @@ def combine_shock_files(ntf):
         fname = fdir + 'shock_pos_' + str(ct) + '.txt'
         shock_loc[ct] = np.genfromtxt(fname)
     shock_loc[0] = 0
-    # plt.plot(shock_loc)
-    # plt.show()
-    fname = fdir + 'shock_pos.txt'
-    np.savetxt(fname, shock_loc, fmt='%d')
+    tframe = np.arange(ntf-1)
+    z = np.polyfit(tframe, shock_loc, 1)
+    p = np.poly1d(z)
+    shock_loc_fitted = p(tframe)
+    plt.plot(shock_loc, linewidth=2)
+    plt.plot(shock_loc_fitted, linewidth=2)
+    plt.show()
+    fname = fdir + 'shock_pos_' + run_name + '.txt'
+    np.savetxt(fname, shock_loc_fitted, fmt='%d')
 
 
 def find_closest(A, target):
@@ -1900,29 +1989,45 @@ def plot_electric_field(pic_info, ct, run_name, xm, base_dir='../../'):
     plt.close()
 
 
-def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../'):
+def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../',
+                        single_file=True):
     """Plot velocity field 
 
     Args:
         pic_info: namedtuple for the PIC simulation information.
         species: 'e' for electrons, 'i' for ions.
-        ct current time frame.
+        ct: current time frame.
+        base_dir: the base directory of the run
+        single_file: whether all time frames are saved in the same file
     """
     xmin, xmax = xm - 5, xm + 5
     zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
-    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data1/v' + species + 'x.gda'
-    x, z, vx = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/v' + species + 'y.gda'
-    x, z, vy = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/v' + species + 'z.gda'
-    x, z, vz = read_2d_fields(pic_info, fname, **kwargs) 
-    fname = base_dir + 'data1/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    if single_file:
+        kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fname = base_dir + 'data1/v' + species + 'x.gda'
+        x, z, vx = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data1/v' + species + 'y.gda'
+        x, z, vy = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data1/v' + species + 'z.gda'
+        x, z, vz = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data1/Ay.gda'
+        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    else:
+        kwargs = {"current_time":0, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fields_interval = pic_info.fields_interval
+        tframe = str(fields_interval * ct)
+        fname = base_dir + 'data/v' + species + 'x_' + tframe + '.gda'
+        x, z, vx = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data/v' + species + 'y_' + tframe + '.gda'
+        x, z, vy = read_2d_fields(pic_info, fname, **kwargs) 
+        fname = base_dir + 'data/v' + species + 'z_' + tframe + '.gda'
+        x, z, vz = read_2d_fields(pic_info, fname, **kwargs) 
+        # fname = base_dir + 'data/Ay.gda'
+        # x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
     nx, = x.shape
     nz, = z.shape
 
-    xcut = xm + 0.5
+    xcut = xm
     xindex = find_closest(x, xcut)
     ng = 11
     kernel = np.ones(ng) / float(ng)
@@ -1950,9 +2055,9 @@ def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../'):
     p1 = plot_2d_contour(x, z, vx, ax11, fig, **kwargs_plot)
     p1.set_cmap(cmap)
     nlevels = 15
-    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
-    ax11.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5, levels=levels)
+    # levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    # ax11.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+    #         colors='black', linewidths=0.5, levels=levels)
     ax11.set_xlim([xmin, xmax])
     ax11.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax11.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
@@ -1962,8 +2067,8 @@ def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../'):
     ax12 = fig.add_axes([xs, ys, w1, h1])
     p2 = plot_2d_contour(x, z, vy, ax12, fig, **kwargs_plot)
     p2.set_cmap(cmap)
-    ax12.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5, levels=levels)
+    # ax12.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+    #         colors='black', linewidths=0.5, levels=levels)
     ax12.set_xlim([xmin, xmax])
     ax12.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax12.set_ylabel('')
@@ -1974,17 +2079,25 @@ def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../'):
     ax13 = fig.add_axes([xs, ys, w1, h1])
     p3 = plot_2d_contour(x, z, vz, ax13, fig, **kwargs_plot)
     p3.set_cmap(cmap)
-    ax13.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5, levels=levels)
+    # ax13.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+    #         colors='black', linewidths=0.5, levels=levels)
     ax13.set_xlim([xmin, xmax])
     ax13.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax13.set_ylabel('')
     ax13.tick_params(axis='y', labelleft='off')
     ax13.tick_params(labelsize=16)
 
-    ax11.plot([xcut, xcut], [zmin, zmax], color='w', linestyle='--')
-    ax12.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
-    ax13.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='--')
+    ax11.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='-')
+    ax12.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='-')
+    ax13.plot([xcut, xcut], [zmin, zmax], color='k', linestyle='-')
+    xcut1 = xcut + 1.0
+    ax11.plot([xcut1, xcut1], [zmin, zmax], color='k', linestyle='--')
+    ax12.plot([xcut1, xcut1], [zmin, zmax], color='k', linestyle='--')
+    ax13.plot([xcut1, xcut1], [zmin, zmax], color='k', linestyle='--')
+    xcut2 = xcut - 1.0
+    ax11.plot([xcut2, xcut2], [zmin, zmax], color='k', linestyle='--')
+    ax12.plot([xcut2, xcut2], [zmin, zmax], color='k', linestyle='--')
+    ax13.plot([xcut2, xcut2], [zmin, zmax], color='k', linestyle='--')
 
     hcbar = 0.02
     wcbar = w1 * 3 + gap * 2
@@ -2045,7 +2158,7 @@ def plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir='../../'):
     fig_dir = '../img/img_velocity_shock/' + run_name + '/'
     mkdir_p(fig_dir)
     fname = fig_dir + '/v' + species + '_' + str(ct).zfill(3) + '.jpg'
-    fig.savefig(fname)
+    fig.savefig(fname, dpi=200)
 
     # plt.show()
     plt.close()
@@ -2126,6 +2239,176 @@ def plot_energy_band(pic_info, species, ct, run_name, shock_pos,
     # plt.close()
 
 
+def plot_current_density_2d(pic_info, species, ct, run_name, xshock,
+                            base_dir='../../', single_file=True):
+    """Plot current density 2D contour
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct: current time frame.
+    """
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    if single_file:
+        kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fname = base_dir + 'data1/n' + species + '.gda'
+        x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data1/Ay.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs)
+    else:
+        kwargs = {"current_time":0, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fields_interval = pic_info.fields_interval
+        tframe = str(fields_interval * ct)
+        fname = base_dir + 'data/jy_' + tframe + '.gda'
+        x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data/Ay_' + tframe + '.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    nrho_cum = np.sum(num_rho, axis=0) / nz
+
+    w1, h1 = 0.75, 0.76
+    xs, ys = 0.13, 0.92 - h1
+    gap = 0.05
+
+    width, height = 7, 5
+    fig = plt.figure(figsize=[width, height])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    # kwargs_plot = {"xstep":2, "zstep":2, "is_log":True, "vmin":0.1, "vmax":10}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":-0.5, "vmax":0.5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, num_rho, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.seismic)
+    nlevels = 15
+    if os.path.isfile(fname_Ay):
+        levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+        ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+                colors='black', linewidths=0.5, levels=levels)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    lname = r'$j_y$'
+    cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=20)
+    cbar1.ax.tick_params(labelsize=16)
+
+    shift = 1.0
+    xm = xshock
+    ax1.plot([xm, xm], [zmin, zmax], color='k', linewidth=1, linestyle='-')
+    xs = xm + shift
+    ax1.plot([xs, xs], [zmin, zmax], color='k', linewidth=1, linestyle='--')
+    xe = xm - shift
+    ax1.plot([xe, xe], [zmin, zmax], color='k', linewidth=1, linestyle='--')
+    shift = 5.0
+    xs = xm + shift
+    ax1.plot([xs, xs], [zmin, zmax], color='k', linewidth=2, linestyle='--')
+    xe = xm - shift
+    ax1.plot([xe, xe], [zmin, zmax], color='k', linewidth=2, linestyle='--')
+
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    fig_dir = '../img/img_current_densities/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/jy_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname, dpi=200)
+
+    # plt.show()
+    plt.close()
+
+
+def plot_number_density_2d(pic_info, species, ct, run_name, xshock,
+                           base_dir='../../', single_file=True):
+    """Plot number density 2D contour
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+        ct: current time frame.
+        run_name: run name
+        xshock: shock position along the x-direction in di
+    """
+    xmin, xmax = 0, pic_info.lx_di
+    xmax = 105
+    zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
+    if single_file:
+        kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fname = base_dir + 'data1/n' + species + '.gda'
+        x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data1/Ay.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs)
+    else:
+        kwargs = {"current_time":0, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+        fields_interval = pic_info.fields_interval
+        tframe = str(fields_interval * ct)
+        fname = base_dir + 'data/n' + species + '_' + tframe + '.gda'
+        x, z, num_rho = read_2d_fields(pic_info, fname, **kwargs) 
+        fname_Ay = base_dir + 'data/Ay_' + tframe + '.gda'
+        if os.path.isfile(fname_Ay):
+            x, z, Ay = read_2d_fields(pic_info, fname_Ay, **kwargs) 
+    nx, = x.shape
+    nz, = z.shape
+    nrho_cum = np.sum(num_rho, axis=0) / nz
+
+    w1, h1 = 0.75, 0.76
+    xs, ys = 0.13, 0.92 - h1
+    gap = 0.05
+
+    width, height = 7, 5
+    fig = plt.figure(figsize=[width, height])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    # kwargs_plot = {"xstep":2, "zstep":2, "is_log":True, "vmin":0.1, "vmax":10}
+    kwargs_plot = {"xstep":2, "zstep":2, "vmin":0.5, "vmax":5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, num_rho, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.viridis)
+    nlevels = 15
+    if os.path.isfile(fname_Ay):
+        levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+        ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
+                colors='black', linewidths=0.5, levels=levels)
+    ax1.set_xlim([xmin, xmax])
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    lname = r'$n_' + species + '$'
+    cbar1.ax.set_ylabel(lname, fontdict=font, fontsize=20)
+    cbar1.ax.tick_params(labelsize=16)
+
+    shift = 1.0
+    xm = xshock
+    ax1.plot([xm, xm], [zmin, zmax], color='white', linewidth=1, linestyle='-')
+    xs = xm + shift
+    ax1.plot([xs, xs], [zmin, zmax], color='white', linewidth=1, linestyle='--')
+    xe = xm - shift
+    ax1.plot([xe, xe], [zmin, zmax], color='white', linewidth=1, linestyle='--')
+    shift = 5.0
+    xs = xm + shift
+    ax1.plot([xs, xs], [zmin, zmax], color='red', linewidth=1, linestyle='--')
+    xe = xm - shift
+    ax1.plot([xe, xe], [zmin, zmax], color='red', linewidth=1, linestyle='--')
+
+    t_wci = ct*pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    fig_dir = '../img/img_number_densities/' + run_name + '/'
+    mkdir_p(fig_dir)
+    fname = fig_dir + '/nrho_linear_' + species + '_' + str(ct).zfill(3) + '.jpg'
+    fig.savefig(fname, dpi=200)
+
+    # plt.show()
+    plt.close()
+
+
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
@@ -2159,39 +2442,60 @@ if __name__ == "__main__":
     # plot_jpolar_dote(pic_info, 'e', 30)
     # plot_epara(pic_info, 'e', 35)
     # plot_anisotropy_multi('e')
-    base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
-    run_name = '2D-90-Mach4-sheet4-multi'
+    # base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
+    # run_name = '2D-90-Mach4-sheet4-multi'
+    base_dir = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-3/'
+    run_name = '2D-90-Mach4-sheet6-3'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ntf = pic_info.ntf
-    # combine_shock_files(ntf)
-    # ct = ntf - 2
-    ct = 270
+    print ntf
+    ct = ntf - 2
+    # ct = 270
     cts = range(ntf - 1)
-    shock_loc = np.genfromtxt('../data/shock_pos/shock_pos.txt', dtype=np.int32)
     xmin, xmax = 0, 105
     zmin, zmax = -0.5*pic_info.lz_di, 0.5*pic_info.lz_di
-    kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
-    fname = base_dir + 'data1/vex.gda'
+    # kwargs = {"current_time":ct, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    # fname = base_dir + 'data1/vex.gda'
+    # x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
+    kwargs = {"current_time":0, "xl":xmin, "xr":xmax, "zb":zmin, "zt":zmax}
+    fields_interval = pic_info.fields_interval
+    tframe = str(fields_interval * ct)
+    fname = base_dir + 'data/vex_' + tframe + '.gda'
     x, z, pxx = read_2d_fields(pic_info, fname, **kwargs) 
+    fname = '../data/shock_pos/shock_pos_' + run_name + '.txt'
+    shock_loc = np.genfromtxt(fname, dtype=np.int32)
     xm = x[shock_loc[ct]]
     def processInput(ct, species):
         print ct
         xm = x[shock_loc[ct]]
         # plot_number_density(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
         # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
-        # shock_pos = locate_shock(pic_info, ct, run_name, base_dir)
+        # locate_shock(pic_info, ct, run_name, base_dir, single_file=False)
         # plot_electric_field(pic_info, ct, run_name, xm, base_dir)
         # plot_magnetic_field(pic_info, ct, run_name, xm, base_dir)
-        plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir)
+        plot_velocity_field(pic_info, species, ct, run_name, xm, base_dir,
+                              single_file=False)
+        # plot_number_density_2d(pic_info, species, ct, run_name, xm, base_dir,
+        #                     single_file=False)
+        # plot_current_density_2d(pic_info, species, ct, run_name, xm, base_dir,
+        #                     single_file=False)
     num_cores = multiprocessing.cpu_count()
     # Parallel(n_jobs=num_cores)(delayed(processInput)(ct, 'e') for ct in cts)
-    # Parallel(n_jobs=num_cores)(delayed(processInput)(ct, 'i') for ct in cts)
+    Parallel(n_jobs=num_cores)(delayed(processInput)(ct, 'i') for ct in cts)
+    # combine_shock_files(ntf, run_name)
     # plot_number_density(pic_info, 'e', ct, run_name, shock_loc[ct], base_dir)
+    # plot_number_density_2d(pic_info, 'i', ct, run_name, xm, base_dir,
+    #                     single_file=False)
+    # plot_current_density_2d(pic_info, 'i', ct, run_name, xm, base_dir,
+    #                     single_file=False)
     # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
     # plot_electric_field(pic_info, ct, run_name, shock_loc[ct], base_dir)
     # plot_pressure(pic_info, 'e', ct, run_name, xm, base_dir)
     # plot_electric_field(pic_info, ct, run_name, xm, base_dir)
     # plot_magnetic_field(pic_info, ct, run_name, xm, base_dir)
     # plot_velocity_field(pic_info, 'i', ct, run_name, xm, base_dir)
-    plot_energy_band(pic_info, 'e', ct, run_name, shock_loc[ct], base_dir)
+    # plot_velocity_field(pic_info, 'i', ct, run_name, xm, base_dir,
+    #                     single_file=False)
+    # plot_energy_band(pic_info, 'e', ct, run_name, shock_loc[ct], base_dir)
+    # locate_shock(pic_info, ct, run_name, base_dir, single_file=False)
