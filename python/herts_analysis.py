@@ -1,6 +1,7 @@
 """
 Analysis procedures for HERTS project
 """
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -18,15 +19,15 @@ import color_maps as cm
 import colormap.colormaps as cmaps
 from runs_name_path import ApJ_long_paper_runs
 from energy_conversion import read_data_from_json
-# from contour_plots import read_2d_fields, plot_2d_contour
+from contour_plots import read_2d_fields, plot_2d_contour
 import palettable
 import sys
 from shell_functions import mkdir_p
 from plasma_params import calc_plasma_parameters
 from scipy import signal
 import multiprocessing
-# from joblib import Parallel, delayed
-# from particle_distribution import *
+from joblib import Parallel, delayed
+from particle_distribution import *
 import itertools
 import simplejson as json
 from serialize_json import data_to_json, json_to_data
@@ -41,6 +42,13 @@ font = {'family' : 'serif',
         'weight' : 'normal',
         'size'   : 24,
         }
+
+c0 = 3.0E5    # km/s
+T0 = 1.0E6    # Kelvin
+n0 = 1.0E9    # cm^-3
+kb = 1.38E-23 # Boltzmann constant 
+qe = 1.6E-19
+me = 9.1E-31
 
 
 def plot_nrho(run_name, root_dir, pic_info, ct,
@@ -965,8 +973,8 @@ def read_particle_number(base_dir, pic_info):
     return (t, ntot)
 
 
-def plot_particle_number():
-    """
+def save_particle_number():
+    """Save PIC information and particle number information
     """
     root_dir = '../../../tether_potential_tests/'
     run_names = ['v50', 'v100', 'v150', 'v200']
@@ -983,13 +991,84 @@ def plot_particle_number():
         fname = '../data/particle_number/nptl_' + run_name + '.dat'
         data = np.column_stack((t, ntot))
         np.savetxt(fname, data)
-        # plt.plot(t, np.gradient(ntot, axis=0), linewidth=2)
 
     # mkdir_p('../img')
     # plt.savefig('../img/ptl_number.eps')
     # plt.close()
     # plt.show()
-    
+
+
+def plot_particle_number():
+    """
+    """
+    temp = 0.73
+    l0 = 0.13  # length in meter
+    potentials = [50, 100, 150, 200]
+    run_names = ['v50', 'v100', 'v150', 'v200']
+    nes = [1.4E6, 1.45E6, 1.48E6, 1.48E6]  # in cm^-3
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.13
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    tmax = 0
+    current_mean = []
+    for potential, ne in zip(potentials, nes):
+        run_name = 'v' + str(potential)
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        fname = '../data/particle_number/nptl_' + run_name + '.dat'
+        data = np.genfromtxt(fname)
+        t = data[:, 0]
+        dt = t[1] - t[0]
+        ntot = data[:, 1:]
+        dne = np.gradient(ntot[:,0], axis=0)
+        wpe = 1.78E9 * math.sqrt(ne/n0)   # ne is normalized by n0
+        dt /= wpe
+        ntot = pic_info.nx * pic_info.nz * pic_info.nppc
+        smime = math.sqrt(pic_info.mime)
+        lx_de = pic_info.lx_di * smime
+        lz_de = pic_info.lz_di * smime
+        de = c0 * 1E3 / wpe
+        vol = lx_de * lz_de * de**2  # assume the third dimension is 1 meter
+        dne_real = dne * ne * 1E6 * vol / ntot
+        current = -dne_real * qe / dt
+        current *= 1E3  # A -> mA
+        lname = str(potential) + 'V'
+        ax.plot(t, current*l0, linewidth=2, label=lname)
+        tmax = max(t.max(), tmax)
+        current_mean.append(np.mean(current[-20:]))
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$t\omega_{pe}$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$I$/mA', fontdict=font, fontsize=20)
+    leg = ax.legend(loc=1, prop={'size':20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    ax.set_xlim([0, tmax])
+    ax.set_ylim([0, 1])
+    fig.savefig('../img/current_time.eps')
+    fig.savefig('../img/current_time.jpg', dpi=300)
+
+    r0 = 0.0925E-2  # in meter
+    area = 2 * math.pi * r0  # Assume 1m length
+    current_mean = np.asarray(current_mean)
+    current_mean /= area
+    current_thermal = np.asarray([29.9, 31.2, 31.8, 31.8])  # mA/m^2
+    potential = np.asarray([50, 100, 150, 200])
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.13
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    current_norm = current_mean / current_thermal
+    ax.plot(potential/temp, current_norm, linewidth=2, marker='o',
+            markersize=10)
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel('body bias / electron temperature', fontdict=font, fontsize=20)
+    ax.set_ylabel('collected current / thermal current', fontdict=font,
+            fontsize=20)
+    fig.savefig('../img/current_potential.eps')
+    fig.savefig('../img/current_potential.jpg', dpi=300)
+
+    plt.show()
 
 
 def calc_electric_current(pic_info, params):
@@ -1013,24 +1092,27 @@ def calc_electric_current(pic_info, params):
 
 
 if __name__ == "__main__":
-    run_name = 'test'
-    root_dir = '../../'
-    root_dir = '../../../tether_potential_tests/v200/'
-    pic_info = pic_information.get_pic_info(root_dir)
+    run_name = 'v200'
+    # root_dir = '../../'
+    # root_dir = '../../../tether_potential_tests/v200/'
+    root_dir = '../../v200/'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    # pic_info = pic_information.get_pic_info(root_dir)
     # force_norm = 1E3
     # plasma_type = 'lab'
-    force_norm = 1E9
+    # force_norm = 1E9
     ct = pic_info.ntf - 1
     plasma_type = 'lab_updated'
-    params = calc_plasma_parameters(plasma_type)
+    # params = calc_plasma_parameters(plasma_type)
     cts = range(pic_info.ntf)
-    drange = [0.2, 0.4, 0.4, 0.6]
-    # drange = [0.0, 1.0, 0.0, 1.0]
+    # drange = [0.2, 0.4, 0.4, 0.6]
+    drange = [0.0, 1.0, 0.0, 1.0]
     def processInput(job_id):
         print job_id
         # plot_vel_xyz(run_name, root_dir, pic_info, 'e', job_id, plasma_type, drange)
         plot_nrho(run_name, root_dir, pic_info, job_id, plasma_type, drange)
-    ncores = multiprocessing.cpu_count()
+    # ncores = multiprocessing.cpu_count()
     # Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
     # plot_nrho(run_name, root_dir, pic_info, ct, plasma_type, drange)
     # plot_vel(run_name, root_dir, pic_info, 'e', plasma_type)
@@ -1045,4 +1127,5 @@ if __name__ == "__main__":
     # get_particle_number(root_dir, pic_info, 'hparticle', tindex)
     # read_particle_number(root_dir, pic_info)
     # calc_electric_current(pic_info, params)
+    # save_particle_number()
     plot_particle_number()
