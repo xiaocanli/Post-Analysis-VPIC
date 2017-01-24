@@ -27,14 +27,17 @@
 
  $Id: smooth.py 642 2012-02-21 07:54:04Z nsummons $
 """
-import os, sys, pdb, logging
-filename = os.environ.get('PYTHONSTARTUP')
-if filename and os.path.isfile(filename):
-    execfile(filename)
+import logging
+import os
+import pdb
+import sys
 
 import numpy
 from scipy import signal
 
+filename = os.environ.get('PYTHONSTARTUP')
+if filename and os.path.isfile(filename):
+    execfile(filename)
 
 
 def gaussKern(size):
@@ -49,9 +52,11 @@ def gaussKern(size):
                           convolutions
     """
     size = int(size)
-    x,y = numpy.mgrid[-size:size+1,-size:size+1]
-    g = numpy.exp(-(x**2/float(size)+y**2/float(size)))
+    x, y = numpy.mgrid[-size:size + 1, -size:size + 1]
+    g = numpy.exp(-(x**2 / float(size) + y**2 / float(size)))
     return g / g.sum()
+
+
 def smooth(im, n=15):
     """
     Smooth a 2D array im by convolving with a Gaussian kernel of size n
@@ -63,4 +68,4 @@ def smooth(im, n=15):
     """
     g = gaussKern(n)
     improc = signal.convolve2d(im, g, mode='same', boundary='symm')
-    return(improc)
+    return (improc)

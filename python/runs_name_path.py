@@ -2,19 +2,23 @@
 Name and path for different runs
 """
 
+
 def ApJ_long_paper_runs():
     """Runs for ApJ long paper
     """
     base_dirs = []
     base_dirs.append('/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/')
-    base_dirs.append('/net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/')
+    base_dirs.append(
+        '/net/scratch2/xiaocanli/mime25-sigma033-beta006-200-100/')
     base_dirs.append('/net/scratch2/xiaocanli/sigma1-mime25-beta001/')
     # base_dirs.append('/scratch3/xiaocanli/sigma1-mime25-beta0003-npc200/')
     base_dirs.append('/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/')
     base_dirs.append('/net/scratch2/xiaocanli/sigma1-mime100-beta001-mustang/')
     base_dirs.append('/net/scratch2/xiaocanli/mime25-guide0-beta001-200-100/')
-    base_dirs.append('/net/scratch2/xiaocanli/mime25-guide0-beta001-200-100-sigma033/')
-    base_dirs.append('/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/')
+    base_dirs.append(
+        '/net/scratch2/xiaocanli/mime25-guide0-beta001-200-100-sigma033/')
+    base_dirs.append(
+        '/net/scratch2/xiaocanli/mime25-sigma1-beta002-200-100-noperturb/')
     base_dirs.append('/net/scratch2/guofan/sigma1-mime25-beta001-track-3/')
     run_names = []
     run_names.append('mime25_beta02')
@@ -27,6 +31,7 @@ def ApJ_long_paper_runs():
     run_names.append('mime25_beta002_noperturb')
     run_names.append('mime25_beta002_track')
     return (base_dirs, run_names)
+
 
 def guide_field_runs():
     fname_head = 'mime25-sigma1-beta002-guide'
@@ -78,8 +83,11 @@ def low_beta_runs():
     base_dirs = []
     fname = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
     base_dirs.append(fname)
+    fname = '/net/scratch2/guofan/sigma1-mime25-beta0002-1127/'
+    base_dirs.append(fname)
     run_names = []
     run_names.append('mime25_beta0001')
+    run_names.append('sigma1-mime25-beta0002')
 
     return (base_dirs, run_names)
 

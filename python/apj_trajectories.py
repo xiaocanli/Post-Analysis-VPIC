@@ -1,37 +1,41 @@
 """
 Analysis procedures for particle energy spectrum.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy import signal
+import collections
 import math
 import os.path
+import struct
 from os import listdir
 from os.path import isfile, join
-import struct
-import collections
-import pic_information
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+
 import color_maps as cm
-from contour_plots import read_2d_fields, plot_2d_contour
-from particle_trajectory import *
 import palettable
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
+from particle_trajectory import *
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
+
 
 class ParticleTrajectory153(object):
     def __init__(self, **kwargs):
@@ -89,7 +93,7 @@ class ParticleTrajectory153(object):
         self.energy_plot()
         self.energy_plot_indicator()
         self.save_figures()
-        
+
     def get_particle_current_time(self):
         self.t0 = self.t[self.ct_ptl]
         self.x0 = self.px[self.ct_ptl]
@@ -110,14 +114,15 @@ class ParticleTrajectory153(object):
         self.pz = self.ptl.z / self.smime
         self.adjust_px()
         self.adjust_py()
-        self.gama = np.sqrt(self.ptl.ux**2 + self.ptl.uy**2 + self.ptl.uz**2 + 1.0)
+        self.gama = np.sqrt(self.ptl.ux**2 + self.ptl.uy**2 + self.ptl.uz**2 +
+                            1.0)
         self.mint = 0
         self.maxt = np.max(self.t)
         self.jdote_x = self.ptl.ux * self.ptl.ex * self.charge / self.gama
         self.jdote_y = self.ptl.uy * self.ptl.ey * self.charge / self.gama
         self.jdote_z = self.ptl.uz * self.ptl.ez * self.charge / self.gama
         self.dt = np.zeros(self.nt)
-        self.dt[0:self.nt-1] = np.diff(self.t)
+        self.dt[0:self.nt - 1] = np.diff(self.t)
         self.jdote_x_cum = np.cumsum(self.jdote_x) * self.dt
         self.jdote_y_cum = np.cumsum(self.jdote_y) * self.dt
         self.jdote_z_cum = np.cumsum(self.jdote_z) * self.dt
@@ -132,41 +137,56 @@ class ParticleTrajectory153(object):
     def read_field_data(self):
         self.xl, self.xr = self.field_range[0, 0:2]
         self.zb, self.zt = self.field_range[0, 2:4]
-        kwargs = {"current_time":self.ct[0], "xl":self.xl, "xr":self.xr,
-                "zb":self.zb, "zt":self.zt}
+        kwargs = {
+            "current_time": self.ct[0],
+            "xl": self.xl,
+            "xr": self.xr,
+            "zb": self.zb,
+            "zt": self.zt
+        }
         fname_field = '../../data/' + self.var_field + '.gda'
         fname_Ay = '../../data/Ay.gda'
         self.x1, self.z1, data = read_2d_fields(self.pic_info, fname_field,
-                **kwargs)
+                                                **kwargs)
         ng = 5
-        kernel = np.ones((ng,ng)) / float(ng*ng)
+        kernel = np.ones((ng, ng)) / float(ng * ng)
         self.fdata1 = signal.convolve2d(data, kernel)
-        self.x1, self.z1, self.Ay1 = read_2d_fields(self.pic_info,
-                fname_Ay, **kwargs)
+        self.x1, self.z1, self.Ay1 = read_2d_fields(self.pic_info, fname_Ay,
+                                                    **kwargs)
         self.nx1, = self.x1.shape
         self.nz1, = self.z1.shape
 
         self.xl, self.xr = self.field_range[1, 0:2]
         self.zb, self.zt = self.field_range[1, 2:4]
-        kwargs = {"current_time":self.ct[1], "xl":self.xl, "xr":self.xr,
-                "zb":self.zb, "zt":self.zt}
+        kwargs = {
+            "current_time": self.ct[1],
+            "xl": self.xl,
+            "xr": self.xr,
+            "zb": self.zb,
+            "zt": self.zt
+        }
         self.x2, self.z2, data = read_2d_fields(self.pic_info, fname_field,
-                **kwargs)
+                                                **kwargs)
         self.fdata2 = signal.convolve2d(data, kernel)
-        self.x2, self.z2, self.Ay2 = read_2d_fields(self.pic_info,
-                fname_Ay, **kwargs)
+        self.x2, self.z2, self.Ay2 = read_2d_fields(self.pic_info, fname_Ay,
+                                                    **kwargs)
         self.nx2, = self.x2.shape
         self.nz2, = self.z2.shape
 
         self.xl, self.xr = self.field_range[2, 0:2]
         self.zb, self.zt = self.field_range[2, 2:4]
-        kwargs = {"current_time":self.ct[2], "xl":self.xl, "xr":self.xr,
-                "zb":self.zb, "zt":self.zt}
+        kwargs = {
+            "current_time": self.ct[2],
+            "xl": self.xl,
+            "xr": self.xr,
+            "zb": self.zb,
+            "zt": self.zt
+        }
         self.x3, self.z3, data = read_2d_fields(self.pic_info, fname_field,
-                **kwargs)
+                                                **kwargs)
         self.fdata3 = signal.convolve2d(data, kernel)
-        self.x3, self.z3, self.Ay3 = read_2d_fields(self.pic_info,
-                fname_Ay, **kwargs)
+        self.x3, self.z3, self.Ay3 = read_2d_fields(self.pic_info, fname_Ay,
+                                                    **kwargs)
         self.nx3, = self.x3.shape
         self.nz3, = self.z3.shape
 
@@ -176,12 +196,12 @@ class ParticleTrajectory153(object):
         crossings = []
         offsets = []
         offset = 0
-        for i in range(self.nt-1):
-            if (self.py[i]-self.py[i+1] > 0.4*self.ly_di):
+        for i in range(self.nt - 1):
+            if (self.py[i] - self.py[i + 1] > 0.4 * self.ly_di):
                 crossings.append(i)
                 offset += self.ly_di
                 offsets.append(offset)
-            if (self.py[i]-self.py[i+1] < -0.4*self.ly_di):
+            if (self.py[i] - self.py[i + 1] < -0.4 * self.ly_di):
                 crossings.append(i)
                 offset -= self.ly_di
                 offsets.append(offset)
@@ -189,9 +209,9 @@ class ParticleTrajectory153(object):
         if nc > 0:
             crossings = np.asarray(crossings)
             offsets = np.asarray(offsets)
-            for i in range(nc-1):
-                self.py[crossings[i]+1 : crossings[i+1]+1] += offsets[i]
-            self.py[crossings[nc-1]+1:] += offsets[nc-1]
+            for i in range(nc - 1):
+                self.py[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+            self.py[crossings[nc - 1] + 1:] += offsets[nc - 1]
 
     def adjust_px(self):
         """Adjust px for periodic boundary conditions.
@@ -201,12 +221,12 @@ class ParticleTrajectory153(object):
         offset = 0
         self.pxb = np.zeros(self.nt)
         self.pxb = np.copy(self.px)
-        for i in range(self.nt-1):
-            if (self.px[i]-self.px[i+1] > 0.4*self.lx_di):
+        for i in range(self.nt - 1):
+            if (self.px[i] - self.px[i + 1] > 0.4 * self.lx_di):
                 crossings.append(i)
                 offset += self.lx_di
                 offsets.append(offset)
-            if (self.px[i]-self.px[i+1] < -0.4*self.lx_di):
+            if (self.px[i] - self.px[i + 1] < -0.4 * self.lx_di):
                 crossings.append(i)
                 offset -= self.lx_di
                 offsets.append(offset)
@@ -214,9 +234,9 @@ class ParticleTrajectory153(object):
         if nc > 0:
             crossings = np.asarray(crossings)
             offsets = np.asarray(offsets)
-            for i in range(nc-1):
-                self.pxb[crossings[i]+1 : crossings[i+1]+1] += offsets[i]
-            self.pxb[crossings[nc-1]+1:] += offsets[nc-1]
+            for i in range(nc - 1):
+                self.pxb[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+            self.pxb[crossings[nc - 1] + 1:] += offsets[nc - 1]
 
     def energy_plot(self):
         self.fig_ene = plt.figure(figsize=(self.fig_width, 5))
@@ -240,24 +260,33 @@ class ParticleTrajectory153(object):
         nx1, nz1 = self.nx1, self.nz1
         nx2, nz2 = self.nx2, self.nz2
         nx3, nz3 = self.nx3, self.nz3
-        self.im1 = self.xz_axis.imshow(self.fdata1[0:nz1:zst, 0:nx1:xst],
-                cmap=self.cmap,
-                extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
-                aspect='auto', origin='lower',
-                vmin = -self.vmax, vmax = self.vmax,
-                interpolation='bicubic')
-        self.im2 = self.xz_axis.imshow(self.fdata2[0:nz1:zst, 0:nx1:xst],
-                cmap=self.cmap,
-                extent=[self.xmin2, self.xmax2, self.zmin2, self.zmax2],
-                aspect='auto', origin='lower',
-                vmin = -self.vmax, vmax = self.vmax,
-                interpolation='bicubic')
-        self.im3 = self.xz_axis.imshow(self.fdata3[0:nz1:zst, 0:nx1:xst],
-                cmap=self.cmap,
-                extent=[self.xmin3, self.xmax3, self.zmin3, self.zmax3],
-                aspect='auto', origin='lower',
-                vmin = -self.vmax, vmax = self.vmax,
-                interpolation='bicubic')
+        self.im1 = self.xz_axis.imshow(
+            self.fdata1[0:nz1:zst, 0:nx1:xst],
+            cmap=self.cmap,
+            extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
+            aspect='auto',
+            origin='lower',
+            vmin=-self.vmax,
+            vmax=self.vmax,
+            interpolation='bicubic')
+        self.im2 = self.xz_axis.imshow(
+            self.fdata2[0:nz1:zst, 0:nx1:xst],
+            cmap=self.cmap,
+            extent=[self.xmin2, self.xmax2, self.zmin2, self.zmax2],
+            aspect='auto',
+            origin='lower',
+            vmin=-self.vmax,
+            vmax=self.vmax,
+            interpolation='bicubic')
+        self.im3 = self.xz_axis.imshow(
+            self.fdata3[0:nz1:zst, 0:nx1:xst],
+            cmap=self.cmap,
+            extent=[self.xmin3, self.xmax3, self.zmin3, self.zmax3],
+            aspect='auto',
+            origin='lower',
+            vmin=-self.vmax,
+            vmax=self.vmax,
+            interpolation='bicubic')
         divider = make_axes_locatable(self.xz_axis)
         self.cax = divider.append_axes("right", size="2%", pad=0.05)
         self.cbar = self.fig_ene.colorbar(self.im1, cax=self.cax)
@@ -266,25 +295,37 @@ class ParticleTrajectory153(object):
         self.Ay_max = np.max(self.Ay1)
         self.Ay_min = np.min(self.Ay1)
         self.levels = np.linspace(self.Ay_min, self.Ay_max, 10)
-        self.xz_axis.contour(self.x1[0:nx1:xst], self.z1[0:nz1:zst],
-                self.Ay1[0:nz1:zst, 0:nx1:xst], colors=self.color_Ay,
-                linewidths=0.5, levels=self.levels)
-        self.xz_axis.contour(self.x2[0:nx2:xst], self.z2[0:nz2:zst],
-                self.Ay2[0:nz2:zst, 0:nx2:xst], colors=self.color_Ay,
-                linewidths=0.5, levels=self.levels)
-        self.xz_axis.contour(self.x3[0:nx3:xst], self.z3[0:nz3:zst],
-                self.Ay3[0:nz3:zst, 0:nx3:xst], colors=self.color_Ay,
-                linewidths=0.5, levels=self.levels)
+        self.xz_axis.contour(
+            self.x1[0:nx1:xst],
+            self.z1[0:nz1:zst],
+            self.Ay1[0:nz1:zst, 0:nx1:xst],
+            colors=self.color_Ay,
+            linewidths=0.5,
+            levels=self.levels)
+        self.xz_axis.contour(
+            self.x2[0:nx2:xst],
+            self.z2[0:nz2:zst],
+            self.Ay2[0:nz2:zst, 0:nx2:xst],
+            colors=self.color_Ay,
+            linewidths=0.5,
+            levels=self.levels)
+        self.xz_axis.contour(
+            self.x3[0:nx3:xst],
+            self.z3[0:nz3:zst],
+            self.Ay3[0:nz3:zst, 0:nx3:xst],
+            colors=self.color_Ay,
+            linewidths=0.5,
+            levels=self.levels)
         self.xz_axis.tick_params(labelsize=16)
         self.xz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
         self.xz_axis.tick_params(axis='x', labelbottom='off')
-        self.xz_axis.autoscale(1,'both',1)
+        self.xz_axis.autoscale(1, 'both', 1)
 
         # xz plot
         # self.pxz, = self.xz_axis.plot(self.px, self.pz, linewidth=2,
         #         color='k', marker='.', markersize=1, linestyle='None')
-        self.pxz, = self.xz_axis.plot(self.pxb[::tst], self.pz[::tst],
-                color=self.color_pxz)
+        self.pxz, = self.xz_axis.plot(
+            self.pxb[::tst], self.pz[::tst], color=self.color_pxz)
 
         # x-energy after periodic x correction
         ys -= h1 + gap
@@ -292,12 +333,11 @@ class ParticleTrajectory153(object):
         w2 = w1 * 0.98 - 0.05 / width
         self.xeb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xeb_axis.tick_params(labelsize=16)
-        self.pxe_b, = self.xeb_axis.plot(self.pxb[::tst],
-                self.gama[::tst] - 1.0, color=colors[0])
+        self.pxe_b, = self.xeb_axis.plot(
+            self.pxb[::tst], self.gama[::tst] - 1.0, color=colors[0])
         self.xeb_axis.tick_params(labelsize=16)
         self.xeb_axis.tick_params(axis='x', labelbottom='off')
-        self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font,
-                fontsize=20)
+        self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.xeb_axis.set_ylim([self.emin, self.emax])
         # for tl in self.xeb_axis.get_yticklabels():
         #     tl.set_color(colors[0])
@@ -309,8 +349,8 @@ class ParticleTrajectory153(object):
         # self.xyb_axis = self.xeb_axis.twinx()
         self.xyb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xyb_axis.tick_params(labelsize=16)
-        self.pxy_b, = self.xyb_axis.plot(self.pxb[::tst], self.py[::tst],
-                color=colors[1])
+        self.pxy_b, = self.xyb_axis.plot(
+            self.pxb[::tst], self.py[::tst], color=colors[1])
         # for tl in self.xyb_axis.get_yticklabels():
         #     tl.set_color(colors[1])
         self.xmin_b, self.xmax_b = self.xeb_axis.get_xlim()
@@ -318,8 +358,7 @@ class ParticleTrajectory153(object):
         # self.pxy_help_b, = self.xyb_axis.plot([self.xmin_b, self.xmax_b], [0, 0],
         #         color='r', linestyle='--')
         self.xyb_axis.tick_params(labelsize=16)
-        self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font,
-                fontsize=20)
+        self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font, fontsize=20)
         self.xyb_axis.set_ylim([self.ymin, self.ymax])
         self.xyb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
 
@@ -329,13 +368,18 @@ class ParticleTrajectory153(object):
     def plot_extra_contour(self):
         if (self.xmax_b > self.pic_info.lx_di):
             ex = self.xmax_b - self.pic_info.lx_di
-            kwargs = {"current_time":self.ct[2], "xl":0, "xr":ex,
-                    "zb":self.field_range[2,2], "zt":self.field_range[2,3]}
+            kwargs = {
+                "current_time": self.ct[2],
+                "xl": 0,
+                "xr": ex,
+                "zb": self.field_range[2, 2],
+                "zt": self.field_range[2, 3]
+            }
             fname_field = '../../data/' + self.var_field + '.gda'
             fname_Ay = '../../data/Ay.gda'
             x, z, fdata = read_2d_fields(self.pic_info, fname_field, **kwargs)
             ng = 5
-            kernel = np.ones((ng,ng)) / float(ng*ng)
+            kernel = np.ones((ng, ng)) / float(ng * ng)
             fdata = signal.convolve2d(fdata, kernel)
             x, z, Ay = read_2d_fields(self.pic_info, fname_Ay, **kwargs)
             nx, = x.shape
@@ -343,26 +387,49 @@ class ParticleTrajectory153(object):
             ex_grid = ex / self.pic_info.dx_di + 1
             xmin = self.pic_info.lx_di
             xmax = xmin + ex
-            self.im1 = self.xz_axis.imshow(fdata[0:nz:self.zst, 0:nx:self.xst],
-                    cmap=self.cmap, extent=[xmin, xmax, self.zmin3, self.zmax3],
-                    aspect='auto', origin='lower',
-                    vmin=-self.vmax, vmax=self.vmax,
-                    interpolation='bicubic')
+            self.im1 = self.xz_axis.imshow(
+                fdata[0:nz:self.zst, 0:nx:self.xst],
+                cmap=self.cmap,
+                extent=[xmin, xmax, self.zmin3, self.zmax3],
+                aspect='auto',
+                origin='lower',
+                vmin=-self.vmax,
+                vmax=self.vmax,
+                interpolation='bicubic')
             x += xmin
-            self.xz_axis.contour(x[0:nx:self.xst], z[0:nz:self.zst],
-                    Ay[0:nz:self.zst, 0:nx:self.xst], colors='black',
-                    linewidths=0.5, levels=self.levels)
+            self.xz_axis.contour(
+                x[0:nx:self.xst],
+                z[0:nz:self.zst],
+                Ay[0:nz:self.zst, 0:nx:self.xst],
+                colors='black',
+                linewidths=0.5,
+                levels=self.levels)
 
     def energy_plot_indicator(self):
-        self.pxz_dot, = self.xz_axis.plot(self.xb0, self.z0, marker='x',
-                markersize=10, mew=2, linestyle='None',
-                color=self.indicator_color)
-        self.pxby_dot, = self.xyb_axis.plot(self.xb0, self.y0, marker='x',
-                markersize=10, mew=2, linestyle='None',
-                color=self.indicator_color)
-        self.pxbe_dot, = self.xeb_axis.plot(self.xb0, self.gama0-1, marker='x',
-                markersize=10, mew=2, linestyle='None',
-                color=self.indicator_color)
+        self.pxz_dot, = self.xz_axis.plot(
+            self.xb0,
+            self.z0,
+            marker='x',
+            markersize=10,
+            mew=2,
+            linestyle='None',
+            color=self.indicator_color)
+        self.pxby_dot, = self.xyb_axis.plot(
+            self.xb0,
+            self.y0,
+            marker='x',
+            markersize=10,
+            mew=2,
+            linestyle='None',
+            color=self.indicator_color)
+        self.pxbe_dot, = self.xeb_axis.plot(
+            self.xb0,
+            self.gama0 - 1,
+            marker='x',
+            markersize=10,
+            mew=2,
+            linestyle='None',
+            color=self.indicator_color)
 
     def save_figures(self):
         fname = self.fig_dir + 'traj_' + self.species + '_' + \
@@ -420,7 +487,7 @@ class ParticleTrajectory154(object):
         self.energy_plot()
         self.energy_plot_indicator()
         self.save_figures()
-        
+
     def get_particle_current_time(self):
         self.t0 = self.t[self.ct_ptl]
         self.x0 = self.px[self.ct_ptl]
@@ -441,14 +508,15 @@ class ParticleTrajectory154(object):
         self.pz = self.ptl.z / self.smime
         self.adjust_px()
         self.adjust_py()
-        self.gama = np.sqrt(self.ptl.ux**2 + self.ptl.uy**2 + self.ptl.uz**2 + 1.0)
+        self.gama = np.sqrt(self.ptl.ux**2 + self.ptl.uy**2 + self.ptl.uz**2 +
+                            1.0)
         self.mint = 0
         self.maxt = np.max(self.t)
         self.jdote_x = self.ptl.ux * self.ptl.ex * self.charge / self.gama
         self.jdote_y = self.ptl.uy * self.ptl.ey * self.charge / self.gama
         self.jdote_z = self.ptl.uz * self.ptl.ez * self.charge / self.gama
         self.dt = np.zeros(self.nt)
-        self.dt[0:self.nt-1] = np.diff(self.t)
+        self.dt[0:self.nt - 1] = np.diff(self.t)
         self.jdote_x_cum = np.cumsum(self.jdote_x) * self.dt
         self.jdote_y_cum = np.cumsum(self.jdote_y) * self.dt
         self.jdote_z_cum = np.cumsum(self.jdote_z) * self.dt
@@ -463,17 +531,22 @@ class ParticleTrajectory154(object):
     def read_field_data(self):
         self.xl, self.xr = self.field_range[0:2]
         self.zb, self.zt = self.field_range[2:4]
-        kwargs = {"current_time":self.ct, "xl":self.xl, "xr":self.xr,
-                "zb":self.zb, "zt":self.zt}
+        kwargs = {
+            "current_time": self.ct,
+            "xl": self.xl,
+            "xr": self.xr,
+            "zb": self.zb,
+            "zt": self.zt
+        }
         fname_field = '../../data/' + self.var_field + '.gda'
         fname_Ay = '../../data/Ay.gda'
         self.x1, self.z1, data = read_2d_fields(self.pic_info, fname_field,
-                **kwargs)
+                                                **kwargs)
         ng = 5
-        kernel = np.ones((ng,ng)) / float(ng*ng)
+        kernel = np.ones((ng, ng)) / float(ng * ng)
         self.fdata1 = signal.convolve2d(data, kernel)
-        self.x1, self.z1, self.Ay1 = read_2d_fields(self.pic_info,
-                fname_Ay, **kwargs)
+        self.x1, self.z1, self.Ay1 = read_2d_fields(self.pic_info, fname_Ay,
+                                                    **kwargs)
         self.nx1, = self.x1.shape
         self.nz1, = self.z1.shape
 
@@ -483,12 +556,12 @@ class ParticleTrajectory154(object):
         crossings = []
         offsets = []
         offset = 0
-        for i in range(self.nt-1):
-            if (self.py[i]-self.py[i+1] > 0.4*self.ly_di):
+        for i in range(self.nt - 1):
+            if (self.py[i] - self.py[i + 1] > 0.4 * self.ly_di):
                 crossings.append(i)
                 offset += self.ly_di
                 offsets.append(offset)
-            if (self.py[i]-self.py[i+1] < -0.4*self.ly_di):
+            if (self.py[i] - self.py[i + 1] < -0.4 * self.ly_di):
                 crossings.append(i)
                 offset -= self.ly_di
                 offsets.append(offset)
@@ -496,9 +569,9 @@ class ParticleTrajectory154(object):
         if nc > 0:
             crossings = np.asarray(crossings)
             offsets = np.asarray(offsets)
-            for i in range(nc-1):
-                self.py[crossings[i]+1 : crossings[i+1]+1] += offsets[i]
-            self.py[crossings[nc-1]+1:] += offsets[nc-1]
+            for i in range(nc - 1):
+                self.py[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+            self.py[crossings[nc - 1] + 1:] += offsets[nc - 1]
 
     def adjust_px(self):
         """Adjust px for periodic boundary conditions.
@@ -508,12 +581,12 @@ class ParticleTrajectory154(object):
         offset = 0
         self.pxb = np.zeros(self.nt)
         self.pxb = np.copy(self.px)
-        for i in range(self.nt-1):
-            if (self.px[i]-self.px[i+1] > 0.4*self.lx_di):
+        for i in range(self.nt - 1):
+            if (self.px[i] - self.px[i + 1] > 0.4 * self.lx_di):
                 crossings.append(i)
                 offset += self.lx_di
                 offsets.append(offset)
-            if (self.px[i]-self.px[i+1] < -0.4*self.lx_di):
+            if (self.px[i] - self.px[i + 1] < -0.4 * self.lx_di):
                 crossings.append(i)
                 offset -= self.lx_di
                 offsets.append(offset)
@@ -521,9 +594,9 @@ class ParticleTrajectory154(object):
         if nc > 0:
             crossings = np.asarray(crossings)
             offsets = np.asarray(offsets)
-            for i in range(nc-1):
-                self.pxb[crossings[i]+1 : crossings[i+1]+1] += offsets[i]
-            self.pxb[crossings[nc-1]+1:] += offsets[nc-1]
+            for i in range(nc - 1):
+                self.pxb[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+            self.pxb[crossings[nc - 1] + 1:] += offsets[nc - 1]
 
     def energy_plot(self):
         self.fig_ene = plt.figure(figsize=(self.fig_width, 5))
@@ -545,12 +618,15 @@ class ParticleTrajectory154(object):
         self.xst = xst
         self.zst = zst
         nx1, nz1 = self.nx1, self.nz1
-        self.im1 = self.xz_axis.imshow(self.fdata1[0:nz1:zst, 0:nx1:xst],
-                cmap=self.cmap,
-                extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
-                aspect='auto', origin='lower',
-                vmin = -self.vmax, vmax = self.vmax,
-                interpolation='bicubic')
+        self.im1 = self.xz_axis.imshow(
+            self.fdata1[0:nz1:zst, 0:nx1:xst],
+            cmap=self.cmap,
+            extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
+            aspect='auto',
+            origin='lower',
+            vmin=-self.vmax,
+            vmax=self.vmax,
+            interpolation='bicubic')
         divider = make_axes_locatable(self.xz_axis)
         self.cax = divider.append_axes("right", size="2%", pad=0.05)
         self.cbar = self.fig_ene.colorbar(self.im1, cax=self.cax)
@@ -559,19 +635,23 @@ class ParticleTrajectory154(object):
         self.Ay_max = np.max(self.Ay1)
         self.Ay_min = np.min(self.Ay1)
         self.levels = np.linspace(self.Ay_min, self.Ay_max, 10)
-        self.xz_axis.contour(self.x1[0:nx1:xst], self.z1[0:nz1:zst],
-                self.Ay1[0:nz1:zst, 0:nx1:xst], colors=self.color_Ay,
-                linewidths=0.5, levels=self.levels)
+        self.xz_axis.contour(
+            self.x1[0:nx1:xst],
+            self.z1[0:nz1:zst],
+            self.Ay1[0:nz1:zst, 0:nx1:xst],
+            colors=self.color_Ay,
+            linewidths=0.5,
+            levels=self.levels)
         self.xz_axis.tick_params(labelsize=16)
         self.xz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
         self.xz_axis.tick_params(axis='x', labelbottom='off')
-        self.xz_axis.autoscale(1,'both',1)
+        self.xz_axis.autoscale(1, 'both', 1)
 
         # xz plot
         # self.pxz, = self.xz_axis.plot(self.px, self.pz, linewidth=2,
         #         color='k', marker='.', markersize=1, linestyle='None')
-        self.pxz, = self.xz_axis.plot(self.pxb[::tst], self.pz[::tst],
-                color=self.color_pxz)
+        self.pxz, = self.xz_axis.plot(
+            self.pxb[::tst], self.pz[::tst], color=self.color_pxz)
 
         # x-energy after periodic x correction
         ys -= h1 + gap
@@ -579,14 +659,13 @@ class ParticleTrajectory154(object):
         w2 = w1 * 0.98 - 0.05 / width
         self.xeb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xeb_axis.tick_params(labelsize=16)
-        self.pxe_b, = self.xeb_axis.plot(self.pxb[::tst],
-                self.gama[::tst] - 1.0, color=colors[0])
+        self.pxe_b, = self.xeb_axis.plot(
+            self.pxb[::tst], self.gama[::tst] - 1.0, color=colors[0])
         self.xeb_axis.tick_params(labelsize=16)
         self.xeb_axis.tick_params(axis='x', labelbottom='off')
-        self.xz_axis.autoscale(1,'both',1)
+        self.xz_axis.autoscale(1, 'both', 1)
         # self.xeb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
-        self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font,
-                fontsize=20)
+        self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.xeb_axis.set_ylim([self.emin, self.emax])
         # for tl in self.xeb_axis.get_yticklabels():
         #     tl.set_color(colors[0])
@@ -598,8 +677,8 @@ class ParticleTrajectory154(object):
         # self.xyb_axis = self.xeb_axis.twinx()
         self.xyb_axis = self.fig_ene.add_axes([xs, ys, w2, h1])
         self.xyb_axis.tick_params(labelsize=16)
-        self.pxy_b, = self.xyb_axis.plot(self.pxb[::tst], self.py[::tst],
-                color=colors[1])
+        self.pxy_b, = self.xyb_axis.plot(
+            self.pxb[::tst], self.py[::tst], color=colors[1])
         # for tl in self.xyb_axis.get_yticklabels():
         #     tl.set_color(colors[1])
         self.xmin_b, self.xmax_b = self.xz_axis.get_xlim()
@@ -607,8 +686,7 @@ class ParticleTrajectory154(object):
         # self.pxy_help_b, = self.xyb_axis.plot([self.xmin_b, self.xmax_b], [0, 0],
         #         color='r', linestyle='--')
         self.xyb_axis.tick_params(labelsize=16)
-        self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font,
-                fontsize=20)
+        self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font, fontsize=20)
         self.xyb_axis.set_ylim([self.ymin, self.ymax])
         self.xyb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
 
@@ -618,13 +696,18 @@ class ParticleTrajectory154(object):
     def plot_extra_contour(self):
         if (self.xmax_b > self.pic_info.lx_di):
             ex = self.xmax_b - self.pic_info.lx_di
-            kwargs = {"current_time":self.ct, "xl":0, "xr":ex,
-                    "zb":self.field_range[2], "zt":self.field_range[3]}
+            kwargs = {
+                "current_time": self.ct,
+                "xl": 0,
+                "xr": ex,
+                "zb": self.field_range[2],
+                "zt": self.field_range[3]
+            }
             fname_field = '../../data/' + self.var_field + '.gda'
             fname_Ay = '../../data/Ay.gda'
             x, z, fdata = read_2d_fields(self.pic_info, fname_field, **kwargs)
             ng = 5
-            kernel = np.ones((ng,ng)) / float(ng*ng)
+            kernel = np.ones((ng, ng)) / float(ng * ng)
             fdata = signal.convolve2d(fdata, kernel)
             x, z, Ay = read_2d_fields(self.pic_info, fname_Ay, **kwargs)
             nx, = x.shape
@@ -632,26 +715,49 @@ class ParticleTrajectory154(object):
             ex_grid = ex / self.pic_info.dx_di + 1
             xmin = self.pic_info.lx_di
             xmax = xmin + ex
-            self.im1 = self.xz_axis.imshow(fdata[0:nz:self.zst, 0:nx:self.xst],
-                    cmap=self.cmap, extent=[xmin, xmax, self.zmin1, self.zmax1],
-                    aspect='auto', origin='lower',
-                    vmin=-self.vmax, vmax=self.vmax,
-                    interpolation='bicubic')
+            self.im1 = self.xz_axis.imshow(
+                fdata[0:nz:self.zst, 0:nx:self.xst],
+                cmap=self.cmap,
+                extent=[xmin, xmax, self.zmin1, self.zmax1],
+                aspect='auto',
+                origin='lower',
+                vmin=-self.vmax,
+                vmax=self.vmax,
+                interpolation='bicubic')
             x += xmin
-            self.xz_axis.contour(x[0:nx:self.xst], z[0:nz:self.zst],
-                    Ay[0:nz:self.zst, 0:nx:self.xst], colors='black',
-                    linewidths=0.5, levels=self.levels)
+            self.xz_axis.contour(
+                x[0:nx:self.xst],
+                z[0:nz:self.zst],
+                Ay[0:nz:self.zst, 0:nx:self.xst],
+                colors='black',
+                linewidths=0.5,
+                levels=self.levels)
 
     def energy_plot_indicator(self):
-        self.pxz_dot, = self.xz_axis.plot(self.xb0, self.z0, marker='x',
-                markersize=10, mew=2, linestyle='None',
-                color=self.indicator_color)
-        self.pxby_dot, = self.xyb_axis.plot(self.xb0, self.y0, marker='x',
-                markersize=10, mew=2, linestyle='None',
-                color=self.indicator_color)
-        self.pxbe_dot, = self.xeb_axis.plot(self.xb0, self.gama0-1, marker='x',
-                markersize=10, mew=2, linestyle='None',
-                color=self.indicator_color)
+        self.pxz_dot, = self.xz_axis.plot(
+            self.xb0,
+            self.z0,
+            marker='x',
+            markersize=10,
+            mew=2,
+            linestyle='None',
+            color=self.indicator_color)
+        self.pxby_dot, = self.xyb_axis.plot(
+            self.xb0,
+            self.y0,
+            marker='x',
+            markersize=10,
+            mew=2,
+            linestyle='None',
+            color=self.indicator_color)
+        self.pxbe_dot, = self.xeb_axis.plot(
+            self.xb0,
+            self.gama0 - 1,
+            marker='x',
+            markersize=10,
+            mew=2,
+            linestyle='None',
+            color=self.indicator_color)
 
     def save_figures(self):
         fname = self.fig_dir + 'traj_' + self.species + '_' + \
@@ -727,10 +833,21 @@ def plot_electron_trajectory(fnames, species, pic_info):
     ylims.append(np.arange(-40, 100, 40))
 
     species = 'e'
-    kwargs = {'nptl':nptl, 'iptl':iptl, 'ct':ct, 'var_field':var_field,
-            'var_name':var_name, 'species':species, 'traj_names':fnames,
-            'field_range':field_range, 'emax':emax, 'emin':emin,
-            'ymin':ymin, 'ymax':ymax, 'indicator_color':indicator_color}
+    kwargs = {
+        'nptl': nptl,
+        'iptl': iptl,
+        'ct': ct,
+        'var_field': var_field,
+        'var_name': var_name,
+        'species': species,
+        'traj_names': fnames,
+        'field_range': field_range,
+        'emax': emax,
+        'emin': emin,
+        'ymin': ymin,
+        'ymax': ymax,
+        'indicator_color': indicator_color
+    }
     fig_v = ParticleTrajectory153(**kwargs)
     fig_v.xz_axis.yaxis.set_ticks(ylims[0])
     fig_v.xeb_axis.yaxis.set_ticks(ylims[1])
@@ -769,16 +886,28 @@ def plot_particle_energies(fnames, species, pic_info):
         color = p1.get_color()
         for j in range(3):
             ct_ptl = ct[i, j] * t_ratio
-            te_dot, = ax.plot(t[ct_ptl], gama[ct_ptl]-1, marker='x',
-                    markersize=10, mew=2, linestyle='None', color=colors[2])
+            te_dot, = ax.plot(
+                t[ct_ptl],
+                gama[ct_ptl] - 1,
+                marker='x',
+                markersize=10,
+                mew=2,
+                linestyle='None',
+                color=colors[2])
         ax.set_ylim([0, emax[i]])
         ax.tick_params(labelsize=16)
         ax.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         if i < 2:
             ax.tick_params(axis='x', labelbottom='off')
-        ax.text(0.05, 0.8, tags[i], color='k', fontsize=20,
-                horizontalalignment='left', verticalalignment='center',
-                transform = ax.transAxes)
+        ax.text(
+            0.05,
+            0.8,
+            tags[i],
+            color='k',
+            fontsize=20,
+            horizontalalignment='left',
+            verticalalignment='center',
+            transform=ax.transAxes)
         ys -= h1 + gap
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     if not os.path.isdir('../img/'):
@@ -846,10 +975,21 @@ def plot_ion_trajectory(fnames, species, pic_info):
     # ylims.append(np.arange(0, 70, 20))
 
     species = 'i'
-    kwargs = {'nptl':nptl, 'iptl':iptl, 'ct':ct, 'var_field':var_field,
-            'var_name':var_name, 'species':species, 'traj_names':fnames,
-            'field_range':field_range, 'emax':emax, 'emin':emin,
-            'ymin':ymin, 'ymax':ymax, 'indicator_color':indicator_color}
+    kwargs = {
+        'nptl': nptl,
+        'iptl': iptl,
+        'ct': ct,
+        'var_field': var_field,
+        'var_name': var_name,
+        'species': species,
+        'traj_names': fnames,
+        'field_range': field_range,
+        'emax': emax,
+        'emin': emin,
+        'ymin': ymin,
+        'ymax': ymax,
+        'indicator_color': indicator_color
+    }
     fig_v = ParticleTrajectory153(**kwargs)
     fig_v.xz_axis.yaxis.set_ticks(ylims[0])
     fig_v.xeb_axis.yaxis.set_ticks(ylims[1])
@@ -889,20 +1029,38 @@ def plot_ions_energies(fnames, species, pic_info):
         if i == 0:
             for j in range(3):
                 ct_ptl = ct[i, j] * t_ratio
-                te_dot, = ax.plot(t[ct_ptl], gama[ct_ptl]-1, marker='x',
-                        markersize=10, mew=2, linestyle='None', color=colors[2])
+                te_dot, = ax.plot(
+                    t[ct_ptl],
+                    gama[ct_ptl] - 1,
+                    marker='x',
+                    markersize=10,
+                    mew=2,
+                    linestyle='None',
+                    color=colors[2])
         else:
             ct_ptl = ct[i, 0] * t_ratio
-            te_dot, = ax.plot(t[ct_ptl], gama[ct_ptl]-1, marker='x',
-                    markersize=10, mew=2, linestyle='None', color=colors[2])
+            te_dot, = ax.plot(
+                t[ct_ptl],
+                gama[ct_ptl] - 1,
+                marker='x',
+                markersize=10,
+                mew=2,
+                linestyle='None',
+                color=colors[2])
         ax.set_ylim([0, emax[i]])
         ax.tick_params(labelsize=16)
         ax.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         if i < 2:
             ax.tick_params(axis='x', labelbottom='off')
-        ax.text(0.05, 0.8, tags[i], color='k', fontsize=20,
-                horizontalalignment='left', verticalalignment='center',
-                transform = ax.transAxes)
+        ax.text(
+            0.05,
+            0.8,
+            tags[i],
+            color='k',
+            fontsize=20,
+            horizontalalignment='left',
+            verticalalignment='center',
+            transform=ax.transAxes)
         ys -= h1 + gap
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     if not os.path.isdir('../img/'):

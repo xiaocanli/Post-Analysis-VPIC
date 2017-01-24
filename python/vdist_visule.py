@@ -1,35 +1,39 @@
 """
 Analysis procedures for particle energy spectrum.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy import signal
+import collections
 import math
 import os.path
+import struct
 from os import listdir
 from os.path import isfile, join
-import struct
-import collections
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+
 import pic_information
-from contour_plots import read_2d_fields, plot_2d_contour
-from particle_distribution import *
-from spectrum_fitting import get_normalized_energy, fit_thermal_core
+from contour_plots import plot_2d_contour, read_2d_fields
 from json_module import *
+from particle_distribution import *
+from spectrum_fitting import fit_thermal_core, get_normalized_energy
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
+
 
 class EspectrumVdist(object):
     def __init__(self, **kwargs):
@@ -59,11 +63,11 @@ class EspectrumVdist(object):
                 pic_info.particle_interval / pic_info.fields_interval
         self.ct_field = self.ratio_ptl_fields * self.ct_ptl
         self.elog_norm = get_normalized_energy(self.species, self.elog,
-                self.pic_info)
+                                               self.pic_info)
         self.fit_nonthermal()
         self.read_field_data()
         self.distribution_plot()
-        self.fig_dist.canvas.mpl_connect('button_press_event',self.click)
+        self.fig_dist.canvas.mpl_connect('button_press_event', self.click)
 
     def get_dists_info(self):
         """Get the distribution information
@@ -84,20 +88,28 @@ class EspectrumVdist(object):
     def get_kwargs_dist(self):
         """Get arguments for getting particle distributions
         """
-        self.kwargs_dist = {'center':center, 'sizes':sizes, 'nbins':self.nbins,
-                'vmin':self.vmin, 'vmax':self.vmax, 'tframe':self.ct_ptl,
-                'species':self.species}
+        self.kwargs_dist = {
+            'center': center,
+            'sizes': sizes,
+            'nbins': self.nbins,
+            'vmin': self.vmin,
+            'vmax': self.vmax,
+            'tframe': self.ct_ptl,
+            'species': self.species
+        }
 
     def read_distributions(self):
         """Read velocity and energy distributions
         """
-        fname_1d = 'vdist_1d-' +  self.species + '.' + str(self.ct_ptl)
-        fname_2d = 'vdist_2d-' +  self.species + '.' + str(self.ct_ptl)
+        fname_1d = 'vdist_1d-' + self.species + '.' + str(self.ct_ptl)
+        fname_2d = 'vdist_2d-' + self.species + '.' + str(self.ct_ptl)
         self.fvel = read_velocity_distribution(self.species, self.ct_ptl,
-                self.pic_info, fname_1d, fname_2d, self.fpath_vdist)
+                                               self.pic_info, fname_1d,
+                                               fname_2d, self.fpath_vdist)
         fname_ene = 'spectrum-' + self.species + '.' + str(self.ct_ptl)
         self.fene = read_energy_distribution(self.species, self.ct_ptl,
-                self.pic_info, fname_ene, self.fpath_spect)
+                                             self.pic_info, fname_ene,
+                                             self.fpath_spect)
 
     def get_box_coords(self):
         """Get the coordinates to plot the box
@@ -116,17 +128,22 @@ class EspectrumVdist(object):
         """
         self.xl, self.xr = self.field_range[0:2]
         self.zb, self.zt = self.field_range[2:4]
-        kwargs = {"current_time":self.ct_field, "xl":self.xl, "xr":self.xr,
-                "zb":self.zb, "zt":self.zt}
+        kwargs = {
+            "current_time": self.ct_field,
+            "xl": self.xl,
+            "xr": self.xr,
+            "zb": self.zb,
+            "zt": self.zt
+        }
         fname_field = self.root_dir + 'data/' + self.var_field + '.gda'
         fname_Ay = self.root_dir + 'data/Ay.gda'
         self.x1, self.z1, data = read_2d_fields(self.pic_info, fname_field,
-                **kwargs)
+                                                **kwargs)
         ng = 5
-        kernel = np.ones((ng,ng)) / float(ng*ng)
+        kernel = np.ones((ng, ng)) / float(ng * ng)
         self.fdata1 = signal.convolve2d(data, kernel)
-        self.x1, self.z1, self.Ay1 = read_2d_fields(self.pic_info,
-                fname_Ay, **kwargs)
+        self.x1, self.z1, self.Ay1 = read_2d_fields(self.pic_info, fname_Ay,
+                                                    **kwargs)
         self.nx1, = self.x1.shape
         self.nz1, = self.z1.shape
         self.xmax1 = np.max(self.x1)
@@ -161,12 +178,15 @@ class EspectrumVdist(object):
         self.xst = xst
         self.zst = zst
         nx1, nz1 = self.nx1, self.nz1
-        self.im1 = self.xz_axis.imshow(self.fdata1[0:nz1:zst, 0:nx1:xst],
-                cmap=self.cmap,
-                extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
-                aspect='auto', origin='lower',
-                vmin = -self.vmax, vmax = self.vmax,
-                interpolation='bicubic')
+        self.im1 = self.xz_axis.imshow(
+            self.fdata1[0:nz1:zst, 0:nx1:xst],
+            cmap=self.cmap,
+            extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
+            aspect='auto',
+            origin='lower',
+            vmin=-self.vmax,
+            vmax=self.vmax,
+            interpolation='bicubic')
         divider = make_axes_locatable(self.xz_axis)
         self.cax = divider.append_axes("right", size="2%", pad=0.05)
         self.cbar = self.fig_dist.colorbar(self.im1, cax=self.cax)
@@ -175,13 +195,17 @@ class EspectrumVdist(object):
         self.Ay_max = np.max(self.Ay1)
         self.Ay_min = np.min(self.Ay1)
         self.levels = np.linspace(self.Ay_min, self.Ay_max, 10)
-        self.xz_axis.contour(self.x1[0:nx1:xst], self.z1[0:nz1:zst],
-                self.Ay1[0:nz1:zst, 0:nx1:xst], colors=self.color_Ay,
-                linewidths=0.5, levels=self.levels)
+        self.xz_axis.contour(
+            self.x1[0:nx1:xst],
+            self.z1[0:nz1:zst],
+            self.Ay1[0:nz1:zst, 0:nx1:xst],
+            colors=self.color_Ay,
+            linewidths=0.5,
+            levels=self.levels)
         self.xz_axis.tick_params(labelsize=16)
         self.xz_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
         self.xz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
-        self.xz_axis.autoscale(1,'both',1)
+        self.xz_axis.autoscale(1, 'both', 1)
 
         # Plot a box indicating where to get the distributions
         self.pbox, = self.xz_axis.plot(self.xbox, self.zbox, color='k')
@@ -190,16 +214,19 @@ class EspectrumVdist(object):
         xs2 = xs1
         ys -= h1 + gapv
         self.vxy_axis = self.fig_dist.add_axes([xs2, ys, w2, h2])
-        self.pvxy = self.vxy_axis.imshow(self.fvel.fvel_xy,
-                cmap=self.cmap_dist,
-                extent=[-self.dmax, self.dmax, -self.dmax, self.dmax],
-                aspect='auto', origin='lower',
-                norm=LogNorm(vmin=self.vmin_2d, vmax=self.vmax_2d),
-                interpolation='bicubic')
-        self.vxy_axis.plot([0, 0], [-self.dmax, self.dmax], color='w',
-                linestyle='--')
-        self.vxy_axis.plot([-self.dmax, self.dmax], [0, 0], color='w',
-                linestyle='--')
+        self.pvxy = self.vxy_axis.imshow(
+            self.fvel.fvel_xy,
+            cmap=self.cmap_dist,
+            extent=[-self.dmax, self.dmax, -self.dmax, self.dmax],
+            aspect='auto',
+            origin='lower',
+            norm=LogNorm(
+                vmin=self.vmin_2d, vmax=self.vmax_2d),
+            interpolation='bicubic')
+        self.vxy_axis.plot(
+            [0, 0], [-self.dmax, self.dmax], color='w', linestyle='--')
+        self.vxy_axis.plot(
+            [-self.dmax, self.dmax], [0, 0], color='w', linestyle='--')
         self.vxy_axis.set_xlabel(r'$u_x$', fontdict=font, fontsize=20)
         self.vxy_axis.set_ylabel(r'$u_y$', fontdict=font, fontsize=20)
         self.vxy_axis.tick_params(labelsize=16)
@@ -207,16 +234,19 @@ class EspectrumVdist(object):
         # fvel_xz
         xs2 += w2 + gaph
         self.vxz_axis = self.fig_dist.add_axes([xs2, ys, w2, h2])
-        self.pvxz = self.vxz_axis.imshow(self.fvel.fvel_xz,
-                cmap=self.cmap_dist,
-                extent=[-self.dmax, self.dmax, -self.dmax, self.dmax],
-                aspect='auto', origin='lower',
-                norm=LogNorm(vmin=self.vmin_2d, vmax=self.vmax_2d),
-                interpolation='bicubic')
-        self.vxz_axis.plot([0, 0], [-self.dmax, self.dmax], color='w',
-                linestyle='--')
-        self.vxz_axis.plot([-self.dmax, self.dmax], [0, 0], color='w',
-                linestyle='--')
+        self.pvxz = self.vxz_axis.imshow(
+            self.fvel.fvel_xz,
+            cmap=self.cmap_dist,
+            extent=[-self.dmax, self.dmax, -self.dmax, self.dmax],
+            aspect='auto',
+            origin='lower',
+            norm=LogNorm(
+                vmin=self.vmin_2d, vmax=self.vmax_2d),
+            interpolation='bicubic')
+        self.vxz_axis.plot(
+            [0, 0], [-self.dmax, self.dmax], color='w', linestyle='--')
+        self.vxz_axis.plot(
+            [-self.dmax, self.dmax], [0, 0], color='w', linestyle='--')
         self.vxz_axis.set_xlabel(r'$u_x$', fontdict=font, fontsize=20)
         self.vxz_axis.set_ylabel(r'$u_z$', fontdict=font, fontsize=20)
         self.vxz_axis.tick_params(labelsize=16)
@@ -224,16 +254,19 @@ class EspectrumVdist(object):
         # fvel_yz
         xs2 += w2 + gaph
         self.vyz_axis = self.fig_dist.add_axes([xs2, ys, w2, h2])
-        self.pvyz = self.vyz_axis.imshow(self.fvel.fvel_yz,
-                cmap=self.cmap_dist,
-                extent=[-self.dmax, self.dmax, -self.dmax, self.dmax],
-                aspect='auto', origin='lower',
-                norm=LogNorm(vmin=self.vmin_2d, vmax=self.vmax_2d),
-                interpolation='bicubic')
-        self.vyz_axis.plot([0, 0], [-self.dmax, self.dmax], color='w',
-                linestyle='--')
-        self.vyz_axis.plot([-self.dmax, self.dmax], [0, 0], color='w',
-                linestyle='--')
+        self.pvyz = self.vyz_axis.imshow(
+            self.fvel.fvel_yz,
+            cmap=self.cmap_dist,
+            extent=[-self.dmax, self.dmax, -self.dmax, self.dmax],
+            aspect='auto',
+            origin='lower',
+            norm=LogNorm(
+                vmin=self.vmin_2d, vmax=self.vmax_2d),
+            interpolation='bicubic')
+        self.vyz_axis.plot(
+            [0, 0], [-self.dmax, self.dmax], color='w', linestyle='--')
+        self.vyz_axis.plot(
+            [-self.dmax, self.dmax], [0, 0], color='w', linestyle='--')
         self.vyz_axis.set_xlabel(r'$u_y$', fontdict=font, fontsize=20)
         self.vyz_axis.set_ylabel(r'$u_z$', fontdict=font, fontsize=20)
         self.vyz_axis.tick_params(labelsize=16)
@@ -242,12 +275,15 @@ class EspectrumVdist(object):
         xs2 = xs1
         ys -= h3 + gapv2
         self.v2d_axis = self.fig_dist.add_axes([xs2, ys, w2, h3])
-        self.pv2d = self.v2d_axis.imshow(self.fvel.fvel_para_perp,
-                cmap=self.cmap_dist,
-                extent=[-self.dmax, self.dmax, 0, self.dmax],
-                aspect='auto', origin='lower',
-                norm=LogNorm(vmin=self.vmin_2d, vmax=self.vmax_2d),
-                interpolation='bicubic')
+        self.pv2d = self.v2d_axis.imshow(
+            self.fvel.fvel_para_perp,
+            cmap=self.cmap_dist,
+            extent=[-self.dmax, self.dmax, 0, self.dmax],
+            aspect='auto',
+            origin='lower',
+            norm=LogNorm(
+                vmin=self.vmin_2d, vmax=self.vmax_2d),
+            interpolation='bicubic')
         self.v2d_axis.plot([0, 0], [0, self.dmax], color='w', linestyle='--')
         self.v2d_axis.set_ylabel(r'$u_\perp$', fontdict=font, fontsize=20)
         self.v2d_axis.tick_params(labelsize=16)
@@ -256,9 +292,9 @@ class EspectrumVdist(object):
         # fvel_perp
         xs2 += w2 + gaph2
         self.vperp_axis = self.fig_dist.add_axes([xs2, ys, w2, h3])
-        self.pvperp, = self.vperp_axis.semilogx(self.fvel.fvel_perp,
-                self.vbins_short, color='k', linewidth=2)
-        self.vperp_axis.set_yticks(np.arange(0, self.dmax+0.1, 1.0))
+        self.pvperp, = self.vperp_axis.semilogx(
+            self.fvel.fvel_perp, self.vbins_short, color='k', linewidth=2)
+        self.vperp_axis.set_yticks(np.arange(0, self.dmax + 0.1, 1.0))
         self.vperp_axis.set_xlabel(r'$f(u_\perp)$', fontdict=font, fontsize=20)
         self.vperp_axis.tick_params(axis='y', labelleft='off')
         self.vperp_axis.tick_params(labelsize=16)
@@ -267,29 +303,31 @@ class EspectrumVdist(object):
         ys -= h3 + gapv2
         xs2 = xs1
         self.vpara_axis = self.fig_dist.add_axes([xs2, ys, w2, h3])
-        self.pvpara, = self.vpara_axis.semilogy(self.vbins_long,
-                self.fvel.fvel_para, color='k', linewidth=2)
-        self.vpara_axis.set_xticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.vpara_axis.set_xlabel(r'$u_\parallel$', fontdict=font, fontsize=20)
-        self.vpara_axis.set_ylabel(r'$f(u_\parallel)$', fontdict=font, fontsize=20)
+        self.pvpara, = self.vpara_axis.semilogy(
+            self.vbins_long, self.fvel.fvel_para, color='k', linewidth=2)
+        self.vpara_axis.set_xticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.vpara_axis.set_xlabel(
+            r'$u_\parallel$', fontdict=font, fontsize=20)
+        self.vpara_axis.set_ylabel(
+            r'$f(u_\parallel)$', fontdict=font, fontsize=20)
         self.vpara_axis.tick_params(labelsize=16)
 
         # energy spectrum
-        xs2 += (w2 + gaph2)*2 + gaph
+        xs2 += (w2 + gaph2) * 2 + gaph
         xe = xs1 + 2 * gaph + 3 * w2
         w3 = xe - xs2
         h4 = h3 * 2 + gapv2
         self.espect_axis = self.fig_dist.add_axes([xs2, ys, w3, h4])
-        self.pespect, = self.espect_axis.loglog(self.elog_norm,
-                self.fene.flog, color='k', linewidth=2)
-        self.espect_axis.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$',
-                fontdict=font, fontsize=20)
-        self.espect_axis.set_ylabel(r'$f(\varepsilon)$',
-                fontdict=font, fontsize=20)
+        self.pespect, = self.espect_axis.loglog(
+            self.elog_norm, self.fene.flog, color='k', linewidth=2)
+        self.espect_axis.set_xlabel(
+            r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=20)
+        self.espect_axis.set_ylabel(
+            r'$f(\varepsilon)$', fontdict=font, fontsize=20)
         self.espect_axis.tick_params(labelsize=16)
         color = self.pespect.get_color()
-        self.pnth, = self.espect_axis.loglog(self.elog_norm, self.fnonthermal,
-                color=color)
+        self.pnth, = self.espect_axis.loglog(
+            self.elog_norm, self.fnonthermal, color=color)
 
         # set limes
         self.set_axes_lims()
@@ -299,14 +337,14 @@ class EspectrumVdist(object):
         self.fnonthermal = self.fene.flog - self.fthermal
 
     def set_axes_lims(self):
-        self.vxy_axis.set_xticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.vxy_axis.set_yticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.vxz_axis.set_xticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.vxz_axis.set_yticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.vyz_axis.set_xticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.vyz_axis.set_yticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.v2d_axis.set_xticks(np.arange(-self.dmax, self.dmax+0.1, 1.0))
-        self.v2d_axis.set_yticks(np.arange(0, self.dmax+0.1, 1.0))
+        self.vxy_axis.set_xticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.vxy_axis.set_yticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.vxz_axis.set_xticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.vxz_axis.set_yticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.vyz_axis.set_xticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.vyz_axis.set_yticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.v2d_axis.set_xticks(np.arange(-self.dmax, self.dmax + 0.1, 1.0))
+        self.v2d_axis.set_yticks(np.arange(0, self.dmax + 0.1, 1.0))
         self.vpara_axis.set_xlim([-self.dmax, self.dmax])
         self.vperp_axis.set_ylim([0, self.dmax])
 
@@ -318,12 +356,12 @@ class EspectrumVdist(object):
             3. Plot resulting data.
             4. Update Figure
         """
-        if event.inaxes==self.xz_axis:
+        if event.inaxes == self.xz_axis:
             xpos = event.xdata
             ypos = event.ydata
             print xpos, ypos
             pos = np.asarray([xpos, 0.0, ypos]) * self.smime
-            if event.button==1:
+            if event.button == 1:
                 self.kwargs_dist['center'] = pos
                 print self.kwargs_dist
                 self.get_box_coords()
@@ -374,7 +412,7 @@ if __name__ == "__main__":
     lx_de = pic_info.lx_di * smime
 
     species = 'e'
-    center = [0.5*lx_de, 0.0, 0.0]
+    center = [0.5 * lx_de, 0.0, 0.0]
     sizes = [128, 1, 256]
     center = np.asarray(center)
     sizes = np.asarray(sizes)
@@ -382,10 +420,21 @@ if __name__ == "__main__":
     vmin, vmax = 0, 2.0
     fpath_vdist = root_dir + 'pic_analysis/vdistributions/'
     fpath_spect = root_dir + 'pic_analysis/spectrum/'
-    kwargs = {'ct_ptl':ct_ptl, 'var_field':var_field, 'var_name':var_name,
-            'species':species, 'field_range':field_range, 'center':center,
-            'sizes':sizes, 'nbins':nbins, 'vmax':vmax, 'vmin':vmin,
-            'fpath_vdist':fpath_vdist, 'fpath_spect':fpath_spect,
-            'pic_info': pic_info, 'root_dir': root_dir}
+    kwargs = {
+        'ct_ptl': ct_ptl,
+        'var_field': var_field,
+        'var_name': var_name,
+        'species': species,
+        'field_range': field_range,
+        'center': center,
+        'sizes': sizes,
+        'nbins': nbins,
+        'vmax': vmax,
+        'vmin': vmin,
+        'fpath_vdist': fpath_vdist,
+        'fpath_spect': fpath_spect,
+        'pic_info': pic_info,
+        'root_dir': root_dir
+    }
     fig_v = EspectrumVdist(**kwargs)
     plt.show()

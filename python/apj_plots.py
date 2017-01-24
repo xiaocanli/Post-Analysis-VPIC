@@ -1,57 +1,60 @@
 """
 Functions and classes for 2D contour plots of fields.
 """
-import os
-from os import listdir
-from os.path import isfile, join
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy.ndimage.filters import generic_filter as gf
-from scipy import signal
-from scipy.fftpack import fft2, ifft2, fftshift
-import math
-import os.path
-import struct
 import collections
-import pic_information
-import color_maps as cm
-import colormap.colormaps as cmaps
-from runs_name_path import ApJ_long_paper_runs
-from energy_conversion import read_data_from_json
-from contour_plots import read_2d_fields, plot_2d_contour
-from pic_information import list_pic_info_dir
-import palettable
-import sys
-from fields_plot import *
-from spectrum_fitting import *
-from energy_conversion import calc_jdotes_fraction_multi
-from shell_functions import mkdir_p
+import math
+import os
+import os.path
+import pprint
 import re
 import stat
-from scipy.interpolate import interp1d
+import struct
+import sys
 from itertools import groupby
-from particle_distribution import *
+from os import listdir
+from os.path import isfile, join
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+from scipy.fftpack import fft2, fftshift, ifft2
+from scipy.interpolate import interp1d
+from scipy.ndimage.filters import generic_filter as gf
+
+import color_maps as cm
+import colormap.colormaps as cmaps
+import palettable
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
 from distinguishable_colors import *
-import pprint
+from energy_conversion import calc_jdotes_fraction_multi, read_data_from_json
+from fields_plot import *
+from particle_distribution import *
+from pic_information import list_pic_info_dir
+from runs_name_path import ApJ_long_paper_runs
+from shell_functions import mkdir_p
+from spectrum_fitting import *
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family': 'serif',
-        # 'color':'darkred',
-        'color': 'black',
-        'weight': 'normal',
-        'size': 24,
-        }
+font = {
+    'family': 'serif',
+    # 'color':'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
 
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+
 # colors = palettable.colorbrewer.qualitative.Dark2_8.mpl_colors
 
 
@@ -81,7 +84,7 @@ def plot_by_time(run_name, root_dir, pic_info):
         var_name = r'$t=' + str(cts[i]) + r'/\Omega_{ci}$'
         var_names.append(var_name)
     cts /= pic_info.dt_fields
-    cts = np.asarray(cts-1, dtype=int)
+    cts = np.asarray(cts - 1, dtype=int)
     colormaps = ['seismic'] * nt
     text_colors = ['k'] * nt
     xstep, zstep = 2, 2
@@ -106,14 +109,31 @@ def plot_by_time(run_name, root_dir, pic_info):
         fdata.append(data)
         Ay_data.append(Ay)
     fname = 'by_time'
-    kwargs_plots = {'current_time': ct, 'x': x, 'z': z, 'Ay': Ay_data,
-                    'fdata': fdata, 'contour_color': contour_color,
-                    'colormaps': colormaps, 'vmin': vmin, 'vmax': vmax,
-                    'var_names': var_names, 'axis_pos': axis_pos, 'gaps': gaps,
-                    'fig_sizes': fig_sizes, 'text_colors': text_colors,
-                    'nxp': nxp, 'nzp': nzp, 'xstep': xstep, 'zstep': zstep,
-                    'is_logs': is_logs, 'fname': fname, 'fig_dir': fig_dir,
-                    'is_multi_Ay': True, 'save_eps': True}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay_data,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'is_multi_Ay': True,
+        'save_eps': True
+    }
     by_plot = PlotMultiplePanels(**kwargs_plots)
     for cbar in by_plot.cbar:
         cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
@@ -150,7 +170,7 @@ def plot_vx_time(run_name, root_dir, pic_info):
         var_name = r'$t=' + str(cts[i]) + r'/\Omega_{ci}$'
         var_names.append(var_name)
     cts /= pic_info.dt_fields
-    cts = np.asarray(cts-1, dtype=int)
+    cts = np.asarray(cts - 1, dtype=int)
     colormaps = ['seismic'] * nt
     text_colors = [colors[0], colors[1]]
     xstep, zstep = 2, 2
@@ -185,13 +205,13 @@ def plot_vx_time(run_name, root_dir, pic_info):
         x, z, ne = read_2d_fields(pic_info, fname12, **kwargs)
         x, z, vix = read_2d_fields(pic_info, fname21, **kwargs)
         x, z, ni = read_2d_fields(pic_info, fname22, **kwargs)
-        ux = (ne*vex + ni*vix*mime) / (ne + ni*mime)
+        ux = (ne * vex + ni * vix * mime) / (ne + ni * mime)
         ux /= va
         x, z, Ay = read_2d_fields(pic_info, fname3, **kwargs)
         nx, = x.shape
         nz, = z.shape
         fdata.append(ux)
-        fdata_1d.append(ux[nz/2, :])
+        fdata_1d.append(ux[nz / 2, :])
         Ay_data.append(Ay)
     fname = 'vx_time'
     fdata = np.asarray(fdata)
@@ -201,16 +221,35 @@ def plot_vx_time(run_name, root_dir, pic_info):
     xlim = [0, 200]
     zlim = [-50, 50]
     save_eps = True
-    kwargs_plots = {'current_time': ct, 'x': x, 'z': z, 'Ay': Ay_data,
-                    'fdata': fdata, 'contour_color': contour_color,
-                    'colormaps': colormaps, 'vmin': vmin, 'vmax': vmax,
-                    'var_names': var_names, 'axis_pos': axis_pos, 'gaps': gaps,
-                    'fig_sizes': fig_sizes, 'text_colors': text_colors,
-                    'nxp': nxp, 'nzp': nzp, 'xstep': xstep, 'zstep': zstep,
-                    'is_logs': is_logs, 'fname': fname, 'fig_dir': fig_dir,
-                    'bottom_panel': bottom_panel, 'fdata_1d': fdata_1d,
-                    'xlim': xlim, 'zlim': zlim, 'is_multi_Ay': True,
-                    'save_eps': save_eps}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay_data,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'bottom_panel': bottom_panel,
+        'fdata_1d': fdata_1d,
+        'xlim': xlim,
+        'zlim': zlim,
+        'is_multi_Ay': True,
+        'save_eps': save_eps
+    }
     vx_plot = PlotMultiplePanels(**kwargs_plots)
     for cbar in vx_plot.cbar:
         cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
@@ -219,7 +258,7 @@ def plot_vx_time(run_name, root_dir, pic_info):
     xmax = np.max(x)
     zmin = np.min(z)
     zmax = np.max(z)
-    z0 = z[nz/2]
+    z0 = z[nz / 2]
     vx_plot.ax[0].plot([xmin, xmax], [z0, z0], linestyle='--', color='k')
     vx_plot.ax[1].plot([xmin, xmax], [z0, z0], linestyle='--', color='k')
     # x0 = 127
@@ -251,11 +290,11 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     fname = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
 
-    absE = np.sqrt(ex*ex + ey*ey + ez*ez)
-    epara = (ex*bx + ey*by + ez*bz) / absB
-    eperp = np.sqrt(absE*absE - epara*epara)
+    absE = np.sqrt(ex * ex + ey * ey + ez * ez)
+    epara = (ex * bx + ey * by + ez * bz) / absB
+    eperp = np.sqrt(absE * absE - epara * epara)
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     epara = signal.convolve2d(epara, kernel)
     eperp = signal.convolve2d(eperp, kernel)
     ey = signal.convolve2d(ey, kernel, 'same')
@@ -264,8 +303,8 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     b0 = pic_info.b0
     e0 = va * b0
-    epara /= 0.5*e0
-    ey /= 0.5*e0
+    epara /= 0.5 * e0
+    ey /= 0.5 * e0
 
     contour_color = ['k'] * 2
     vmin = [-0.25, -1.0]
@@ -300,15 +339,33 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     zlim = [-50, 50]
     save_eps = True
     nlevels_contour = 11
-    kwargs_plots = {'current_time': ct, 'x': x, 'z': z, 'Ay': Ay_data,
-                    'fdata': fdata, 'contour_color': contour_color,
-                    'colormaps': colormaps, 'vmin': vmin, 'vmax': vmax,
-                    'var_names': var_names, 'axis_pos': axis_pos, 'gaps': gaps,
-                    'fig_sizes': fig_sizes, 'text_colors': text_colors,
-                    'nxp': nxp, 'nzp': nzp, 'xstep': xstep, 'zstep': zstep,
-                    'is_logs': is_logs, 'fname': fname, 'fig_dir': fig_dir,
-                    'xlim': xlim, 'zlim': zlim, 'is_multi_Ay': False,
-                    'save_eps': save_eps}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay_data,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'xlim': xlim,
+        'zlim': zlim,
+        'is_multi_Ay': False,
+        'save_eps': save_eps
+    }
     vx_plot = PlotMultiplePanels(**kwargs_plots)
     # for cbar in vx_plot.cbar:
     #     cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
@@ -435,7 +492,7 @@ def plot_jpara_dote(run_name, root_dir, pic_info, species):
     fnames.append(fname)
     dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     fdata = []
     fdata_1d = []
     for fname in fnames:
@@ -453,15 +510,33 @@ def plot_jpara_dote(run_name, root_dir, pic_info, species):
     bottom_panel = True
     xlim = [0, 200]
     zlim = [-25, 25]
-    kwargs_plots = {'current_time': ct, 'x': x, 'z': z, 'Ay': Ay,
-                    'fdata': fdata, 'contour_color': contour_color,
-                    'colormaps': colormaps, 'vmin': vmin, 'vmax': vmax,
-                    'var_names': var_names, 'axis_pos': axis_pos, 'gaps': gaps,
-                    'fig_sizes': fig_sizes, 'text_colors': text_colors,
-                    'nxp': nxp, 'nzp': nzp, 'xstep': xstep, 'zstep': zstep,
-                    'is_logs': is_logs, 'fname': fname, 'fig_dir': fig_dir,
-                    'bottom_panel': bottom_panel, 'fdata_1d': fdata_1d,
-                    'xlim': xlim, 'zlim': zlim}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'bottom_panel': bottom_panel,
+        'fdata_1d': fdata_1d,
+        'xlim': xlim,
+        'zlim': zlim
+    }
     jdote_plot = PlotMultiplePanels(**kwargs_plots)
     for ct in range(1, pic_info.ntf):
         kwargs["current_time"] = ct
@@ -522,8 +597,13 @@ def plot_jdotes_fields(run_name, root_dir, pic_info, species, ct, srange,
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     fnames = []
     fname = root_dir + 'data1/jcpara_dote00_' + species + '.gda'
     fnames.append(fname)
@@ -541,7 +621,7 @@ def plot_jdotes_fields(run_name, root_dir, pic_info, species, ct, srange,
     # fnames.append(fname)
     dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     fdata = []
     fdata_1d = []
     for fname in fnames:
@@ -560,15 +640,33 @@ def plot_jdotes_fields(run_name, root_dir, pic_info, species, ct, srange,
     xlim = srange[:2]
     zlim = srange[2:]
     nlevels_contour = 10
-    kwargs_plots = {'current_time': ct, 'x': x, 'z': z, 'Ay': Ay,
-                    'fdata': fdata, 'contour_color': contour_color,
-                    'colormaps': colormaps, 'vmin': vmin, 'vmax': vmax,
-                    'var_names': var_names, 'axis_pos': axis_pos, 'gaps': gaps,
-                    'fig_sizes': fig_sizes, 'text_colors': text_colors,
-                    'nxp': nxp, 'nzp': nzp, 'xstep': xstep, 'zstep': zstep,
-                    'is_logs': is_logs, 'fname': fname, 'fig_dir': fig_dir,
-                    'bottom_panel': bottom_panel, 'fdata_1d': fdata_1d,
-                    'xlim': xlim, 'zlim': zlim}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'bottom_panel': bottom_panel,
+        'fdata_1d': fdata_1d,
+        'xlim': xlim,
+        'zlim': zlim
+    }
     jdote_plot = PlotMultiplePanels(**kwargs_plots)
     plt.show()
 
@@ -588,11 +686,16 @@ def plot_jdotes_fields_s(run_name, root_dir, pic_info, species, ct, srange,
         srange: spatial range
     """
     ng = 3
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     dmax = []
     dmin = []
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     fname = root_dir + 'data1/jcpara_dote00_' + species + '.gda'
     x, z, jcpara_dote = read_2d_fields(pic_info, fname, **kwargs)
@@ -658,95 +761,161 @@ def plot_jdotes_fields_s(run_name, root_dir, pic_info, species, ct, srange,
     w1, h1 = 0.25, 0.28125
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(jqnvpara_dote, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        jqnvpara_dote,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$\boldsymbol{j}_\parallel\cdot\boldsymbol{E}$',
-             color='k', fontsize=20, bbox=dict(facecolor='none', alpha=1.0,
-                                               edgecolor='none', pad=10.0),
-             horizontalalignment='left', verticalalignment='center',
-             transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$\boldsymbol{j}_\parallel\cdot\boldsymbol{E}$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     xs = xs0 + gap + w1
     ys = ys0
     ax2 = fig.add_axes([xs, ys, w1, h1])
-    p2 = ax2.imshow(jcpara_dote, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        jcpara_dote,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.tick_params(axis='y', labelleft='off')
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax2.text(0.02, 0.85, r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$',
-             color=colors[0], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$',
+        color=colors[0],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
     xs = xs + gap + w1
     ax3 = fig.add_axes([xs, ys, w1, h1])
-    p3 = ax3.imshow(jpolar_dote, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        jpolar_dote,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(axis='x', labelbottom='off')
     ax3.tick_params(axis='y', labelleft='off')
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax3.text(0.02, 0.85, r'$\boldsymbol{j}_p\cdot\boldsymbol{E}$',
-             color=colors[3], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$\boldsymbol{j}_p\cdot\boldsymbol{E}$',
+        color=colors[3],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
 
     ys = ys0 - h1 - gap
     ax4 = fig.add_axes([xs0, ys, w1, h1])
-    p4 = ax4.imshow(jmag_dote, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p4 = ax4.imshow(
+        jmag_dote,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax4.tick_params(labelsize=16)
     ax4.tick_params(axis='x', labelbottom='off')
     ax4.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax4.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax4.text(0.02, 0.85, r'$\boldsymbol{j}_m\cdot\boldsymbol{E}$',
-             color=colors[2], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax4.transAxes)
+    ax4.text(
+        0.02,
+        0.85,
+        r'$\boldsymbol{j}_m\cdot\boldsymbol{E}$',
+        color=colors[2],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax4.transAxes)
     xs = xs0 + gap + w1
     ax5 = fig.add_axes([xs, ys, w1, h1])
-    p5 = ax5.imshow(jgrad_dote, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p5 = ax5.imshow(
+        jgrad_dote,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax5.tick_params(axis='x', labelbottom='off')
     ax5.tick_params(axis='y', labelleft='off')
     ax5.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax5.text(0.02, 0.85, r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$',
-             color=colors[2], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax5.transAxes)
+    ax5.text(
+        0.02,
+        0.85,
+        r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$',
+        color=colors[2],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax5.transAxes)
     xs = xs + gap + w1
     ax6 = fig.add_axes([xs, ys, w1, h1])
     ax6.tick_params(axis='x', labelbottom='off')
     ax6.tick_params(axis='y', labelleft='off')
-    p6 = ax6.imshow(jagy_dote, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p6 = ax6.imshow(
+        jagy_dote,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax6.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax6.text(0.02, 0.85, r'$\boldsymbol{j}_a\cdot\boldsymbol{E}$',
-             color=colors[4], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax6.transAxes)
+    ax6.text(
+        0.02,
+        0.85,
+        r'$\boldsymbol{j}_a\cdot\boldsymbol{E}$',
+        color=colors[4],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax6.transAxes)
 
-    h2 = 2*h1 + gap
-    cbar_ax = fig.add_axes([xs+w1+0.01, ys0-h1-gap, 0.02, h2])
+    h2 = 2 * h1 + gap
+    cbar_ax = fig.add_axes([xs + w1 + 0.01, ys0 - h1 - gap, 0.02, h2])
     cbar1 = fig.colorbar(p1, cax=cbar_ax)
     cbar1.ax.tick_params(labelsize=16)
 
@@ -800,8 +969,13 @@ def plot_jdotes_fields_s(run_name, root_dir, pic_info, species, ct, srange,
 def plot_curvb_single(run_name, root_dir, pic_info, srange, ct):
     """Plot the curvature of the magnetic field
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     fname = root_dir + 'data/bx.gda'
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
     fname = root_dir + 'data/by.gda'
@@ -828,10 +1002,10 @@ def plot_curvb_single(run_name, root_dir, pic_info, srange, ct):
     curvb_x = np.zeros((nz, nx))
     curvb_y = np.zeros((nz, nx))
     curvb_z = np.zeros((nz, nx))
-    curvb_x[:nz-1, :] = -np.diff(by, axis=0)
-    curvb_y[:nz-1, :] = np.diff(bx, axis=0)
-    curvb_y[:, :nx-1] += np.diff(bz)
-    curvb_z[:, :nx-1] = np.diff(by)
+    curvb_x[:nz - 1, :] = -np.diff(by, axis=0)
+    curvb_y[:nz - 1, :] = np.diff(bx, axis=0)
+    curvb_y[:, :nx - 1] += np.diff(bz)
+    curvb_z[:, :nx - 1] = np.diff(by)
 
     xmin, xmax = np.min(x), np.max(x)
     zmin, zmax = np.min(z), np.max(z)
@@ -842,46 +1016,82 @@ def plot_curvb_single(run_name, root_dir, pic_info, srange, ct):
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
     print np.min(curvb_z), np.max(curvb_z)
-    p1 = ax1.imshow(curvb_x, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        curvb_x,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$B_x$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$B_x$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(curvb_y, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        curvb_y,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$B_y$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$B_y$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
     ys = ys - h1 - gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(curvb_z, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        curvb_z,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax3.text(0.02, 0.85, r'$B_z$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$B_z$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     xs = xs0 + w1 + 0.06
     # if not os.path.isdir('../img/'):
     #     os.makedirs('../img/')
@@ -914,8 +1124,13 @@ def plot_curvb_multi(run_name, root_dir, pic_info):
 def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
     """Plot the electromagnetic fields for a single time steps
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     fname = root_dir + 'data/bx.gda'
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
     fname = root_dir + 'data/by.gda'
@@ -943,7 +1158,7 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
     ez /= e0
 
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     ex = signal.convolve2d(ex, kernel, 'same')
     ey = signal.convolve2d(ey, kernel, 'same')
     ez = signal.convolve2d(ez, kernel, 'same')
@@ -959,46 +1174,82 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
     w1, h1 = 0.375, 0.2647
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(bx, cmap=plt.cm.jet,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        bx,
+        cmap=plt.cm.jet,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$B_x$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$B_x$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(by, cmap=plt.cm.jet,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        by,
+        cmap=plt.cm.jet,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$B_y$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$B_y$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
     ys = ys - h1 - gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(bz, cmap=plt.cm.jet,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        bz,
+        cmap=plt.cm.jet,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax3.text(0.02, 0.85, r'$B_z$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$B_z$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     ys1 = ys - 0.1
     cax = fig.add_axes([xs0, ys1, w1, 0.02])
     cbar = fig.colorbar(p3, cax=cax, orientation='horizontal')
@@ -1006,46 +1257,82 @@ def plot_emfields_single(run_name, root_dir, pic_info, srange, ct):
     cbar.ax.tick_params(labelsize=16)
     xs = xs0 + w1 + gap * 8.0 / 6.0
     ax4 = fig.add_axes([xs, ys0, w1, h1])
-    p4 = ax4.imshow(ex, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p4 = ax4.imshow(
+        ex,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax4.tick_params(axis='y', labelleft='off')
     ax4.tick_params(axis='x', labelbottom='off')
     ax4.tick_params(labelsize=16)
     ax4.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax4.text(0.02, 0.85, r'$E_x$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax4.transAxes)
+    ax4.text(
+        0.02,
+        0.85,
+        r'$E_x$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax4.transAxes)
     ys = ys0 - h1 - gap
     ax5 = fig.add_axes([xs, ys, w1, h1])
-    p5 = ax5.imshow(ey, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p5 = ax5.imshow(
+        ey,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax5.tick_params(axis='y', labelleft='off')
     ax5.tick_params(axis='x', labelbottom='off')
     ax5.tick_params(labelsize=16)
     ax5.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax5.text(0.02, 0.85, r'$E_y$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax5.transAxes)
+    ax5.text(
+        0.02,
+        0.85,
+        r'$E_y$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax5.transAxes)
     ys = ys - h1 - gap
     ax6 = fig.add_axes([xs, ys, w1, h1])
-    p6 = ax6.imshow(ez, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p6 = ax6.imshow(
+        ez,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax6.tick_params(axis='y', labelleft='off')
     ax6.tick_params(labelsize=16)
     ax6.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax6.set_xlabel(r'$x/d_i$', fontsize=20)
-    ax6.text(0.02, 0.85, r'$E_z$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax6.transAxes)
+    ax6.text(
+        0.02,
+        0.85,
+        r'$E_z$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax6.transAxes)
     ys1 = ys - 0.1
     cax = fig.add_axes([xs, ys1, w1, 0.02])
     cbar = fig.colorbar(p6, cax=cax, orientation='horizontal')
@@ -1082,8 +1369,13 @@ def plot_emfields_multi(run_name, root_dir, pic_info):
 def plot_gradB_single(run_name, root_dir, pic_info, srange, ct):
     """Plot the electromagnetic fields for a single time steps
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     fname = root_dir + 'data/absB.gda'
     x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
     fname2 = root_dir + 'data/Ay.gda'
@@ -1097,7 +1389,7 @@ def plot_gradB_single(run_name, root_dir, pic_info, srange, ct):
     gradBx = np.diff(absB, axis=1)
     gradBz = np.diff(absB, axis=0)
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     gradBx = signal.convolve2d(gradBx, kernel, 'same')
     gradBz = signal.convolve2d(gradBz, kernel, 'same')
 
@@ -1111,32 +1403,56 @@ def plot_gradB_single(run_name, root_dir, pic_info, srange, ct):
     w1, h1 = 0.4, 0.8
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(gradBx, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        gradBx,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.set_xlabel(r'$x/d_i$', fontsize=20)
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$\nabla_x B$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$\nabla_x B$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     xs = xs0 + w1 + gap
     ax2 = fig.add_axes([xs, ys0, w1, h1])
-    p2 = ax2.imshow(gradBz, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        gradBz,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(axis='y', labelleft='off')
     ax2.tick_params(labelsize=16)
     ax2.set_xlabel(r'$x/d_i$', fontsize=20)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
-    ax2.text(0.02, 0.85, r'$\nabla_z B$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$\nabla_z B$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
     # cax = fig.add_axes([xs, ys1, w1, 0.02])
     # cbar = fig.colorbar(p3, cax=cax, orientation='horizontal')
     # cbar.set_ticks(np.arange(-0.8, 0.9, 0.4))
@@ -1161,8 +1477,13 @@ def plot_gradB_multi(run_name, root_dir, pic_info):
 def plot_ppara_pperp(run_name, root_dir, pic_info, srange, ct):
     """Plot the parallel and perpendicular pressure for a single time steps
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     fname = root_dir + 'data1/ppara_real00_e.gda'
     x, z, ppara_e = read_2d_fields(pic_info, fname, **kwargs)
     fname = root_dir + 'data1/pperp_real00_e.gda'
@@ -1194,60 +1515,108 @@ def plot_ppara_pperp(run_name, root_dir, pic_info, srange, ct):
     w1, h1 = 0.375, 0.375
     gap = 0.05
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(ppara_e, cmap=plt.cm.hot,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        ppara_e,
+        cmap=plt.cm.hot,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='white', linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$P_{e\parallel}$', color='w', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$P_{e\parallel}$',
+        color='w',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(pperp_e, cmap=plt.cm.hot,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        pperp_e,
+        cmap=plt.cm.hot,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='white', linewidths=0.5)
     ax2.set_xlabel(r'$x/d_i$', fontsize=20)
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$P_{e\perp}$', color='w', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$P_{e\perp}$',
+        color='w',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
     xs = xs0 + w1 + gap
     ax3 = fig.add_axes([xs, ys0, w1, h1])
-    p3 = ax3.imshow(ppara_i, cmap=plt.cm.hot,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        ppara_i,
+        cmap=plt.cm.hot,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(axis='x', labelbottom='off')
     ax3.tick_params(axis='y', labelleft='off')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='white', linewidths=0.5)
-    ax3.text(0.02, 0.85, r'$P_{i\parallel}$', color='w', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$P_{i\parallel}$',
+        color='w',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     ys = ys0 - h1 - gap
     ax4 = fig.add_axes([xs, ys, w1, h1])
-    p4 = ax4.imshow(pperp_i, cmap=plt.cm.hot,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p4 = ax4.imshow(
+        pperp_i,
+        cmap=plt.cm.hot,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax4.tick_params(labelsize=16)
     ax4.tick_params(axis='y', labelleft='off')
     ax4.contour(x, z, Ay, colors='white', linewidths=0.5)
     ax4.set_xlabel(r'$x/d_i$', fontsize=20)
-    ax4.text(0.02, 0.85, r'$P_{i\perp}$', color='w', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax4.transAxes)
+    ax4.text(
+        0.02,
+        0.85,
+        r'$P_{i\perp}$',
+        color='w',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax4.transAxes)
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_jdotes_apj/'
@@ -1389,10 +1758,15 @@ def plot_fields_wcuts(run_name, root_dir, pic_info, ct, srange, xcp,
         dnorm: the normalization for the data
         fdata: field data
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     fdata = signal.convolve2d(fdata, kernel, 'same')
 
@@ -1412,18 +1786,30 @@ def plot_fields_wcuts(run_name, root_dir, pic_info, ct, srange, xcp,
     w1, h1 = 0.4, 0.8
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(fdata, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        fdata,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.set_xlabel(r'$x/d_i$', fontsize=20)
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, label_name, color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        label_name,
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     # Plot a cut along the vertical direction
     xcp_index = (xcp - srange[0]) / dx
@@ -1443,8 +1829,8 @@ def plot_fields_wcuts(run_name, root_dir, pic_info, ct, srange, xcp,
     plt.show()
 
 
-def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
-                    jdote_x, jdote_y, jdote_z, dnorm):
+def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp, jdote_x,
+                    jdote_y, jdote_z, dnorm):
     """Plot energy conversion due to 3 components of the currents
 
     Args:
@@ -1457,10 +1843,15 @@ def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
         jdote_x, jdote_y, jdote_z: energy conversion
         dnorm: the normalization for the data
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     jdote_x_cum = np.cumsum(np.sum(jdote_x, axis=0)) * dv
     jdote_y_cum = np.cumsum(np.sum(jdote_y, axis=0)) * dv
@@ -1487,18 +1878,30 @@ def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
     w1, h1 = 0.4, 0.2
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(jdote_x, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        jdote_x,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$j_xE_x$', color=colors[0], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$j_xE_x$',
+        color=colors[0],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     # Plot a cut along the vertical direction
     xcp_index = (xcp - srange[0]) / dx
     ax1.set_color_cycle(colors)
@@ -1519,18 +1922,30 @@ def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
 
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(jdote_y, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        jdote_y,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$j_yE_y$', color=colors[1], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$j_yE_y$',
+        color=colors[1],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
     ax2.set_color_cycle(colors)
     for ix in xcp_index:
         ax2.plot([x[ix], x[ix]], [zmin, zmax], linewidth=0.5, linestyle='--')
@@ -1547,18 +1962,30 @@ def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
 
     ys -= h1 + gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(jdote_z, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        jdote_z,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.tick_params(axis='x', labelbottom='off')
     ax3.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax3.text(0.02, 0.85, r'$j_zE_z$', color=colors[2], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$j_zE_z$',
+        color=colors[2],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     ax3.set_color_cycle(colors)
     for ix in xcp_index:
         ax3.plot([x[ix], x[ix]], [zmin, zmax], linewidth=0.5, linestyle='--')
@@ -1589,8 +2016,13 @@ def plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
 def plot_jdotes_single(run_name, root_dir, pic_info, srange, ct, xcp, species):
     """Plot jdote due to a single current
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     b0 = pic_info.b0
@@ -1625,8 +2057,8 @@ def plot_jdotes_single(run_name, root_dir, pic_info, srange, ct, xcp, species):
         jdote_x = jqnvpara_x * ex
         jdote_y = jqnvpara_y * ey
         jdote_z = jqnvpara_z * ez
-        plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp,
-                        jdote_x, jdote_y, jdote_z, jdote_norm)
+        plot_jdotes_xyz(run_name, root_dir, pic_info, ct, srange, xcp, jdote_x,
+                        jdote_y, jdote_z, jdote_norm)
         fname = jtype + '_' + str(ct).zfill(3) + '_' + species + '.eps'
         plt.savefig(fig_dir + fname)
         plt.close()
@@ -1656,8 +2088,13 @@ def plot_jdotes_multi(run_name, root_dir, pic_info):
 def plot_uxyz_single(run_name, root_dir, pic_info, srange, ct, xcp, species):
     """Plot ux, uy, uz for a single time step
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     b0 = pic_info.b0
@@ -1674,7 +2111,7 @@ def plot_uxyz_single(run_name, root_dir, pic_info, srange, ct, xcp, species):
     fname = root_dir + 'data/bz.gda'
     x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
     absB2 = bx**2 + by**2 + bz**2
-    udotb = (ux*bx + uy*by + uz*bz) / absB2
+    udotb = (ux * bx + uy * by + uz * bz) / absB2
     fname2 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     ux = udotb * bx / va
@@ -1701,48 +2138,84 @@ def plot_uxyz_single(run_name, root_dir, pic_info, srange, ct, xcp, species):
     w1, h1 = 0.75, 0.28125
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(ux, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        ux,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$v_x$', color=colors[0], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$v_x$',
+        color=colors[0],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(uy, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        uy,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$v_y$', color=colors[1], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$v_y$',
+        color=colors[1],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= h1 + gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(uz, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        uz,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax3.text(0.02, 0.85, r'$v_z$', color=colors[2], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$v_z$',
+        color=colors[2],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     # plt.close()
     plt.show()
 
@@ -1750,8 +2223,13 @@ def plot_uxyz_single(run_name, root_dir, pic_info, srange, ct, xcp, species):
 def plot_bulku_single(run_name, root_dir, pic_info, srange, ct, xcp):
     """Plot ux, uy, uz for single fluid a single time step
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     b0 = pic_info.b0
@@ -1775,10 +2253,10 @@ def plot_bulku_single(run_name, root_dir, pic_info, srange, ct, xcp):
     x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     mime = pic_info.mime
     ntot = ne + ni * mime
-    ux = (uex*ne + uix*ni*mime) / ntot
-    uy = (uey*ne + uiy*ni*mime) / ntot
-    uz = (uez*ne + uiz*ni*mime) / ntot
-    u0 = 0.5*va
+    ux = (uex * ne + uix * ni * mime) / ntot
+    uy = (uey * ne + uiy * ni * mime) / ntot
+    uz = (uez * ne + uiz * ni * mime) / ntot
+    u0 = 0.5 * va
     ux /= u0
     uy /= u0
     uz /= u0
@@ -1803,51 +2281,87 @@ def plot_bulku_single(run_name, root_dir, pic_info, srange, ct, xcp):
     w1, h1 = 0.75, 0.2647
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(ux, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        ux,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.tick_params(axis='y', labelleft='off')
     ax1.tick_params(axis='x', labelbottom='off')
     # ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$v_x$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$v_x$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(uy, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        uy,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.tick_params(axis='y', labelleft='off')
     ax2.tick_params(axis='x', labelbottom='off')
     # ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$v_y$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$v_y$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= h1 + gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(uz, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        uz,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontsize=20)
     # ax3.set_ylabel(r'$z/d_i$', fontsize=20)
     ax3.tick_params(axis='y', labelleft='off')
-    ax3.text(0.02, 0.85, r'$v_z$', color='k', fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$v_z$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     ys1 = ys - 0.1
     cax = fig.add_axes([xs0, ys1, w1, 0.02])
     cbar = fig.colorbar(p3, cax=cax, orientation='horizontal')
@@ -1883,8 +2397,13 @@ def plot_uxyz_multi(run_name, root_dir, pic_info):
 def plot_epara_xyz_single(run_name, root_dir, pic_info, srange, ct, xcp):
     """Plot parallel electric field for a single time step
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     b0 = pic_info.b0
@@ -1904,12 +2423,12 @@ def plot_epara_xyz_single(run_name, root_dir, pic_info, srange, ct, xcp):
     absB2 = bx**2 + by**2 + bz**2
     fname2 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
-    edotb = (ex*bx + ey*by + ez*bz) / absB2
+    edotb = (ex * bx + ey * by + ez * bz) / absB2
     eparax = edotb * bx / e0
     eparay = edotb * by / e0
     eparaz = edotb * bz / e0
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     eparax = signal.convolve2d(eparax, kernel, 'same')
     eparay = signal.convolve2d(eparay, kernel, 'same')
     eparaz = signal.convolve2d(eparaz, kernel, 'same')
@@ -1934,48 +2453,84 @@ def plot_epara_xyz_single(run_name, root_dir, pic_info, srange, ct, xcp):
     w1, h1 = 0.75, 0.28125
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(eparax, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        eparax,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$E_{\parallel x}$', color=colors[0], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$E_{\parallel x}$',
+        color=colors[0],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(eparay, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        eparay,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$E_{\parallel y}$', color=colors[1], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$E_{\parallel y}$',
+        color=colors[1],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= h1 + gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(eparaz, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        eparaz,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax3.text(0.02, 0.85, r'$E_{\parallel z}$', color=colors[2], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$E_{\parallel z}$',
+        color=colors[2],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     # plt.close()
     plt.show()
 
@@ -2003,8 +2558,13 @@ def plot_epara_xyz_multi(run_name, root_dir, pic_info):
 def plot_eperp_xyz_single(run_name, root_dir, pic_info, srange, ct, xcp):
     """Plot perpendicular electric field for a single time step
     """
-    kwargs = {"current_time": ct, "xl": srange[0], "xr": srange[1],
-              "zb": srange[2], "zt": srange[3]}
+    kwargs = {
+        "current_time": ct,
+        "xl": srange[0],
+        "xr": srange[1],
+        "zb": srange[2],
+        "zt": srange[3]
+    }
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     b0 = pic_info.b0
@@ -2024,12 +2584,12 @@ def plot_eperp_xyz_single(run_name, root_dir, pic_info, srange, ct, xcp):
     absB2 = bx**2 + by**2 + bz**2
     fname2 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
-    edotb = (ex*bx + ey*by + ez*bz) / absB2
+    edotb = (ex * bx + ey * by + ez * bz) / absB2
     eperpx = (ex - edotb * bx) / e0
     eperpy = (ey - edotb * by) / e0
     eperpz = (ez - edotb * bz) / e0
     ng = 3
-    kernel = np.ones((ng, ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     eperpx = signal.convolve2d(eperpx, kernel, 'same')
     eperpy = signal.convolve2d(eperpy, kernel, 'same')
     eperpz = signal.convolve2d(eperpz, kernel, 'same')
@@ -2054,48 +2614,84 @@ def plot_eperp_xyz_single(run_name, root_dir, pic_info, srange, ct, xcp):
     w1, h1 = 0.75, 0.28125
     gap = 0.03
     ax1 = fig.add_axes([xs0, ys0, w1, h1])
-    p1 = ax1.imshow(eperpx, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p1 = ax1.imshow(
+        eperpx,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax1.tick_params(labelsize=16)
     ax1.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax1.text(0.02, 0.85, r'$E_{\perp x}$', color=colors[0], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.85,
+        r'$E_{\perp x}$',
+        color=colors[0],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys = ys0 - h1 - gap
     ax2 = fig.add_axes([xs0, ys, w1, h1])
-    p2 = ax2.imshow(eperpy, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p2 = ax2.imshow(
+        eperpy,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax2.tick_params(labelsize=16)
     ax2.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax2.tick_params(axis='x', labelbottom='off')
     ax2.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax2.text(0.02, 0.85, r'$E_{\perp y}$', color=colors[1], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.85,
+        r'$E_{\perp y}$',
+        color=colors[1],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= h1 + gap
     ax3 = fig.add_axes([xs0, ys, w1, h1])
-    p3 = ax3.imshow(eperpz, cmap=plt.cm.seismic,
-                    extent=[xmin, xmax, zmin, zmax], aspect='auto',
-                    origin='lower', vmin=vmin, vmax=vmax,
-                    interpolation='bicubic')
+    p3 = ax3.imshow(
+        eperpz,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
     ax3.tick_params(labelsize=16)
     ax3.contour(x, z, Ay, colors='black', linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontsize=20)
-    ax3.text(0.02, 0.85, r'$E_{\perp z}$', color=colors[2], fontsize=20,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.85,
+        r'$E_{\perp z}$',
+        color=colors[2],
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
     # plt.close()
     plt.show()
 
@@ -2155,7 +2751,7 @@ def plot_spectra_electron():
             ct += 1
             fname = dir + 'spectrum-' + species + '.' + str(ct)
             file_exist = os.path.isfile(fname)
-        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        fname = dir + 'spectrum-' + species + '.' + str(ct - 1)
         elin, flin, elog, flog = get_energy_distribution(fname, n0)
         elog_norm = get_normalized_energy(species, elog, pic_info)
         flog *= shift
@@ -2169,8 +2765,13 @@ def plot_spectra_electron():
         powerIndex = "{%0.2f}" % power_fit.params[0]
         pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
         if run > 0:
-            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
-                    linestyle='--', linewidth=2, label=pname)
+            p23, = ax.loglog(
+                elog_norm[es:ee],
+                fpower[es:ee] * 2,
+                color=color,
+                linestyle='--',
+                linewidth=2,
+                label=pname)
             colors_plot.append(color)
         # # Help for fitting
         # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
@@ -2184,27 +2785,57 @@ def plot_spectra_electron():
         run += 1
 
     fpower = elog_norm**-5
-    ax.loglog(elog_norm, fpower*1E11)
+    ax.loglog(elog_norm, fpower * 1E11)
 
-    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
+    ax.set_xlabel(
+        r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
-    for color,text in zip(colors_plot, leg.get_texts()):
-            text.set_color(color)
-    ax.text(0.5, 0.05, 'R8', color=colors[0], fontsize=20,
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.6, 0.05, 'R7', color=colors[1], fontsize=20,
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.7, 0.05, 'R1', color=colors[2], fontsize=20,
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.85, 0.05, 'R6', color=colors[3], fontsize=20,
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    leg = ax.legend(
+        loc=3,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
+    for color, text in zip(colors_plot, leg.get_texts()):
+        text.set_color(color)
+    ax.text(
+        0.5,
+        0.05,
+        'R8',
+        color=colors[0],
+        fontsize=20,
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.6,
+        0.05,
+        'R7',
+        color=colors[1],
+        fontsize=20,
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.7,
+        0.05,
+        'R1',
+        color=colors[2],
+        fontsize=20,
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.85,
+        0.05,
+        'R6',
+        color=colors[3],
+        fontsize=20,
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
 
     plt.show()
 
@@ -2238,19 +2869,24 @@ def plot_spectra_R1_R5():
             ct += 1
             fname = dir + 'spectrum-' + species + '.' + str(ct)
             file_exist = os.path.isfile(fname)
-        fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+        fname = dir + 'spectrum-' + species + '.' + str(ct - 1)
         elin, flin, elog, flog = get_energy_distribution(fname, n0)
         elog_norm = get_normalized_energy(species, elog, pic_info)
         ax.loglog(elog_norm, flog, linewidth=3, label=label)
 
     ax.set_xlim([1E-1, 4E2])
     ax.set_ylim([1E-8, 1E2])
-    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font,
-            fontsize=24)
+    ax.set_xlabel(
+        r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    leg = ax.legend(
+        loc=3,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
 
     plt.show()
 
@@ -2263,11 +2899,11 @@ def fit_thermal_core(ene, f):
     kernel = np.ones(ng) / float(ng)
     fnew = np.convolve(f, kernel, 'same')
     eend = np.argmax(fnew) + 10  # 10 grids shift for fitting thermal core.
-    popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
-                           ene[estart:eend], f[estart:eend])
+    popt, pcov = curve_fit(fitting_funcs.func_maxwellian, ene[estart:eend],
+                           f[estart:eend])
     fthermal = fitting_funcs.func_maxwellian(ene, popt[0], popt[1])
     print 'Energy with maximum flux: ', ene[eend - 10]
-    print 'Energy with maximum flux in fitted thermal core: ', 0.5/popt[1]
+    print 'Energy with maximum flux in fitted thermal core: ', 0.5 / popt[1]
     print 'Thermal core fitting coefficients: '
     print popt
     print '---------------------------------------------------------------'
@@ -2286,7 +2922,7 @@ def fit_nonthermal_thermal(ene, f):
     """
     print('Fitting nonthermal distribution as thermal distribution')
     emax = ene[np.argmax(f)]
-    fthermal = fitting_funcs.func_maxwellian(ene, 1.0, 1.0/(2*emax))
+    fthermal = fitting_funcs.func_maxwellian(ene, 1.0, 1.0 / (2 * emax))
     ratio = f[np.argmax(f)] / fthermal[np.argmax(f)]
     fthermal *= ratio
     return fthermal
@@ -2310,7 +2946,8 @@ def fit_two_maxwellian():
     # pic_info = pic_information.get_pic_info('../../')
     # dir = '../spectrum/'
     # run_name = 'mime25_beta002'
-    run_name = 'mime25_beta0007'
+    # run_name = 'mime25_beta0007'
+    run_name = 'mime25_beta0001'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     dir = '../data/spectra/' + run_name + '/'
@@ -2322,7 +2959,7 @@ def fit_two_maxwellian():
         ct += 1
         fname = dir + 'spectrum-' + species + '.' + str(ct)
         file_exist = os.path.isfile(fname)
-    fname = dir + 'spectrum-' + species + '.' + str(ct-1)
+    fname = dir + 'spectrum-' + species + '.' + str(ct - 1)
     elin, flin, elog, flog = get_energy_distribution(fname, n0)
     elog_norm = get_normalized_energy(species, elog, pic_info)
     fthermal, popt = fit_thermal_core(elog, flog)
@@ -2358,8 +2995,13 @@ def fit_two_maxwellian():
     # ax.loglog(elog, fthermal2, linewidth=1, linestyle='--', label='thermal3')
     # ax.loglog(elog, fnonthermal, linewidth=3)
     # ax.loglog(elog, fnonthermal2, linewidth=3)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    leg = ax.legend(
+        loc=3,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
 
     if run_name == 'mime25_beta002':
         pindex = -7.0
@@ -2369,18 +3011,35 @@ def fit_two_maxwellian():
         pindex = -5.7
         sindex = 370
         pratio = 1
+    elif run_name == 'mime25_beta0001':
+        pindex = -4.0
+        sindex = 400
+        pratio = 1
 
     fpower = elog[sindex:]**pindex * pratio
     ax.loglog(elog[sindex:], fpower, color='k', linestyle='--')
-    ax.plot(elog[sindex], flog[sindex], color='k', marker='.', markersize=15,
-            markevery=10, fillstyle='full', markeredgecolor = 'none')
+    ax.plot(
+        elog[sindex],
+        flog[sindex],
+        color='k',
+        marker='.',
+        markersize=15,
+        markevery=10,
+        fillstyle='full',
+        markeredgecolor='none')
     power_index = "{%0.1f}" % pindex
     tname = r'$\sim (\gamma - 1)^{' + power_index + '}$'
-    ax.text(0.7, 0.8, tname, color='black', fontsize=20,
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    ax.text(
+        0.7,
+        0.8,
+        tname,
+        color='black',
+        fontsize=20,
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
 
-    ax.set_xlim([2E-3, 3E1])
+    ax.set_xlim([2E-3, 5E1])
     ax.set_ylim([1E-8, 1E2])
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
@@ -2418,7 +3077,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
         nlevels: total levels of contour
         ilevel: additional contour line plot
     """
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     # fname = root_dir + "data/jy.gda"
     # x, z, jy = read_2d_fields(pic_info, fname, **kwargs)
     fname = root_dir + "data/Ay.gda"
@@ -2431,24 +3090,29 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     xs = 0.13
     ys = 0.92 - height
     gap = 0.05
-    fig = plt.figure(figsize=[8,4])
+    fig = plt.figure(figsize=[8, 4])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1.0, "vmax":1.0}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": -1.0, "vmax": 1.0}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     # p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
     # p1.set_cmap(plt.cm.get_cmap('seismic'))
     # p1.set_cmap(cmaps.inferno)
     levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
-    cs = ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                     colors='black', linewidths=0.5, levels=levels)
+    cs = ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5,
+        levels=levels)
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
     # cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
     # cbar1.ax.tick_params(labelsize=16)
 
-    colors_jet = plt.cm.Paired(np.arange(nlevels)/float(nlevels), 1)
+    colors_jet = plt.cm.Paired(np.arange(nlevels) / float(nlevels), 1)
     colors_d = distinguishable_colors()
     ax1.set_color_cycle(colors_jet)
     i = 1
@@ -2463,8 +3127,8 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
             x = v[:, 0]
             if np.all(np.diff(x) >= 0) or np.all(np.diff(x) <= 0):
                 v = v[v[:, 0].argsort()]
-                x = v[:,0]
-                z = v[:,1]
+                x = v[:, 0]
+                z = v[:, 1]
                 if j == 1:
                     p11, = ax1.plot(x, z, linewidth=2)
                     color = p11.get_color()
@@ -2480,7 +3144,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
                     f = interp1d(x, z, kind='linear')
                     z = f(x1)
                     ax1.fill_between(x1, z1, z, color=color)
-                fname = 'field_line_' +  str(ct) + '_' + str(i)
+                fname = 'field_line_' + str(ct) + '_' + str(i)
                 if sz >= 2:
                     fname += '_' + str(j) + '.dat'
                     i += 1 if j == sz else 0
@@ -2494,9 +3158,9 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
                 v = np.roll(v, -imin, axis=0)
                 imin = np.argmin(v[:, 0])
                 imax = np.argmax(v[:, 0])
-                x = v[imin:imax,0]
-                z = v[imin:imax,1]
-                fname = 'field_line_' +  str(ct) + '_' + str(i)
+                x = v[imin:imax, 0]
+                z = v[imin:imax, 1]
+                fname = 'field_line_' + str(ct) + '_' + str(i)
                 if j == 1:
                     p1, = ax1.plot(x, z, linewidth=2)
                     color = p1.get_color()
@@ -2509,11 +3173,11 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
                 v[imin:imax, :].tofile(fpath + fname)
                 x1, z1 = x, z
 
-                v[imax:, :] = v[v[imax:, 0].argsort()+imax]
-                x = v[imax:-1,0]
-                z = v[imax:-1,1]
+                v[imax:, :] = v[v[imax:, 0].argsort() + imax]
+                x = v[imax:-1, 0]
+                z = v[imax:-1, 1]
                 ax1.plot(x, z, linewidth=2, color=color)
-                fname = 'field_line_' +  str(ct) + '_' + str(i)
+                fname = 'field_line_' + str(ct) + '_' + str(i)
                 if sz >= 2:
                     fname += '_' + str(j) + '_2.dat'
                     i += 1 if j == sz else 0
@@ -2532,7 +3196,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
 
             j = j + 1
 
-    for cl in cs.collections[ilevel:ilevel+1]:
+    for cl in cs.collections[ilevel:ilevel + 1]:
         sz = len(cl.get_paths())
         for p in cl.get_paths():
             v = p.vertices
@@ -2544,8 +3208,8 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     # plt.close()
 
 
-def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh, species,
-                                    spect_path, vdist_path):
+def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh,
+                                    species, spect_path, vdist_path):
     """Generate script for one pair of field lines
     """
     cmd = 'particle_spectrum_vdist_fieldlines'
@@ -2555,7 +3219,7 @@ def gen_script_one_pair_field_lines(ct, ct_particle, fnames, fpath, fh, species,
     fh.write(script)
 
     fname = fnames[0]
-    lname = fname[10:-6] # Remove field_line and '_1.dat' or '_2.dat'
+    lname = fname[10:-6]  # Remove field_line and '_1.dat' or '_2.dat'
     pre = spect_path + 'spectrum-' + species
     pre_ = spect_path + 'spectrum_' + species
     script = 'mv ' + pre + '.' + str(ct_particle) + ' ' + pre_ + '_' + \
@@ -2591,16 +3255,17 @@ def gen_run_script(ct, ct_particle, species, root_dir):
     fh.write('#!/bin/bash\n')
     # fh.write('source module_intel.sh\n')
     fh.write('ncpus=64\n')
-    for i in range(sz/2):
-        gen_script_one_pair_field_lines(ct, ct_particle, files[i*2:i*2+2],
-                                        fpath, fh, species, spect_path,
-                                        vdist_path)
+    for i in range(sz / 2):
+        gen_script_one_pair_field_lines(ct, ct_particle,
+                                        files[i * 2:i * 2 + 2], fpath, fh,
+                                        species, spect_path, vdist_path)
     fh.close()
     st = os.stat(fname)
     os.chmod(fname, st.st_mode | stat.S_IEXEC)
 
 
-def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info):
+def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir,
+                                   pic_info):
     """Read particle spectrum and velocity distributions in sectors
     """
     fdir = 'pic_analysis/data/field_line/'
@@ -2612,18 +3277,22 @@ def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info)
     fnames = []
     for fname in files:
         start = [m.start() for m in re.finditer('_', fname)]
-        fnames.append(fname[start[2]+1:-6])
+        fnames.append(fname[start[2] + 1:-6])
 
     sector_names = sorted(set(fnames))
-    snames = {k: list(v) for k, v in groupby(sector_names,
-        key=lambda x: x[0:x.find('_')] if x.find('_') > 0 else x)}
+    snames = {
+        k: list(v)
+        for k, v in groupby(
+            sector_names,
+            key=lambda x: x[0:x.find('_')] if x.find('_') > 0 else x)
+    }
     dists_sectors = {}
     for key in snames:
         dists = []
         for fline in snames[key]:
             fname_post = species + '_' + str(ct_particle) + '_' + str(ct) + \
                          '_' + fline + '.dat'
-            fname_1d = 'vdist_1d_' + fname_post 
+            fname_1d = 'vdist_1d_' + fname_post
             fname_2d = 'vdist_2d_' + fname_post
             fname_ene = 'spectrum_' + fname_post
             if os.path.isfile(vdist_path + fname_1d):
@@ -2659,13 +3328,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     xs, ys = 0.21, 0.15
     w1, h1 = 0.75, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    colors_jet = plt.cm.Paired(np.arange(nlevels)/float(nlevels), 1)
+    colors_jet = plt.cm.Paired(np.arange(nlevels) / float(nlevels), 1)
     colors_d = distinguishable_colors()
     ax.set_color_cycle(colors_jet)
     nsector = len(flogs)
     norm = 1
     for i in range(1, nsector):
-        f = (flogs[str(i)] - flogs[str(i+1)]) * norm
+        f = (flogs[str(i)] - flogs[str(i + 1)]) * norm
         ax.loglog(elog, f, linewidth=3)
         # norm *= 1.4
     flog = flogs[str(nsector)] * norm
@@ -2684,17 +3353,31 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     powerIndex = "{%0.2f}" % pindex
     pname = '$\sim (\gamma - 1)^{' + powerIndex + '}$'
     ax.loglog(elog, flog, linewidth=3)
-    ax.loglog(elog, flogs[str(ilevel)], linewidth=3, color='k',
-            label='Reconnection region')
+    ax.loglog(
+        elog,
+        flogs[str(ilevel)],
+        linewidth=3,
+        color='k',
+        label='Reconnection region')
     # ax.loglog(elog[ns:], fpower[ns:], linewidth=2, linestyle='--',
     #         color='k', label=pname)
-    ax.loglog(elog, fthermal1, color='k', linestyle='--', linewidth=2,
-            label='Fitted Maxwellian')
+    ax.loglog(
+        elog,
+        fthermal1,
+        color='k',
+        linestyle='--',
+        linewidth=2,
+        label='Fitted Maxwellian')
     # ax.loglog(elog, fnonthermal1, color='k', linestyle='-', linewidth=2)
     # ax.loglog(elog, fthermal2, color='k', linestyle='--', linewidth=2)
     # ax.loglog(elog, fnonthermal2, color='k', linestyle='--', linewidth=2)
-    leg = ax.legend(loc=3, prop={'size':16}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    leg = ax.legend(
+        loc=3,
+        prop={'size': 16},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     ax.xaxis.grid()
     ax.tick_params(labelsize=20)
     ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
@@ -2737,6 +3420,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     elif run_name == 'mime25_sigma100':
         if species == 'e':
             ax.set_xlim([1E-4, 2E3])
+            ax.set_ylim([1E-5, 5E5])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
+    elif run_name == 'mime25_beta0001':
+        if species == 'e':
+            ax.set_xlim([1E-4, 1E2])
             ax.set_ylim([1E-5, 5E5])
         else:
             ax.set_xlim([1E-4, 3E0])
@@ -2795,7 +3485,7 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
     fig_dir = '../img/img_apj/' + run_name + '/'
     mkdir_p(fig_dir)
-    kwargs = {"current_time":ct, "xl":100, "xr":120, "zb":-20, "zt":20}
+    kwargs = {"current_time": ct, "xl": 100, "xr": 120, "zb": -20, "zt": 20}
     fname2 = root_dir + 'data/v' + species + 'x.gda'
     if os.path.isfile(fname2):
         fname3 = root_dir + 'data/v' + species + 'y.gda'
@@ -2810,17 +3500,35 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     fname5 = root_dir + 'data/Ay.gda'
     x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
     nz, nx = vx.shape
-    fdata = [vx/va, vy/va, vz/va]
-    fdata_1d = [vx[nz/2,:]/va, vy[nz/2,:]/va, vz[nz/2,:]/va]
+    fdata = [vx / va, vy / va, vz / va]
+    fdata_1d = [vx[nz / 2, :] / va, vy[nz / 2, :] / va, vz[nz / 2, :] / va]
     fname = 'v' + species
     bottom_panel = True
-    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
-            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
-            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
-            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
-            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
-            'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
-            'fdata_1d':fdata_1d}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'bottom_panel': bottom_panel,
+        'fdata_1d': fdata_1d
+    }
     vfields_plot = PlotMultiplePanels(**kwargs_plots)
 
     plt.show()
@@ -2830,8 +3538,8 @@ def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
     species = 'e'
-    run_name = "mime25_beta02"
-    root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
+    # run_name = "mime25_beta02"
+    # root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
     # run_name = "mime25_beta002"
     # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
@@ -2844,6 +3552,8 @@ def spectrum_between_fieldlines():
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
     # run_name = "mime25_sigma100"
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
+    run_name = "mime25_beta0001"
+    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta0001/"
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
@@ -2856,6 +3566,8 @@ def spectrum_between_fieldlines():
         ilevel = 6
     elif run_name == 'mime25_beta0007':
         ilevel = 5
+    elif run_name == 'mime25_beta0001':
+        ilevel = 6
     get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
     mkdir_p(fpath)
     fname = fpath + '/contour_' + str(ct) + '.jpg'

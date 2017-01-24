@@ -1,38 +1,41 @@
 """
 Analysis procedures for compression related terms.
 """
-import os
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy.ndimage.filters import generic_filter as gf
-from scipy import signal
-from scipy.fftpack import fft2, ifft2, fftshift
-from scipy.interpolate import spline
+import collections
 import math
+import os
 import os.path
 import struct
-import collections
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+from scipy.fftpack import fft2, fftshift, ifft2
+from scipy.interpolate import spline
+from scipy.ndimage.filters import generic_filter as gf
+
 import pic_information
-from contour_plots import read_2d_fields, plot_2d_contour
-from energy_conversion import read_jdote_data, read_data_from_json
+from contour_plots import plot_2d_contour, read_2d_fields
+from energy_conversion import read_data_from_json, read_jdote_data
 from runs_name_path import ApJ_long_paper_runs
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family': 'serif',
-        # 'color': 'darkred',
-        'color': 'black',
-        'weight': 'normal',
-        'size': 24,
-        }
+font = {
+    'family': 'serif',
+    # 'color': 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
 
 
 def plot_compression(pic_info, species, current_time):
@@ -44,8 +47,13 @@ def plot_compression(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200, "zb": -50,
-              "zt": 50}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -50,
+        "zt": 50
+    }
     fname = "../../data1/vdot_div_ptensor00_" + species + ".gda"
     x, z, vdot_div_ptensor = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data1/pdiv_u00_" + species + ".gda"
@@ -69,9 +77,9 @@ def plot_compression(pic_info, species, current_time):
     fname = '../../data/n' + species + '.gda'
     x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     if species == 'e':
-        jdote = - (ux*ex + uy*ey + uz*ez) * nrho
+        jdote = -(ux * ex + uy * ey + uz * ez) * nrho
     else:
-        jdote = (ux*ex + uy*ey + uz*ez) * nrho
+        jdote = (ux * ex + uy * ey + uz * ez) * nrho
 
     pdiv_u_sum = np.sum(pdiv_u, axis=0)
     pdiv_u_cum = np.cumsum(pdiv_u_sum)
@@ -95,10 +103,10 @@ def plot_compression(pic_info, species, current_time):
     div_u_new = signal.medfilt2d(div_u[zl:zt, :], kernel_size=(nk, nk))
     pdiv_u_new = signal.medfilt2d(pdiv_u[zl:zt, :], kernel_size=(nk, nk))
     pshear_new = signal.medfilt2d(pshear[zl:zt, :], kernel_size=(nk, nk))
-    vdot_div_ptensor_new = signal.medfilt2d(vdot_div_ptensor[zl:zt, :],
-                                            kernel_size=(nk, nk))
-    div_vdot_ptensor_new = signal.medfilt2d(div_vdot_ptensor[zl:zt, :],
-                                            kernel_size=(nk, nk))
+    vdot_div_ptensor_new = signal.medfilt2d(
+        vdot_div_ptensor[zl:zt, :], kernel_size=(nk, nk))
+    div_vdot_ptensor_new = signal.medfilt2d(
+        div_vdot_ptensor[zl:zt, :], kernel_size=(nk, nk))
     jdote_new = signal.medfilt2d(jdote[zl:zt, :], kernel_size=(nk, nk))
     data4_new = pdiv_u_new + pshear_new + div_vdot_ptensor_new
 
@@ -118,18 +126,29 @@ def plot_compression(pic_info, species, current_time):
     p1, cbar1 = plot_2d_contour(x, z[zl:zt], pdiv_u_new, ax1, fig,
                                 **kwargs_plot)
     p1.set_cmap(plt.cm.seismic)
-    ax1.contour(x[0:nx:xstep], z[zl:zt:zstep], Ay[zl:zt:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[zl:zt:zstep],
+        Ay[zl:zt:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
     cbar1.set_ticks(np.arange(-0.004, 0.005, 0.002))
     cbar1.ax.tick_params(labelsize=20)
     fname1 = r'$-p\nabla\cdot\mathbf{u}$'
-    ax1.text(0.02, 0.8, fname1, color='red', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.8,
+        fname1,
+        color='red',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -139,39 +158,61 @@ def plot_compression(pic_info, species, current_time):
     p2, cbar2 = plot_2d_contour(x, z[zl:zt], pshear_new, ax2, fig,
                                 **kwargs_plot)
     p2.set_cmap(plt.cm.seismic)
-    ax2.contour(x[0:nx:xstep], z[zl:zt:zstep], Ay[zl:zt:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[zl:zt:zstep],
+        Ay[zl:zt:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax2.tick_params(labelsize=20)
     ax2.tick_params(axis='x', labelbottom='off')
     cbar2.set_ticks(np.arange(-0.004, 0.005, 0.002))
     cbar2.ax.tick_params(labelsize=20)
     fname2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
-    ax2.text(0.02, 0.8, fname2, color='green', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.8,
+        fname2,
+        color='green',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= height + gap
     ax3 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
-    p3, cbar3 = plot_2d_contour(x, z[zl:zt], div_vdot_ptensor_new,
-                                ax3, fig, **kwargs_plot)
+    p3, cbar3 = plot_2d_contour(x, z[zl:zt], div_vdot_ptensor_new, ax3, fig,
+                                **kwargs_plot)
     p3.set_cmap(plt.cm.seismic)
-    ax3.contour(x[0:nx:xstep], z[zl:zt:zstep], Ay[zl:zt:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax3.contour(
+        x[0:nx:xstep],
+        z[zl:zt:zstep],
+        Ay[zl:zt:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax3.tick_params(labelsize=20)
     ax3.tick_params(axis='x', labelbottom='off')
     cbar3.set_ticks(np.arange(-0.004, 0.005, 0.002))
     cbar3.ax.tick_params(labelsize=20)
     fname3 = r'$\nabla\cdot(\mathbf{u}\cdot\mathcal{P})$'
-    ax3.text(0.02, 0.8, fname3, color='blue', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.8,
+        fname3,
+        color='blue',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
 
     ys -= height + gap
     ax4 = fig.add_axes([xs, ys, width, height])
@@ -181,39 +222,60 @@ def plot_compression(pic_info, species, current_time):
     p4, cbar4 = plot_2d_contour(x, z[zl:zt], data4_new, ax4, fig,
                                 **kwargs_plot)
     p4.set_cmap(plt.cm.seismic)
-    ax4.contour(x[0:nx:xstep], z[zl:zt:zstep], Ay[zl:zt:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax4.contour(
+        x[0:nx:xstep],
+        z[zl:zt:zstep],
+        Ay[zl:zt:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax4.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax4.tick_params(labelsize=20)
     ax4.tick_params(axis='x', labelbottom='off')
     cbar4.set_ticks(np.arange(-0.004, 0.005, 0.002))
     cbar4.ax.tick_params(labelsize=20)
     fname4 = fname3 + fname1 + fname2
-    ax4.text(0.02, 0.8, fname4, color='darkred', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax4.transAxes)
+    ax4.text(
+        0.02,
+        0.8,
+        fname4,
+        color='darkred',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax4.transAxes)
 
     ys -= height + gap
     ax5 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
-    p5, cbar5 = plot_2d_contour(x, z[zl:zt], vdot_div_ptensor_new,
-                                ax5, fig, **kwargs_plot)
+    p5, cbar5 = plot_2d_contour(x, z[zl:zt], vdot_div_ptensor_new, ax5, fig,
+                                **kwargs_plot)
     p5.set_cmap(plt.cm.seismic)
-    ax5.contour(x[0:nx:xstep], z[zl:zt:zstep], Ay[zl:zt:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax5.contour(
+        x[0:nx:xstep],
+        z[zl:zt:zstep],
+        Ay[zl:zt:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax5.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax5.tick_params(labelsize=20)
     ax5.tick_params(axis='x', labelbottom='off')
     cbar5.set_ticks(np.arange(-0.004, 0.005, 0.002))
     cbar5.ax.tick_params(labelsize=20)
-    ax5.text(0.02, 0.8, r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$',
-             color='black', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax5.transAxes)
+    ax5.text(
+        0.02,
+        0.8,
+        r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$',
+        color='black',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax5.transAxes)
 
     ys -= height + gap
     ax6 = fig.add_axes([xs, ys, width, height])
@@ -223,18 +285,29 @@ def plot_compression(pic_info, species, current_time):
     p6, cbar6 = plot_2d_contour(x, z[zl:zt], jdote_new, ax6, fig,
                                 **kwargs_plot)
     p6.set_cmap(plt.cm.seismic)
-    ax6.contour(x[0:nx:xstep], z[zl:zt:zstep], Ay[zl:zt:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax6.contour(
+        x[0:nx:xstep],
+        z[zl:zt:zstep],
+        Ay[zl:zt:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax6.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax6.tick_params(labelsize=20)
     ax6.tick_params(axis='x', labelbottom='off')
     cbar6.set_ticks(np.arange(-0.004, 0.005, 0.002))
     cbar6.ax.tick_params(labelsize=20)
     fname6 = r'$' + '\mathbf{j}_' + species + '\cdot\mathbf{E}' + '$'
-    ax6.text(0.02, 0.8, fname6, color='black', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax6.transAxes)
+    ax6.text(
+        0.02,
+        0.8,
+        fname6,
+        color='black',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax6.transAxes)
 
     ys -= height + gap
     w1, h1 = fig.get_size_inches()
@@ -294,8 +367,13 @@ def plot_compression_cut(pic_info, species, current_time):
     """
     zmin, zmax = -15, 15
     xmin = xmax = 140
-    kwargs = {"current_time": current_time, "xl": xmin, "xr": xmax,
-              "zb": zmin, "zt": zmax}
+    kwargs = {
+        "current_time": current_time,
+        "xl": xmin,
+        "xr": xmax,
+        "zb": zmin,
+        "zt": zmax
+    }
     fname = "../../data1/vdot_div_ptensor00_" + species + ".gda"
     x, z, vdot_div_ptensor = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data1/pdiv_u00_" + species + ".gda"
@@ -320,9 +398,9 @@ def plot_compression_cut(pic_info, species, current_time):
     nx, = x.shape
     nz, = z.shape
     if species == 'e':
-        je = - (ux*ex + uy*ey + uz*ez) * nrho
+        je = -(ux * ex + uy * ey + uz * ez) * nrho
     else:
-        je = (ux*ex + uy*ey + uz*ez) * nrho
+        je = (ux * ex + uy * ey + uz * ez) * nrho
 
     pdiv_u_cum = np.cumsum(pdiv_u[:, 0])
     pshear_cum = np.cumsum(pshear[:, 0])
@@ -330,7 +408,7 @@ def plot_compression_cut(pic_info, species, current_time):
     div_vdot_ptensor_cum = np.cumsum(div_vdot_ptensor[:, 0])
     je_cum = np.cumsum(je[:, 0])
 
-    znew = np.linspace(zmin, zmax, nz*10)
+    znew = np.linspace(zmin, zmax, nz * 10)
     pdiv_u_new = spline(z, pdiv_u[:, 0], znew)
     pshear_new = spline(z, pshear[:, 0], znew)
     div_vdot_ptensor_new = spline(z, div_vdot_ptensor[:, 0], znew)
@@ -361,17 +439,26 @@ def plot_compression_cut(pic_info, species, current_time):
     # p2 = ax1.plot(znew, pshear_new, linewidth=2, color='g', label=label2)
     # p3 = ax1.plot(znew, div_vdot_ptensor_new, linewidth=2,
     #         color='b', label=label3)
-    p4 = ax1.plot(znew, pdiv_u_new + pshear_new + div_vdot_ptensor_new,
-                  linewidth=2, color='r', label=label4)
-    p5 = ax1.plot(znew, vdot_div_ptensor_new, linewidth=2,
-                  color='g', label=label5)
-    p6 = ax1.plot(znew, je_new, linewidth=2, color='b',
-                  linestyle='-', label=label6)
+    p4 = ax1.plot(
+        znew,
+        pdiv_u_new + pshear_new + div_vdot_ptensor_new,
+        linewidth=2,
+        color='r',
+        label=label4)
+    p5 = ax1.plot(
+        znew, vdot_div_ptensor_new, linewidth=2, color='g', label=label5)
+    p6 = ax1.plot(
+        znew, je_new, linewidth=2, color='b', linestyle='-', label=label6)
     ax1.set_xlabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.set_xlim([zmin, zmax])
     ax1.tick_params(labelsize=20)
-    ax1.legend(loc=2, prop={'size': 20}, ncol=1,
-               shadow=False, fancybox=False, frameon=False)
+    ax1.legend(
+        loc=2,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     plt.show()
     # if not os.path.isdir('../img/'):
     #     os.makedirs('../img/')
@@ -391,8 +478,13 @@ def angle_current(pic_info, current_time):
         pic_info: namedtuple for the PIC simulation information.
         current_time: current time frame.
     """
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200,
-              "zb": -15, "zt": 15}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -15,
+        "zt": 15
+    }
     fname = "../../data/jx.gda"
     x, z, jx = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/jy.gda"
@@ -423,7 +515,7 @@ def angle_current(pic_info, current_time):
     jz1 = -uez * ne + uiz * ni
     absJ = np.sqrt(jx**2 + jy**2 + jz**2)
     absJ1 = np.sqrt(jx1**2 + jy1**2 + jz1**2) + 1.0E-15
-    ang_current = np.arccos((jx1*jx + jy1*jy + jz1*jz) / (absJ * absJ1))
+    ang_current = np.arccos((jx1 * jx + jy1 * jy + jz1 * jz) / (absJ * absJ1))
 
     ang_current = ang_current * 180 / math.pi
 
@@ -440,16 +532,20 @@ def angle_current(pic_info, current_time):
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, ang_current, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.seismic)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=24)
-    cbar1.ax.set_ylabel(r'$\theta(\mathbf{j}, \mathbf{u}$)',
-                        fontdict=font, fontsize=24)
+    cbar1.ax.set_ylabel(
+        r'$\theta(\mathbf{j}, \mathbf{u}$)', fontdict=font, fontsize=24)
     cbar1.ax.tick_params(labelsize=24)
 
-    t_wci = current_time*pic_info.dt_fields
+    t_wci = current_time * pic_info.dt_fields
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=24)
 
@@ -584,7 +680,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
 
     fig = plt.figure(figsize=[7, 5])
     w1, h1 = 0.8, 0.4
-    xs, ys = 0.96-w1, 0.96-h1
+    xs, ys = 0.96 - w1, 0.96 - h1
     ax = fig.add_axes([xs, ys, w1, h1])
     label1 = r'$-p\nabla\cdot\boldsymbol{V}_\perp$'
     label2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
@@ -592,18 +688,27 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     label4 = label3 + label1 + label2
     label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
     label6 = r'$\mathbf{j}_' + species + '\cdot\mathbf{E}$'
-    p1 = ax.plot(tfields, pdiv_uperp_usingle, linewidth=2,
-                 color='r', label=label1)
-    p2 = ax.plot(tfields, pshear_perp_usingle, linewidth=2,
-                 color='g', label=label2)
-    p3 = ax.plot(tfields, div_vdot_ptensor, linewidth=2,
-                 color='b', label=label3)
-    p4 = ax.plot(tfields, pdiv_u + pshear + div_vdot_ptensor,
-                 linewidth=2, color='darkred', label=label4)
-    p5 = ax.plot(tfields, vdot_div_ptensor, linewidth=2, color='k',
-                 label=label5)
-    p6 = ax.plot(tfields, jqnudote, linewidth=2, color='k', linestyle='--',
-                 label=label6)
+    p1 = ax.plot(
+        tfields, pdiv_uperp_usingle, linewidth=2, color='r', label=label1)
+    p2 = ax.plot(
+        tfields, pshear_perp_usingle, linewidth=2, color='g', label=label2)
+    p3 = ax.plot(
+        tfields, div_vdot_ptensor, linewidth=2, color='b', label=label3)
+    p4 = ax.plot(
+        tfields,
+        pdiv_u + pshear + div_vdot_ptensor,
+        linewidth=2,
+        color='darkred',
+        label=label4)
+    p5 = ax.plot(
+        tfields, vdot_div_ptensor, linewidth=2, color='k', label=label5)
+    p6 = ax.plot(
+        tfields,
+        jqnudote,
+        linewidth=2,
+        color='k',
+        linestyle='--',
+        label=label6)
     ax.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
     ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=16)
@@ -611,14 +716,28 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     ax.set_xlim([0, 800])
     ax.set_ylim(ylim1)
 
-    ax.text(0.65, 0.7, label1, color='red', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform=ax.transAxes)
-    ax.text(0.65, 0.9, label2, color='green', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform=ax.transAxes)
+    ax.text(
+        0.65,
+        0.7,
+        label1,
+        color='red',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.65,
+        0.9,
+        label2,
+        color='green',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
     # ax.text(0.6, 0.7, label3, color='blue', fontsize=20,
     #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
     #         horizontalalignment='left', verticalalignment='center',
@@ -627,21 +746,36 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
     #         horizontalalignment='left', verticalalignment='center',
     #         transform=ax.transAxes)
-    ax.text(0.8, 0.07, label4, color='k', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform=ax.transAxes)
+    ax.text(
+        0.8,
+        0.07,
+        label4,
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
 
     ys -= h1 + 0.05
     ax1 = fig.add_axes([xs, ys, w1, h1])
     p1 = ax1.plot(tfields, pdiv_uperp_usingle_cum, linewidth=2, color='r')
     p2 = ax1.plot(tfields, pshear_perp_usingle_cum, linewidth=2, color='g')
     p3 = ax1.plot(tfields, div_vdot_ptensor_cum, linewidth=2, color='b')
-    p3 = ax1.plot(tfields, pdiv_u_cum + pshear_cum + div_vdot_ptensor_cum,
-                  linewidth=2, color='darkred')
+    p3 = ax1.plot(
+        tfields,
+        pdiv_u_cum + pshear_cum + div_vdot_ptensor_cum,
+        linewidth=2,
+        color='darkred')
     p5 = ax1.plot(tfields, vdot_div_ptensor_cum, linewidth=2, color='k')
-    p6 = ax1.plot(tfields, jqnudote_cum, linewidth=2, color='k',
-                  linestyle='--', label=label6)
+    p6 = ax1.plot(
+        tfields,
+        jqnudote_cum,
+        linewidth=2,
+        color='k',
+        linestyle='--',
+        label=label6)
     ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$\varepsilon_c$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
@@ -663,8 +797,13 @@ def density_ratio(pic_info, current_time):
         pic_info: namedtuple for the PIC simulation information.
         current_time: current time frame.
     """
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200,
-              "zb": -15, "zt": 15}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -15,
+        "zt": 15
+    }
     fname = "../../data/ne.gda"
     x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/ni.gda"
@@ -682,17 +821,21 @@ def density_ratio(pic_info, current_time):
     kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": 0.5, "vmax": 1.5}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
-    p1, cbar1 = plot_2d_contour(x, z, ne/ni, ax1, fig, **kwargs_plot)
+    p1, cbar1 = plot_2d_contour(x, z, ne / ni, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.seismic)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=24)
     cbar1.ax.set_ylabel(r'$n_e/n_i$', fontdict=font, fontsize=24)
     cbar1.ax.tick_params(labelsize=24)
 
-    t_wci = current_time*pic_info.dt_fields
+    t_wci = current_time * pic_info.dt_fields
     title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
     ax1.set_title(title, fontdict=font, fontsize=24)
 
@@ -718,8 +861,13 @@ def plot_compression_shear(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200,
-              "zb": -50, "zt": 50}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -50,
+        "zt": 50
+    }
     fname = "../../data1/pdiv_u00_" + species + ".gda"
     x, z, pdiv_u = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data1/pshear00_" + species + ".gda"
@@ -737,9 +885,9 @@ def plot_compression_shear(pic_info, species, current_time):
     fname = '../../data/n' + species + '.gda'
     x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     if species == 'e':
-        jdote = - (ux*ex + uy*ey + uz*ez) * nrho
+        jdote = -(ux * ex + uy * ey + uz * ez) * nrho
     else:
-        jdote = (ux*ex + uy*ey + uz*ez) * nrho
+        jdote = (ux * ex + uy * ey + uz * ez) * nrho
 
     pdiv_u_sum = np.sum(pdiv_u, axis=0)
     pdiv_u_cum = np.cumsum(pdiv_u_sum)
@@ -774,18 +922,29 @@ def plot_compression_shear(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, pdiv_u_new, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.seismic)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
     cbar1.set_ticks(np.arange(-0.01, 0.015, 0.01))
     cbar1.ax.tick_params(labelsize=20)
     fname1 = r'$-p\nabla\cdot\mathbf{u}$'
-    ax1.text(0.02, 0.8, fname1, color='red', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.8,
+        fname1,
+        color='red',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -794,18 +953,29 @@ def plot_compression_shear(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p2, cbar2 = plot_2d_contour(x, z, pshear_new, ax2, fig, **kwargs_plot)
     p2.set_cmap(plt.cm.seismic)
-    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax2.tick_params(labelsize=20)
     ax2.tick_params(axis='x', labelbottom='off')
     cbar2.set_ticks(np.arange(-0.01, 0.015, 0.01))
     cbar2.ax.tick_params(labelsize=20)
     fname2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
-    ax2.text(0.02, 0.8, fname2, color='green', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.8,
+        fname2,
+        color='green',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= height + gap
     ax6 = fig.add_axes([xs, ys, width, height])
@@ -814,18 +984,29 @@ def plot_compression_shear(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p6, cbar6 = plot_2d_contour(x, z, jdote_new, ax6, fig, **kwargs_plot)
     p6.set_cmap(plt.cm.seismic)
-    ax6.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax6.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax6.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax6.tick_params(labelsize=20)
     ax6.tick_params(axis='x', labelbottom='off')
     cbar6.set_ticks(np.arange(-0.01, 0.015, 0.01))
     cbar6.ax.tick_params(labelsize=20)
     fname6 = r'$' + '\mathbf{j}_' + species + '\cdot\mathbf{E}' + '$'
-    ax6.text(0.02, 0.8, fname6, color='black', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax6.transAxes)
+    ax6.text(
+        0.02,
+        0.8,
+        fname6,
+        color='black',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax6.transAxes)
 
     ys -= height + gap
     w1, h1 = fig.get_size_inches()
@@ -883,8 +1064,13 @@ def plot_shear(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200,
-              "zb": -20, "zt": 20}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
     fname = "../../data1/pshear00_" + species + ".gda"
     x, z, pshear = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data1/bbsigma00_" + species + ".gda"
@@ -900,7 +1086,7 @@ def plot_shear(pic_info, species, current_time):
     nk = 5
     # pshear_new = signal.medfilt2d(pshear, kernel_size=(nk,nk))
     # bbsigma_new = signal.medfilt2d(bbsigma, kernel_size=(nk,nk))
-    kernel = np.ones((nk, nk)) / float(nk*nk)
+    kernel = np.ones((nk, nk)) / float(nk * nk)
     pshear_new = signal.convolve2d(pshear, kernel, mode='same')
     bbsigma_new = signal.convolve2d(bbsigma, kernel, mode='same')
     pshear_sum = np.sum(pshear_new, axis=0)
@@ -923,18 +1109,29 @@ def plot_shear(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, bbsigma_new, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.get_cmap('seismic'))
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
-    cbar1.set_ticks(np.arange(vmin, vmax+0.01, 0.02))
+    cbar1.set_ticks(np.arange(vmin, vmax + 0.01, 0.02))
     cbar1.ax.tick_params(labelsize=20)
     fname1 = r'$b_ib_j\sigma_{ij}$'
-    ax1.text(0.02, 0.8, fname1, color='red', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.8,
+        fname1,
+        color='red',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -945,23 +1142,34 @@ def plot_shear(pic_info, species, current_time):
     kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
-    p2, cbar2 = plot_2d_contour(x, z, -ppara+pperp, ax2, fig, **kwargs_plot)
+    p2, cbar2 = plot_2d_contour(x, z, -ppara + pperp, ax2, fig, **kwargs_plot)
     p2.set_cmap(plt.cm.seismic)
-    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax2.tick_params(labelsize=20)
     if species == 'e':
-        cbar2.set_ticks(np.arange(vmin, vmax+0.1, 0.2))
+        cbar2.set_ticks(np.arange(vmin, vmax + 0.1, 0.2))
     else:
-        cbar2.set_ticks(np.arange(vmin, vmax+0.1, 0.4))
+        cbar2.set_ticks(np.arange(vmin, vmax + 0.1, 0.4))
     cbar2.ax.tick_params(labelsize=20)
     ax2.tick_params(axis='x', labelbottom='off')
     fname2 = r'$-(p_\parallel - p_\perp)$'
-    ax2.text(0.02, 0.8, fname2, color='blue', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.8,
+        fname2,
+        color='blue',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= height + gap
     ax3 = fig.add_axes([xs, ys, width, height])
@@ -974,29 +1182,42 @@ def plot_shear(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p3, cbar3 = plot_2d_contour(x, z, pshear_new, ax3, fig, **kwargs_plot)
     p3.set_cmap(plt.cm.seismic)
-    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax3.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax3.tick_params(labelsize=20)
     ax3.tick_params(axis='x', labelbottom='off')
-    cbar3.set_ticks(np.arange(vmin, vmax+0.001, 0.002))
+    cbar3.set_ticks(np.arange(vmin, vmax + 0.001, 0.002))
     cbar3.ax.tick_params(labelsize=20)
     fname2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
-    ax3.text(0.02, 0.8, fname2, color='green', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.8,
+        fname2,
+        color='green',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
 
     ys -= height + gap
     w1, h1 = fig.get_size_inches()
     width1 = width * 0.98 - 0.05 / w1
     ax4 = fig.add_axes([xs, ys, width1, height])
     p4 = ax4.plot(x, pshear_sum, color='green', linewidth=1)
-    p41 = ax4.plot([np.min(x), np.max(x)], [0, 0],
-                   color='black', linestyle='--')
+    p41 = ax4.plot(
+        [np.min(x), np.max(x)], [0, 0], color='black', linestyle='--')
     ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
-    ax4.set_ylabel(r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$',
-                   fontdict=font, fontsize=24)
+    ax4.set_ylabel(
+        r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$',
+        fontdict=font,
+        fontsize=24)
     ax4.tick_params(labelsize=20)
 
     # plt.show()
@@ -1023,8 +1244,13 @@ def plot_compression_only(pic_info, species, current_time):
         current_time: current time frame.
     """
     print(current_time)
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200,
-              "zb": -20, "zt": 20}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
     fname = "../../data1/div_u00_" + species + ".gda"
     x, z, div_u = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data1/pdiv_u00_" + species + ".gda"
@@ -1041,7 +1267,7 @@ def plot_compression_only(pic_info, species, current_time):
     nk = 5
     # div_u_new = signal.medfilt2d(div_u, kernel_size=(nk,nk))
     # pdiv_u_new = signal.medfilt2d(pdiv_u, kernel_size=(nk,nk))
-    kernel = np.ones((nk, nk)) / float(nk*nk)
+    kernel = np.ones((nk, nk)) / float(nk * nk)
     div_u_new = signal.convolve2d(div_u, kernel, mode='same')
     pdiv_u_new = signal.convolve2d(pdiv_u, kernel, mode='same')
     pdiv_u_sum = np.sum(pdiv_u_new, axis=0)
@@ -1064,18 +1290,29 @@ def plot_compression_only(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, div_u_new, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.get_cmap('seismic'))
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
-    cbar1.set_ticks(np.arange(vmin, vmax+0.01, 0.02))
+    cbar1.set_ticks(np.arange(vmin, vmax + 0.01, 0.02))
     cbar1.ax.tick_params(labelsize=20)
     fname1 = r'$\nabla\cdot\mathbf{u}$'
-    ax1.text(0.02, 0.8, fname1, color='red', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.8,
+        fname1,
+        color='red',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -1088,18 +1325,29 @@ def plot_compression_only(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p2, cbar2 = plot_2d_contour(x, z, pscalar, ax2, fig, **kwargs_plot)
     # p2.set_cmap(plt.cm.seismic)
-    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='white', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='white',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax2.tick_params(labelsize=20)
     cbar2.set_ticks(np.arange(0, vmax + 0.1, 0.2))
     cbar2.ax.tick_params(labelsize=20)
     ax2.tick_params(axis='x', labelbottom='off')
     fname2 = r'$p$'
-    ax2.text(0.02, 0.8, fname2, color='red', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.8,
+        fname2,
+        color='red',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= height + gap
     ax3 = fig.add_axes([xs, ys, width, height])
@@ -1112,26 +1360,37 @@ def plot_compression_only(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p3, cbar3 = plot_2d_contour(x, z, pdiv_u_new, ax3, fig, **kwargs_plot)
     p3.set_cmap(plt.cm.seismic)
-    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax3.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax3.tick_params(labelsize=20)
     ax3.tick_params(axis='x', labelbottom='off')
-    cbar3.set_ticks(np.arange(vmin, vmax+0.001, 0.002))
+    cbar3.set_ticks(np.arange(vmin, vmax + 0.001, 0.002))
     cbar3.ax.tick_params(labelsize=20)
     fname2 = r'$-p\nabla\cdot\mathbf{u}$'
-    ax3.text(0.02, 0.8, fname2, color='green', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.8,
+        fname2,
+        color='green',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
 
     ys -= height + gap
     w1, h1 = fig.get_size_inches()
     width1 = width * 0.98 - 0.05 / w1
     ax4 = fig.add_axes([xs, ys, width1, height])
     p4 = ax4.plot(x, pdiv_u_sum, color='green', linewidth=1)
-    p41 = ax4.plot([np.min(x), np.max(x)], [0, 0],
-                   color='black', linestyle='--')
+    p41 = ax4.plot(
+        [np.min(x), np.max(x)], [0, 0], color='black', linestyle='--')
     ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax4.set_ylabel(r'$-p\nabla\cdot\mathbf{u}$', fontdict=font, fontsize=24)
     ax4.tick_params(labelsize=20)
@@ -1162,8 +1421,13 @@ def plot_velocity_field(pic_info, species, current_time):
     print(current_time)
     zb, zt = -20, 20
     xl, xr = 0, 200
-    kwargs = {"current_time": current_time, "xl": xl, "xr": xr,
-              "zb": zb, "zt": zt}
+    kwargs = {
+        "current_time": current_time,
+        "xl": xl,
+        "xr": xr,
+        "zb": zb,
+        "zt": zt
+    }
     fname = "../../data/u" + species + "x.gda"
     x, z, ux = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/u" + species + "z.gda"
@@ -1182,13 +1446,25 @@ def plot_velocity_field(pic_info, species, current_time):
 
     fig = plt.figure(figsize=[20, 8])
     ax = fig.add_axes([xs, ys, width, height])
-    p1 = ax.streamplot(x, z, ux, uz, color=speed, linewidth=1,
-                       density=5.0, cmap=plt.cm.jet, arrowsize=1.0)
+    p1 = ax.streamplot(
+        x,
+        z,
+        ux,
+        uz,
+        color=speed,
+        linewidth=1,
+        density=5.0,
+        cmap=plt.cm.jet,
+        arrowsize=1.0)
     kwargs_plot = {"xstep": 2, "zstep": 2}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
-    ax.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-               colors='black', linewidths=0.5)
+    ax.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax.set_xlim([xl, xr])
@@ -1224,8 +1500,13 @@ def plot_velocity_components(pic_info, species, current_time):
     print(current_time)
     zb, zt = -20, 20
     xl, xr = 0, 200
-    kwargs = {"current_time": current_time, "xl": xl, "xr": xr,
-              "zb": zb, "zt": zt}
+    kwargs = {
+        "current_time": current_time,
+        "xl": xl,
+        "xr": xr,
+        "zb": zb,
+        "zt": zt
+    }
     fname = "../../data/u" + species + "x.gda"
     x, z, ux = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/u" + species + "y.gda"
@@ -1253,18 +1534,29 @@ def plot_velocity_components(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, ux, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.get_cmap('seismic'))
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
-    cbar1.set_ticks(np.arange(vmin, vmax+0.1, 0.1))
+    cbar1.set_ticks(np.arange(vmin, vmax + 0.1, 0.1))
     cbar1.ax.tick_params(labelsize=20)
     fname1 = r'$u_x$'
-    ax1.text(0.02, 0.8, fname1, color='black', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax1.transAxes)
+    ax1.text(
+        0.02,
+        0.8,
+        fname1,
+        color='black',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
@@ -1277,18 +1569,29 @@ def plot_velocity_components(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p2, cbar2 = plot_2d_contour(x, z, uy, ax2, fig, **kwargs_plot)
     p2.set_cmap(plt.cm.seismic)
-    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='white', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='white',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax2.tick_params(labelsize=20)
-    cbar2.set_ticks(np.arange(vmin, vmax+0.1, 0.1))
+    cbar2.set_ticks(np.arange(vmin, vmax + 0.1, 0.1))
     cbar2.ax.tick_params(labelsize=20)
     ax2.tick_params(axis='x', labelbottom='off')
     fname2 = r'$u_y$'
-    ax2.text(0.02, 0.8, fname2, color='black', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax2.transAxes)
+    ax2.text(
+        0.02,
+        0.8,
+        fname2,
+        color='black',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
 
     ys -= height + gap
     ax3 = fig.add_axes([xs, ys, width, height])
@@ -1301,18 +1604,29 @@ def plot_velocity_components(pic_info, species, current_time):
     zstep = kwargs_plot["zstep"]
     p3, cbar3 = plot_2d_contour(x, z, uz, ax3, fig, **kwargs_plot)
     p3.set_cmap(plt.cm.seismic)
-    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
-                colors='black', linewidths=0.5)
+    ax3.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=24)
     ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=24)
     ax3.tick_params(labelsize=20)
-    cbar3.set_ticks(np.arange(vmin, vmax+0.1, 0.1))
+    cbar3.set_ticks(np.arange(vmin, vmax + 0.1, 0.1))
     cbar3.ax.tick_params(labelsize=20)
     fname2 = r'$u_z$'
-    ax3.text(0.02, 0.8, fname2, color='black', fontsize=24,
-             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
-                       pad=10.0), horizontalalignment='left',
-             verticalalignment='center', transform=ax3.transAxes)
+    ax3.text(
+        0.02,
+        0.8,
+        fname2,
+        color='black',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
 
     # plt.show()
     if not os.path.isdir('../img/'):
@@ -1387,15 +1701,15 @@ def plot_compression_time_multi(species):
         ylim1[6, :] = -1.0, 2.4
         ylim1[7, :] = -5.0, 15.0
         ylim1[8, :] = -3.0, 7.0
-    for i in range(6,7):
+    for i in range(6, 7):
         run_name = run_names[i]
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         jdote_fname = dir_jdote + 'jdote_' + run_name + '_' + species + '.json'
         pic_info = read_data_from_json(picinfo_fname)
         jdote_data = read_data_from_json(jdote_fname)
         fpath_comp = '../data/compression/' + run_name + '/'
-        compression_time(pic_info, species, jdote_data,
-                         ylim1[i, :], fpath_comp)
+        compression_time(pic_info, species, jdote_data, ylim1[i, :],
+                         fpath_comp)
         # oname = odir + 'compression_' + run_name + '_' + species + '.eps'
         oname = odir + 'compression_' + run_name + '_wjp_' + species + '.eps'
         plt.savefig(oname)
@@ -1408,13 +1722,18 @@ def plot_div_v(current_time, species):
     """
     print(current_time)
     spath = '/net/scratch2/xiaocanli/'
-    kwargs = {"current_time": current_time, "xl": 0, "xr": 200, "zb": -20,
-              "zt": 20}
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
     # rpath =  spath + 'mime25-sigma1-beta002-200-100-noperturb/'
     # rname = 'mime25_beta002_noperturb'
     # rpath =  spath + 'mime25-sigma1-beta002-guide1-200-100/'
     # rname = 'mime25_beta002_guide1'
-    rpath =  spath + 'mime25-guide0-beta001-200-100-sigma033/'
+    rpath = spath + 'mime25-guide0-beta001-200-100-sigma033/'
     rname = 'mime25_beta002_sigma033'
     picinfo_fname = '../data/pic_info/pic_info_' + rname + '.json'
     pic_info = read_data_from_json(picinfo_fname)
@@ -1426,7 +1745,7 @@ def plot_div_v(current_time, species):
     fname = rpath + "data/Ay.gda"
     x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
     nk = 7
-    kernel = np.ones((nk, nk)) / float(nk*nk)
+    kernel = np.ones((nk, nk)) / float(nk * nk)
     div_v = signal.convolve2d(div_v, kernel, mode='same')
     # vmin, vmax = -0.005, 0.005
     dnorm = 5.0e-4
