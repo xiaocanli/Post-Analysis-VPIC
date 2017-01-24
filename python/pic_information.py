@@ -71,67 +71,68 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
         dte_wpe: the time interval for energies diagnostics (in 1/wpe).
         base_directory: the base directory for different runs.
     """
-    fname = base_directory + '/rundata/energies'
+    fname = base_directory + 'rundata/energies'
     try:
         f = open(fname, 'r')
     except IOError:
         print 'cannot open ', fname
-        return
-    else:
-        content = np.genfromtxt(f, skip_header=3)
-        f.close()
-        nte, nvar = content.shape
-        tenergy = np.arange(nte) * dte_wci
-        ene_ex = content[:, 1]
-        ene_ey = content[:, 2]
-        ene_ez = content[:, 3]
-        ene_bx = content[:, 4]
-        ene_by = content[:, 5]
-        ene_bz = content[:, 6]
-        kene_i = content[:, 7]  # kinetic energy for ions
-        kene_e = content[:, 8]
-        ene_electric = ene_ex + ene_ey + ene_ez
-        ene_magnetic = ene_bx + ene_by + ene_bz
-        dene_ex = np.gradient(ene_ex) / dte_wpe
-        dene_ey = np.gradient(ene_ey) / dte_wpe
-        dene_ez = np.gradient(ene_ez) / dte_wpe
-        dene_bx = np.gradient(ene_bx) / dte_wpe
-        dene_by = np.gradient(ene_by) / dte_wpe
-        dene_bz = np.gradient(ene_bz) / dte_wpe
-        dene_electric = np.gradient(ene_electric) / dte_wpe
-        dene_magnetic = np.gradient(ene_magnetic) / dte_wpe
-        dkene_i = np.gradient(kene_i) / dte_wpe
-        dkene_e = np.gradient(kene_e) / dte_wpe
-        pic_energies = collections.namedtuple('pic_energies', [
-            'nte', 'tenergy', 'ene_ex', 'ene_ey', 'ene_ez', 'ene_bx', 'ene_by',
-            'ene_bz', 'kene_i', 'kene_e', 'ene_electric', 'ene_magnetic',
-            'dene_ex', 'dene_ey', 'dene_ez', 'dene_bx', 'dene_by', 'dene_bz',
-            'dkene_i', 'dkene_e', 'dene_electric', 'dene_magnetic'
-        ])
-        pic_ene = pic_energies(
-            nte=nte,
-            tenergy=tenergy,
-            ene_ex=ene_ex,
-            ene_ey=ene_ey,
-            ene_ez=ene_ez,
-            ene_bx=ene_bx,
-            ene_by=ene_by,
-            ene_bz=ene_bz,
-            kene_i=kene_i,
-            kene_e=kene_e,
-            ene_electric=ene_electric,
-            ene_magnetic=ene_magnetic,
-            dene_ex=dene_ex,
-            dene_ey=dene_ey,
-            dene_ez=dene_ez,
-            dene_bx=dene_bx,
-            dene_by=dene_by,
-            dene_bz=dene_bz,
-            dkene_i=dkene_i,
-            dkene_e=dkene_e,
-            dene_electric=dene_electric,
-            dene_magnetic=dene_magnetic)
-        return pic_ene
+        fname = base_directory + 'energies'
+        print 'switch file to ', fname
+        f = open(fname, 'r')
+    content = np.genfromtxt(f, skip_header=3)
+    f.close()
+    nte, nvar = content.shape
+    tenergy = np.arange(nte) * dte_wci
+    ene_ex = content[:, 1]
+    ene_ey = content[:, 2]
+    ene_ez = content[:, 3]
+    ene_bx = content[:, 4]
+    ene_by = content[:, 5]
+    ene_bz = content[:, 6]
+    kene_i = content[:, 7]  # kinetic energy for ions
+    kene_e = content[:, 8]
+    ene_electric = ene_ex + ene_ey + ene_ez
+    ene_magnetic = ene_bx + ene_by + ene_bz
+    dene_ex = np.gradient(ene_ex) / dte_wpe
+    dene_ey = np.gradient(ene_ey) / dte_wpe
+    dene_ez = np.gradient(ene_ez) / dte_wpe
+    dene_bx = np.gradient(ene_bx) / dte_wpe
+    dene_by = np.gradient(ene_by) / dte_wpe
+    dene_bz = np.gradient(ene_bz) / dte_wpe
+    dene_electric = np.gradient(ene_electric) / dte_wpe
+    dene_magnetic = np.gradient(ene_magnetic) / dte_wpe
+    dkene_i = np.gradient(kene_i) / dte_wpe
+    dkene_e = np.gradient(kene_e) / dte_wpe
+    pic_energies = collections.namedtuple('pic_energies', [
+        'nte', 'tenergy', 'ene_ex', 'ene_ey', 'ene_ez', 'ene_bx', 'ene_by',
+        'ene_bz', 'kene_i', 'kene_e', 'ene_electric', 'ene_magnetic',
+        'dene_ex', 'dene_ey', 'dene_ez', 'dene_bx', 'dene_by', 'dene_bz',
+        'dkene_i', 'dkene_e', 'dene_electric', 'dene_magnetic'
+    ])
+    pic_ene = pic_energies(
+        nte=nte,
+        tenergy=tenergy,
+        ene_ex=ene_ex,
+        ene_ey=ene_ey,
+        ene_ez=ene_ez,
+        ene_bx=ene_bx,
+        ene_by=ene_by,
+        ene_bz=ene_bz,
+        kene_i=kene_i,
+        kene_e=kene_e,
+        ene_electric=ene_electric,
+        ene_magnetic=ene_magnetic,
+        dene_ex=dene_ex,
+        dene_ey=dene_ey,
+        dene_ez=dene_ez,
+        dene_bx=dene_bx,
+        dene_by=dene_by,
+        dene_bz=dene_bz,
+        dkene_i=dkene_i,
+        dkene_e=dkene_e,
+        dene_electric=dene_electric,
+        dene_magnetic=dene_magnetic)
+    return pic_ene
 
 
 def get_fields_frames(base_directory):
