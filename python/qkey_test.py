@@ -30,6 +30,7 @@ def test_unique_q(step):
     print sz, len(uq)
     file.close
 
+
 if __name__ == "__main__":
     for i in range(1000):
         test_unique_q(i)

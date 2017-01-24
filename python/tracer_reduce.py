@@ -26,12 +26,14 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
+
 
 def read_var_single(group, dset_name):
     """Read only a single data point from a HDF5 group
@@ -61,22 +63,32 @@ def get_meta_data(pic_info):
         ny = read_var_single(group, 'ny')
         nz = read_var_single(group, 'nz')
 
-    dx_mpi =  nx * dx
-    dy_mpi =  ny * dy
-    dz_mpi =  nz * dz
+    dx_mpi = nx * dx
+    dy_mpi = ny * dy
+    dz_mpi = nz * dz
 
-    meta_data = {'np_local': np_local, 'x0': x0, 'y0': y0, 'z0': z0,
-                 'grid_size_mpi': [dx_mpi, dy_mpi, dz_mpi],
-                 'grid_size': [dx, dy, dz],
-                 'grid_dims': [nx, ny, nz]}
+    meta_data = {
+        'np_local': np_local,
+        'x0': x0,
+        'y0': y0,
+        'z0': z0,
+        'grid_size_mpi': [dx_mpi, dy_mpi, dz_mpi],
+        'grid_size': [dx, dy, dz],
+        'grid_dims': [nx, ny, nz]
+    }
 
     return meta_data
 
 
-def sort_tracer_data(pic_info, pmin, meta_data, ct, species, root_path='../../'):
+def sort_tracer_data(pic_info,
+                     pmin,
+                     meta_data,
+                     ct,
+                     species,
+                     root_path='../../'):
     """Sort tracer data
     """
-    fpath = root_path + 'tracer/T.' + str(ct) + '/' 
+    fpath = root_path + 'tracer/T.' + str(ct) + '/'
     fname_reduced = fpath + species + '_tracer_reduced.h5p'
     with h5py.File(fname_reduced, 'r') as fh:
         key = 'Step#' + str(ct)
@@ -143,7 +155,7 @@ def sort_tracer_data(pic_info, pmin, meta_data, ct, species, root_path='../../')
     Uz = Uz[sort_index]
     icell = icell[sort_index]
     q = q[sort_index]
-    
+
     ncpu = tpx * tpy * tpz
     elements, repeats = np.unique(mpi_rank, return_counts=True)
     repeats = repeats.astype(np.int32)
@@ -187,6 +199,7 @@ if __name__ == "__main__":
     zmin = np.min(meta_data['z0'])
     pmin = [xmin, ymin, zmin]
     cts = range(4394, 16615, 13)
+
     def processInput(ct):
         print ct
         sort_tracer_data(pic_info, pmin, meta_data, ct, 'electron', root_dir)

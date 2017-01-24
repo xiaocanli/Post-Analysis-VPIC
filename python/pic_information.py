@@ -33,26 +33,33 @@ def get_pic_info(base_directory):
             get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
-    ntp = ntf / (particle_interval/fields_interval)
+    ntp = ntf / (particle_interval / fields_interval)
     tparticles = np.arange(ntp) * dt_particles
     tfields = np.arange(ntf) * dt_fields
     dt_energy = energy_interval * dtwci
     dte_wpe = dt_energy * dtwpe / dtwci
     pic_ene = read_pic_energies(dt_energy, dte_wpe, base_directory)
-    pic_times = collections.namedtuple("pic_times", 
-            ['ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 
-             'tparticles', 'dt_energy', 'fields_interval', 'particle_interval',
-             'trace_interval'])
-    pic_times_info = pic_times(ntf=ntf, dt_fields=dt_fields,
-            dt_particles=dt_particles, tfields=tfields, dt_energy=dt_energy,
-            ntp=ntp, tparticles=tparticles, fields_interval=fields_interval,
-            particle_interval=particle_interval, trace_interval=trace_interval)
+    pic_times = collections.namedtuple("pic_times", [
+        'ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 'tparticles',
+        'dt_energy', 'fields_interval', 'particle_interval', 'trace_interval'
+    ])
+    pic_times_info = pic_times(
+        ntf=ntf,
+        dt_fields=dt_fields,
+        dt_particles=dt_particles,
+        tfields=tfields,
+        dt_energy=dt_energy,
+        ntp=ntp,
+        tparticles=tparticles,
+        fields_interval=fields_interval,
+        particle_interval=particle_interval,
+        trace_interval=trace_interval)
     pic_topology = get_pic_topology(base_directory)
-    pic_information = collections.namedtuple("pic_information", 
-            pic_initial_info._fields + pic_times_info._fields +
-            pic_ene._fields + pic_topology._fields)
-    pic_info = pic_information(*(pic_initial_info + pic_times_info +
-        pic_ene + pic_topology))
+    pic_information = collections.namedtuple(
+        "pic_information", pic_initial_info._fields + pic_times_info._fields +
+        pic_ene._fields + pic_topology._fields)
+    pic_info = pic_information(*(
+        pic_initial_info + pic_times_info + pic_ene + pic_topology))
     return pic_info
 
 
@@ -75,14 +82,14 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
         f.close()
         nte, nvar = content.shape
         tenergy = np.arange(nte) * dte_wci
-        ene_ex = content[:,1]
-        ene_ey = content[:,2]
-        ene_ez = content[:,3]
-        ene_bx = content[:,4]
-        ene_by = content[:,5]
-        ene_bz = content[:,6]
-        kene_i = content[:,7] # kinetic energy for ions
-        kene_e = content[:,8]
+        ene_ex = content[:, 1]
+        ene_ey = content[:, 2]
+        ene_ez = content[:, 3]
+        ene_bx = content[:, 4]
+        ene_by = content[:, 5]
+        ene_bz = content[:, 6]
+        kene_i = content[:, 7]  # kinetic energy for ions
+        kene_e = content[:, 8]
         ene_electric = ene_ex + ene_ey + ene_ez
         ene_magnetic = ene_bx + ene_by + ene_bz
         dene_ex = np.gradient(ene_ex) / dte_wpe
@@ -95,20 +102,35 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
         dene_magnetic = np.gradient(ene_magnetic) / dte_wpe
         dkene_i = np.gradient(kene_i) / dte_wpe
         dkene_e = np.gradient(kene_e) / dte_wpe
-        pic_energies = collections.namedtuple('pic_energies',
-                ['nte', 'tenergy', 'ene_ex', 'ene_ey', 'ene_ez', 'ene_bx',
-                    'ene_by', 'ene_bz','kene_i', 'kene_e', 'ene_electric',
-                    'ene_magnetic', 'dene_ex', 'dene_ey', 'dene_ez', 'dene_bx',
-                    'dene_by', 'dene_bz','dkene_i', 'dkene_e', 'dene_electric',
-                    'dene_magnetic'])
-        pic_ene = pic_energies(nte=nte, tenergy=tenergy, ene_ex=ene_ex,
-                ene_ey=ene_ey, ene_ez=ene_ez, ene_bx=ene_bx, ene_by=ene_by,
-                ene_bz=ene_bz, kene_i=kene_i, kene_e=kene_e,
-                ene_electric=ene_electric, ene_magnetic=ene_magnetic, 
-                dene_ex=dene_ex, dene_ey=dene_ey, dene_ez=dene_ez,
-                dene_bx=dene_bx, dene_by=dene_by, dene_bz=dene_bz,
-                dkene_i=dkene_i, dkene_e=dkene_e,
-                dene_electric=dene_electric, dene_magnetic=dene_magnetic)
+        pic_energies = collections.namedtuple('pic_energies', [
+            'nte', 'tenergy', 'ene_ex', 'ene_ey', 'ene_ez', 'ene_bx', 'ene_by',
+            'ene_bz', 'kene_i', 'kene_e', 'ene_electric', 'ene_magnetic',
+            'dene_ex', 'dene_ey', 'dene_ez', 'dene_bx', 'dene_by', 'dene_bz',
+            'dkene_i', 'dkene_e', 'dene_electric', 'dene_magnetic'
+        ])
+        pic_ene = pic_energies(
+            nte=nte,
+            tenergy=tenergy,
+            ene_ex=ene_ex,
+            ene_ey=ene_ey,
+            ene_ez=ene_ez,
+            ene_bx=ene_bx,
+            ene_by=ene_by,
+            ene_bz=ene_bz,
+            kene_i=kene_i,
+            kene_e=kene_e,
+            ene_electric=ene_electric,
+            ene_magnetic=ene_magnetic,
+            dene_ex=dene_ex,
+            dene_ey=dene_ey,
+            dene_ez=dene_ez,
+            dene_bx=dene_bx,
+            dene_by=dene_by,
+            dene_bz=dene_bz,
+            dkene_i=dkene_i,
+            dkene_e=dkene_e,
+            dene_electric=dene_electric,
+            dene_magnetic=dene_magnetic)
         return pic_ene
 
 
@@ -144,7 +166,7 @@ def get_fields_frames(base_directory):
             is_exist = os.path.isfile(fname)
     elif (os.path.isfile(fname)):
         file_size = os.path.getsize(fname)
-        ntf = int(file_size/(nx*ny*nz*4))
+        ntf = int(file_size / (nx * ny * nz * 4))
     elif (os.path.isdir(fname_fields)):
         current_time = 1
         is_exist = False
@@ -184,7 +206,8 @@ def get_main_source_filename(base_directory):
         f.close()
         nlines = len(content)
         current_line = 0
-        while not 'vpic' in content[current_line]: current_line += 1
+        while not 'vpic' in content[current_line]:
+            current_line += 1
         single_line = content[current_line]
         line_splits = single_line.split(".op")
         word_splits = line_splits[1].split(" ")
@@ -216,11 +239,11 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
         f.close()
         nlines = len(content)
         current_line = 0
-        cond1 = not 'int interval = ' in content[current_line] 
+        cond1 = not 'int interval = ' in content[current_line]
         cond2 = '//' in content[current_line]  # commented out
         while cond1 or cond2:
             current_line += 1
-            cond1 = not 'int interval = ' in content[current_line] 
+            cond1 = not 'int interval = ' in content[current_line]
             cond2 = '//' in content[current_line]  # commented out
         if not '(' in content[current_line]:
             single_line = content[current_line]
@@ -235,25 +258,25 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
             word = 'int ' + word_splits[0] + ' = '
             cline = current_line
             # go back to the number for word_splits[0]
-            cond1 = not word in content[current_line] 
+            cond1 = not word in content[current_line]
             cond2 = '//' in content[current_line]  # commented out
             while cond1 or cond2:
                 current_line -= 1
                 cond1 = not word in content[current_line]
                 cond2 = '//' in content[current_line]  # commented out
             interval = get_time_interval(content[current_line], dtwpe, dtwce,
-                    dtwpi, dtwci)
+                                         dtwpi, dtwci)
             # We assume the interval if trace_interval
             trace_interval = interval
             interval = int(interval * time_ratio)
         else:
             interval = get_time_interval(content[current_line], dtwpe, dtwce,
-                    dtwpi, dtwci)
+                                         dtwpi, dtwci)
             trace_interval = 0
-        
+
         fields_interval = interval
 
-        while not 'int eparticle_interval' in content[current_line]: 
+        while not 'int eparticle_interval' in content[current_line]:
             current_line += 1
         single_line = content[current_line]
         line_splits = single_line.split("=")
@@ -264,6 +287,7 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
             particle_interval = interval
 
     return (fields_interval, particle_interval, trace_interval)
+
 
 def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
     """Get time interval from a line
@@ -291,8 +315,9 @@ def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
     elif word2_splits[0] == "wci":
         dt = dtwci
 
-    interval = int(interval/dt)
+    interval = int(interval / dt)
     return interval
+
 
 def read_pic_info(base_directory):
     """Read particle-in-cell simulation information.
@@ -327,7 +352,8 @@ def read_pic_info(base_directory):
         dtwci, current_line = get_variable_value_h('dt*wci', content)
     except:
         dtwci = dtwce / mime
-    while not 'energies_interval' in content[current_line]: current_line += 1
+    while not 'energies_interval' in content[current_line]:
+        current_line += 1
     single_line = content[current_line]
     line_splits = single_line.split(":")
     energy_interval = float(line_splits[1])
@@ -337,24 +363,45 @@ def read_pic_info(base_directory):
     dxdi = dxde / math.sqrt(mime)
     dydi = dyde / math.sqrt(mime)
     dzdi = dzde / math.sqrt(mime)
-    x = np.arange(nx)*dxdi
-    y = (np.arange(ny)-ny/2.0+0.5)*dydi
-    z = (np.arange(nz)-nz/2.0+0.5)*dzdi
+    x = np.arange(nx) * dxdi
+    y = (np.arange(ny) - ny / 2.0 + 0.5) * dydi
+    z = (np.arange(nz) - nz / 2.0 + 0.5) * dzdi
     if any('vthi/c' in s for s in content):
-        vthi, current_line = get_variable_value('vthi/c', current_line, content)
-        vthe, current_line = get_variable_value('vthe/c', current_line, content)
+        vthi, current_line = get_variable_value('vthi/c', current_line,
+                                                content)
+        vthe, current_line = get_variable_value('vthe/c', current_line,
+                                                content)
     else:
         vthe = 1.0
         vthi = 1.0
 
-    pic_init_info = collections.namedtuple('pic_init_info',
-            ['mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz',
-                'dx_di', 'dy_di', 'dz_di', 'x_di', 'y_di', 'z_di', 'nppc', 'b0',
-                'dtwpe', 'dtwce', 'dtwci', 'energy_interval', 'vthi', 'vthe'])
-    pic_info = pic_init_info(mime=mime, lx_di=lx, ly_di=ly, lz_di=lz,
-            nx=nx, ny=ny, nz=nz, dx_di=dxdi, dy_di=dydi, dz_di=dzdi, 
-            x_di=x, y_di=y, z_di=z, nppc=nppc, b0=b0, dtwpe=dtwpe, dtwce=dtwce,
-            dtwci=dtwci, energy_interval=energy_interval, vthi=vthi, vthe=vthe)
+    pic_init_info = collections.namedtuple('pic_init_info', [
+        'mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz', 'dx_di', 'dy_di',
+        'dz_di', 'x_di', 'y_di', 'z_di', 'nppc', 'b0', 'dtwpe', 'dtwce',
+        'dtwci', 'energy_interval', 'vthi', 'vthe'
+    ])
+    pic_info = pic_init_info(
+        mime=mime,
+        lx_di=lx,
+        ly_di=ly,
+        lz_di=lz,
+        nx=nx,
+        ny=ny,
+        nz=nz,
+        dx_di=dxdi,
+        dy_di=dydi,
+        dz_di=dzdi,
+        x_di=x,
+        y_di=y,
+        z_di=z,
+        nppc=nppc,
+        b0=b0,
+        dtwpe=dtwpe,
+        dtwce=dtwce,
+        dtwci=dtwci,
+        energy_interval=energy_interval,
+        vthi=vthi,
+        vthe=vthe)
     return pic_info
 
 
@@ -425,10 +472,10 @@ def get_pic_topology(base_directory):
         line_splits = single_line.split("=")
         word_splits = line_splits[1].split(";")
         topology_z = int(word_splits[0])
-    pic_topology = collections.namedtuple('pic_topology',
-            ['topology_x', 'topology_y', 'topology_z'])
-    pic_topo = pic_topology(topology_x = topology_x,
-            topology_y = topology_y, topology_z = topology_z)
+    pic_topology = collections.namedtuple(
+        'pic_topology', ['topology_x', 'topology_y', 'topology_z'])
+    pic_topo = pic_topology(
+        topology_x=topology_x, topology_y=topology_y, topology_z=topology_z)
     return pic_topo
 
 
@@ -462,7 +509,7 @@ def list_pic_info_dir(filepath):
     Returns:
         pic_infos: the list of filenames.
     """
-    pic_infos = [f for f in listdir(filepath) if isfile(join(filepath,f))]
+    pic_infos = [f for f in listdir(filepath) if isfile(join(filepath, f))]
     return pic_infos
 
 

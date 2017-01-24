@@ -12,8 +12,8 @@ import numpy as np
 matplotlib.use("Agg")
 
 FFMpegWriter = manimation.writers['ffmpeg']
-metadata = dict(title='Movie Test', artist='Matplotlib',
-        comment='Movie support!')
+metadata = dict(
+    title='Movie Test', artist='Matplotlib', comment='Movie support!')
 writer = FFMpegWriter(fps=15, metadata=metadata)
 
 fig = plt.figure()
@@ -22,7 +22,7 @@ l, = plt.plot([], [], 'k-o')
 plt.xlim(-5, 5)
 plt.ylim(-5, 5)
 
-x0,y0 = 0, 0
+x0, y0 = 0, 0
 
 with writer.saving(fig, "writer_test.mp4", 100):
     for i in range(100):

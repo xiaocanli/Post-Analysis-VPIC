@@ -37,12 +37,13 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
 
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
@@ -59,9 +60,9 @@ def plot_jdotes_fraction():
     labels = ['0.2', '0.07', '0.02', '0.007']
     fname = 'ene_fraction_beta.eps'
 
-#     ene_fraction = [[1.51, 0.68, 0.41, 0.13], [-0.58, -0.06, 0.05, 0.02]]
-#     labels = ['0.0', '0.2', '0.5', '1.0']
-#     fname = 'ene_fraction_bg.eps'
+    #     ene_fraction = [[1.51, 0.68, 0.41, 0.13], [-0.58, -0.06, 0.05, 0.02]]
+    #     labels = ['0.0', '0.2', '0.5', '1.0']
+    #     fname = 'ene_fraction_bg.eps'
 
     ene_fraction = np.asarray(ene_fraction)
     ene_fraction = ene_fraction.T
@@ -70,20 +71,52 @@ def plot_jdotes_fraction():
     xs, ys = 0.1, 0.18
     w1, h1 = 0.85, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(x, ene_fraction[:, 0], color='k', marker='o', markersize=12,
-            linestyle='', markeredgecolor = 'k', fillstyle='none',
-            linewidth=2, markerfacecolor='None', markeredgewidth=2,
-            label=r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$')
-    ax.plot(x, ene_fraction[:, 1], color='k', marker='D', markersize=12,
-            linestyle='', markeredgecolor = 'k', fillstyle='none',
-            linewidth=2, markerfacecolor='None', markeredgewidth=2,
-            label=r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$')
-    ax.plot(x, ene_fraction[:, 0] + ene_fraction[:, 1], color='b', marker='d',
-            markersize=12, linestyle='', markeredgecolor = 'b', fillstyle='none',
-            linewidth=2, markerfacecolor='None', markeredgewidth=2,
-            label='Sum')
-    leg = ax.legend(loc=4, prop={'size':16}, ncol=2,
-            shadow=False, fancybox=True, frameon=True)
+    ax.plot(
+        x,
+        ene_fraction[:, 0],
+        color='k',
+        marker='o',
+        markersize=12,
+        linestyle='',
+        markeredgecolor='k',
+        fillstyle='none',
+        linewidth=2,
+        markerfacecolor='None',
+        markeredgewidth=2,
+        label=r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$')
+    ax.plot(
+        x,
+        ene_fraction[:, 1],
+        color='k',
+        marker='D',
+        markersize=12,
+        linestyle='',
+        markeredgecolor='k',
+        fillstyle='none',
+        linewidth=2,
+        markerfacecolor='None',
+        markeredgewidth=2,
+        label=r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$')
+    ax.plot(
+        x,
+        ene_fraction[:, 0] + ene_fraction[:, 1],
+        color='b',
+        marker='d',
+        markersize=12,
+        linestyle='',
+        markeredgecolor='b',
+        fillstyle='none',
+        linewidth=2,
+        markerfacecolor='None',
+        markeredgewidth=2,
+        label='Sum')
+    leg = ax.legend(
+        loc=4,
+        prop={'size': 16},
+        ncol=2,
+        shadow=False,
+        fancybox=True,
+        frameon=True)
     ax.plot()
     ax.set_xticks(x)
     ax.set_xticklabels(labels)

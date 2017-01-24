@@ -21,7 +21,6 @@
 # ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
 """JSON serialization routines for python data types.
 
 Retains type information for basic python datatypes that do not have a
@@ -40,23 +39,34 @@ import simplejson as json
 
 MyTuple = namedtuple("MyTuple", "foo baz")
 
-
-TEST_DATA = [1, 2, 3,
-             23.32987, 478.292222, -0.0002384,
-             "testing",
-             False,
-             [4, 5, 6, [7, 8], 9],
-             ("mixed", 5, "tuple"),
-             {"str": 1, "str2": 2},
-             {1: "str", 2: "str4", (5, 6): "str8"},
-             {4, 8, 2, "string", (4, 8, 9)},
-             None,
-             MyTuple(foo=1, baz=2),
-             OrderedDict(
-                 [('my', 23), ('order', 55), ('stays', 44), ('fixed', 602)]),
-             np.array([[1, 2, 3], [4, 5, 6]]),
-             np.array([[1.2398, 2.4848, 3.484884], [4.10, 5.3, 6.999992]]),
-            ] 
+TEST_DATA = [
+    1,
+    2,
+    3,
+    23.32987,
+    478.292222,
+    -0.0002384,
+    "testing",
+    False,
+    [4, 5, 6, [7, 8], 9],
+    ("mixed", 5, "tuple"),
+    {
+        "str": 1,
+        "str2": 2
+    },
+    {
+        1: "str",
+        2: "str4",
+        (5, 6): "str8"
+    },
+    {4, 8, 2, "string", (4, 8, 9)},
+    None,
+    MyTuple(
+        foo=1, baz=2),
+    OrderedDict([('my', 23), ('order', 55), ('stays', 44), ('fixed', 602)]),
+    np.array([[1, 2, 3], [4, 5, 6]]),
+    np.array([[1.2398, 2.4848, 3.484884], [4.10, 5.3, 6.999992]]),
+]
 
 
 def nested_equal(v1, v2):
@@ -73,7 +83,7 @@ def nested_equal(v1, v2):
     if isinstance(v1, Iterable) and isinstance(v2, Iterable):
         return all(nested_equal(sub1, sub2) for sub1, sub2 in zip(v1, v2))
     return v1 == v2
-    
+
 
 def isnamedtuple(obj):
     """Heuristic check if an object is a namedtuple."""
@@ -89,25 +99,36 @@ def serialize(data):
     if isinstance(data, list):
         return [serialize(val) for val in data]
     if isinstance(data, OrderedDict):
-        return {"py/collections.OrderedDict":
-                [[serialize(k), serialize(v)] for k, v in data.iteritems()]}
+        return {
+            "py/collections.OrderedDict":
+            [[serialize(k), serialize(v)] for k, v in data.iteritems()]
+        }
     if isnamedtuple(data):
-        return {"py/collections.namedtuple": {
-            "type":   type(data).__name__,
-            "fields": list(data._fields),
-            "values": [serialize(getattr(data, f)) for f in data._fields]}}
+        return {
+            "py/collections.namedtuple": {
+                "type": type(data).__name__,
+                "fields": list(data._fields),
+                "values": [serialize(getattr(data, f)) for f in data._fields]
+            }
+        }
     if isinstance(data, dict):
         if all(isinstance(k, basestring) for k in data):
             return {k: serialize(v) for k, v in data.iteritems()}
-        return {"py/dict": [[serialize(k), serialize(v)] for k, v in data.iteritems()]}
+        return {
+            "py/dict": [[serialize(k), serialize(v)]
+                        for k, v in data.iteritems()]
+        }
     if isinstance(data, tuple):
         return {"py/tuple": [serialize(val) for val in data]}
     if isinstance(data, set):
         return {"py/set": [serialize(val) for val in data]}
     if isinstance(data, np.ndarray):
-        return {"py/numpy.ndarray": {
-            "values": data.tolist(),
-            "dtype":  str(data.dtype)}}
+        return {
+            "py/numpy.ndarray": {
+                "values": data.tolist(),
+                "dtype": str(data.dtype)
+            }
+        }
     raise TypeError("Type %s not data-serializable" % type(data))
 
 
@@ -127,8 +148,8 @@ def restore(dct):
     if "py/collections.OrderedDict" in dct:
         return OrderedDict(dct["py/collections.OrderedDict"])
     return dct
-    
-             
+
+
 def data_to_json(data):
     return json.dumps(serialize(data))
 
@@ -148,7 +169,7 @@ def test_equivalence():
         print data_to_json(TEST_DATA)
         print "\nhas unserialized to\n"
         print json_to_data(data_to_json(TEST_DATA))
-                
+
 
 if __name__ == "__main__":
     test_equivalence()

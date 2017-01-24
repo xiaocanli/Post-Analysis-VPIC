@@ -23,18 +23,20 @@ from contour_plots import plot_2d_contour, read_2d_fields
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
+
 
 def get_file_names(root_dir='../../'):
     """Get the file names in the traj folder.
     """
     traj_path = root_dir + 'traj/'
-    fnames = [ f for f in listdir(traj_path) if isfile(join(traj_path,f)) ]
+    fnames = [f for f in listdir(traj_path) if isfile(join(traj_path, f))]
     fnames.sort()
     ntraj_e = 0
     for filename in fnames:
@@ -46,6 +48,7 @@ def get_file_names(root_dir='../../'):
     fnames_i = fnames[ntraj_e:]
     return (fnames_e, fnames_i)
 
+
 def read_traj_data(filename):
     """Read the information of one particle trajectory.
 
@@ -53,28 +56,43 @@ def read_traj_data(filename):
         filename: the filename of the trajectory file.
     """
     nvar = 13  # variables at each point
-    ptl_traj_info = collections.namedtuple("ptl_traj_info",
-            ['t', 'x', 'y', 'z', 'ux', 'uy', 'uz',
-                'ex', 'ey', 'ez', 'bx', 'by', 'bz'])
+    ptl_traj_info = collections.namedtuple("ptl_traj_info", [
+        't', 'x', 'y', 'z', 'ux', 'uy', 'uz', 'ex', 'ey', 'ez', 'bx', 'by',
+        'bz'
+    ])
     print 'Reading trajectory data from ', filename
     fname = '../../traj/' + filename
     statinfo = os.stat(fname)
     nstep = statinfo.st_size / nvar
     nstep /= np.dtype(np.float32).itemsize
     traj_data = np.zeros((nvar, nstep), dtype=np.float32)
-    traj_data = np.memmap(fname, dtype='float32', mode='r', 
-            offset=0, shape=((nvar, nstep)), order='F')
-    ptl_traj = ptl_traj_info(t=traj_data[0,:],
-            x=traj_data[1,:], y=traj_data[2,:], z=traj_data[3,:],
-            ux=traj_data[4,:], uy=traj_data[5,:], uz=traj_data[6,:],
-            ex=traj_data[7,:], ey=traj_data[8,:], ez=traj_data[9,:],
-            bx=traj_data[10,:], by=traj_data[11,:], bz=traj_data[12,:])
+    traj_data = np.memmap(
+        fname,
+        dtype='float32',
+        mode='r',
+        offset=0,
+        shape=((nvar, nstep)),
+        order='F')
+    ptl_traj = ptl_traj_info(
+        t=traj_data[0, :],
+        x=traj_data[1, :],
+        y=traj_data[2, :],
+        z=traj_data[3, :],
+        ux=traj_data[4, :],
+        uy=traj_data[5, :],
+        uz=traj_data[6, :],
+        ex=traj_data[7, :],
+        ey=traj_data[8, :],
+        ez=traj_data[9, :],
+        bx=traj_data[10, :],
+        by=traj_data[11, :],
+        bz=traj_data[12, :])
     return ptl_traj
 
 
 class ParticleTrajectory(object):
-    def __init__(self, nptl, iptl, x, y, fdata, Ay, init_ft, var_field, var_name,
-            species, traj_names):
+    def __init__(self, nptl, iptl, x, y, fdata, Ay, init_ft, var_field,
+                 var_name, species, traj_names):
         """
         Args:
             nptl: number of particles.
@@ -134,7 +152,7 @@ class ParticleTrajectory(object):
         # self.fields_plot()
         # self.jdote_plot()
         self.save_figures()
-        
+
     def get_particle_current_time(self):
         self.t0 = self.t[self.ct_ptl]
         self.x0 = self.px[self.ct_ptl]
@@ -170,14 +188,15 @@ class ParticleTrajectory(object):
         self.pz = self.ptl.z / self.smime
         self.adjust_px()
         self.adjust_py()
-        self.gama = np.sqrt(self.ptl.ux**2 + self.ptl.uy**2 + self.ptl.uz**2 + 1.0)
+        self.gama = np.sqrt(self.ptl.ux**2 + self.ptl.uy**2 + self.ptl.uz**2 +
+                            1.0)
         self.mint = 0
         self.maxt = np.max(self.t)
         self.jdote_x = self.ptl.ux * self.ptl.ex * self.charge / self.gama
         self.jdote_y = self.ptl.uy * self.ptl.ey * self.charge / self.gama
         self.jdote_z = self.ptl.uz * self.ptl.ez * self.charge / self.gama
         self.dt = np.zeros(self.nt)
-        self.dt[0:self.nt-1] = np.diff(self.t)
+        self.dt[0:self.nt - 1] = np.diff(self.t)
         self.jdote_x_cum = np.cumsum(self.jdote_x) * self.dt
         self.jdote_y_cum = np.cumsum(self.jdote_y) * self.dt
         self.jdote_z_cum = np.cumsum(self.jdote_z) * self.dt
@@ -195,12 +214,12 @@ class ParticleTrajectory(object):
         crossings = []
         offsets = []
         offset = 0
-        for i in range(self.nt-1):
-            if (self.py[i]-self.py[i+1] > 0.4*self.ly_di):
+        for i in range(self.nt - 1):
+            if (self.py[i] - self.py[i + 1] > 0.4 * self.ly_di):
                 crossings.append(i)
                 offset += self.ly_di
                 offsets.append(offset)
-            if (self.py[i]-self.py[i+1] < -0.4*self.ly_di):
+            if (self.py[i] - self.py[i + 1] < -0.4 * self.ly_di):
                 crossings.append(i)
                 offset -= self.ly_di
                 offsets.append(offset)
@@ -208,9 +227,9 @@ class ParticleTrajectory(object):
         if nc > 0:
             crossings = np.asarray(crossings)
             offsets = np.asarray(offsets)
-            for i in range(nc-1):
-                self.py[crossings[i]+1 : crossings[i+1]+1] += offsets[i]
-            self.py[crossings[nc-1]+1:] += offsets[nc-1]
+            for i in range(nc - 1):
+                self.py[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+            self.py[crossings[nc - 1] + 1:] += offsets[nc - 1]
 
     def adjust_px(self):
         """Adjust px for periodic boundary conditions.
@@ -220,12 +239,12 @@ class ParticleTrajectory(object):
         offset = 0
         self.pxb = np.zeros(self.nt)
         self.pxb = np.copy(self.px)
-        for i in range(self.nt-1):
-            if (self.px[i]-self.px[i+1] > 0.4*self.lx_di):
+        for i in range(self.nt - 1):
+            if (self.px[i] - self.px[i + 1] > 0.4 * self.lx_di):
                 crossings.append(i)
                 offset += self.lx_di
                 offsets.append(offset)
-            if (self.px[i]-self.px[i+1] < -0.4*self.lx_di):
+            if (self.px[i] - self.px[i + 1] < -0.4 * self.lx_di):
                 crossings.append(i)
                 offset -= self.lx_di
                 offsets.append(offset)
@@ -233,12 +252,12 @@ class ParticleTrajectory(object):
         if nc > 0:
             crossings = np.asarray(crossings)
             offsets = np.asarray(offsets)
-            for i in range(nc-1):
-                self.pxb[crossings[i]+1 : crossings[i+1]+1] += offsets[i]
-            self.pxb[crossings[nc-1]+1:] += offsets[nc-1]
+            for i in range(nc - 1):
+                self.pxb[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+            self.pxb[crossings[nc - 1] + 1:] += offsets[nc - 1]
 
     def energy_plot(self):
-        self.fig_ene = plt.figure(figsize=(self.fig_width*2, 15))
+        self.fig_ene = plt.figure(figsize=(self.fig_width * 2, 15))
 
         xs, ys = 0.05, 0.78
         w1, h1 = 0.4, 0.2
@@ -248,21 +267,26 @@ class ParticleTrajectory(object):
         self.xz_axis = self.fig_ene.add_axes([xs, ys, w1, h1])
         vmax = min(abs(np.min(self.fdata)), abs(np.max(self.fdata)))
         vmax *= 0.2
-        self.im1 = self.xz_axis.imshow(self.fdata, cmap=plt.cm.seismic,
-                extent=[self.xmin, self.xmax, self.ymin, self.ymax],
-                aspect='auto', origin='lower',
-                vmin = -vmax, vmax = vmax,
-                interpolation='bicubic')
+        self.im1 = self.xz_axis.imshow(
+            self.fdata,
+            cmap=plt.cm.seismic,
+            extent=[self.xmin, self.xmax, self.ymin, self.ymax],
+            aspect='auto',
+            origin='lower',
+            vmin=-vmax,
+            vmax=vmax,
+            interpolation='bicubic')
         divider = make_axes_locatable(self.xz_axis)
         self.cax = divider.append_axes("right", size="2%", pad=0.05)
         self.cbar = self.fig_ene.colorbar(self.im1, cax=self.cax)
         self.cbar.ax.tick_params(labelsize=16)
         self.cbar.ax.set_ylabel(self.var_name, fontdict=font, fontsize=24)
-        self.xz_axis.contour(self.x, self.y, self.Ay, colors='black', linewidths=0.5)
+        self.xz_axis.contour(
+            self.x, self.y, self.Ay, colors='black', linewidths=0.5)
         self.xz_axis.tick_params(labelsize=16)
         self.xz_axis.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
         self.xz_axis.tick_params(axis='x', labelbottom='off')
-        self.xz_axis.autoscale(1,'both',1)
+        self.xz_axis.autoscale(1, 'both', 1)
 
         # xz plot
         # self.pxz, = self.xz_axis.plot(self.px, self.pz, linewidth=2,
@@ -275,8 +299,8 @@ class ParticleTrajectory(object):
         w2 = w1 * 0.98 - 0.05 / width
         self.xe_axis = self.fig_ene.add_axes([xs, ys, w2, h2])
         self.xe_axis.tick_params(labelsize=16)
-        self.pxe, = self.xe_axis.plot(self.px, self.gama - 1.0,
-                linewidth=2, color='r')
+        self.pxe, = self.xe_axis.plot(
+            self.px, self.gama - 1.0, linewidth=2, color='r')
         self.xe_axis.set_xlim([self.xmin, self.xmax])
         self.xe_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.xe_axis.tick_params(axis='x', labelbottom='off')
@@ -286,8 +310,8 @@ class ParticleTrajectory(object):
         self.xy_axis = self.fig_ene.add_axes([xs, ys, w2, h2])
         self.xy_axis.tick_params(labelsize=16)
         self.pxy, = self.xy_axis.plot(self.px, self.py, linewidth=2, color='k')
-        self.pxy_help, = self.xy_axis.plot([self.xmin, self.xmax], [0, 0],
-                color='r', linestyle='--')
+        self.pxy_help, = self.xy_axis.plot(
+            [self.xmin, self.xmax], [0, 0], color='r', linestyle='--')
         self.xy_axis.set_xlim([self.xmin, self.xmax])
         self.xy_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.xy_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
@@ -297,7 +321,8 @@ class ParticleTrajectory(object):
         gap = 0.06
         ys -= h2 + gap
         self.te_axis = self.fig_ene.add_axes([xs, ys, w2, h2])
-        self.pte, = self.te_axis.plot(self.t, self.gama - 1.0, linewidth=2, color='k')
+        self.pte, = self.te_axis.plot(
+            self.t, self.gama - 1.0, linewidth=2, color='k')
         self.te_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.te_axis.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
         self.te_axis.tick_params(labelsize=16)
@@ -306,8 +331,8 @@ class ParticleTrajectory(object):
         ys -= h2 + gap
         self.ze_axis = self.fig_ene.add_axes([xs, ys, w2, h2])
         self.ze_axis.tick_params(labelsize=16)
-        self.pze, = self.ze_axis.plot(self.pz, self.gama - 1.0,
-                linewidth=2, color='b')
+        self.pze, = self.ze_axis.plot(
+            self.pz, self.gama - 1.0, linewidth=2, color='b')
         self.ze_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.ze_axis.set_xlabel(r'$z/d_i$', fontdict=font, fontsize=20)
 
@@ -318,8 +343,8 @@ class ParticleTrajectory(object):
         h3 = ye - ys
         self.ye_axis = self.fig_ene.add_axes([xs, ys, w3, h3])
         self.ye_axis.tick_params(labelsize=16)
-        self.pye, = self.ye_axis.plot(self.py, self.gama - 1.0,
-                linewidth=2, color='g')
+        self.pye, = self.ye_axis.plot(
+            self.py, self.gama - 1.0, linewidth=2, color='g')
         self.ye_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.ye_axis.set_xlabel(r'$y/d_i$', fontdict=font, fontsize=20)
 
@@ -329,8 +354,8 @@ class ParticleTrajectory(object):
         w2 = w1 * 0.98 - 0.05 / width
         self.xeb_axis = self.fig_ene.add_axes([xs, ys, w3, h2])
         self.xeb_axis.tick_params(labelsize=16)
-        self.pxe_b, = self.xeb_axis.plot(self.pxb, self.gama - 1.0,
-                linewidth=2, color='r')
+        self.pxe_b, = self.xeb_axis.plot(
+            self.pxb, self.gama - 1.0, linewidth=2, color='r')
         self.xeb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
         self.xeb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
 
@@ -338,64 +363,130 @@ class ParticleTrajectory(object):
         ys -= h2 + gap
         self.xyb_axis = self.fig_ene.add_axes([xs, ys, w3, h2])
         self.xyb_axis.tick_params(labelsize=16)
-        self.pxy_b, = self.xyb_axis.plot(self.pxb, self.py, linewidth=2, color='k')
+        self.pxy_b, = self.xyb_axis.plot(
+            self.pxb, self.py, linewidth=2, color='k')
         self.xmin_b, self.xmax_b = self.xeb_axis.get_xlim()
         self.xyb_axis.set_xlim([self.xmin_b, self.xmax_b])
-        self.pxy_help_b, = self.xyb_axis.plot([self.xmin_b, self.xmax_b], [0, 0],
-                color='r', linestyle='--')
+        self.pxy_help_b, = self.xyb_axis.plot(
+            [self.xmin_b, self.xmax_b], [0, 0], color='r', linestyle='--')
         self.xyb_axis.set_ylabel(r'$\gamma - 1$', fontdict=font, fontsize=20)
         self.xyb_axis.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
         self.xyb_axis.set_ylabel(r'$y/d_i$', fontdict=font, fontsize=20)
 
     def energy_plot_indicator(self):
-        self.pxz_dot, = self.xz_axis.plot(self.x0, self.z0, marker='*',
-                markersize=15, linestyle='None', color='g')
-        self.pxy_dot, = self.xy_axis.plot(self.x0, self.y0, marker='*',
-                markersize=15, linestyle='None', color='g')
-        self.pxe_dot, = self.xe_axis.plot(self.x0, self.gama0-1, marker='*',
-                markersize=15, linestyle='None', color='g')
-        self.pte_dot, = self.te_axis.plot(self.t0, self.gama0-1, marker='*',
-                markersize=15, linestyle='None', color='g')
-        self.pze_dot, = self.ze_axis.plot(self.z0, self.gama0-1, marker='*',
-                markersize=15, linestyle='None', color='g')
-        self.pye_dot, = self.ye_axis.plot(self.y0, self.gama0-1, marker='*',
-                markersize=15, linestyle='None', color='r')
-        self.pxby_dot, = self.xyb_axis.plot(self.xb0, self.y0, marker='*',
-                markersize=15, linestyle='None', color='g')
-        self.pxbe_dot, = self.xeb_axis.plot(self.xb0, self.gama0-1, marker='*',
-                markersize=15, linestyle='None', color='g')
+        self.pxz_dot, = self.xz_axis.plot(
+            self.x0,
+            self.z0,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
+        self.pxy_dot, = self.xy_axis.plot(
+            self.x0,
+            self.y0,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
+        self.pxe_dot, = self.xe_axis.plot(
+            self.x0,
+            self.gama0 - 1,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
+        self.pte_dot, = self.te_axis.plot(
+            self.t0,
+            self.gama0 - 1,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
+        self.pze_dot, = self.ze_axis.plot(
+            self.z0,
+            self.gama0 - 1,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
+        self.pye_dot, = self.ye_axis.plot(
+            self.y0,
+            self.gama0 - 1,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='r')
+        self.pxby_dot, = self.xyb_axis.plot(
+            self.xb0,
+            self.y0,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
+        self.pxbe_dot, = self.xeb_axis.plot(
+            self.xb0,
+            self.gama0 - 1,
+            marker='*',
+            markersize=15,
+            linestyle='None',
+            color='g')
 
     def fields_plot(self):
         height = 15.0
-        self.fig_emf = plt.figure(figsize=[self.fig_width*2, height])
+        self.fig_emf = plt.figure(figsize=[self.fig_width * 2, height])
         w1, h1 = 0.88, 0.135
-        xs, ys = 0.10, 0.98-h1
+        xs, ys = 0.10, 0.98 - h1
         gap = 0.025
 
         self.t_gama_axis = self.fig_emf.add_axes([xs, ys, w1, h1])
-        self.pt_gama, = self.t_gama_axis.plot(self.t, self.gama-1.0, color='k')
+        self.pt_gama, = self.t_gama_axis.plot(
+            self.t, self.gama - 1.0, color='k')
         self.t_gama_axis.set_ylabel(r'$E/m_ic^2$', fontdict=font)
         self.t_gama_axis.tick_params(labelsize=20)
         self.t_gama_axis.tick_params(axis='x', labelbottom='off')
         self.t_gama_axis.plot([self.mint, self.maxt], [0, 0], '--', color='k')
-        self.t_gama_axis.text(0.4, -0.07, r'$x$', color='red', fontsize=32, 
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='center', verticalalignment='center',
-                transform = self.t_gama_axis.transAxes)
-        self.t_gama_axis.text(0.5, -0.07, r'$y$', color='green', fontsize=32, 
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='center', verticalalignment='center',
-                transform = self.t_gama_axis.transAxes)
-        self.t_gama_axis.text(0.6, -0.07, r'$z$', color='blue', fontsize=32, 
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='center', verticalalignment='center',
-                transform = self.t_gama_axis.transAxes)
+        self.t_gama_axis.text(
+            0.4,
+            -0.07,
+            r'$x$',
+            color='red',
+            fontsize=32,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.t_gama_axis.transAxes)
+        self.t_gama_axis.text(
+            0.5,
+            -0.07,
+            r'$y$',
+            color='green',
+            fontsize=32,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.t_gama_axis.transAxes)
+        self.t_gama_axis.text(
+            0.6,
+            -0.07,
+            r'$z$',
+            color='blue',
+            fontsize=32,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.t_gama_axis.transAxes)
 
         ys -= h1 + gap
         self.uxyz_axis = self.fig_emf.add_axes([xs, ys, w1, h1])
-        self.pux, = self.uxyz_axis.plot(self.t, self.ptl.ux, color='r', label=r'u_x')
-        self.puy, = self.uxyz_axis.plot(self.t, self.ptl.uy, color='g', label=r'u_y')
-        self.puz, = self.uxyz_axis.plot(self.t, self.ptl.uz, color='b', label=r'u_z')
+        self.pux, = self.uxyz_axis.plot(
+            self.t, self.ptl.ux, color='r', label=r'u_x')
+        self.puy, = self.uxyz_axis.plot(
+            self.t, self.ptl.uy, color='g', label=r'u_y')
+        self.puz, = self.uxyz_axis.plot(
+            self.t, self.ptl.uz, color='b', label=r'u_z')
         self.uxyz_axis.plot([self.mint, self.maxt], [0, 0], '--', color='k')
         self.uxyz_axis.set_ylabel(r'$u_x, u_y, u_z$', fontdict=font)
         self.uxyz_axis.tick_params(labelsize=20)
@@ -427,9 +518,12 @@ class ParticleTrajectory(object):
 
         ys -= h1 + gap
         self.bxyz_axis = self.fig_emf.add_axes([xs, ys, w1, h1])
-        self.pbx, = self.bxyz_axis.plot(self.t, self.ptl.bx, color='r', label=r'u_x')
-        self.pby, = self.bxyz_axis.plot(self.t, self.ptl.by, color='g', label=r'u_y')
-        self.pbz, = self.bxyz_axis.plot(self.t, self.ptl.bz, color='b', label=r'u_z')
+        self.pbx, = self.bxyz_axis.plot(
+            self.t, self.ptl.bx, color='r', label=r'u_x')
+        self.pby, = self.bxyz_axis.plot(
+            self.t, self.ptl.by, color='g', label=r'u_y')
+        self.pbz, = self.bxyz_axis.plot(
+            self.t, self.ptl.bz, color='b', label=r'u_z')
         self.bxyz_axis.plot([self.mint, self.maxt], [0, 0], '--', color='k')
         self.bxyz_axis.set_xlabel(r'$t\Omega_{ci}$', fontdict=font)
         self.bxyz_axis.set_ylabel(r'$B_x, B_y, B_z$', fontdict=font)
@@ -443,47 +537,77 @@ class ParticleTrajectory(object):
 
     def jdote_plot(self):
         height = 6.0
-        self.fig_jdote = plt.figure(figsize=[self.fig_width*2, height])
+        self.fig_jdote = plt.figure(figsize=[self.fig_width * 2, height])
         w1, h1 = 0.88, 0.4
-        xs, ys = 0.10, 0.97-h1
+        xs, ys = 0.10, 0.97 - h1
         gap = 0.05
 
         self.jdote_xyz_axis = self.fig_jdote.add_axes([xs, ys, w1, h1])
-        self.pjdote_x, = self.jdote_xyz_axis.plot(self.t, self.jdote_x, color='r')
-        self.pjdote_y, = self.jdote_xyz_axis.plot(self.t, self.jdote_y, color='g')
-        self.pjdote_z, = self.jdote_xyz_axis.plot(self.t, self.jdote_z, color='b')
+        self.pjdote_x, = self.jdote_xyz_axis.plot(
+            self.t, self.jdote_x, color='r')
+        self.pjdote_y, = self.jdote_xyz_axis.plot(
+            self.t, self.jdote_y, color='g')
+        self.pjdote_z, = self.jdote_xyz_axis.plot(
+            self.t, self.jdote_z, color='b')
         self.jdote_xyz_axis.tick_params(labelsize=20)
         self.jdote_xyz_axis.tick_params(axis='x', labelbottom='off')
-        self.jdote_xyz_axis.plot([self.mint, self.maxt], [0, 0], '--', color='k')
+        self.jdote_xyz_axis.plot(
+            [self.mint, self.maxt], [0, 0], '--', color='k')
         if self.species == 'e':
             self.charge_name = '-e'
         else:
             self.charge_name = 'e'
         text1 = r'$' + self.charge_name + 'u_x' + 'E_x' + '$'
-        self.jdote_xyz_axis.text(0.1, 0.1, text1, color='red', fontsize=32, 
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='center', verticalalignment='center',
-                transform = self.jdote_xyz_axis.transAxes)
+        self.jdote_xyz_axis.text(
+            0.1,
+            0.1,
+            text1,
+            color='red',
+            fontsize=32,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.jdote_xyz_axis.transAxes)
         text2 = r'$' + self.charge_name + 'u_y' + 'E_y' + '$'
-        self.jdote_xyz_axis.text(0.2, 0.1, text2, color='green', fontsize=32, 
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='center', verticalalignment='center',
-                transform = self.jdote_xyz_axis.transAxes)
+        self.jdote_xyz_axis.text(
+            0.2,
+            0.1,
+            text2,
+            color='green',
+            fontsize=32,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.jdote_xyz_axis.transAxes)
         text3 = r'$' + self.charge_name + 'u_z' + 'E_z' + '$'
-        self.jdote_xyz_axis.text(0.3, 0.1, text3, color='blue', fontsize=32, 
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='center', verticalalignment='center',
-                transform = self.jdote_xyz_axis.transAxes)
+        self.jdote_xyz_axis.text(
+            0.3,
+            0.1,
+            text3,
+            color='blue',
+            fontsize=32,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='center',
+            verticalalignment='center',
+            transform=self.jdote_xyz_axis.transAxes)
 
         ys -= h1 + gap
         self.jdote_cum_axis = self.fig_jdote.add_axes([xs, ys, w1, h1])
-        self.pjdote_x_cum, = self.jdote_cum_axis.plot(self.t, self.jdote_x_cum, color='r')
-        self.pjdote_y_cum, = self.jdote_cum_axis.plot(self.t, self.jdote_y_cum, color='g')
-        self.pjdote_z_cum, = self.jdote_cum_axis.plot(self.t, self.jdote_z_cum, color='b')
-        self.pjdote_t_cum, = self.jdote_cum_axis.plot(self.t, self.jdote_tot_cum, color='k')
+        self.pjdote_x_cum, = self.jdote_cum_axis.plot(
+            self.t, self.jdote_x_cum, color='r')
+        self.pjdote_y_cum, = self.jdote_cum_axis.plot(
+            self.t, self.jdote_y_cum, color='g')
+        self.pjdote_z_cum, = self.jdote_cum_axis.plot(
+            self.t, self.jdote_z_cum, color='b')
+        self.pjdote_t_cum, = self.jdote_cum_axis.plot(
+            self.t, self.jdote_tot_cum, color='k')
         self.jdote_cum_axis.tick_params(labelsize=20)
         self.jdote_cum_axis.set_xlabel(r'$t\Omega_{ci}$', fontdict=font)
-        self.jdote_cum_axis.plot([self.mint, self.maxt], [0, 0], '--', color='k')
+        self.jdote_cum_axis.plot(
+            [self.mint, self.maxt], [0, 0], '--', color='k')
 
     def save_figures(self):
         fname = self.fig_dir + 'traj_' + self.species + '_' + \
@@ -649,10 +773,10 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
 
     xl, xr = 0, 200
     zb, zt = -20, 20
-    kwargs = {"current_time":50, "xl":xl, "xr":xr, "zb":zb, "zt":zt}
+    kwargs = {"current_time": 50, "xl": xl, "xr": xr, "zb": zb, "zt": zt}
     fname = "../../data/ey.gda"
-    x, z, data_2d = read_2d_fields(pic_info, fname, **kwargs) 
-    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    x, z, data_2d = read_2d_fields(pic_info, fname, **kwargs)
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs)
     nx, = x.shape
     nz, = z.shape
 
@@ -665,15 +789,25 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
     height = 8.0
     fig = plt.figure(figsize=[width, height])
     w1, h1 = 0.82, 0.27
-    xs, ys = 0.10, 0.98-h1
+    xs, ys = 0.10, 0.98 - h1
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    kwargs_plot = {"xstep":2, "zstep":2, "is_log":False, "vmin":-1.0, "vmax":1.0}
+    kwargs_plot = {
+        "xstep": 2,
+        "zstep": 2,
+        "is_log": False,
+        "vmin": -1.0,
+        "vmax": 1.0
+    }
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     im1, cbar1 = plot_2d_contour(x, z, data_2d, ax1, fig, **kwargs_plot)
     im1.set_cmap(plt.cm.seismic)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_xlim([xl, xr])
@@ -691,15 +825,15 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
 
     gap = 0.04
     ys -= h1 + gap
-    ax2 = fig.add_axes([xs, ys, w1*0.98-0.05/width, h1])
-    p2 = ax2.plot(ptl_x, gama-1.0, color='k')
+    ax2 = fig.add_axes([xs, ys, w1 * 0.98 - 0.05 / width, h1])
+    p2 = ax2.plot(ptl_x, gama - 1.0, color='k')
     ax2.set_ylabel(r'$E/m_ic^2$', fontdict=font)
     ax2.tick_params(labelsize=20)
     ax2.tick_params(axis='x', labelbottom='off')
     xmin, xmax = ax2.get_xlim()
 
     ys -= h1 + gap
-    ax3 = fig.add_axes([xs, ys, w1*0.98-0.05/width, h1])
+    ax3 = fig.add_axes([xs, ys, w1 * 0.98 - 0.05 / width, h1])
     p3 = ax3.plot(ptl_x, ptl_y, color='k')
     ax3.set_xlabel(r'$x/d_i$', fontdict=font)
     ax3.set_ylabel(r'$y/d_i$', fontdict=font)
@@ -719,7 +853,7 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
     height = 15.0
     fig = plt.figure(figsize=[width, height])
     w1, h1 = 0.88, 0.135
-    xs, ys = 0.10, 0.98-h1
+    xs, ys = 0.10, 0.98 - h1
     gap = 0.025
 
     dt = t[1] - t[0]
@@ -727,23 +861,44 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
     ct2 = int(maxt / dt)
 
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    p1 = ax1.plot(t[ct1:ct2], gama[ct1:ct2]-1.0, color='k')
+    p1 = ax1.plot(t[ct1:ct2], gama[ct1:ct2] - 1.0, color='k')
     ax1.set_ylabel(r'$E/m_ic^2$', fontdict=font)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.plot([mint, maxt], [0, 0], '--', color='k')
-    ax1.text(0.4, -0.07, r'$x$', color='red', fontsize=32, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='center', verticalalignment='center',
-            transform = ax1.transAxes)
-    ax1.text(0.5, -0.07, r'$y$', color='green', fontsize=32, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='center', verticalalignment='center',
-            transform = ax1.transAxes)
-    ax1.text(0.6, -0.07, r'$z$', color='blue', fontsize=32, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='center', verticalalignment='center',
-            transform = ax1.transAxes)
+    ax1.text(
+        0.4,
+        -0.07,
+        r'$x$',
+        color='red',
+        fontsize=32,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes)
+    ax1.text(
+        0.5,
+        -0.07,
+        r'$y$',
+        color='green',
+        fontsize=32,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes)
+    ax1.text(
+        0.6,
+        -0.07,
+        r'$z$',
+        color='blue',
+        fontsize=32,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= h1 + gap
     ax2 = fig.add_axes([xs, ys, w1, h1])
@@ -806,7 +961,7 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
     height = 6.0
     fig = plt.figure(figsize=[width, height])
     w1, h1 = 0.88, 0.4
-    xs, ys = 0.10, 0.97-h1
+    xs, ys = 0.10, 0.97 - h1
     gap = 0.05
 
     dt = t[1] - t[0]
@@ -828,12 +983,12 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
     # jdote_z = (ptl_traj.ux * ptl_traj.by / gama - 
     #            ptl_traj.uy * ptl_traj.bx / gama + ptl_traj.ez) * charge
     dt = np.zeros(nt)
-    dt[0:nt-1] = np.diff(t)
+    dt[0:nt - 1] = np.diff(t)
     jdote_x_cum = np.cumsum(jdote_x) * dt
     jdote_y_cum = np.cumsum(jdote_y) * dt
     jdote_z_cum = np.cumsum(jdote_z) * dt
     jdote_tot_cum = jdote_x_cum + jdote_y_cum + jdote_z_cum
-    
+
     ax1 = fig.add_axes([xs, ys, w1, h1])
     p1 = ax1.plot(t[ct1:ct2], jdote_x[ct1:ct2], color='r')
     p2 = ax1.plot(t[ct1:ct2], jdote_y[ct1:ct2], color='g')
@@ -846,20 +1001,41 @@ def plot_traj(filename, pic_info, species, iptl, mint, maxt):
     else:
         charge = 'e'
     text1 = r'$' + charge + 'u_x' + 'E_x' + '$'
-    ax1.text(0.1, 0.1, text1, color='red', fontsize=32, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='center', verticalalignment='center',
-            transform = ax1.transAxes)
+    ax1.text(
+        0.1,
+        0.1,
+        text1,
+        color='red',
+        fontsize=32,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     text2 = r'$' + charge + 'u_y' + 'E_y' + '$'
-    ax1.text(0.2, 0.1, text2, color='green', fontsize=32, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='center', verticalalignment='center',
-            transform = ax1.transAxes)
+    ax1.text(
+        0.2,
+        0.1,
+        text2,
+        color='green',
+        fontsize=32,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     text3 = r'$' + charge + 'u_z' + 'E_z' + '$'
-    ax1.text(0.3, 0.1, text3, color='blue', fontsize=32, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='center', verticalalignment='center',
-            transform = ax1.transAxes)
+    ax1.text(
+        0.3,
+        0.1,
+        text3,
+        color='blue',
+        fontsize=32,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='center',
+        verticalalignment='center',
+        transform=ax1.transAxes)
 
     ys -= h1 + gap
     ax2 = fig.add_axes([xs, ys, w1, h1])
@@ -896,17 +1072,17 @@ def plot_ptl_traj(filename, pic_info, species, iptl, mint, maxt):
 
     xl, xr = 0, 50
     zb, zt = -20, 20
-    kwargs = {"current_time":65, "xl":xl, "xr":xr, "zb":zb, "zt":zt}
+    kwargs = {"current_time": 65, "xl": xl, "xr": xr, "zb": zb, "zt": zt}
     fname = "../../data/uex.gda"
-    x, z, uex = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, uex = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/ne.gda"
-    x, z, ne = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/uix.gda"
-    x, z, uix = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, uix = read_2d_fields(pic_info, fname, **kwargs)
     fname = "../../data/ni.gda"
-    x, z, ni = read_2d_fields(pic_info, fname, **kwargs) 
-    ux = (uex*ne + uix*ni*pic_info.mime) / (ne + ni*pic_info.mime)
-    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs) 
+    x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
+    ux = (uex * ne + uix * ni * pic_info.mime) / (ne + ni * pic_info.mime)
+    x, z, Ay = read_2d_fields(pic_info, "../../data/Ay.gda", **kwargs)
     nx, = x.shape
     nz, = z.shape
 
@@ -914,16 +1090,26 @@ def plot_ptl_traj(filename, pic_info, species, iptl, mint, maxt):
     height = 8.0
     fig = plt.figure(figsize=[width, height])
     w1, h1 = 0.74, 0.42
-    xs, ys = 0.13, 0.98-h1
+    xs, ys = 0.13, 0.98 - h1
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    kwargs_plot = {"xstep":2, "zstep":2, "is_log":False, "vmin":-1.0, "vmax":1.0}
+    kwargs_plot = {
+        "xstep": 2,
+        "zstep": 2,
+        "is_log": False,
+        "vmin": -1.0,
+        "vmax": 1.0
+    }
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     va = 0.2  # Alfven speed
-    im1, cbar1 = plot_2d_contour(x, z, ux/va, ax1, fig, **kwargs_plot)
+    im1, cbar1 = plot_2d_contour(x, z, ux / va, ax1, fig, **kwargs_plot)
     im1.set_cmap(plt.cm.seismic)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.tick_params(labelsize=20)
     ax1.tick_params(axis='x', labelbottom='off')
     ax1.set_xlim([xl, xr])
@@ -936,9 +1122,10 @@ def plot_ptl_traj(filename, pic_info, species, iptl, mint, maxt):
 
     gap = 0.04
     ys -= h1 + gap
-    ax2 = fig.add_axes([xs, ys, w1*0.98-0.05/width, h1])
+    ax2 = fig.add_axes([xs, ys, w1 * 0.98 - 0.05 / width, h1])
     eth = pic_info.vthi**2 * 3
-    p2 = ax2.plot(ptl_x[0:tstop], (gama[0:tstop]-1.0)/eth, color='k', linewidth=2)
+    p2 = ax2.plot(
+        ptl_x[0:tstop], (gama[0:tstop] - 1.0) / eth, color='k', linewidth=2)
     ax2.set_xlabel(r'$x/d_i$', fontdict=font)
     ax2.set_ylabel(r'$E/E_{\text{thi}}$', fontdict=font)
     ax2.tick_params(labelsize=20)
@@ -966,17 +1153,17 @@ def plot_particle_trajectory(fnames, species, pic_info):
     nptl = len(fnames)
     var_field = 'ey'
     var_name = '$E_y$'
-    kwargs = {"current_time":init_ft, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": init_ft, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fname = '../../data/' + var_field + '.gda'
-    x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, data = read_2d_fields(pic_info, fname, **kwargs)
     ng = 3
-    kernel = np.ones((ng,ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     data = signal.convolve2d(data, kernel)
     fname = '../../data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
     iptl = 393
     fig_v = ParticleTrajectory(nptl, iptl, x, z, data, Ay, init_ft, var_field,
-            var_name, species, fnames)
+                               var_name, species, fnames)
     plt.show()
     # for iptl in range(nptl):
     # # for iptl in range(70, 80):

@@ -33,14 +33,16 @@ rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
 
 colors = palettable.colorbrewer.qualitative.Dark2_8.mpl_colors
+
 
 def fields_movie_cmdline():
     """Make movies of fields using command line arguments
@@ -125,8 +127,12 @@ def fields_movie_cmdline():
             ' -f mp4 -q:v 0 -vcodec mpeg4 -r 20 ' + \
             mdir + movie_name
     print cmd
-    p1 = subprocess.Popen([cmd], cwd='./', stdout=open('outfile.out', 'w'),
-            stderr=subprocess.STDOUT, shell=True)
+    p1 = subprocess.Popen(
+        [cmd],
+        cwd='./',
+        stdout=open('outfile.out', 'w'),
+        stderr=subprocess.STDOUT,
+        shell=True)
     p1.wait()
 
 
