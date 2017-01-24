@@ -1,6 +1,9 @@
-from mpi4py import MPI
 import os
+
+from mpi4py import MPI
+
 import particle_spectrum_vdist as psv
+
 
 class cd:
     """Context manager for changing the current working directory"""

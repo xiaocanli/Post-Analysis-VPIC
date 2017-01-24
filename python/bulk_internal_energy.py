@@ -1,28 +1,30 @@
 """
 Analysis procedures for bulk and internal energies.
 """
-import os
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy.ndimage.filters import generic_filter as gf
-from scipy import signal
-from scipy.fftpack import fft2, ifft2, fftshift
-from scipy.interpolate import interp1d
+import collections
 import math
+import os
 import os.path
 import struct
-import collections
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import simplejson as json
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+from scipy.fftpack import fft2, fftshift, ifft2
+from scipy.interpolate import interp1d
+from scipy.ndimage.filters import generic_filter as gf
+
 import pic_information
-from contour_plots import read_2d_fields, plot_2d_contour
+from contour_plots import plot_2d_contour, read_2d_fields
 from energy_conversion import read_jdote_data
 from runs_name_path import ApJ_long_paper_runs
-import simplejson as json
 from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})

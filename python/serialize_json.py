@@ -33,10 +33,10 @@ Currently handles dictionaries with non-string-keys, tuples, sets,
 numpy arrays, namedtuples, and OrderedDicts.
 """
 
-from collections import namedtuple, Iterable, OrderedDict
+from collections import Iterable, OrderedDict, namedtuple
+
 import numpy as np
 import simplejson as json
-
 
 MyTuple = namedtuple("MyTuple", "foo baz")
 

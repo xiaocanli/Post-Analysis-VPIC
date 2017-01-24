@@ -1,26 +1,28 @@
 """
 Analysis procedures for energy conversion.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
+import collections
 import math
 import os.path
+import re
 import struct
-import collections
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import simplejson as json
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
+import palettable
 import pic_information
 from pic_information import list_pic_info_dir
-import simplejson as json
-from serialize_json import data_to_json, json_to_data
 from runs_name_path import *
-from scipy.interpolate import interp1d
-import palettable
-import re
+from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

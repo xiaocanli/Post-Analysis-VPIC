@@ -1,17 +1,20 @@
 """
 Read particle-in-cell (VPIC) simulation information.
 """
-import numpy as np
+import collections
+import cPickle as pickle
 import math
 import os.path
 import struct
-import collections
-import cPickle as pickle
-import simplejson as json
-from serialize_json import data_to_json, json_to_data
 from os import listdir
 from os.path import isfile, join
+
+import numpy as np
+import simplejson as json
+
 from runs_name_path import *
+from serialize_json import data_to_json, json_to_data
+
 
 def get_pic_info(base_directory):
     """Get particle-in-cell simulation information.

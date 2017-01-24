@@ -1,27 +1,28 @@
 """
 Test if the 'q' key is unique.
 """
-import os
-import h5py
+import collections
 import math
+import os
+import struct
+import timeit
+
+import h5py
 import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import rc
 from matplotlib.ticker import MaxNLocator
-from matplotlib.widgets import Cursor, Button, Slider
+from matplotlib.widgets import Button, Cursor, Slider
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-import collections
-import timeit
-import struct
-import collections
-import pic_information
-from contour_plots import read_2d_fields, plot_2d_contour
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
 import color_maps as cm
 import colormap.colormaps as cmaps
 import palettable
-from scipy.interpolate import interp1d
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

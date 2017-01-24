@@ -1,30 +1,32 @@
 """
 Analysis procedures for energy conversion.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
+import collections
 import math
 import os.path
-import struct
-import collections
-import pic_information
-from pic_information import list_pic_info_dir
-import simplejson as json
-from serialize_json import data_to_json, json_to_data
-from runs_name_path import ApJ_long_paper_runs, guide_field_runs
-from scipy.interpolate import interp1d
-import colormap.colormaps as cmaps
-from contour_plots import read_2d_fields, plot_2d_contour
-from energy_conversion import calc_jdotes_fraction_multi
-import palettable
 import re
+import struct
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import simplejson as json
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
+import colormap.colormaps as cmaps
+import palettable
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
+from energy_conversion import calc_jdotes_fraction_multi
 from fields_plot import *
+from pic_information import list_pic_info_dir
+from runs_name_path import ApJ_long_paper_runs, guide_field_runs
+from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

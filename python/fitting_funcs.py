@@ -1,8 +1,10 @@
 """
 Fitting functions that are commonly used in data analysis.
 """
-import numpy as np
 import math
+
+import numpy as np
+
 
 def func_maxwellian(x, a, b):
     """

@@ -1,10 +1,12 @@
+from math import *
+
 import matplotlib.pylab as plt
+import numpy as np
 from matplotlib import animation
+from scipy.integrate import odeint
+
 # solve the ode problem of the double compound pendulum again
 
-from scipy.integrate import odeint
-from math import *
-import numpy as np
 
 g = 9.82; L = 0.5; m = 0.1
 

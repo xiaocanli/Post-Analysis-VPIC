@@ -1,5 +1,5 @@
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
 
 font = {'family' : 'serif',
         #'color'  : 'darkred',

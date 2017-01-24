@@ -1,32 +1,35 @@
 """
 Analysis procedures for particle energy spectrum.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-import scipy
-from scipy import interpolate, signal
+import collections
 import math
+import multiprocessing
 import os
 import os.path
 import struct
-import collections
-import pic_information
+import subprocess
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import scipy
+from joblib import Parallel, delayed
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpi4py import MPI
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import interpolate, signal
+
 import color_maps as cm
 import colormap.colormaps as cmaps
-import subprocess
-from spectrum_fitting import get_energy_distribution
-from mpi4py import MPI
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
 from energy_conversion import read_data_from_json
-from contour_plots import read_2d_fields, plot_2d_contour
 from shell_functions import mkdir_p
-import multiprocessing
-from joblib import Parallel, delayed
+from spectrum_fitting import get_energy_distribution
+
 # import particle_spectrum_vdist as psv
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})

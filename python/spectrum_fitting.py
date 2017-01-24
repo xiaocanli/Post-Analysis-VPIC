@@ -1,22 +1,23 @@
 """
 Analysis procedures for particle energy spectrum fitting.
 """
-import numpy as np
+import collections
 import math
+import os.path
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import rc
 from scipy.optimize import curve_fit
-import os.path
-import collections
-import pic_information
-import fitting_funcs
-import palettable
+
 import color_maps as cm
 import colormap.colormaps as cmaps
-from runs_name_path import *
-from energy_conversion import read_data_from_json
+import fitting_funcs
 import palettable
+import pic_information
+from energy_conversion import read_data_from_json
+from runs_name_path import *
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

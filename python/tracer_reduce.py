@@ -1,24 +1,26 @@
 """
 Analysis procedures to deal with reduced particle tracer
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
+import collections
 import math
+import multiprocessing
 import os.path
 import struct
-import collections
-import pic_information
+
 import h5py
-from shell_functions import *
-from particle_emf import read_var
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 from joblib import Parallel, delayed
-import multiprocessing
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+
+import pic_information
+from particle_emf import read_var
+from shell_functions import *
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

@@ -1,31 +1,33 @@
 """
 Functions and classes for 2D contour plots of fields.
 """
-import os
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy.ndimage.filters import generic_filter as gf
-from scipy import signal
-from scipy.fftpack import fft2, ifft2, fftshift
+import collections
 import math
+import os
 import os.path
 import struct
-import collections
-import pic_information
+import subprocess
+import sys
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+from scipy.fftpack import fft2, fftshift, ifft2
+from scipy.ndimage.filters import generic_filter as gf
+
 import color_maps as cm
 import colormap.colormaps as cmaps
-from runs_name_path import ApJ_long_paper_runs
-from energy_conversion import read_data_from_json
-from contour_plots import read_2d_fields, plot_2d_contour
-import subprocess
 import palettable
-import sys
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
+from energy_conversion import read_data_from_json
+from runs_name_path import ApJ_long_paper_runs
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

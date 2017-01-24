@@ -1,26 +1,28 @@
 """
 Analysis procedures for particle tracking
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib.collections import LineCollection
-import numpy as np
+import collections
 import math
+import multiprocessing
 import os.path
 import struct
-import collections
-import pic_information
-from scipy.interpolate import interp1d
+
 import h5py
-from shell_functions import *
-from energy_conversion import *
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 from joblib import Parallel, delayed
-import multiprocessing
+from matplotlib import rc
+from matplotlib.collections import LineCollection
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
+import pic_information
+from energy_conversion import *
+from shell_functions import *
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)

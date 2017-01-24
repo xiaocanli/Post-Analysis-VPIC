@@ -6,9 +6,11 @@ Public domain, Connelly Barnes 2005.
 """
 
 import math
+
 import scipy
-from scipy.linalg import norm
 from scipy import array as vector
+from scipy.linalg import norm
+
 
 def solve(f, t0, tfinal, y0, tol = 1e-7):
   """

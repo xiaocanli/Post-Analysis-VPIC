@@ -8,9 +8,10 @@ __license__ = 'MIT License <http://www.opensource.org/licenses/mit-license.php>'
  
 import numpy as np
 import scipy as sp
-import scipy.sparse
 import scipy.signal
- 
+import scipy.sparse
+
+
 def fast_kde(x, y, gridsize=(200, 200), extents=None, nocorrelation=False, weights=None):
     """
    Performs a gaussian kernel density estimate over a regular grid using a

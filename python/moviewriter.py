@@ -4,11 +4,12 @@
 # for use in an interactive setting.
 # -*- noplot -*-
 
-import numpy as np
 import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
+import matplotlib.pyplot as plt
+import numpy as np
+
+matplotlib.use("Agg")
 
 FFMpegWriter = manimation.writers['ffmpeg']
 metadata = dict(title='Movie Test', artist='Matplotlib',

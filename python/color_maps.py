@@ -8,14 +8,15 @@
 #
 # Distributed under the terms of the Modified BSD License.
 #
+import matplotlib
+import matplotlib.cm as mcm
+import matplotlib.colors as cc
 # The full license is in the file COPYING.txt, distributed with this software.
 #-----------------------------------------------------------------------------
 import numpy as np
 
-import matplotlib
-import matplotlib.colors as cc
-import matplotlib.cm as mcm
 import _colormap_data as _cm
+
 
 def is_colormap(cmap):
     return isinstance(cmap,cc.Colormap)

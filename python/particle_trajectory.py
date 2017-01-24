@@ -1,22 +1,24 @@
 """
 Analysis procedures for particle energy spectrum.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy import signal
+import collections
 import math
 import os.path
+import struct
 from os import listdir
 from os.path import isfile, join
-import struct
-import collections
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+
 import pic_information
-from contour_plots import read_2d_fields, plot_2d_contour
+from contour_plots import plot_2d_contour, read_2d_fields
 
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]

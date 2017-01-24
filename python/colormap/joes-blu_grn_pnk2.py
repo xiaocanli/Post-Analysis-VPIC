@@ -1,6 +1,6 @@
 
 from matplotlib.colors import LinearSegmentedColormap
-from numpy import nan, inf
+from numpy import inf, nan
 
 # Used to reconstruct the colormap in viscm
 parameters = {'xp': [-6.1859603226509137, -14.579245694353546, -16.377806845432701, -75.430564639197684, 40.576629605406652, 14.197732722912633],
