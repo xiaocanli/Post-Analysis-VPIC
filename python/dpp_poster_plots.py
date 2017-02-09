@@ -1,48 +1,51 @@
 """
 Functions and classes for 2D contour plots of fields.
 """
-import os
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
-from scipy.ndimage.filters import generic_filter as gf
-from scipy import signal
-from scipy.fftpack import fft2, ifft2, fftshift
+import collections
 import math
+import os
 import os.path
 import struct
-import collections
-import pic_information
+import sys
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+from scipy.fftpack import fft2, fftshift, ifft2
+from scipy.ndimage.filters import generic_filter as gf
+
 import color_maps as cm
 import colormap.colormaps as cmaps
-from runs_name_path import ApJ_long_paper_runs
-from energy_conversion import read_data_from_json
-from contour_plots import read_2d_fields, plot_2d_contour
-from pic_information import list_pic_info_dir
 import palettable
-import sys
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
+from energy_conversion import calc_jdotes_fraction_multi, read_data_from_json
 from fields_plot import *
-from spectrum_fitting import calc_nonthermal_fraction
-from energy_conversion import calc_jdotes_fraction_multi
+from pic_information import list_pic_info_dir
+from runs_name_path import ApJ_long_paper_runs
 from shell_functions import *
+from spectrum_fitting import calc_nonthermal_fraction
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
 
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+
 
 def plot_vx_frame(run_name, root_dir, pic_info, species):
     """Plot vx of one frame
@@ -80,21 +83,38 @@ def plot_vx_frame(run_name, root_dir, pic_info, species):
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fname2 = root_dir + 'data/v' + species + 'x.gda'
     if not os.path.isfile(fname2):
         fname2 = root_dir + 'data/u' + species + 'x.gda'
-    x, z, vx = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, vx = read_2d_fields(pic_info, fname2, **kwargs)
     fname5 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
-    fdata = [vx/va]
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
+    fdata = [vx / va]
     fname = 'v' + species
-    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
-            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
-            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
-            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
-            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
-            'fname':fname, 'fig_dir':fig_dir}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir
+    }
     vfields_plot = PlotMultiplePanels(**kwargs_plots)
     plt.show()
 
@@ -134,7 +154,7 @@ def plot_anisotropy(run_name, root_dir, pic_info, species, ct):
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fnames = []
     fnames.append(root_dir + 'data/p' + species + '-xx.gda')
     fnames.append(root_dir + 'data/p' + species + '-yy.gda')
@@ -144,26 +164,43 @@ def plot_anisotropy(run_name, root_dir, pic_info, species, ct):
     fnames.append(root_dir + 'data/p' + species + '-yz.gda')
     pre = []
     for fname in fnames:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pre.append(data)
-    x, z, bx = read_2d_fields(pic_info, root_dir + "data/bx.gda", **kwargs) 
-    x, z, by = read_2d_fields(pic_info, root_dir + "data/by.gda", **kwargs) 
-    x, z, bz = read_2d_fields(pic_info, root_dir + "data/bz.gda", **kwargs) 
-    x, z, absB = read_2d_fields(pic_info, root_dir + "data/absB.gda", **kwargs) 
+    x, z, bx = read_2d_fields(pic_info, root_dir + "data/bx.gda", **kwargs)
+    x, z, by = read_2d_fields(pic_info, root_dir + "data/by.gda", **kwargs)
+    x, z, bz = read_2d_fields(pic_info, root_dir + "data/bz.gda", **kwargs)
+    x, z, absB = read_2d_fields(pic_info, root_dir + "data/absB.gda", **kwargs)
     ppara = pre[0]*bx*bx + pre[1]*by*by + pre[2]*bz*bz + \
             pre[3]*bx*by*2.0 + pre[4]*bx*bz*2.0 + pre[5]*by*bz*2.0
     ppara /= absB * absB
-    pperp = 0.5 * (pre[0]+pre[1]+pre[2]-ppara)
-    fdata = [ppara/pperp]
+    pperp = 0.5 * (pre[0] + pre[1] + pre[2] - ppara)
+    fdata = [ppara / pperp]
     fname5 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname5, **kwargs)
     fname = 'aniso_' + species
-    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
-            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
-            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
-            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
-            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
-            'fname':fname, 'fig_dir':fig_dir}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir
+    }
     pre_plot = PlotMultiplePanels(**kwargs_plots)
     plt.show()
 
@@ -216,7 +253,7 @@ def plot_compression_fields_single(run_name, root_dir, pic_info, species, ct):
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fnames = []
     fname = root_dir + 'data1/pdiv_v00_' + species + '.gda'
     fnames.append(fname)
@@ -230,11 +267,11 @@ def plot_compression_fields_single(run_name, root_dir, pic_info, species, ct):
     fnames.append(fname)
     dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     ng = 7
-    kernel = np.ones((ng,ng)) / float(ng*ng)
+    kernel = np.ones((ng, ng)) / float(ng * ng)
     fdata = []
     fdata_1d = []
     for fname in fnames[0:3]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
         fdata_1d.append(fdata_cum)
         data_new = signal.convolve2d(data, kernel, 'same')
@@ -242,7 +279,7 @@ def plot_compression_fields_single(run_name, root_dir, pic_info, species, ct):
     jdote = 0
     jdote_cum = 0
     for fname in fnames[3:5]:
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         fdata_cum = np.cumsum(np.sum(data, axis=0)) * dv
         jdote_cum += fdata_cum
         data_new = signal.convolve2d(data, kernel, 'same')
@@ -253,18 +290,38 @@ def plot_compression_fields_single(run_name, root_dir, pic_info, species, ct):
     fdata_1d = np.asarray(fdata_1d)
     fdata /= j0  # Normalization
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = 'comp_' + species
     bottom_panel = True
     xlim = [0, 200]
     zlim = [-25, 25]
-    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
-            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
-            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
-            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
-            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
-            'fname':fname, 'fig_dir':fig_dir, 'bottom_panel':bottom_panel,
-            'fdata_1d':fdata_1d, 'xlim':xlim, 'zlim':zlim}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'bottom_panel': bottom_panel,
+        'fdata_1d': fdata_1d,
+        'xlim': xlim,
+        'zlim': zlim
+    }
     jdote_plot = PlotMultiplePanels(**kwargs_plots)
 
     # plt.show()
@@ -273,28 +330,28 @@ def plot_compression_fields_single(run_name, root_dir, pic_info, species, ct):
 def get_temperature_cut(run_name, root_dir, pic_info, ct):
     """get temperature cut along a line
     """
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-1, "zt":1}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -1, "zt": 1}
     fnames_e = ['pe-xx', 'pe-yy', 'pe-zz', 'ne']
     fnames_i = ['pi-xx', 'pi-yy', 'pi-zz', 'ni']
     pe = 0.0
     pi = 0.0
     for name in fnames_e[0:3]:
         fname = root_dir + 'data/' + name + '.gda'
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pe += data
     fname = root_dir + 'data/' + fnames_e[3] + '.gda'
-    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     te = pe / nrho / 3.0
     for name in fnames_i[0:3]:
         fname = root_dir + 'data/' + name + '.gda'
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pi += data
     fname = root_dir + 'data/' + fnames_i[3] + '.gda'
-    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     ti = pi / nrho / 3.0
     nx, = x.shape
     nz, = z.shape
-    return (x, z, te[nz/2, :], ti[nz/2, :])
+    return (x, z, te[nz / 2, :], ti[nz / 2, :])
 
 
 def plot_temperature_cut(run_name, root_dir, pic_info, cts):
@@ -310,7 +367,7 @@ def plot_temperature_cut(run_name, root_dir, pic_info, cts):
     nt = len(tes)
     fig = plt.figure(figsize=[7, 5])
     w1, h1 = 0.78, 0.39
-    xs, ys = 0.17, 0.97-h1
+    xs, ys = 0.17, 0.97 - h1
     gap = 0.05
     ax1 = fig.add_axes([xs, ys, w1, h1])
     ax1.plot(x, tes[0], linewidth=2, color='b', label=r'$t\Omega_{ci}=550$')
@@ -326,16 +383,28 @@ def plot_temperature_cut(run_name, root_dir, pic_info, cts):
     ax1.set_ylim([0, 0.16])
     # leg = ax1.legend(loc=4, prop={'size':20}, ncol=1,
     #         shadow=False, fancybox=False, frameon=False)
-    ax1.text(0.7, 0.3, r'$t\Omega_{ci}=550$',
-            color='blue', fontsize=24,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax1.transAxes)
-    ax1.text(0.7, 0.1, r'$t\Omega_{ci}=575$',
-            color='red', fontsize=24,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax1.transAxes)
+    ax1.text(
+        0.7,
+        0.3,
+        r'$t\Omega_{ci}=550$',
+        color='blue',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
+    ax1.text(
+        0.7,
+        0.1,
+        r'$t\Omega_{ci}=575$',
+        color='red',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
     ys -= h1 + gap
     ax2 = fig.add_axes([xs, ys, w1, h1])
     ax2.plot(x, tis[0], linewidth=2, color='b')
@@ -372,7 +441,7 @@ def plot_thermal_temperature_single(run_name, root_dir, pic_info, ct):
     va = wpe_wce / math.sqrt(mime)  # Alfven speed of inflow region
     # The standard va is 0.2, and the standard mi/me=25
     vmin = np.asarray(vmin) * va**2 * mime / (0.2**2 * 25)
-    vmax = np.asarray(vmax) * va**2 * mime/ (0.2**2 * 25)
+    vmax = np.asarray(vmax) * va**2 * mime / (0.2**2 * 25)
     xs, ys = 0.15, 0.60
     w1, h1 = 0.72, 0.36
     axis_pos = [xs, ys, w1, h1]
@@ -392,35 +461,52 @@ def plot_thermal_temperature_single(run_name, root_dir, pic_info, ct):
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fnames_e = ['pe-xx', 'pe-yy', 'pe-zz', 'ne']
     fnames_i = ['pi-xx', 'pi-yy', 'pi-zz', 'ni']
     pe = 0.0
     pi = 0.0
     for name in fnames_e[0:3]:
         fname = root_dir + 'data/' + name + '.gda'
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pe += data
     fname = root_dir + 'data/' + fnames_e[3] + '.gda'
-    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     te = pe / nrho / 3.0
     for name in fnames_i[0:3]:
         fname = root_dir + 'data/' + name + '.gda'
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
         pi += data
     fname = root_dir + 'data/' + fnames_i[3] + '.gda'
-    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs) 
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
     ti = pi / nrho / 3.0
     fdata = [te, ti]
     fname2 = root_dir + 'data/Ay.gda'
-    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+    x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
     fname = 'temp'
-    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay,
-            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
-            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
-            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
-            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
-            'fname':fname, 'fig_dir':fig_dir}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir
+    }
     pfields_plot = PlotMultiplePanels(**kwargs_plots)
 
     plt.show()
@@ -518,8 +604,13 @@ def compression_time(pic_info, species, jdote, ylim1, ax, root_dir='../data/'):
     ax.set_ylabel(r'$\varepsilon_c$', fontdict=font, fontsize=20)
     ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=16)
-    ax.legend(loc=2, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    ax.legend(
+        loc=2,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     ax.set_xlim(ax.get_xlim())
 
 
@@ -542,7 +633,7 @@ def plot_compression_time_beta(species):
     base_dirs, run_names = ApJ_long_paper_runs()
     fig = plt.figure(figsize=[7, 5])
     w1, h1 = 0.8, 0.2
-    xs, ys = 0.96-w1, 0.97-h1
+    xs, ys = 0.96 - w1, 0.97 - h1
     gap = 0.02
     nrun = len(run_names)
     ylim1 = np.zeros((nrun, 2))
@@ -569,7 +660,8 @@ def plot_compression_time_beta(species):
         ylim2 = ylim1 * b0**2
         ax = fig.add_axes([xs, ys, w1, h1])
         axs.append(ax)
-        compression_time(pic_info, species, jdote_data, ylim2[i,:], ax, fpath_comp)
+        compression_time(pic_info, species, jdote_data, ylim2[i, :], ax,
+                         fpath_comp)
         ys -= h1 + gap
     for ax in axs:
         ax.set_xlim([0, 1200])
@@ -588,30 +680,72 @@ def plot_compression_time_beta(species):
 
     label1 = r'$-p\nabla\cdot\mathbf{u}$'
     label2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
-    axs[0].text(0.4, 0.2, label1, color='red', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[0].transAxes)
-    axs[0].text(0.6, 0.2, label2, color='green', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[0].transAxes)
-    axs[0].text(0.05, 0.8, r'$\beta_e=0.2$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[0].transAxes)
-    axs[1].text(0.05, 0.8, r'$\beta_e=0.07$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[1].transAxes)
-    axs[2].text(0.05, 0.8, r'$\beta_e=0.02$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[2].transAxes)
-    axs[3].text(0.05, 0.8, r'$\beta_e=0.007$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[3].transAxes)
+    axs[0].text(
+        0.4,
+        0.2,
+        label1,
+        color='red',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[0].transAxes)
+    axs[0].text(
+        0.6,
+        0.2,
+        label2,
+        color='green',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[0].transAxes)
+    axs[0].text(
+        0.05,
+        0.8,
+        r'$\beta_e=0.2$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[0].transAxes)
+    axs[1].text(
+        0.05,
+        0.8,
+        r'$\beta_e=0.07$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[1].transAxes)
+    axs[2].text(
+        0.05,
+        0.8,
+        r'$\beta_e=0.02$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[2].transAxes)
+    axs[3].text(
+        0.05,
+        0.8,
+        r'$\beta_e=0.007$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[3].transAxes)
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
@@ -642,7 +776,7 @@ def plot_compression_time_temp(species):
     base_dirs, run_names = ApJ_long_paper_runs()
     fig = plt.figure(figsize=[7, 5])
     w1, h1 = 0.8, 0.27
-    xs, ys = 0.96-w1, 0.97-h1
+    xs, ys = 0.96 - w1, 0.97 - h1
     gap = 0.02
     nrun = len(run_names)
     ylim1 = np.zeros((nrun, 2))
@@ -680,7 +814,8 @@ def plot_compression_time_temp(species):
         ylim2 = ylim1 * b0**2
         ax = fig.add_axes([xs, ys, w1, h1])
         axs.append(ax)
-        compression_time(pic_info, species, jdote_data, ylim2[i,:], ax, fpath_comp)
+        compression_time(pic_info, species, jdote_data, ylim2[i, :], ax,
+                         fpath_comp)
         ys -= h1 + gap
     for ax in axs:
         ax.set_xlim([0, 1200])
@@ -697,26 +832,61 @@ def plot_compression_time_temp(species):
 
     label1 = r'$-p\nabla\cdot\mathbf{u}$'
     label2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
-    axs[0].text(0.4, 0.2, label1, color='red', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[0].transAxes)
-    axs[0].text(0.6, 0.2, label2, color='green', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[0].transAxes)
-    axs[0].text(0.05, 0.8, r'$v_\text{the}/c=0.045$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[0].transAxes)
-    axs[1].text(0.05, 0.8, r'$v_\text{the}/c=0.08$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[1].transAxes)
-    axs[2].text(0.05, 0.8, r'$v_\text{the}/c=0.14$', color='black', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = axs[2].transAxes)
+    axs[0].text(
+        0.4,
+        0.2,
+        label1,
+        color='red',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[0].transAxes)
+    axs[0].text(
+        0.6,
+        0.2,
+        label2,
+        color='green',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[0].transAxes)
+    axs[0].text(
+        0.05,
+        0.8,
+        r'$v_\text{the}/c=0.045$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[0].transAxes)
+    axs[1].text(
+        0.05,
+        0.8,
+        r'$v_\text{the}/c=0.08$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[1].transAxes)
+    axs[2].text(
+        0.05,
+        0.8,
+        r'$v_\text{the}/c=0.14$',
+        color='black',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=axs[2].transAxes)
 
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
@@ -764,24 +934,42 @@ def plot_by_time(run_name, root_dir, pic_info):
     fig_dir = dir + run_name + '/'
     if not os.path.isdir(fig_dir):
         os.makedirs(fig_dir)
-    kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-50, "zt":50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     fname1 = root_dir + 'data/by.gda'
     fname2 = root_dir + 'data/Ay.gda'
     fdata = []
     Ay_data = []
     for i in range(nt):
         kwargs["current_time"] = cts[i]
-        x, z, data = read_2d_fields(pic_info, fname1, **kwargs) 
-        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs) 
+        x, z, data = read_2d_fields(pic_info, fname1, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
         fdata.append(data)
         Ay_data.append(Ay)
     fname = 'by_time'
-    kwargs_plots = {'current_time':ct, 'x':x, 'z':z, 'Ay':Ay_data,
-            'fdata':fdata, 'contour_color':contour_color, 'colormaps':colormaps,
-            'vmin':vmin, 'vmax':vmax, 'var_names':var_names, 'axis_pos':axis_pos,
-            'gaps':gaps, 'fig_sizes':fig_sizes, 'text_colors':text_colors,
-            'nxp':nxp, 'nzp':nzp, 'xstep':xstep, 'zstep':zstep, 'is_logs':is_logs,
-            'fname':fname, 'fig_dir':fig_dir, 'is_multi_Ay':True}
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay_data,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'is_multi_Ay': True
+    }
     by_plot = PlotMultiplePanels(**kwargs_plots)
     plt.show()
 
@@ -830,27 +1018,49 @@ def plot_energy_conversion_fraction():
     xs, ys = 0.16, 0.13
     w1, h1 = 0.7, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(x, ene_fraction, color='r', marker='o', markersize=10,
-            linestyle='', markeredgecolor = 'r')
+    ax.plot(
+        x,
+        ene_fraction,
+        color='r',
+        marker='o',
+        markersize=10,
+        linestyle='',
+        markeredgecolor='r')
     labels = [r'R6', r'R1', r'R4', r'R2', r'R5', r'R3', r'R7', r'R8']
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_xlim([-0.5, 7.5])
-    ax.set_ylabel(r'$|\Delta\varepsilon_b|/\varepsilon_{b0}$', color='r',
-            fontdict=font, fontsize=24)
+    ax.set_ylabel(
+        r'$|\Delta\varepsilon_b|/\varepsilon_{b0}$',
+        color='r',
+        fontdict=font,
+        fontsize=24)
     ax.tick_params(labelsize=20)
-    ax.text(0.4, 0.15, r'$m_i/m_e=100$', color='k', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    ax.text(
+        0.4,
+        0.15,
+        r'$m_i/m_e=100$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
     for tl in ax.get_yticklabels():
         tl.set_color('r')
     ax1 = ax.twinx()
-    ax1.plot(x, dke_dki, color='b', marker='v', markersize=10,
-            linestyle='', markeredgecolor = 'b')
+    ax1.plot(
+        x,
+        dke_dki,
+        color='b',
+        marker='v',
+        markersize=10,
+        linestyle='',
+        markeredgecolor='b')
     ax1.set_xlim([-0.5, 7.5])
-    ax1.set_ylabel(r'$\Delta K_e/\Delta K_i$', color='b',
-            fontdict=font, fontsize=24)
+    ax1.set_ylabel(
+        r'$\Delta K_e/\Delta K_i$', color='b', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     for tl in ax1.get_yticklabels():
         tl.set_color('b')
@@ -874,24 +1084,36 @@ def plot_nonthermal_fraction():
     xs, ys = 0.15, 0.13
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(x, nth_e[:8], color='r', marker='o', markersize=10,
-            linestyle='')
-    ax.plot(x, nth_i[:8], color='b', marker='o', markersize=10,
-            linestyle='')
+    ax.plot(x, nth_e[:8], color='r', marker='o', markersize=10, linestyle='')
+    ax.plot(x, nth_i[:8], color='b', marker='o', markersize=10, linestyle='')
     labels = [r'R6', r'R1', r'R2', r'R4', r'R5', r'R3', r'R7', r'R8']
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_xlim([-0.5, 7.5])
     ax.set_ylabel(r'Nonthermal Fraction', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    ax.text(0.05, 0.15, r'Electron', color='r', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.05, 0.25, r'Ion', color='b', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    ax.text(
+        0.05,
+        0.15,
+        r'Electron',
+        color='r',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.05,
+        0.25,
+        r'Ion',
+        color='b',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_dpp/'
@@ -945,24 +1167,49 @@ def plot_jpara_dote_fraction():
     xs, ys = 0.18, 0.13
     w1, h1 = 0.78, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(x, fraction_jpara_e[:8], color='r', marker='o', markersize=10,
-            linestyle='')
-    ax.plot(x, fraction_jpara_i[:8], color='b', marker='o', markersize=10,
-            linestyle='')
+    ax.plot(
+        x,
+        fraction_jpara_e[:8],
+        color='r',
+        marker='o',
+        markersize=10,
+        linestyle='')
+    ax.plot(
+        x,
+        fraction_jpara_i[:8],
+        color='b',
+        marker='o',
+        markersize=10,
+        linestyle='')
     labels = [r'R6', r'R1', r'R2', r'R4', r'R5', r'R3', r'R7', r'R8']
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_xlim([-0.5, 7.5])
-    ax.set_ylabel(r'Fraction of Parallel Acceleration', fontdict=font, fontsize=24)
+    ax.set_ylabel(
+        r'Fraction of Parallel Acceleration', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    ax.text(0.05, 0.15, r'Electron', color='r', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.05, 0.25, r'Ion', color='b', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    ax.text(
+        0.05,
+        0.15,
+        r'Electron',
+        color='r',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.05,
+        0.25,
+        r'Ion',
+        color='b',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_dpp/'
@@ -990,30 +1237,67 @@ def plot_jdrifts_fraction(species):
     xs, ys = 0.18, 0.13
     w1, h1 = 0.78, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(x, jdrifts_fraction[:8, 0], color='b', marker='o', markersize=10,
-            linestyle='')
-    ax.plot(x, jdrifts_fraction[:8, 1], color='g', marker='o', markersize=10,
-            linestyle='')
-    ax.plot(x, jdrifts_fraction[:8, 2], color='r', marker='o', markersize=10,
-            linestyle='')
+    ax.plot(
+        x,
+        jdrifts_fraction[:8, 0],
+        color='b',
+        marker='o',
+        markersize=10,
+        linestyle='')
+    ax.plot(
+        x,
+        jdrifts_fraction[:8, 1],
+        color='g',
+        marker='o',
+        markersize=10,
+        linestyle='')
+    ax.plot(
+        x,
+        jdrifts_fraction[:8, 2],
+        color='r',
+        marker='o',
+        markersize=10,
+        linestyle='')
     labels = [r'R6', r'R1', r'R2', r'R4', r'R5', r'R3', r'R7', r'R8']
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_xlim([-0.5, 7.5])
-    ax.set_ylabel(r'Ratio to the energy conversion', fontdict=font, fontsize=24)
+    ax.set_ylabel(
+        r'Ratio to the energy conversion', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    ax.text(0.05, 0.05, r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$', color='b', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.25, 0.05, r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$', color='g', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
-    ax.text(0.45, 0.05, r'$\boldsymbol{j}_m\cdot\boldsymbol{E}$', color='r', fontsize=24, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    ax.text(
+        0.05,
+        0.05,
+        r'$\boldsymbol{j}_c\cdot\boldsymbol{E}$',
+        color='b',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.25,
+        0.05,
+        r'$\boldsymbol{j}_g\cdot\boldsymbol{E}$',
+        color='g',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
+    ax.text(
+        0.45,
+        0.05,
+        r'$\boldsymbol{j}_m\cdot\boldsymbol{E}$',
+        color='r',
+        fontsize=24,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
     if not os.path.isdir('../img/'):
         os.makedirs('../img/')
     dir = '../img/img_dpp/'
@@ -1031,9 +1315,13 @@ def plot_energy_conversion_fraction_beta():
     mkdir_p(picinfo_dir)
     odir = '../img/ene_evolution/'
     mkdir_p(odir)
-    run_names = ['sigma1-mime25-beta0002', 'mime25_beta0007',
-                 'mime25_beta002', 'mime25_beta007', 'mime25_beta02']
-    labels = ['R7\n 0.0002', 'R6\n 0.007', 'R1\n 0.02', 'R7\n 0.07', 'R8\n 0.2']
+    run_names = [
+        'sigma1-mime25-beta0002', 'mime25_beta0007', 'mime25_beta002',
+        'mime25_beta007', 'mime25_beta02'
+    ]
+    labels = [
+        'R7\n 0.0002', 'R6\n 0.007', 'R1\n 0.02', 'R7\n 0.07', 'R8\n 0.2'
+    ]
     run_label = r'$\beta_e = $'
     fname = 'ene_fraction_beta.eps'
     # run_names = ['mime25_beta002', 'mime25_beta002_sigma033',
@@ -1067,26 +1355,48 @@ def plot_energy_conversion_fraction_beta():
     xs, ys = 0.16, 0.13
     w1, h1 = 0.7, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(x, ene_fraction, color='r', marker='o', markersize=10,
-            linestyle='', markeredgecolor = 'r')
+    ax.plot(
+        x,
+        ene_fraction,
+        color='r',
+        marker='o',
+        markersize=10,
+        linestyle='',
+        markeredgecolor='r')
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.set_xlim([-0.5, nrun - 0.5])
-    ax.set_ylabel(r'$|\Delta\varepsilon_b|/\varepsilon_{b0}$', color='r',
-            fontdict=font, fontsize=24)
+    ax.set_ylabel(
+        r'$|\Delta\varepsilon_b|/\varepsilon_{b0}$',
+        color='r',
+        fontdict=font,
+        fontsize=24)
     ax.tick_params(labelsize=20)
-    ax.text(-0.12, -0.12, run_label, color='k', fontsize=20, 
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax.transAxes)
+    ax.text(
+        -0.12,
+        -0.12,
+        run_label,
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax.transAxes)
     for tl in ax.get_yticklabels():
         tl.set_color('r')
     ax1 = ax.twinx()
-    ax1.plot(x, dke_dki, color='b', marker='D', markersize=10,
-            linestyle='', markeredgecolor = 'b')
+    ax1.plot(
+        x,
+        dke_dki,
+        color='b',
+        marker='D',
+        markersize=10,
+        linestyle='',
+        markeredgecolor='b')
     ax1.set_xlim([-0.5, nrun - 0.5])
-    ax1.set_ylabel(r'$\Delta K_e/\Delta K_i$', color='b',
-            fontdict=font, fontsize=24)
+    ax1.set_ylabel(
+        r'$\Delta K_e/\Delta K_i$', color='b', fontdict=font, fontsize=24)
     ax1.tick_params(labelsize=20)
     for tl in ax1.get_yticklabels():
         tl.set_color('b')

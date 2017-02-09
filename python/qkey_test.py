@@ -3,10 +3,11 @@ Test if the 'q' key is unique.
 """
 import h5py
 import matplotlib as mpl
-from mpl_toolkits.mplot3d import Axes3D
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.mplot3d import Axes3D
+
 
 def test_unique_q(step):
     """Test if the 'q' key is unique
@@ -28,6 +29,7 @@ def test_unique_q(step):
     # print sz, len(szq)
     print sz, len(uq)
     file.close
+
 
 if __name__ == "__main__":
     for i in range(1000):

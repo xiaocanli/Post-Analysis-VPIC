@@ -1,30 +1,32 @@
 """
 Analysis procedures for energy conversion.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-import numpy as np
+import collections
 import math
 import os.path
-import struct
-import collections
-import pic_information
-from pic_information import list_pic_info_dir
-import simplejson as json
-from serialize_json import data_to_json, json_to_data
-from runs_name_path import ApJ_long_paper_runs, guide_field_runs
-from scipy.interpolate import interp1d
-import colormap.colormaps as cmaps
-from contour_plots import read_2d_fields, plot_2d_contour
-from energy_conversion import calc_jdotes_fraction_multi
-import palettable
 import re
+import struct
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import simplejson as json
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import interp1d
+
+import colormap.colormaps as cmaps
+import palettable
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
+from energy_conversion import calc_jdotes_fraction_multi
 from fields_plot import *
+from pic_information import list_pic_info_dir
+from runs_name_path import ApJ_long_paper_runs, guide_field_runs
+from serialize_json import data_to_json, json_to_data
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -32,12 +34,14 @@ mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
+
 
 def plot_energy_evolution(pic_info):
     """Plot energy time evolution.
@@ -64,22 +68,30 @@ def plot_energy_evolution(pic_info):
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
-    p1, = ax.plot(tenergy, ene_magnetic/enorm, linewidth=2,
-            label=r'$\varepsilon_{b}$')
-    p2, = ax.plot(tenergy, kene_i/enorm, linewidth=2, label=r'$K_i$')
-    p3, = ax.plot(tenergy, kene_e/enorm, linewidth=2, label=r'$K_e$')
-    p4, = ax.plot(tenergy, 100*ene_electric/enorm, linewidth=2,
-            label=r'$100\varepsilon_{e}$')
+    p1, = ax.plot(
+        tenergy, ene_magnetic / enorm, linewidth=2, label=r'$\varepsilon_{b}$')
+    p2, = ax.plot(tenergy, kene_i / enorm, linewidth=2, label=r'$K_i$')
+    p3, = ax.plot(tenergy, kene_e / enorm, linewidth=2, label=r'$K_e$')
+    p4, = ax.plot(
+        tenergy,
+        100 * ene_electric / enorm,
+        linewidth=2,
+        label=r'$100\varepsilon_{e}$')
     # ax.set_xlim([0, np.max(tenergy)])
     ax.set_xlim([0, np.max(tenergy)])
     ax.set_ylim([0, 1.05])
 
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'Energy/$\varepsilon_{b0}$', fontdict=font, fontsize=24)
-    leg = ax.legend(loc=1, prop={'size':20}, ncol=2,
-            shadow=False, fancybox=False, frameon=False)
-    for color,text in zip(colors, leg.get_texts()):
-            text.set_color(color)
+    leg = ax.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=2,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
+    for color, text in zip(colors, leg.get_texts()):
+        text.set_color(color)
 
     # ax.text(0.5, 0.8, r'$\varepsilon_{b}$',
     #         color='blue', fontsize=24,
@@ -102,13 +114,16 @@ def plot_energy_evolution(pic_info):
     plt.tick_params(labelsize=20)
     #plt.savefig('pic_ene.eps')
 
-    print('The dissipated magnetic energy: %5.3f' % (1.0 - ene_magnetic[-1]/enorm))
-    print('Energy gain to the initial magnetic energy: %5.3f, %5.3f' %
-            ((kene_e[-1]-kene_e[0])/enorm, (kene_i[-1]-kene_i[0])/enorm))
-    print('Initial kene_e and kene_i to the initial magnetic energy: %5.3f, %5.3f' %
-            (kene_e[0]/enorm, kene_i[0]/enorm))
-    print('Final kene_e and kene_i to the initial magnetic energy: %5.3f, %5.3f' %
-            (kene_e[-1]/enorm, kene_i[-1]/enorm))
+    print('The dissipated magnetic energy: %5.3f' %
+          (1.0 - ene_magnetic[-1] / enorm))
+    print('Energy gain to the initial magnetic energy: %5.3f, %5.3f' % (
+        (kene_e[-1] - kene_e[0]) / enorm, (kene_i[-1] - kene_i[0]) / enorm))
+    print(
+        'Initial kene_e and kene_i to the initial magnetic energy: %5.3f, %5.3f'
+        % (kene_e[0] / enorm, kene_i[0] / enorm))
+    print(
+        'Final kene_e and kene_i to the initial magnetic energy: %5.3f, %5.3f'
+        % (kene_e[-1] / enorm, kene_i[-1] / enorm))
     init_ene = pic_info.ene_electric[0] + pic_info.ene_magnetic[0] + \
                kene_e[0] + kene_i[0]
     final_ene = pic_info.ene_electric[-1] + pic_info.ene_magnetic[-1] + \
@@ -154,11 +169,11 @@ def plot_dke(pic_info, species, ax):
     """Plot the electron energy change
     """
     if species == 'e':
-        kene= pic_info.kene_e
+        kene = pic_info.kene_e
     else:
-        kene= pic_info.kene_e
+        kene = pic_info.kene_e
     tenergy = pic_info.tenergy
-    p1, = ax.plot(tenergy, kene/kene[0], linewidth=2)
+    p1, = ax.plot(tenergy, kene / kene[0], linewidth=2)
 
 
 def plot_dke_multi():
@@ -201,7 +216,7 @@ def plot_jy_multi():
     run_name = run_names[0]
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    kwargs = {"current_time":11, "xl":0, "xr":200, "zb":-10, "zt":10}
+    kwargs = {"current_time": 11, "xl": 0, "xr": 200, "zb": -10, "zt": 10}
     fname = bdir + 'data/jy.gda'
     x, z, jy1 = read_2d_fields(pic_info, fname, **kwargs)
     fname = bdir + 'data/Ay.gda'
@@ -230,15 +245,19 @@ def plot_jy_multi():
     xs = 0.13
     ys = 0.97 - height
     gap = 0.05
-    fig = plt.figure(figsize=[7,5])
+    fig = plt.figure(figsize=[7, 5])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": -0.5, "vmax": 0.5}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jy1, ax1, fig, **kwargs_plot)
     p1.set_cmap(plt.cm.get_cmap('seismic'))
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay1[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay1[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
     cbar1.ax.set_ylabel(r'$j_y$', fontdict=font, fontsize=20)
@@ -248,13 +267,17 @@ def plot_jy_multi():
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": -0.5, "vmax": 0.5}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p2, cbar2 = plot_2d_contour(x, z, jy2, ax2, fig, **kwargs_plot)
     p2.set_cmap(plt.cm.get_cmap('seismic'))
-    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay2[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay2[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax2.tick_params(labelsize=16)
     cbar2.ax.set_ylabel(r'$j_y$', fontdict=font, fontsize=20)
@@ -264,13 +287,17 @@ def plot_jy_multi():
 
     ys -= height + gap
     ax3 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-1.0, "vmax":1.0}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": -1.0, "vmax": 1.0}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p3, cbar3 = plot_2d_contour(x, z, jy3, ax3, fig, **kwargs_plot)
     p3.set_cmap(plt.cm.get_cmap('seismic'))
-    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay3[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax3.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay3[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax3.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax3.tick_params(labelsize=16)
@@ -278,18 +305,39 @@ def plot_jy_multi():
     cbar3.set_ticks(np.arange(-1.0, 1.1, 0.5))
     cbar3.ax.tick_params(labelsize=16)
 
-    ax1.text(0.02, 0.78, r'R8 $\beta_e=0.2$', color='k', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax1.transAxes)
-    ax2.text(0.02, 0.78, r'R7 $\beta_e=0.07$', color='k', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax2.transAxes)
-    ax3.text(0.02, 0.78, r'R6 $\beta_e=0.007$', color='k', fontsize=20,
-            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform = ax3.transAxes)
+    ax1.text(
+        0.02,
+        0.78,
+        r'R8 $\beta_e=0.2$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax1.transAxes)
+    ax2.text(
+        0.02,
+        0.78,
+        r'R7 $\beta_e=0.07$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax2.transAxes)
+    ax3.text(
+        0.02,
+        0.78,
+        r'R6 $\beta_e=0.007$',
+        color='k',
+        fontsize=20,
+        bbox=dict(
+            facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left',
+        verticalalignment='center',
+        transform=ax3.transAxes)
 
     fig.savefig('../img/jy_multi.jpg', dpi=300)
 
@@ -327,12 +375,12 @@ def plot_jy_guide():
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     xl, xr = 50, 150
-    kwargs = {"current_time":cts[0], "xl":xl, "xr":xr, "zb":-10, "zt":10}
+    kwargs = {"current_time": cts[0], "xl": xl, "xr": xr, "zb": -10, "zt": 10}
     fname = bdir + 'data/' + var + '.gda'
     x, z, jy1 = read_2d_fields(pic_info, fname, **kwargs)
     fname = bdir + 'data/Ay.gda'
     x, z, Ay1 = read_2d_fields(pic_info, fname, **kwargs)
-    kwargs = {"current_time":cts[1], "xl":xl, "xr":xr, "zb":-10, "zt":10}
+    kwargs = {"current_time": cts[1], "xl": xl, "xr": xr, "zb": -10, "zt": 10}
     bdir = base_dirs[1]
     run_name = run_names[1]
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -341,7 +389,7 @@ def plot_jy_guide():
     x, z, jy2 = read_2d_fields(pic_info, fname, **kwargs)
     fname = bdir + 'data/Ay.gda'
     x, z, Ay2 = read_2d_fields(pic_info, fname, **kwargs)
-    kwargs = {"current_time":cts[2], "xl":xl, "xr":xr, "zb":-10, "zt":10}
+    kwargs = {"current_time": cts[2], "xl": xl, "xr": xr, "zb": -10, "zt": 10}
     bdir = base_dirs[2]
     run_name = run_names[2]
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -350,7 +398,7 @@ def plot_jy_guide():
     x, z, jy3 = read_2d_fields(pic_info, fname, **kwargs)
     fname = bdir + 'data/Ay.gda'
     x, z, Ay3 = read_2d_fields(pic_info, fname, **kwargs)
-    kwargs = {"current_time":cts[3], "xl":xl, "xr":xr, "zb":-10, "zt":10}
+    kwargs = {"current_time": cts[3], "xl": xl, "xr": xr, "zb": -10, "zt": 10}
     bdir = base_dirs[3]
     run_name = run_names[3]
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -360,7 +408,7 @@ def plot_jy_guide():
     fname = bdir + 'data/Ay.gda'
     x, z, Ay4 = read_2d_fields(pic_info, fname, **kwargs)
 
-    kwargs = {"current_time":cts[4], "xl":xl, "xr":xr, "zb":-10, "zt":10}
+    kwargs = {"current_time": cts[4], "xl": xl, "xr": xr, "zb": -10, "zt": 10}
     bdir = base_dirs[4]
     run_name = run_names[4]
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -377,15 +425,19 @@ def plot_jy_guide():
     xs = 0.1
     ys = 0.98 - height
     gap = 0.025
-    fig = plt.figure(figsize=[10,8])
+    fig = plt.figure(figsize=[10, 8])
     ax1 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p1, cbar1 = plot_2d_contour(x, z, jy1, ax1, fig, **kwargs_plot)
     p1.set_cmap(cmap)
-    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay1[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay1[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
     cbar1.ax.set_ylabel(label, fontdict=font, fontsize=20)
@@ -395,13 +447,17 @@ def plot_jy_guide():
 
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p2, cbar2 = plot_2d_contour(x, z, jy2, ax2, fig, **kwargs_plot)
     p2.set_cmap(cmap)
-    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay2[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax2.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay2[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax2.tick_params(labelsize=16)
     cbar2.ax.set_ylabel(label, fontdict=font, fontsize=20)
@@ -411,13 +467,17 @@ def plot_jy_guide():
 
     ys -= height + gap
     ax3 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p3, cbar3 = plot_2d_contour(x, z, jy3, ax3, fig, **kwargs_plot)
     p3.set_cmap(cmap)
-    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay3[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax3.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay3[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     # ax3.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax3.tick_params(labelsize=16)
@@ -428,13 +488,17 @@ def plot_jy_guide():
 
     ys -= height + gap
     ax4 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p4, cbar4 = plot_2d_contour(x, z, jy4, ax4, fig, **kwargs_plot)
     p4.set_cmap(cmap)
-    ax4.contour(x[0:nx:xstep], z[0:nz:zstep], Ay4[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax4.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay4[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     # ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax4.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax4.tick_params(labelsize=16)
@@ -445,13 +509,17 @@ def plot_jy_guide():
 
     ys -= height + gap
     ax5 = fig.add_axes([xs, ys, width, height])
-    kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": vmin, "vmax": vmax}
     xstep = kwargs_plot["xstep"]
     zstep = kwargs_plot["zstep"]
     p5, cbar5 = plot_2d_contour(x, z, jy5, ax5, fig, **kwargs_plot)
     p5.set_cmap(cmap)
-    ax5.contour(x[0:nx:xstep], z[0:nz:zstep], Ay5[0:nz:zstep, 0:nx:xstep], 
-            colors='black', linewidths=0.5)
+    ax5.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay5[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
     ax5.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
     ax5.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
     ax5.tick_params(labelsize=16)
@@ -463,11 +531,17 @@ def plot_jy_guide():
     bgs = [0.0, 0.2, 0.5, 1.0, 4.0]
     for ax, bg in zip(axs, bgs):
         tname = r'$B_g = ' + str(bg) + '$'
-        ax.text(0.02, 0.8, tname, color='k', fontsize=24,
-                bbox=dict(facecolor='none', alpha=1.0,
-                          edgecolor='none', pad=10.0),
-                horizontalalignment='left', verticalalignment='center',
-                transform = ax.transAxes)
+        ax.text(
+            0.02,
+            0.8,
+            tname,
+            color='k',
+            fontsize=24,
+            bbox=dict(
+                facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left',
+            verticalalignment='center',
+            transform=ax.transAxes)
 
     fname = '../img/thesis/' + var + '.jpg'
     fig.savefig(fname, dpi=200)

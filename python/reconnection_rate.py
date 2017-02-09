@@ -1,33 +1,36 @@
 """
 Analysis procedures for particle energy spectrum.
 """
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LogNorm
-from matplotlib import rc
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from scipy import signal
-import numpy as np
+import collections
 import math
 import os.path
 import struct
-import collections
-import pic_information
-from contour_plots import read_2d_fields, plot_2d_contour
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+from matplotlib import rc
+from matplotlib.colors import LogNorm
+from matplotlib.ticker import MaxNLocator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from mpl_toolkits.mplot3d import Axes3D
+from scipy import signal
+
 import palettable
+import pic_information
+from contour_plots import plot_2d_contour, read_2d_fields
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family' : 'serif',
-        #'color'  : 'darkred',
-        'color'  : 'black',
-        'weight' : 'normal',
-        'size'   : 24,
-        }
+font = {
+    'family': 'serif',
+    #'color'  : 'darkred',
+    'color': 'black',
+    'weight': 'normal',
+    'size': 24,
+}
 
 
 def calc_reconnection_rate(base_dir):
@@ -41,13 +44,13 @@ def calc_reconnection_rate(base_dir):
     phi = np.zeros(ntf)
     fname = base_dir + 'data/Ay.gda'
     for ct in range(ntf):
-        kwargs = {"current_time":ct, "xl":0, "xr":200, "zb":-1, "zt":1}
+        kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -1, "zt": 1}
         x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
         nz, = z.shape
         # max_ay = np.max(np.sum(Ay[nz/2-1:nz/2+1, :], axis=0)/2)
         # min_ay = np.min(np.sum(Ay[nz/2-1:nz/2+1, :], axis=0)/2)
-        max_ay = np.max(Ay[nz/2-1:nz/2+1, :])
-        min_ay = np.min(Ay[nz/2-1:nz/2+1, :])
+        max_ay = np.max(Ay[nz / 2 - 1:nz / 2 + 1, :])
+        min_ay = np.min(Ay[nz / 2 - 1:nz / 2 + 1, :])
         phi[ct] = max_ay - min_ay
     nk = 3
     phi = signal.medfilt(phi, kernel_size=nk)
@@ -58,7 +61,7 @@ def calc_reconnection_rate(base_dir):
     dtf_wpe = pic_info.dt_fields * dtwpe / dtwci
     reconnection_rate = np.gradient(phi) / dtf_wpe
     b0 = pic_info.b0
-    va = dtwce * math.sqrt(1.0/mime) / dtwpe
+    va = dtwce * math.sqrt(1.0 / mime) / dtwpe
     reconnection_rate /= b0 * va
     reconnection_rate[-1] = reconnection_rate[-2]
     tfields = pic_info.tfields
@@ -175,8 +178,13 @@ def plot_multi_reconnection_rate():
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
-    ax.legend(loc=1, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    ax.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     fname = dir + 'rate_low_density.eps'
     fig.savefig(fname)
 
@@ -194,8 +202,13 @@ def plot_multi_reconnection_rate():
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
-    ax.legend(loc=1, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    ax.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     fname = dir + 'rate_low_temp.eps'
     fig.savefig(fname)
 
@@ -210,8 +223,13 @@ def plot_multi_reconnection_rate():
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
-    ax.legend(loc=1, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    ax.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     fname = dir + 'rate_mass.eps'
     fig.savefig(fname)
 
@@ -226,8 +244,13 @@ def plot_multi_reconnection_rate():
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
-    ax.legend(loc=1, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    ax.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     fname = dir + 'rate_initial.eps'
     fig.savefig(fname)
 
@@ -265,7 +288,7 @@ def plot_reconnection_rate():
     # Compare different temperature
     fig = plt.figure(figsize=[7, 5])
     w1, h1 = 0.82, 0.4
-    xs, ys = 0.13, 0.97-h1
+    xs, ys = 0.13, 0.97 - h1
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.set_color_cycle(colors)
     ax.plot(tf1, rate1, linewidth=2, label='R1')
@@ -276,10 +299,15 @@ def plot_reconnection_rate():
     ax.tick_params(labelsize=16)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
-    leg = ax.legend(loc=1, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    leg = ax.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     for color, text in zip(colors[0:3], leg.get_texts()):
-            text.set_color(color)
+        text.set_color(color)
 
     ys -= h1 + 0.05
     ax1 = fig.add_axes([xs, ys, w1, h1])
@@ -291,10 +319,15 @@ def plot_reconnection_rate():
     ax1.tick_params(labelsize=16)
     ax1.set_xlim([0, 1200])
     ax1.set_ylim([0, 0.12])
-    leg1 = ax1.legend(loc=1, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    leg1 = ax1.legend(
+        loc=1,
+        prop={'size': 20},
+        ncol=1,
+        shadow=False,
+        fancybox=False,
+        frameon=False)
     for color, text in zip(colors[3:5], leg1.get_texts()):
-            text.set_color(color)
+        text.set_color(color)
     fname = dir + 'rec_rate.eps'
     fig.savefig(fname)
 
