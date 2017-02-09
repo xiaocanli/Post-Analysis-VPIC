@@ -474,8 +474,10 @@ if __name__ == "__main__":
     # run_name = 'sigma1-mime25-beta0002'
     # base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-2'
     # run_name = '2D-90-Mach4-sheet6-2'
-    base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-3'
-    run_name = '2D-90-Mach4-sheet6-3'
+    # base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-3'
+    # run_name = '2D-90-Mach4-sheet6-3'
+    base_directory = '/net/scratch3/xiaocanli/herts/tether_potential_tests/v200_b0_wce'
+    run_name = 'v200_b0_wce'
     pic_info = get_pic_info(base_directory)
     pic_info_json = data_to_json(pic_info)
     fname = '../data/pic_info/pic_info_' + run_name + '.json'
