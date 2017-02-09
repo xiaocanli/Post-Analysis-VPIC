@@ -876,8 +876,9 @@ def plot_spectra_beta_electron_fitted():
         fnonthermal = flog - fthermal
         p1, = ax.loglog(elog_norm, flog, linewidth=2)
         color = p1.get_color()
-        if run > 0:
-            p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
+
+        # if run > 0:
+        #     p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
 
         if run < 2:
             power_fit = power_law_fit(elog, flog, offset[run], extent[run])
@@ -891,10 +892,6 @@ def plot_spectra_beta_electron_fitted():
         ee += e_extend
         powerIndex = "{%0.2f}" % power_fit.params[0]
         pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
-        if run > 0:
-            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
-                    linestyle='--', linewidth=2, label=pname)
-            colors_plot.append(color)
         # # Help for fitting
         # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
         #         linestyle='None', color=color)
@@ -910,13 +907,18 @@ def plot_spectra_beta_electron_fitted():
         # shift *= 5
         run += 1
 
+    # if run > 0:
+    #     p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+    #             linestyle='--', linewidth=2, label=pname)
+    #     colors_plot.append(color)
+    # leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+    #         shadow=False, fancybox=False, frameon=False)
+    # for color,text in zip(colors_plot, leg.get_texts()):
+    #         text.set_color(color)
+
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
-    for color,text in zip(colors_plot, leg.get_texts()):
-            text.set_color(color)
     ax.text(0.50, 0.05, 'R8', color=colors[0], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
@@ -1095,8 +1097,8 @@ def plot_spectra_multi_electron_fitted():
         fnonthermal = flog - fthermal
         p1, = ax.loglog(elog_norm, flog, linewidth=2)
         color = p1.get_color()
-        p11, = ax.loglog(elog_norm[e_nth[run]:], fnonthermal[e_nth[run]:],
-                color=color)
+        # p11, = ax.loglog(elog_norm[e_nth[run]:], fnonthermal[e_nth[run]:],
+        #         color=color)
         # power_fit = power_law_fit(elog, fnonthermal, 310, 50)
         power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
         es, ee = power_fit.es, power_fit.ee
@@ -1105,9 +1107,9 @@ def plot_spectra_multi_electron_fitted():
         pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
         es -= e_extend
         ee += e_extend
-        p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
-                linestyle='--', linewidth=2, label=pname)
-        colors_plot.append(color)
+        # p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+        #         linestyle='--', linewidth=2, label=pname)
+        # colors_plot.append(color)
         # # Help for fitting
         # p12, = ax.loglog(elog_norm, fthermal, color=color)
         # p21, = ax.loglog(elog_norm[es], fnonthermal[es], marker='.', markersize=10,
@@ -1123,10 +1125,10 @@ def plot_spectra_multi_electron_fitted():
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
-    for color,text in zip(colors_plot, leg.get_texts()):
-            text.set_color(color)
+    # leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+    #         shadow=False, fancybox=False, frameon=False)
+    # for color,text in zip(colors_plot, leg.get_texts()):
+    #         text.set_color(color)
     ax.text(0.05, 0.65, 'R5', color=colors[0], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
@@ -1196,8 +1198,8 @@ def plot_spectra_beta_ion():
         fnonthermal = flog - fthermal
         p1, = ax.loglog(elog_norm, flog, linewidth=2)
         color = p1.get_color()
-        if run > 0:
-            p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
+        # if run > 0:
+        #     p11, = ax.loglog(elog_norm[e_nth:], fnonthermal[e_nth:], color=color)
 
         if run < 1:
             power_fit = power_law_fit(elog, flog, offset[run], extent[run])
@@ -1211,10 +1213,10 @@ def plot_spectra_beta_ion():
         ee += e_extend
         powerIndex = "{%0.2f}" % power_fit.params[0]
         pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
-        if run > 0:
-            p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
-                    linestyle='--', linewidth=2, label=pname)
-            colors_plot.append(color)
+        # if run > 0:
+        #     p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+        #             linestyle='--', linewidth=2, label=pname)
+        #     colors_plot.append(color)
         # # Help for fitting
         # p21, = ax.loglog(elog_norm[es], flog[es], marker='.', markersize=10,
         #         linestyle='None', color=color)
@@ -1233,10 +1235,10 @@ def plot_spectra_beta_ion():
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
-    for color,text in zip(colors_plot, leg.get_texts()):
-            text.set_color(color)
+    # leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+    #         shadow=False, fancybox=False, frameon=False)
+    # for color,text in zip(colors_plot, leg.get_texts()):
+    #         text.set_color(color)
     ax.text(0.45, 0.05, 'R8', color=colors[0], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
@@ -1322,8 +1324,8 @@ def plot_spectra_multi_ion():
         fnonthermal = flog - fthermal
         p1, = ax.loglog(elog_norm, flog, linewidth=2)
         color = p1.get_color()
-        p11, = ax.loglog(elog_norm[e_nth[run]:], fnonthermal[e_nth[run]:],
-                color=color)
+        # p11, = ax.loglog(elog_norm[e_nth[run]:], fnonthermal[e_nth[run]:],
+        #         color=color)
         # power_fit = power_law_fit(elog, fnonthermal, 310, 50)
         power_fit = power_law_fit(elog, fnonthermal, offset[run], extent[run])
         es, ee = power_fit.es, power_fit.ee
@@ -1332,9 +1334,9 @@ def plot_spectra_multi_ion():
         pname = r'$\sim \varepsilon^{' + powerIndex + '}$'
         es -= e_extend
         ee += e_extend
-        p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
-                linestyle='--', linewidth=2, label=pname)
-        colors_plot.append(color)
+        # p23, = ax.loglog(elog_norm[es:ee], fpower[es:ee]*2, color=color,
+        #         linestyle='--', linewidth=2, label=pname)
+        # colors_plot.append(color)
         # # Help for fitting
         # p12, = ax.loglog(elog_norm, fthermal, color=color)
         # p21, = ax.loglog(elog_norm[es], fnonthermal[es], marker='.', markersize=10,
@@ -1350,10 +1352,10 @@ def plot_spectra_multi_ion():
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=24)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=24)
     ax.tick_params(labelsize=20)
-    leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
-    for color,text in zip(colors_plot, leg.get_texts()):
-            text.set_color(color)
+    # leg = ax.legend(loc=3, prop={'size':20}, ncol=1,
+    #         shadow=False, fancybox=False, frameon=False)
+    # for color,text in zip(colors_plot, leg.get_texts()):
+    #         text.set_color(color)
     ax.text(0.05, 0.58, 'R5', color=colors[0], fontsize=20,
             horizontalalignment='left', verticalalignment='center',
             transform = ax.transAxes)
@@ -1814,12 +1816,12 @@ if __name__ == "__main__":
     # plt.show()
     # plot_spectrum_bulk(ntp, 'e', pic_info)
     # plot_maximum_energy(ntp, pic_info)
-    move_energy_spectra()
+    # move_energy_spectra()
     # calc_nonthermal_fraction('h')
     # plot_spectra_beta_electron()
     # plot_spectra_beta_electron_fitted()
     # plot_spectra_multi_electron()
-    # plot_spectra_multi_electron_fitted()
+    plot_spectra_multi_electron_fitted()
     # plot_spectra_beta_ion()
     # plot_spectra_multi_ion()
     # plot_guide_electron()
