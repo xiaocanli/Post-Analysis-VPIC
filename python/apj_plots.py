@@ -3085,11 +3085,11 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     wpe_wce = pic_info.dtwce / pic_info.dtwpe
     nx, = x.shape
     nz, = z.shape
-    width = 0.79
+    width = 0.77
     height = 0.7
     xs = 0.13
     ys = 0.92 - height
-    gap = 0.05
+    gap = 0.02
     fig = plt.figure(figsize=[8, 4])
     ax1 = fig.add_axes([xs, ys, width, height])
     kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": -1.0, "vmax": 1.0}
@@ -3204,6 +3204,16 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
             y = v[:, 1]
             ax1.plot(x, y, color='k', linewidth=2)
 
+    xs += width + gap
+    width1 = 0.03
+    ax2 = fig.add_axes([xs, ys, width1, height])
+    cmap = mpl.colors.ListedColormap(colors_jet)
+    norm = mpl.colors.Normalize(vmin=0.5, vmax=nlevels+0.5)
+    cb1 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+            norm=norm, orientation='vertical')
+    cb1.set_ticks(np.arange(1, nlevels+1, 2))
+    cb1.ax.tick_params(labelsize=16)
+
     # plt.show()
     # plt.close()
 
@@ -3306,6 +3316,96 @@ def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir,
     return dists_sectors
 
 
+def compare_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info):
+    """Compare spectra in sectors with the same vector potential
+    """
+    dists_sector = read_spectrum_vdist_in_sectors(ct, ct_particle, species, \
+                                                  root_dir, pic_info)
+    fdir = 'pic_analysis/data/field_line/'
+    fpath = root_dir + fdir + 't' + str(ct) + '/'
+    flogs = {}
+    for key in dists_sector:
+        fene = []
+        for dists in dists_sector[key]:
+            fene.append(dists['fene'].flog)
+        elog = dists['fene'].elog
+        flogs[key] = fene
+    clevel = 15
+    nlevels = len(flogs)
+    if clevel < nlevels:
+        fene1 = np.asarray(flogs[str(clevel)])
+        fene2 = np.asarray(flogs[str(clevel+1)])
+    else:
+        fene1 = np.asarray(flogs[str(clevel)])
+        fene2 = np.zeros(fene1.shape)
+
+    tframe = '30'
+    fpath = root_dir + '/pic_analysis/data/field_line/t' + tframe + '/'
+    width = 0.77
+    height = 0.7
+    xs = 0.13
+    ys = 0.92 - height
+    gap = 0.02
+    fig = plt.figure(figsize=[8, 4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    line_styles = ['-', '--', '-.', ':']
+    fname_pre = fpath + 'field_line_' + tframe + '_' + str(clevel)
+    for i in range(len(fene1)):
+        fname1 = fname_pre + '_' + str(i + 1) + '_1.dat'
+        fname2 = fname_pre + '_' + str(i + 1) + '_2.dat'
+        field_line1 = np.fromfile(fname1)
+        field_line2 = np.fromfile(fname2)
+        sz, = field_line1.shape
+        field_line1 = np.reshape(field_line1, (sz/2, 2))
+        sz, = field_line2.shape
+        field_line2 = np.reshape(field_line2, (sz/2, 2))
+        ax1.plot(field_line1[:, 0], field_line1[:, 1], linewidth=2, color='r',
+                 linestyle=line_styles[i])
+        ax1.plot(field_line2[:, 0], field_line2[:, 1], linewidth=2, color='r',
+                 linestyle=line_styles[i])
+
+    fname_pre = fpath + 'field_line_' + tframe + '_' + str(clevel + 1)
+    if clevel < nlevels:
+        for i in range(len(fene2)):
+            fname1 = fname_pre + '_' + str(i + 1) + '_1.dat'
+            fname2 = fname_pre + '_' + str(i + 1) + '_2.dat'
+            field_line1 = np.fromfile(fname1)
+            field_line2 = np.fromfile(fname2)
+            sz, = field_line1.shape
+            field_line1 = np.reshape(field_line1, (sz/2, 2))
+            sz, = field_line2.shape
+            field_line2 = np.reshape(field_line2, (sz/2, 2))
+            ax1.plot(field_line1[:, 0], field_line1[:, 1], linewidth=2, color='b',
+                     linestyle=line_styles[i])
+            ax1.plot(field_line2[:, 0], field_line2[:, 1], linewidth=2, color='b',
+                     linestyle=line_styles[i])
+
+    ax1.set_ylim([-20, 20])
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    fsec = fene1 - fene2
+    fsec1 = fsec[0] + fsec[1]
+    fsec2 = fsec[2]
+    # fsec1 = fsec[0]
+    # fsec2 = fsec[1]
+    nacc1, eacc1 = accumulated_particle_info(elog, fsec1)
+    nacc2, eacc2 = accumulated_particle_info(elog, fsec2)
+    nratio = nacc1[-1] / nacc2[-1]
+    ax.loglog(elog, fsec1, linewidth=2)
+    ax.loglog(elog, fsec2 * nratio, linewidth=2)
+    ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
+    ax.tick_params(labelsize=16)
+    plt.show()
+
+
 def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
                              run_name, nlevels, ilevel):
     """Plot particle spectrum and velocity distributions in sectors
@@ -3318,8 +3418,10 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         for dists in dists_sector[key]:
             fene.append(dists['fene'].flog)
         elog = dists['fene'].elog
-        fene = np.sum(np.asarray(fene), axis=0)
-        flogs[key] = fene
+        # fene = np.sum(np.asarray(fene), axis=0)
+        # flogs[key] = fene
+        flog = np.asarray(fene)
+        flogs[key] = flog[-1]
 
     # fig = plt.figure(figsize=[7, 5])
     # xs, ys = 0.15, 0.15
@@ -3330,14 +3432,23 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     ax = fig.add_axes([xs, ys, w1, h1])
     colors_jet = plt.cm.Paired(np.arange(nlevels) / float(nlevels), 1)
     colors_d = distinguishable_colors()
-    ax.set_color_cycle(colors_jet)
+
+    start_level = 17
+    ax.set_color_cycle(colors_jet[start_level-1:])
     nsector = len(flogs)
     norm = 1
-    for i in range(1, nsector):
+    nacc_max = 0
+    for i in range(start_level, nsector):
         f = (flogs[str(i)] - flogs[str(i + 1)]) * norm
-        ax.loglog(elog, f, linewidth=3)
-        # norm *= 1.4
+        nacc1, eacc1 = accumulated_particle_info(elog, f)
+        nacc_max = max(nacc1[-1], nacc_max)
+    for i in range(start_level, nsector):
+        f = (flogs[str(i)] - flogs[str(i + 1)]) * norm
+        nacc1, eacc1 = accumulated_particle_info(elog, f)
+        ax.loglog(elog, f * nacc_max / nacc1[-1], linewidth=3)
     flog = flogs[str(nsector)] * norm
+    nacc1, eacc1 = accumulated_particle_info(elog, flog)
+    flog *= nacc_max / nacc1[-1]
     # flog = flogs[str(nsector-1)] - flogs[str(nsector)]
     fthermal1, popt = fit_thermal_core(elog, flog)
     fnonthermal1 = flog - fthermal1
@@ -3428,6 +3539,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         if species == 'e':
             ax.set_xlim([1E-4, 1E2])
             ax.set_ylim([1E-5, 5E5])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
+    elif run_name == 'sigma1-mime25-beta0002-fan':
+        if species == 'e':
+            ax.set_xlim([1E-4, 1E1])
+            ax.set_ylim([1E-4, 1E7])
         else:
             ax.set_xlim([1E-4, 3E0])
             ax.set_ylim([1E-4, 1E6])
@@ -3552,8 +3670,10 @@ def spectrum_between_fieldlines():
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
     # run_name = "mime25_sigma100"
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
-    run_name = "mime25_beta0001"
-    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta0001/"
+    # run_name = "mime25_beta0001"
+    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta0001/"
+    run_name = 'sigma1-mime25-beta0002-fan'
+    root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
@@ -3568,16 +3688,19 @@ def spectrum_between_fieldlines():
         ilevel = 5
     elif run_name == 'mime25_beta0001':
         ilevel = 6
-    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
-    mkdir_p(fpath)
-    fname = fpath + '/contour_' + str(ct) + '.jpg'
-    plt.savefig(fname, dpi=300)
+    elif run_name == 'sigma1-mime25-beta0002-fan':
+        ilevel = 10
+    # get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
+    # mkdir_p(fpath)
+    # fname = fpath + '/contour_' + str(ct) + '.jpg'
+    # plt.savefig(fname, dpi=300)
     # gen_run_script(ct, ct_particle, species, root_dir)
     plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
                              run_name, nlevels, ilevel)
-    fname = fpath + '/spect_sector_' + species + '_' + str(ct) + '.eps'
-    plt.savefig(fname)
+    # fname = fpath + '/spect_sector_' + species + '_' + str(ct) + '.eps'
+    # plt.savefig(fname)
     plt.show()
+    # compare_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info)
 
 
 if __name__ == "__main__":
@@ -3586,14 +3709,16 @@ if __name__ == "__main__":
     # root_dir = scratch_dir + 'mime25-sigma1-beta002-200-100-noperturb/'
     # run_name = "mime25_beta002"
     # root_dir = "/net/scratch2/xiaocanli/sigma1-mime25-beta001/"
-    run_name = "mime25_beta0002"
-    root_dir = "/net/scratch3/xiaocanli/sigma1-mime25-beta0002/"
+    # run_name = "mime25_beta0002"
+    # root_dir = "/net/scratch3/xiaocanli/sigma1-mime25-beta0002/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta002_track"
     # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
-    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
+    # run_name = 'sigma1-mime25-beta0002-fan'
+    # root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
+    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    # pic_info = read_data_from_json(picinfo_fname)
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_vx_time(run_name, root_dir, pic_info)
     # plot_epara_eperp(pic_info, 26, root_dir)
