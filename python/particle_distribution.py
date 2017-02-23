@@ -565,22 +565,22 @@ def generate_spectrum_vdist_config(fname, **kwargs):
 
 
 def get_spectrum_vdist(pic_info,
-                       dir='../',
+                       fdir='../',
                        config_name='config_files/vdist_config.dat',
                        **kwargs):
     """Get particle spectra and velocity distributions
     """
-    fname = dir + config_name
+    fname = fdir + config_name
     generate_spectrum_vdist_config(fname, **kwargs)
     # cmd = './particle_spectrum_vdist_box ' + config_name
     # p1 = subprocess.Popen([cmd], cwd='../', shell=True)
     # cmd = 'mpirun -np 16 python particle_spectrum_vdist.py ' + config_name
-    cmd = 'mpirun -np 64 particle_spectrum_vdist_box ' + \
+    cmd = 'mpirun -np 16 particle_spectrum_vdist_box ' + \
             '-c ' + config_name + ' -s ' + kwargs['species']
     print cmd
     p1 = subprocess.Popen(
         [cmd],
-        cwd='../',
+        cwd=fdir,
         stdout=open('outfile.out', 'w'),
         stderr=subprocess.STDOUT,
         shell=True)
