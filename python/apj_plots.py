@@ -3066,6 +3066,78 @@ def fit_two_maxwellian():
     plt.show()
 
 
+def plot_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
+    """plotting contours
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+        ct: time frame
+        nlevels: total levels of contour
+        ilevel: additional contour line plot
+    """
+    # kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+    # fname = root_dir + "data/jy.gda"
+    # x, z, jy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    nx, = x.shape
+    nz, = z.shape
+    width = 0.77
+    height = 0.7
+    xs = 0.13
+    ys = 0.92 - height
+    gap = 0.02
+    fig = plt.figure(figsize=[8, 4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": -1.0, "vmax": 1.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    # p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(plt.cm.get_cmap('seismic'))
+    # p1.set_cmap(cmaps.inferno)
+    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    colors_jet = plt.cm.Paired(np.arange(nlevels) / float(nlevels), 1)
+
+    cs = ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors=colors_jet,
+        linewidths=0.5,
+        levels=levels)
+    ax1.clabel(cs, inline=1, fontsize=16)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    # cbar1.set_ticks(np.arange(-0.8, 1.0, 0.4))
+    # cbar1.ax.tick_params(labelsize=16)
+
+    for cl in cs.collections[ilevel:ilevel + 1]:
+        sz = len(cl.get_paths())
+        for p in cl.get_paths():
+            v = p.vertices
+            x = v[:, 0]
+            y = v[:, 1]
+            ax1.plot(x, y, color='k', linewidth=2)
+
+    xs += width + gap
+    width1 = 0.03
+    ax2 = fig.add_axes([xs, ys, width1, height])
+    cmap = mpl.colors.ListedColormap(colors_jet)
+    norm = mpl.colors.Normalize(vmin=0.5, vmax=nlevels+0.5)
+    cb1 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+            norm=norm, orientation='vertical')
+    cb1.set_ticks(np.arange(1, nlevels+1, 2))
+    cb1.ax.tick_params(labelsize=16)
+
+    # plt.show()
+    # plt.close()
+
+
 def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     """Get the coordinates when plotting contours
 
@@ -3077,7 +3149,8 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
         nlevels: total levels of contour
         ilevel: additional contour line plot
     """
-    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
+    # kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
+    kwargs = {"current_time": ct, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
     # fname = root_dir + "data/jy.gda"
     # x, z, jy = read_2d_fields(pic_info, fname, **kwargs)
     fname = root_dir + "data/Ay.gda"
@@ -3418,10 +3491,10 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         for dists in dists_sector[key]:
             fene.append(dists['fene'].flog)
         elog = dists['fene'].elog
-        # fene = np.sum(np.asarray(fene), axis=0)
-        # flogs[key] = fene
-        flog = np.asarray(fene)
-        flogs[key] = flog[-1]
+        fene = np.sum(np.asarray(fene), axis=0)
+        flogs[key] = fene
+        # flog = np.asarray(fene)
+        # flogs[key] = flog[-1]
 
     # fig = plt.figure(figsize=[7, 5])
     # xs, ys = 0.15, 0.15
@@ -3433,7 +3506,7 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     colors_jet = plt.cm.Paired(np.arange(nlevels) / float(nlevels), 1)
     colors_d = distinguishable_colors()
 
-    start_level = 17
+    start_level = 1
     ax.set_color_cycle(colors_jet[start_level-1:])
     nsector = len(flogs)
     norm = 1
@@ -3442,10 +3515,11 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         f = (flogs[str(i)] - flogs[str(i + 1)]) * norm
         nacc1, eacc1 = accumulated_particle_info(elog, f)
         nacc_max = max(nacc1[-1], nacc_max)
-    for i in range(start_level, nsector):
+    for i in range(start_level, nsector, 2):
         f = (flogs[str(i)] - flogs[str(i + 1)]) * norm
         nacc1, eacc1 = accumulated_particle_info(elog, f)
-        ax.loglog(elog, f * nacc_max / nacc1[-1], linewidth=3)
+        ax.loglog(elog, f * nacc_max / nacc1[-1], linewidth=3, color=colors_jet[i-1])
+        print colors_jet[i-1]
     flog = flogs[str(nsector)] * norm
     nacc1, eacc1 = accumulated_particle_info(elog, flog)
     flog *= nacc_max / nacc1[-1]
@@ -3463,7 +3537,7 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     fpower *= 1E3
     powerIndex = "{%0.2f}" % pindex
     pname = '$\sim (\gamma - 1)^{' + powerIndex + '}$'
-    ax.loglog(elog, flog, linewidth=3)
+    ax.loglog(elog, flog, linewidth=3, color=colors_jet[nsector-1])
     ax.loglog(
         elog,
         flogs[str(ilevel)],
@@ -3472,13 +3546,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         label='Reconnection region')
     # ax.loglog(elog[ns:], fpower[ns:], linewidth=2, linestyle='--',
     #         color='k', label=pname)
-    ax.loglog(
-        elog,
-        fthermal1,
-        color='k',
-        linestyle='--',
-        linewidth=2,
-        label='Fitted Maxwellian')
+    # ax.loglog(
+    #     elog,
+    #     fthermal1,
+    #     color='k',
+    #     linestyle='--',
+    #     linewidth=2,
+    #     label='Fitted Maxwellian')
     # ax.loglog(elog, fnonthermal1, color='k', linestyle='-', linewidth=2)
     # ax.loglog(elog, fthermal2, color='k', linestyle='--', linewidth=2)
     # ax.loglog(elog, fnonthermal2, color='k', linestyle='--', linewidth=2)
@@ -3549,6 +3623,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         else:
             ax.set_xlim([1E-4, 3E0])
             ax.set_ylim([1E-4, 1E6])
+    elif run_name == 'sigma100-lx300':
+        if species == 'e':
+            ax.set_xlim([1E-2, 1E3])
+            ax.set_ylim([1E-4, 1E4])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
 
     # fig = plt.figure(figsize=[7, 5])
     # xs, ys = 0.15, 0.15
@@ -3567,6 +3648,81 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
 
     # plt.show()
+
+
+def fit_spectrum_reconnection_region(ct, ct_particle, species, root_dir,
+        pic_info, run_name, nlevels, ilevel):
+    """Plot particle spectrum and velocity distributions in sectors
+    """
+    dists_sector = read_spectrum_vdist_in_sectors(ct, ct_particle, species, \
+                                                  root_dir, pic_info)
+    flogs = {}
+    for key in dists_sector:
+        fene = []
+        for dists in dists_sector[key]:
+            fene.append(dists['fene'].flog)
+        elog = dists['fene'].elog
+        fene = np.sum(np.asarray(fene), axis=0)
+        flogs[key] = fene
+
+    fig = plt.figure(figsize=[10, 10])
+    xs, ys = 0.12, 0.1
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    colors_jet = plt.cm.Paired(np.arange(nlevels) / float(nlevels), 1)
+    colors_d = distinguishable_colors()
+
+    flog = flogs[str(ilevel)]
+
+    fthermal1, popt = fit_thermal_core(elog, flog)
+    fnonthermal1 = flog - fthermal1
+    imax = np.argmax(fnonthermal1)
+    ns = imax + 20
+    fthermal2, popt = fit_thermal_core(elog[ns:], fnonthermal1[ns:])
+    fthermal2 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal2 = fnonthermal1 - fthermal2
+
+    imax = np.argmax(fnonthermal2)
+    ns = imax + 20
+    fthermal3, popt = fit_thermal_core(elog[ns:], fnonthermal2[ns:])
+    fthermal3 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal3 = fnonthermal2 - fthermal3
+
+    imax = np.argmax(fnonthermal3)
+    ns = imax + 20
+    fthermal4, popt = fit_thermal_core(elog[ns:], fnonthermal3[ns:])
+    fthermal4 = fitting_funcs.func_maxwellian(elog, popt[0], popt[1])
+    fnonthermal4 = fnonthermal3 - fthermal4
+
+    ax.loglog(elog, flog, linewidth=3, color='k', label='Reconnection region')
+    # ax.loglog(elog, flog, linewidth=3, color='k', linestyle='',
+    #         marker='o', markersize=1, label='Reconnection region')
+    ax.loglog(elog, fthermal1, color='r', linestyle='--', linewidth=2)
+    ax.loglog(elog, fnonthermal1, color='r', linestyle='-', linewidth=2)
+    ax.loglog(elog, fthermal2, color='g', linestyle='--', linewidth=2)
+    ax.loglog(elog, fnonthermal2, color='g', linestyle='-', linewidth=2)
+    ax.loglog(elog, fthermal3, color='b', linestyle='--', linewidth=2)
+    ax.loglog(elog, fnonthermal3, color='b', linestyle='-', linewidth=2)
+    ax.loglog(elog, fthermal4, color='m', linestyle='--', linewidth=2)
+    ax.loglog(elog, fnonthermal4, color='m', linestyle='-', linewidth=2)
+
+    flog_fitted = fthermal1 + fthermal2 + fthermal3 + fthermal4
+
+    # ax.loglog(elog, flog_fitted, linewidth=3, color='k', linestyle='--',
+    #         label='Reconnection region')
+
+    ax.xaxis.grid()
+    ax.tick_params(labelsize=20)
+    ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
+    ax.set_ylabel(r'$f(\gamma - 1)$', fontdict=font, fontsize=24)
+    if run_name == 'sigma1-mime25-beta0002-fan':
+        if species == 'e':
+            ax.set_xlim([1E-4, 1E1])
+            ax.set_ylim([1E-4, 0.1E7])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
+
 
 
 def plot_velocity_fields(run_name, root_dir, pic_info, species):
@@ -3672,8 +3828,10 @@ def spectrum_between_fieldlines():
     # root_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
     # run_name = "mime25_beta0001"
     # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta0001/"
-    run_name = 'sigma1-mime25-beta0002-fan'
-    root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
+    # run_name = 'sigma1-mime25-beta0002-fan'
+    # root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
+    run_name = 'sigma100-lx300'
+    root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
@@ -3690,15 +3848,21 @@ def spectrum_between_fieldlines():
         ilevel = 6
     elif run_name == 'sigma1-mime25-beta0002-fan':
         ilevel = 10
+    elif run_name == 'sigma100-lx300':
+        ilevel = 4
     # get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
+    plot_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
     # mkdir_p(fpath)
     # fname = fpath + '/contour_' + str(ct) + '.jpg'
-    # plt.savefig(fname, dpi=300)
+    fname = fpath + '/contour_label_' + str(ct) + '.jpg'
+    plt.savefig(fname, dpi=300)
     # gen_run_script(ct, ct_particle, species, root_dir)
-    plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
-                             run_name, nlevels, ilevel)
+    # plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
+    #                          run_name, nlevels, ilevel)
     # fname = fpath + '/spect_sector_' + species + '_' + str(ct) + '.eps'
     # plt.savefig(fname)
+    # fit_spectrum_reconnection_region(ct, ct_particle, species, root_dir,
+    #         pic_info, run_name, nlevels, ilevel)
     plt.show()
     # compare_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info)
 
