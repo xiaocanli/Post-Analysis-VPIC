@@ -10,6 +10,7 @@ import re
 import stat
 import struct
 import sys
+import itertools
 from itertools import groupby
 from os import listdir
 from os.path import isfile, join
@@ -17,6 +18,7 @@ from os.path import isfile, join
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from joblib import Parallel, delayed
 from matplotlib import rc
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import MaxNLocator
@@ -24,7 +26,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import signal
 from scipy.fftpack import fft2, fftshift, ifft2
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.ndimage.filters import generic_filter as gf
 
 import color_maps as cm
@@ -3851,11 +3853,13 @@ def spectrum_between_fieldlines():
     elif run_name == 'sigma100-lx300':
         ilevel = 4
     # get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
-    plot_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
     # mkdir_p(fpath)
     # fname = fpath + '/contour_' + str(ct) + '.jpg'
-    fname = fpath + '/contour_label_' + str(ct) + '.jpg'
-    plt.savefig(fname, dpi=300)
+    for tframe in range(ct+1):
+        plot_contour_paths(run_name, root_dir, pic_info, tframe, nlevels, ilevel)
+        fname = fpath + '/contour_label_' + str(ct) + '.jpg'
+        plt.savefig(fname, dpi=300)
+        plt.close()
     # gen_run_script(ct, ct_particle, species, root_dir)
     # plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     #                          run_name, nlevels, ilevel)
@@ -3863,8 +3867,120 @@ def spectrum_between_fieldlines():
     # plt.savefig(fname)
     # fit_spectrum_reconnection_region(ct, ct_particle, species, root_dir,
     #         pic_info, run_name, nlevels, ilevel)
-    plt.show()
+    # plt.show()
     # compare_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info)
+
+
+def calc_canonical_p(mpi_rank, fbase, smime, Ay, fpath, f):
+    """Calculate canonical momentum for a single MPI rank
+
+    Args:
+        mpi_rank: MPI rank for PIC simulation
+        fbase: the particle data file base
+        smime: square root of proton-electron mass ratio
+        Ay: the y-component of the vector potential
+        fpath: the output file path
+        f: interpolation function
+    """
+    print mpi_rank
+    fname = fbase + str(mpi_rank)
+    (v0, pheader, ptl) = read_particle_data(fname)
+    dx = ptl['dxyz'][:, 0]
+    dz = ptl['dxyz'][:, 2]
+    icell = ptl['icell']
+    nx = v0.nx + 2
+    ny = v0.ny + 2
+    nz = v0.nz + 2
+    iz = icell // (nx * ny)
+    iy = (icell - iz * nx * ny) // nx
+    ix = icell - iz * nx * ny - iy * nx
+    x_ptl = v0.x0 + ((ix - 1.0) + (dx + 1.0) * 0.5) * v0.dx
+    z_ptl = v0.z0 + ((iz - 1.0) + (dz + 1.0) * 0.5) * v0.dz
+    # de -> di
+    x_ptl /= smime
+    z_ptl /= smime
+    nptl, = x_ptl.shape
+    canonical_py = 0.0
+    Ay_ptl = f(x_ptl, z_ptl, grid=False)
+
+    canonical_py = np.sum(Ay_ptl)
+
+    fname = fpath + 'mpi_rank_' + str(mpi_rank) + '.dat'
+    data = np.asarray([nptl, canonical_py])
+    data.tofile(fname)
+
+
+def combine_canonical_p_files(ct_particle, run_name, mpi_size):
+    """combine canonical momentum files and average the data
+    """
+    fpath = '../data/canonical_p/' + run_name + '/t' + str(ct_particle) + '/'
+    canonical_p = 0.0
+    ntot = 0
+    for i in range(mpi_size):
+        fname = fpath + 'mpi_rank_' + str(i) + '.dat'
+        data = np.fromfile(fname)
+        ntot += data[0]
+        canonical_p += data[1]
+
+    return canonical_p / ntot
+
+
+def calc_canonical_momentum():
+    """Calculate canonical momentum of the system
+    """
+    run_name = 'sigma100-lx300'
+    root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    tx = pic_info.topology_x
+    ty = pic_info.topology_y
+    tz = pic_info.topology_z
+    smime = math.sqrt(pic_info.mime)
+    ntp = pic_info.ntp
+    ct_particle = 1
+
+    num_cores = multiprocessing.cpu_count()
+    mpi_size = tx * ty * tz
+    mpi_ranks = range(mpi_size)
+    canonical_py = np.zeros(pic_info.ntp)
+    for ct_particle in range(1, pic_info.ntp + 1):
+        canonical_py[ct_particle-1] = combine_canonical_p_files(ct_particle, run_name, mpi_size)
+        continue
+        particle_interval = pic_info.particle_interval
+        tindex = ct_particle * particle_interval
+        ct = ct_particle * particle_interval / pic_info.fields_interval
+
+        kwargs = {"current_time": ct, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+        fname = root_dir + "data/Ay.gda"
+        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+        x = np.linspace(0, pic_info.lx_di, pic_info.nx)
+        z = np.linspace(-pic_info.lz_di*0.5, pic_info.lz_di*0.5, pic_info.nz)
+        f = interpolate.interp2d(x, z, Ay, kind='linear')
+        spl = RectBivariateSpline(x, z, Ay.T)
+
+        dir_name = root_dir + 'particle/T.' + str(tindex) + '/'
+        fbase = dir_name + 'eparticle' + '.' + str(tindex) + '.'
+
+        fpath = '../data/canonical_p/' + run_name + '/t' + str(ct_particle) + '/'
+        mkdir_p(fpath)
+
+        # calc_canonical_p(0, fbase, smime, Ay, fpath, spl)
+        Parallel(n_jobs=num_cores)(delayed(calc_canonical_p)(mpi_rank, fbase, smime, Ay, fpath, spl)
+                for mpi_rank in mpi_ranks)
+
+    t = np.arange(ntp) * pic_info.dt_particles
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.plot(t, canonical_py, linewidth=2)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$p_y$', fontdict=font, fontsize=20)
+    ax.tick_params(labelsize=16)
+    fpath = '../img/canonical_p/' + run_name + '/'
+    mkdir_p(fpath)
+    fig.savefig(fpath + 'canonical_py.eps')
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -3900,5 +4016,6 @@ if __name__ == "__main__":
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
     # fit_two_maxwellian()
-    spectrum_between_fieldlines()
+    # spectrum_between_fieldlines()
     # plot_velocity_fields(run_name, root_dir, pic_info, 'e')
+    calc_canonical_momentum()
