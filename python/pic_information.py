@@ -529,10 +529,12 @@ if __name__ == "__main__":
     # run_name = '2D-90-Mach4-sheet6-3'
     # base_directory = '/net/scratch3/xiaocanli/herts/tether_potential_tests/v200_b0_wce'
     # run_name = 'v200_b0_wce'
-    base_directory = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
-    run_name = 'sigma1-mime25-beta0002-fan'
-    base_directory = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
-    run_name = 'sigma100-lx300'
+    # base_directory = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
+    # run_name = 'sigma1-mime25-beta0002-fan'
+    # base_directory = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    # run_name = 'sigma100-lx300'
+    base_directory = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
+    run_name = 'sigma1-mime25-beta001-average'
     pic_info = get_pic_info(base_directory)
     pic_info_json = data_to_json(pic_info)
     fname = '../data/pic_info/pic_info_' + run_name + '.json'
