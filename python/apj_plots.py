@@ -15,9 +15,11 @@ from itertools import groupby
 from os import listdir
 from os.path import isfile, join
 
+import functools
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from cycler import cycler
 from joblib import Parallel, delayed
 from matplotlib import rc
 from matplotlib.colors import LogNorm
@@ -25,6 +27,7 @@ from matplotlib.ticker import MaxNLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import signal
+from scipy import optimize
 from scipy.fftpack import fft2, fftshift, ifft2
 from scipy.interpolate import interp1d, RectBivariateSpline
 from scipy.ndimage.filters import generic_filter as gf
@@ -36,6 +39,7 @@ import pic_information
 from contour_plots import plot_2d_contour, read_2d_fields
 from distinguishable_colors import *
 from energy_conversion import calc_jdotes_fraction_multi, read_data_from_json
+from energy_conversion import plot_energy_evolution
 from fields_plot import *
 from particle_distribution import *
 from pic_information import list_pic_info_dir
@@ -58,6 +62,394 @@ font = {
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
 # colors = palettable.colorbrewer.qualitative.Dark2_8.mpl_colors
+
+def zfunc(y, x):
+    """Function to adjust the agyrotropy calculated using simulation data
+    """
+    return (x + math.exp(-x**2)/(math.sqrt(math.pi) * (1.0 + math.erf(x))) - y)
+
+
+def calc_agyrotropy(run_name, root_dir, pic_info, species, current_time):
+    """Calculate pressure agyrotropy
+
+    Args:
+        run_name: run name
+        root_dir: the root directory of the run
+        pic_info: namedtuple for the PIC simulation information.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
+    fname = root_dir + 'data/p' + species + '-xx.gda'
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/p' + species + '-xy.gda'
+    x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/p' + species + '-xz.gda'
+    x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/p' + species + '-yy.gda'
+    x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/p' + species + '-yz.gda'
+    x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/p' + species + '-zz.gda'
+    x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/bx.gda'
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/by.gda'
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/bz.gda'
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/absB.gda'
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/n' + species + '.gda'
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+    nrho *= pic_info.nppc  # Assume n0 is 1.0
+    bx /= absB
+    by /= absB
+    bz /= absB
+    nx, = x.shape
+    nz, = z.shape
+    zmin = np.min(z)
+    zmax = np.max(z)
+
+    ng = 7
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    pxx = signal.convolve2d(pxx, kernel, mode='same')
+    pxy = signal.convolve2d(pxy, kernel, mode='same')
+    pxz = signal.convolve2d(pxz, kernel, mode='same')
+    pyy = signal.convolve2d(pyy, kernel, mode='same')
+    pyz = signal.convolve2d(pyz, kernel, mode='same')
+    pzz = signal.convolve2d(pzz, kernel, mode='same')
+    bx = signal.convolve2d(bx, kernel, mode='same')
+    by = signal.convolve2d(by, kernel, mode='same')
+    bz = signal.convolve2d(bz, kernel, mode='same')
+
+    Nxx =  by*by*pzz - 2.0*by*bz*pyz + bz*bz*pyy
+    Nxy = -by*bx*pzz + by*bz*pxz + bz*bx*pyz - bz*bz*pxy
+    Nxz =  by*bx*pyz - by*by*pxz - bz*bx*pyy + bz*by*pxy
+    Nyy =  bx*bx*pzz - 2.0*bx*bz*pxz + bz*bz*pxx
+    Nyz = -bx*bx*pyz + bx*by*pxz + bz*bx*pxy - bz*by*pxx
+    Nzz =  bx*bx*pyy - 2.0*bx*by*pxy + by*by*pxx
+
+    alpha = Nxx + Nyy + Nzz
+    beta = -(Nxy**2 + Nxz**2 + Nyz**2 - Nxx*Nyy - Nxx*Nzz - Nyy*Nzz)
+    agyrotropy = 2.0 * np.sqrt(alpha**2-4.0*beta)/alpha
+
+    sqrt_pi = math.sqrt(math.pi)
+    isqrt_pi = 1.0 / sqrt_pi
+    # Adjust the calculated values
+    sigma_n = 2.5 *  sqrt_pi / np.sqrt(nrho)
+
+    agyrotropy_p = np.zeros((nz, nx))
+            
+    # for iz in range(nz):
+    #     for ix in range(nx):
+    #         y = agyrotropy[iz, ix]/sigma_n[iz, ix]
+    #         if isqrt_pi < y:
+    #             f = functools.partial(zfunc, y)
+    #             agyrotropy_p[iz, ix] = optimize.brenth(f, 0, 5)
+
+    # agyrotropy = agyrotropy_p * sigma_n
+
+    return agyrotropy
+
+
+def plot_agyrotropy(run_name, root_dir, pic_info, species, current_time):
+    """Plot agyrotropy
+
+    Args:
+        run_name: run name
+        root_dir: the root directory of the run
+        pic_info: namedtuple for the PIC simulation information.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
+    # fname = root_dir + 'data1/agyrotropy00_' + species + '.gda'
+    # x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    fdata = calc_agyrotropy(run_name, root_dir, pic_info, species, current_time)
+    x, z, Ay = read_2d_fields(pic_info, root_dir + "data/Ay.gda", **kwargs)
+    nx, = x.shape
+    nz, = z.shape
+    zmin = np.min(z)
+    zmax = np.max(z)
+
+    # ng = 7
+    # kernel = np.ones((ng,ng)) / float(ng*ng)
+    # fdata = signal.convolve2d(fdata, kernel, mode='same')
+    
+    xs, ys = 0.12, 0.15
+    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[10, 4])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": 0.0, "vmax": 1.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, fdata, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.get_cmap('viridis'))
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black', linewidths=0.5)
+    # ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    cbar1.ax.set_ylabel(r'$A\O_e$', fontdict=font, fontsize=20)
+    cbar1.set_ticks(np.arange(0.0, 1.1, 0.5))
+    cbar1.ax.tick_params(labelsize=16)
+
+    x0s = np.linspace(150, 180, 4)
+    # x0s = np.linspace(80, 50, 4)
+    # x0s = np.linspace(50, 80, 4)
+    for x0 in x0s:
+        dx = pic_info.dx_di
+        ix = int(x0 / dx)
+        ax1.plot([x0, x0], [zmin, zmax], linestyle='--')
+
+    t_wci = current_time * pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    ipath = '../img/img_apj/revise/'
+    mkdir_p(ipath)
+    fname = ipath + 'agy2.jpg'
+    fig.savefig(fname)
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+
+    for x0 in x0s:
+        dx = pic_info.dx_di
+        ix = int(x0 / dx)
+        fdata_cut = fdata[:, ix]
+        # print np.min(fdata_cut), np.max(fdata_cut)
+        ax.plot(z, fdata_cut, linewidth=2)
+    
+    min_index = np.argmin(fdata_cut)
+    ax.set_xlim([-10, 10])
+    ax.set_ylim([-0.1, 1.0])
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$A\O_e$', fontdict=font, fontsize=20)
+
+    fname = ipath + 'agy_cut2.eps'
+    fig.savefig(fname)
+
+    plt.show()
+    # plt.close()
+
+
+def plot_absB(run_name, root_dir, pic_info, current_time):
+    """Plot absB
+
+    Args:
+        run_name: run name
+        root_dir: the root directory of the run
+        pic_info: namedtuple for the PIC simulation information.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
+    x, z, absB = read_2d_fields(pic_info, root_dir + 'data/absB.gda', **kwargs)
+    x, z, Ay = read_2d_fields(pic_info, root_dir + "data/Ay.gda", **kwargs)
+    nx, = x.shape
+    nz, = z.shape
+    zmin = np.min(z)
+    zmax = np.max(z)
+    width = 0.63
+    height = 0.7
+    xs = 0.31
+    ys = 0.9 - height
+    fig = plt.figure(figsize=[13, 4])
+    ax1 = fig.add_axes([xs, ys, width, height])
+    kwargs_plot = {"xstep": 1, "zstep": 1, "vmin": 0.0, "vmax": 2.0}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, absB, ax1, fig, **kwargs_plot)
+    p1.set_cmap(plt.cm.get_cmap('jet'))
+    ax1.contour(
+        x[0:nx:xstep],
+        z[0:nz:zstep],
+        Ay[0:nz:zstep, 0:nx:xstep],
+        colors='black',
+        linewidths=0.5)
+    ax1.set_ylabel('', fontdict=font, fontsize=20)
+    ax1.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    cbar1.ax.set_ylabel(r'$|\boldsymbol{B}|$', fontdict=font, fontsize=20)
+    cbar1.set_ticks(np.arange(0.0, 2.1, 0.5))
+    cbar1.ax.tick_params(labelsize=16)
+    ax1.tick_params(axis='y', labelleft='off')
+
+    x0 = 150.0
+    dx = pic_info.dx_di
+    ix = x0 / dx
+
+    w2 = 0.22
+    xs -= w2 + 0.02
+    ax = fig.add_axes([xs, ys, w2, height])
+    for x0 in np.linspace(150, 180, 4):
+        dx = pic_info.dx_di
+        ix = int(x0 / dx)
+        ax1.plot([x0, x0], [zmin, zmax], linestyle='--')
+        ax.plot(absB[:, ix], z, linewidth=2)
+    ax.set_ylim([np.min(z), np.max(z)])
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$|\boldsymbol{B}|$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+
+    t_wci = current_time * pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '/\Omega_{ci}$'
+    ax1.set_title(title, fontdict=font, fontsize=20)
+
+    ipath = '../img/img_apj/revise/'
+    mkdir_p(ipath)
+    fname = ipath + 'absB.jpg'
+    fig.savefig(fname)
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    x0 = 160
+    dx = pic_info.dx_di
+    ix = int(x0 / dx)
+    fdata = absB[:, ix]
+    print np.min(fdata), np.max(fdata)
+    ax.plot(z, fdata, linewidth=2, color='g')
+    ax.plot([zmin, zmax], [0.5, 0.5], linestyle='--', color='k')
+    ax.set_ylim([0.1, 1.0])
+
+    min_index = np.argmin(fdata)
+    # for iz in range(min_index - 15, min_index + 15):
+    #     print iz, fdata[iz]
+    
+    iz1, iz2 = 399, 420
+    ax.plot([z[iz1], z[iz1]], ax.get_ylim(), linestyle='-', color='k')
+    ax.plot([z[iz2], z[iz2]], ax.get_ylim(), linestyle='-', color='k')
+    ax.set_xlim([zmin, zmax])
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$|\boldsymbol{B}|$', fontdict=font, fontsize=20)
+
+    fname = ipath + 'absB_cut.jpg'
+    fig.savefig(fname)
+
+    plt.show()
+    # plt.close()
+
+
+def plot_absB_time(run_name, root_dir, pic_info):
+    """Plot absB contour at multiple time frames
+
+    Args:
+        run_name: the name of this run.
+        root_dir: the root directory of this run.
+        pic_info: PIC simulation information in a namedtuple.
+    """
+    ct = 80
+    nt = 3
+    contour_color = ['k'] * nt
+    vmin = [0.0] * nt
+    vmax = [1.2] * nt
+    xs, ys = 0.18, 0.76
+    w1, h1 = 0.68, 0.2
+    fig_sizes = (5, 6)
+    axis_pos = [xs, ys, w1, h1]
+    gaps = [0.1, 0.02]
+    nxp, nzp = 1, nt
+    cts = [60, 152.5, 800]
+    cts = np.asarray(cts)
+    var_names = []
+    for i in range(nt):
+        var_name = r'$t=' + str(cts[i]) + r'/\Omega_{ci}$'
+        var_names.append(var_name)
+    cts /= pic_info.dt_fields
+    cts = np.asarray(cts - 1, dtype=int)
+    print cts
+    colormaps = ['viridis'] * nt
+    text_colors = ['r', 'g', 'b']
+    xstep, zstep = 2, 2
+    is_logs = [False] * nt
+    if not os.path.isdir('../img/'):
+        os.makedirs('../img/')
+    dir = '../img/img_apj/'
+    if not os.path.isdir(dir):
+        os.makedirs(dir)
+    fig_dir = dir + run_name + '/'
+    if not os.path.isdir(fig_dir):
+        os.makedirs(fig_dir)
+    kwargs = {"current_time": ct, "xl": 0, "xr": 200, "zb": -50, "zt": 50}
+    fname1 = root_dir + 'data/absB.gda'
+    fname2 = root_dir + 'data/Ay.gda'
+    fdata = []
+    Ay_data = []
+    fdata_1d = []
+    for i in range(nt):
+        kwargs["current_time"] = cts[i]
+        x, z, data = read_2d_fields(pic_info, fname1, **kwargs)
+        x, z, Ay = read_2d_fields(pic_info, fname2, **kwargs)
+        nz, = z.shape
+        fdata.append(data)
+        Ay_data.append(Ay)
+        fdata_1d.append(data[nz/2, :])
+
+    fdata = np.asarray(fdata)
+    fdata_1d = np.asarray(fdata_1d)
+
+    fname = 'absB_time'
+    kwargs_plots = {
+        'current_time': ct,
+        'x': x,
+        'z': z,
+        'Ay': Ay_data,
+        'fdata': fdata,
+        'contour_color': contour_color,
+        'colormaps': colormaps,
+        'vmin': vmin,
+        'vmax': vmax,
+        'var_names': var_names,
+        'axis_pos': axis_pos,
+        'gaps': gaps,
+        'fig_sizes': fig_sizes,
+        'text_colors': text_colors,
+        'nxp': nxp,
+        'nzp': nzp,
+        'xstep': xstep,
+        'zstep': zstep,
+        'is_logs': is_logs,
+        'fname': fname,
+        'fig_dir': fig_dir,
+        'is_multi_Ay': True,
+        'save_eps': True,
+        'bottom_panel': True,
+        'fdata_1d': fdata_1d
+    }
+    absB_plot = PlotMultiplePanels(**kwargs_plots)
+    for cbar in absB_plot.cbar:
+        cbar.set_ticks(np.arange(0.0, 1.3, 0.2))
+    xbox = [104, 134, 134, 104, 104]
+    zbox = [-15, -15, 15, 15, -15]
+    absB_plot.ax[1].plot(xbox, zbox, color='k')
+    absB_plot.save_figures()
+    plt.show()
 
 
 def plot_by_time(run_name, root_dir, pic_info):
@@ -3509,7 +3901,7 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     colors_d = distinguishable_colors()
 
     start_level = 1
-    ax.set_color_cycle(colors_jet[start_level-1:])
+    ax.set_prop_cycle(cycler('color', colors_jet[start_level-1:]))
     nsector = len(flogs)
     norm = 1
     nacc_max = 0
@@ -3649,6 +4041,117 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     # ax.tick_params(labelsize=20)
     # ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
 
+    # plt.show()
+
+
+def plot_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info,
+                             run_name, nlevels, ilevel):
+    """Plot velocity distributions in sectors
+    """
+    dists_sector = read_spectrum_vdist_in_sectors(ct, ct_particle, species, \
+                                                  root_dir, pic_info)
+    fvels_xy = {}
+    fvels_xz = {}
+    fvels_yz = {}
+    for key in dists_sector:
+        fvel_xy = []
+        fvel_xz = []
+        fvel_yz = []
+        for dists in dists_sector[key]:
+            fvel_xy.append(dists['fvel'].fvel_xy)
+            fvel_xz.append(dists['fvel'].fvel_xz)
+            fvel_yz.append(dists['fvel'].fvel_yz)
+        vbins = dists['fvel'].vbins_long
+        fvel_xy = np.asarray(fvel_xy)
+        fvel_xz = np.asarray(fvel_xz)
+        fvel_yz = np.asarray(fvel_yz)
+        fvel_xy = np.sum(np.asarray(fvel_xy), axis=0)
+        fvel_xz = np.sum(np.asarray(fvel_xz), axis=0)
+        fvel_yz = np.sum(np.asarray(fvel_yz), axis=0)
+        fvels_xy[key] = fvel_xy
+        fvels_xz[key] = fvel_xz
+        fvels_yz[key] = fvel_yz
+
+    umin = np.min(vbins)
+    umax = np.max(vbins)
+
+    fux1 = {}
+    fuy1 = {}
+    fuz1 = {}
+    fux2 = {}
+    fuy2 = {}
+    fuz2 = {}
+    for key in fvels_xy:
+        fux1[key] = np.sum(fvels_xy[key], axis=0)
+        fuy1[key] = np.sum(fvels_xy[key], axis=1)
+        fuz1[key] = np.sum(fvels_yz[key], axis=1)
+        # fuy2[key] = np.sum(fvels_yz[key], axis=0)
+        # fux2[key] = np.sum(fvels_xz[key], axis=0)
+        # fuz2[key] = np.sum(fvels_xz[key], axis=1)
+
+    nsectors = len(fux1)
+    fig = plt.figure(figsize=[20, 5])
+    xs0, ys0 = 0.05, 0.15
+    w1, h1 = 0.28, 0.8
+    gap = 0.05
+    xs1 = xs0 + w1 + gap
+    xs2 = xs1 + w1 + gap
+    ax1 = fig.add_axes([xs0, ys0, w1, h1])
+    ax2 = fig.add_axes([xs1, ys0, w1, h1])
+    ax3 = fig.add_axes([xs2, ys0, w1, h1])
+    colors_jet = plt.cm.jet(np.arange(nsectors) / float(nsectors), 1)
+    ax1.set_color_cycle(colors_jet)
+    ax2.set_color_cycle(colors_jet)
+    ax3.set_color_cycle(colors_jet)
+    for i in range(nsectors - 1):
+        key1 = str(i + 1)
+        key2 = str(i + 2)
+        fux_sec = fux1[key1] - fux1[key2]
+        fuy_sec = fuy1[key1] - fuy1[key2]
+        fuz_sec = fuz1[key1] - fuz1[key2]
+        ax1.semilogy(vbins, fux_sec/np.sum(fux_sec), linewidth=2)
+        ax2.semilogy(vbins, fuy_sec/np.sum(fuy_sec), linewidth=2)
+        ax3.semilogy(vbins, fuz_sec/np.sum(fuz_sec), linewidth=2)
+        print np.sum(fuy_sec)
+    key = str(nsectors)
+    ax1.semilogy(vbins, fux1[key]/np.sum(fux1[key]), linewidth=2)
+    ax2.semilogy(vbins, fuy1[key]/np.sum(fuy1[key]), linewidth=2)
+    ax3.semilogy(vbins, fuz1[key]/np.sum(fuz1[key]), linewidth=2)
+    ax2.set_ylim(ax1.get_ylim())
+    ax3.set_ylim(ax1.get_ylim())
+    # ax1.set_xlim([-0.5, 0.5])
+    # ax2.set_xlim(ax1.get_xlim())
+    # ax3.set_xlim(ax1.get_xlim())
+    ax1.plot([0, 0], ax1.get_ylim(), color='k', linestyle='--')
+    ax2.plot([0, 0], ax2.get_ylim(), color='k', linestyle='--')
+    ax3.plot([0, 0], ax3.get_ylim(), color='k', linestyle='--')
+    ax1.tick_params(labelsize=16)
+    ax2.tick_params(labelsize=16)
+    ax3.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$u_x$', fontsize=20)
+    ax2.set_xlabel(r'$u_y$', fontsize=20)
+    ax3.set_xlabel(r'$u_z$', fontsize=20)
+    ax1.set_ylabel(r'$f(u_x)$', fontsize=20)
+    ax2.set_ylabel(r'$f(u_y)$', fontsize=20)
+    ax3.set_ylabel(r'$f(u_z)$', fontsize=20)
+
+    fpath = '../img/canonical_p/' + run_name + '/'
+    mkdir_p(fpath)
+    fig.savefig(fpath + 'fux_fuy_fuz.eps')
+    plt.show()
+
+    # fig = plt.figure(figsize=[8, 8])
+    # xs0, ys0 = 0.12, 0.1
+    # w1, h1 = 0.85, 0.85
+    # ax1 = fig.add_axes([xs0, ys0, w1, h1])
+    # vmin = 1.0
+    # vmax = 3.0E6
+    # p1 = ax1.imshow(fvels_xy['11'], cmap=plt.cm.viridis,
+    #     extent=[umin, umax, umin, umax], aspect='auto', origin='lower',
+    #     norm = LogNorm(vmin=vmin, vmax=vmax), interpolation='bicubic')
+    # ax1.set_xlabel(r'$u_x$', fontsize=20)
+    # ax1.set_ylabel(r'$u_y$', fontsize=20)
+    # ax1.tick_params(labelsize=16)
     # plt.show()
 
 
@@ -3810,14 +4313,112 @@ def plot_velocity_fields(run_name, root_dir, pic_info, species):
     plt.show()
 
 
+def get_ay_distribution(run_name, root_dir, pic_info):
+    """Get Ay distribution
+    """
+    kwargs = {"current_time": 0, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+    fname = root_dir + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    ay_min = np.min(Ay)
+    ay_max = np.max(Ay)
+    nbins = 100
+    ay_bins = np.linspace(ay_min, ay_max, nbins)
+    hist_ay1, bin_edges = np.histogram(Ay, bins=ay_bins, density=True)
+    print np.max(Ay)
+
+    ntf = pic_info.ntf
+    t_interval = 10
+    nt = ntf / t_interval + 1
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+
+    colors_jet = plt.cm.jet(np.arange(nt) / float(nt), 1)
+    ax.set_color_cycle(colors_jet)
+
+    ax.plot(bin_edges[:-1], hist_ay1, linewidth=2, label=r'$t=0$')
+
+    for ct in range(t_interval, ntf, t_interval):
+        kwargs = {"current_time": ct, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+        hist_ay2, bin_edges = np.histogram(Ay, bins=ay_bins, density=True)
+        ax.plot(bin_edges[:-1], hist_ay2, linewidth=2, label=r'$t=$last')
+        print np.max(Ay)
+
+
+    # leg = ax.legend(loc=3, prop={'size': 20}, ncol=1,
+    #     shadow=False, fancybox=False, frameon=False)
+
+    ax.set_xlabel(r'$A_y$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$f(A_y)$', fontdict=font, fontsize=20)
+    ax.tick_params(labelsize=16)
+
+    fpath = '../img/canonical_p/' + run_name + '/'
+    mkdir_p(fpath)
+    fig.savefig(fpath + 'fAy_time.eps')
+
+    plt.show()
+
+
+def ay_at_boundary(run_name, root_dir, pic_info):
+    """Get Ay at the boundary
+    """
+    kwargs = {"current_time": 0, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+    fname = root_dir + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    nx, = x.shape
+    nz, = z.shape
+    ay_min = np.min(Ay)
+    ay_max = np.max(Ay)
+    nbins = 100
+    ay_bins = np.linspace(ay_min, ay_max, nbins)
+    ix = 7 * nx / 8
+    ay1 = Ay[:, ix]
+
+    ntf = pic_info.ntf
+    t_interval = 40
+    nt = ntf / t_interval + 1
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+
+    colors_jet = plt.cm.jet(np.arange(nt) / float(nt), 1)
+    ax.set_color_cycle(colors_jet)
+
+    ax.plot(z, ay1, linewidth=2, label=r'$t=0$')
+
+    for ct in range(t_interval, ntf, t_interval):
+        kwargs = {"current_time": ct, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+        ay2 = Ay[:, ix]
+        ax.plot(z, ay2, linewidth=2, label=r'$t=$last')
+
+
+    ax.set_xlabel(r'$z$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$A_y$', fontdict=font, fontsize=20)
+    ax.tick_params(labelsize=16)
+
+    fpath = '../img/canonical_p/' + run_name + '/'
+    mkdir_p(fpath)
+    fig.savefig(fpath + 'Ay_z.eps')
+
+    plt.show()
+
+
+
+
 def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
     species = 'e'
     # run_name = "mime25_beta02"
     # root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
-    # run_name = "mime25_beta002"
-    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    run_name = "mime25_beta002"
+    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta0002"
@@ -3832,8 +4433,8 @@ def spectrum_between_fieldlines():
     # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta0001/"
     # run_name = 'sigma1-mime25-beta0002-fan'
     # root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
-    run_name = 'sigma100-lx300'
-    root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    # run_name = 'sigma100-lx300'
+    # root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ct_particle = pic_info.ntp
@@ -3852,23 +4453,27 @@ def spectrum_between_fieldlines():
         ilevel = 10
     elif run_name == 'sigma100-lx300':
         ilevel = 4
-    # get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
+    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
     # mkdir_p(fpath)
     # fname = fpath + '/contour_' + str(ct) + '.jpg'
-    for tframe in range(ct+1):
-        plot_contour_paths(run_name, root_dir, pic_info, tframe, nlevels, ilevel)
-        fname = fpath + '/contour_label_' + str(ct) + '.jpg'
-        plt.savefig(fname, dpi=300)
-        plt.close()
+    # for tframe in range(ct+1):
+    #     plot_contour_paths(run_name, root_dir, pic_info, tframe, nlevels, ilevel)
+    #     fname = fpath + '/contour_label_' + str(ct) + '.jpg'
+    #     plt.savefig(fname, dpi=300)
+    #     plt.close()
     # gen_run_script(ct, ct_particle, species, root_dir)
     # plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
+    #                          run_name, nlevels, ilevel)
+    # plot_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     #                          run_name, nlevels, ilevel)
     # fname = fpath + '/spect_sector_' + species + '_' + str(ct) + '.eps'
     # plt.savefig(fname)
     # fit_spectrum_reconnection_region(ct, ct_particle, species, root_dir,
     #         pic_info, run_name, nlevels, ilevel)
-    # plt.show()
+    plt.show()
     # compare_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info)
+    # get_ay_distribution(run_name, root_dir, pic_info)
+    # ay_at_boundary(run_name, root_dir, pic_info)
 
 
 def calc_canonical_p(mpi_rank, fbase, smime, Ay, fpath, f):
@@ -3903,10 +4508,11 @@ def calc_canonical_p(mpi_rank, fbase, smime, Ay, fpath, f):
     canonical_py = 0.0
     Ay_ptl = f(x_ptl, z_ptl, grid=False)
 
-    canonical_py = np.sum(Ay_ptl)
+    py_tot = np.sum(ptl['u'][:, 1])
+    Ay_ptl_tot = np.sum(-Ay_ptl)
 
     fname = fpath + 'mpi_rank_' + str(mpi_rank) + '.dat'
-    data = np.asarray([nptl, canonical_py])
+    data = np.asarray([nptl, py_tot, Ay_ptl_tot])
     data.tofile(fname)
 
 
@@ -3914,15 +4520,17 @@ def combine_canonical_p_files(ct_particle, run_name, mpi_size):
     """combine canonical momentum files and average the data
     """
     fpath = '../data/canonical_p/' + run_name + '/t' + str(ct_particle) + '/'
-    canonical_p = 0.0
+    py_tot = 0.0
+    ay_tot = 0.0
     ntot = 0
     for i in range(mpi_size):
         fname = fpath + 'mpi_rank_' + str(i) + '.dat'
         data = np.fromfile(fname)
         ntot += data[0]
-        canonical_p += data[1]
+        py_tot += data[1] 
+        ay_tot += data[2] 
 
-    return canonical_p / ntot
+    return (py_tot / ntot, ay_tot / ntot)
 
 
 def calc_canonical_momentum():
@@ -3930,6 +4538,8 @@ def calc_canonical_momentum():
     """
     run_name = 'sigma100-lx300'
     root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    # run_name = "mime25_beta002"
+    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     tx = pic_info.topology_x
@@ -3938,20 +4548,24 @@ def calc_canonical_momentum():
     smime = math.sqrt(pic_info.mime)
     ntp = pic_info.ntp
     ct_particle = 1
+    # plot_energy_evolution(pic_info)
 
     num_cores = multiprocessing.cpu_count()
     mpi_size = tx * ty * tz
     mpi_ranks = range(mpi_size)
-    canonical_py = np.zeros(pic_info.ntp)
+    canonical_py = np.zeros((pic_info.ntp, 2))
     for ct_particle in range(1, pic_info.ntp + 1):
-        canonical_py[ct_particle-1] = combine_canonical_p_files(ct_particle, run_name, mpi_size)
+        print ct_particle
+        data = combine_canonical_p_files(ct_particle, run_name, mpi_size)
+        canonical_py[ct_particle-1, 0] = data[0]
+        canonical_py[ct_particle-1, 1] = data[1]
         continue
         particle_interval = pic_info.particle_interval
         tindex = ct_particle * particle_interval
         ct = ct_particle * particle_interval / pic_info.fields_interval
 
         kwargs = {"current_time": ct, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
-        fname = root_dir + "data/Ay.gda"
+        fname = root_dir + "data2/Ay.gda"
         x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
         x = np.linspace(0, pic_info.lx_di, pic_info.nx)
         z = np.linspace(-pic_info.lz_di*0.5, pic_info.lz_di*0.5, pic_info.nz)
@@ -3959,7 +4573,7 @@ def calc_canonical_momentum():
         spl = RectBivariateSpline(x, z, Ay.T)
 
         dir_name = root_dir + 'particle/T.' + str(tindex) + '/'
-        fbase = dir_name + 'eparticle' + '.' + str(tindex) + '.'
+        fbase = dir_name + 'hparticle' + '.' + str(tindex) + '.'
 
         fpath = '../data/canonical_p/' + run_name + '/t' + str(ct_particle) + '/'
         mkdir_p(fpath)
@@ -3968,18 +4582,23 @@ def calc_canonical_momentum():
         Parallel(n_jobs=num_cores)(delayed(calc_canonical_p)(mpi_rank, fbase, smime, Ay, fpath, spl)
                 for mpi_rank in mpi_ranks)
 
+    dpy = canonical_py[-1, 0] - canonical_py[0, 0]
+    day = canonical_py[-1, 1] - canonical_py[0, 1]
+    cpy = canonical_py[:, 0] - canonical_py[:, 1] * abs(dpy / day)
+    print abs(dpy / day)
+
     t = np.arange(ntp) * pic_info.dt_particles
     fig = plt.figure(figsize=[7, 5])
     xs, ys = 0.15, 0.15
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(t, canonical_py, linewidth=2)
+    ax.plot(t, (cpy - cpy[0]) / cpy[0], linewidth=2)
     ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax.set_ylabel(r'$p_y$', fontdict=font, fontsize=20)
     ax.tick_params(labelsize=16)
     fpath = '../img/canonical_p/' + run_name + '/'
     mkdir_p(fpath)
-    fig.savefig(fpath + 'canonical_py.eps')
+    # fig.savefig(fpath + 'canonical_py.eps')
     plt.show()
 
 
@@ -3993,13 +4612,16 @@ if __name__ == "__main__":
     # root_dir = "/net/scratch3/xiaocanli/sigma1-mime25-beta0002/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
-    # run_name = "mime25_beta002_track"
-    # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
+    run_name = "mime25_beta002_track"
+    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
     # run_name = 'sigma1-mime25-beta0002-fan'
     # root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
-    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    # pic_info = read_data_from_json(picinfo_fname)
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     # plot_by_time(run_name, root_dir, pic_info)
+    # plot_absB_time(run_name, root_dir, pic_info)
+    # plot_absB(run_name, root_dir, pic_info, 62)
+    plot_agyrotropy(run_name, root_dir, pic_info, 'e', 62)
     # plot_vx_time(run_name, root_dir, pic_info)
     # plot_epara_eperp(pic_info, 26, root_dir)
     # plot_epara_eperp(pic_info, 61, root_dir)
@@ -4018,4 +4640,4 @@ if __name__ == "__main__":
     # fit_two_maxwellian()
     # spectrum_between_fieldlines()
     # plot_velocity_fields(run_name, root_dir, pic_info, 'e')
-    calc_canonical_momentum()
+    # calc_canonical_momentum()
