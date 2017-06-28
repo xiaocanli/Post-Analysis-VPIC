@@ -62,8 +62,8 @@ module picinfo
         do while (index(buff, 'vpic') == 0)
             read(fh, '(A)') buff
         enddo
-        index1 = index(buff, 'op')
-        fname = trim(buff(index1+3:))
+        index1 = index(buff, ' ')
+        fname = trim(buff(index1+1:))
         close(fh)
     end function get_main_fname
 
