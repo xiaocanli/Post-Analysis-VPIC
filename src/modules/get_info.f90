@@ -89,8 +89,8 @@ module picinfo
         integer :: fh, index1, index2, index3
         character(len=256) :: buff, code
         character(len=64) :: fname, another_interval
-        logical :: cond1, cond2
-        integer :: interval, ratio, interval_base
+        logical :: cond1, cond2, numeric
+        integer :: interval, ratio, interval_base, slen
         fh = 40
 
         fname = get_main_fname()
@@ -117,18 +117,25 @@ module picinfo
                 another_interval = trim(adjustl(buff(index3+1:index2-1)))
                 read(buff(index1+1:index3-1), *) ratio
             endif
-            code = 'int '//trim(adjustl(another_interval))//' = '
-            ! Find another_interval
-            rewind(fh)
-            cond1 = index(buff, trim(adjustl(code))) == 0
-            cond2 = index(buff, '//') /= 0
-            do while (cond1 .or. cond2)
-                read(fh, '(A)') buff
+            another_interval = trim(adjustl(another_interval))
+            slen = len(trim(adjustl(another_interval)))
+            numeric=verify(another_interval(verify(another_interval, ' '):slen), '0123456789') .eq. 0
+            if (numeric) then
+                read(another_interval, '(I)') interval
+            else
+                code = 'int '//trim(adjustl(another_interval))//' = '
+                ! Find another_interval
+                rewind(fh)
                 cond1 = index(buff, trim(adjustl(code))) == 0
                 cond2 = index(buff, '//') /= 0
-            enddo
-            interval_base = get_time_interval(buff, dtwpe, dtwce, dtwpi, dtwci)
-            interval = interval_base * ratio
+                do while (cond1 .or. cond2)
+                    read(fh, '(A)') buff
+                    cond1 = index(buff, trim(adjustl(code))) == 0
+                    cond2 = index(buff, '//') /= 0
+                enddo
+                interval_base = get_time_interval(buff, dtwpe, dtwce, dtwpi, dtwci)
+                interval = interval_base * ratio
+            endif
         else
             interval = get_time_interval(buff, dtwpe, dtwce, dtwpi, dtwci)
         endif
