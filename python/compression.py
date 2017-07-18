@@ -1776,8 +1776,70 @@ def plot_div_v(current_time, species):
     plt.show()
 
 
+def calc_compression(run_dir, pic_info):
+    """
+
+    Args:
+        run_dir: the run directory
+        pic_info: namedtuple of the PIC simulation information
+    """
+    finterval = pic_info.fields_interval
+    ct = 65
+    tindex = finterval * ct
+    kwargs = {
+        "current_time": 0,
+        "xl": 0,
+        "xr": 200,
+        "zb": -50,
+        "zt": 50
+    }
+    nx = pic_info.nx
+    nz = pic_info.nz
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    fname = run_dir + 'data-ave/uix-ave_' + str(tindex) + '.gda'
+    x, z, uix = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + 'data-ave/uiz-ave_' + str(tindex) + '.gda'
+    x, z, uiz = read_2d_fields(pic_info, fname, **kwargs)
+    divu = np.zeros((nz, nx))
+    divu[:nz-1, :nx-1] = np.diff(uix, axis=1)[:nz-1, :nx-1] / dx
+    divu[:nz-1, :nx-1] += np.diff(uiz, axis=0)[:nz-1, :nx-1] / dz
+    ng = 5
+    kernel = np.ones((ng, ng)) / float(ng * ng)
+    divu = signal.convolve2d(divu, kernel, 'same')
+    dmin, dmax = np.min(divu), np.max(divu)
+    dbins = np.linspace(dmin, dmax, 100)
+    hist, bin_edges = np.histogram(divu, bins=dbins)
+
+    # plt.semilogy(bin_edges[:-1], hist, linewidth=2)
+
+    xmin, xmax = np.min(x), np.max(x)
+    zmin, zmax = np.min(z), np.max(z)
+    vmin, vmax = -0.05, 0.05
+
+    fig = plt.figure(figsize=[10, 5])
+    xs, ys = 0.1, 0.15
+    w1, h1 = 0.85, 0.8
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p1 = ax1.imshow(
+        divu,
+        cmap=plt.cm.seismic,
+        extent=[xmin, xmax, zmin, zmax],
+        aspect='auto',
+        origin='lower',
+        vmin=vmin,
+        vmax=vmax,
+        interpolation='bicubic')
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlabel(r'$x/d_i$', fontsize=20)
+    ax1.set_ylabel(r'$z/d_i$', fontsize=20)
+    plt.show()
+
+
 if __name__ == "__main__":
-    pic_info = pic_information.get_pic_info('../../')
+    run_dir = '../../'
+    pic_info = pic_information.get_pic_info(run_dir)
     # ntp = pic_info.ntp
     # for i in range(pic_info.ntf):
     #     plot_compression(pic_info, 'i', i)
@@ -1796,9 +1858,9 @@ if __name__ == "__main__":
     # plot_compression_shear(pic_info, 'e', 24)
     # plot_compression_cut(pic_info, 'i', 12)
     # angle_current(pic_info, 12)
-    species = 'e'
-    jdote = read_jdote_data(species)
-    compression_time(pic_info, species, jdote, [-1.0, 2])
+    # species = 'e'
+    # jdote = read_jdote_data(species)
+    # compression_time(pic_info, species, jdote, [-1.0, 2])
     # density_ratio(pic_info, 8)
     # for ct in range(pic_info.ntf):
     #     density_ratio(pic_info, ct)
@@ -1809,3 +1871,4 @@ if __name__ == "__main__":
     #     plot_velocity_components(pic_info, 'i', ct)
     # move_compression()
     # plot_compression_time_multi('i')
+    calc_compression(run_dir, pic_info)

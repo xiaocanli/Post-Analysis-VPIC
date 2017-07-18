@@ -17,7 +17,7 @@ from joblib import Parallel, delayed
 from matplotlib import rc
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import MaxNLocator
-from mpi4py import MPI
+# from mpi4py import MPI
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import interpolate, signal
@@ -273,15 +273,16 @@ def get_particle_distribution(base_dir, pic_info, tindex, corners, mpi_ranks):
                 hist_xy += hists['hist_xy']
                 hist_xz += hists['hist_xz']
                 hist_yz += hists['hist_yz']
-    pbins = bins['bins_long']
+    pbins = bins['pbins_long']
     pmin = pbins[0]
     pmax = pbins[-1]
-    u1, u2 = np.meshgrid(pbins[-1], pbins[-1])
+    u1, u2 = np.meshgrid(pbins[:-1], pbins[:-1])
     ng = 3
     kernel = np.ones((ng, ng)) / float(ng * ng)
     hist_xy = signal.convolve2d(hist_xy, kernel, 'same')
     hist_xz = signal.convolve2d(hist_xz, kernel, 'same')
     hist_yz = signal.convolve2d(hist_yz, kernel, 'same')
+    print u1.shape, u2.shape, hist_xy.shape
     fxy = interpolate.interp2d(u1, u2, np.log10(hist_xy + 0.5), kind='cubic')
     fxz = interpolate.interp2d(u1, u2, np.log10(hist_xz + 0.5), kind='cubic')
     fyz = interpolate.interp2d(u1, u2, np.log10(hist_yz + 0.5), kind='cubic')
@@ -564,22 +565,22 @@ def generate_spectrum_vdist_config(fname, **kwargs):
 
 
 def get_spectrum_vdist(pic_info,
-                       dir='../',
+                       fdir='../',
                        config_name='config_files/vdist_config.dat',
                        **kwargs):
     """Get particle spectra and velocity distributions
     """
-    fname = dir + config_name
+    fname = fdir + config_name
     generate_spectrum_vdist_config(fname, **kwargs)
     # cmd = './particle_spectrum_vdist_box ' + config_name
     # p1 = subprocess.Popen([cmd], cwd='../', shell=True)
     # cmd = 'mpirun -np 16 python particle_spectrum_vdist.py ' + config_name
-    cmd = 'mpirun -np 64 particle_spectrum_vdist_box ' + \
+    cmd = 'mpirun -np 16 particle_spectrum_vdist_box ' + \
             '-c ' + config_name + ' -s ' + kwargs['species']
     print cmd
     p1 = subprocess.Popen(
         [cmd],
-        cwd='../',
+        cwd=fdir,
         stdout=open('outfile.out', 'w'),
         stderr=subprocess.STDOUT,
         shell=True)

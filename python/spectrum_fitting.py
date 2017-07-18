@@ -18,6 +18,7 @@ import palettable
 import pic_information
 from energy_conversion import read_data_from_json
 from runs_name_path import *
+from shell_functions import mkdir_p
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -382,7 +383,8 @@ def get_normalized_energy(species, ene_bins, pic_info):
         vth = pic_info.vthe
     else:
         vth = pic_info.vthi
-    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    print vth
+    gama = 1.0 / math.sqrt(1.0 - vth**2)
     eth = gama - 1.0
     ene_bins_norm = ene_bins / eth
     return ene_bins_norm
@@ -2239,6 +2241,76 @@ def plot_spectra_time_multi(species):
         # plt.close()
 
 
+def plot_final_energy_spectrum():
+    """Plot final energy spectrum
+
+    """
+    species = 'e'
+    run_name = 'mime25_beta0007'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    fdir = '../data/spectra/' + run_name + '/'
+    n0 = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    ct = 1
+    fname = fdir + 'spectrum-' + species + '.1'
+    file_exist = os.path.isfile(fname)
+    while file_exist:
+        ct += 1
+        fname = fdir + 'spectrum-' + species + '.' + str(ct)
+        file_exist = os.path.isfile(fname)
+
+    fname = fdir + 'spectrum-' + species + '.' + str(ct - 1)
+    elin, flin, elog, flog_e = get_energy_distribution(fname, n0)
+    elog_norm_e = get_normalized_energy(species, elog, pic_info)
+    nacc, eacc = accumulated_particle_info(elog_norm_e, flog_e)
+    flog_e /= nacc[-1]
+
+    fname = fdir + 'spectrum-h.' + str(ct - 1)
+    elin, flin, elog, flog_i = get_energy_distribution(fname, n0)
+    elog_norm_i = get_normalized_energy('i', elog, pic_info)
+    nacc, eacc = accumulated_particle_info(elog_norm_i, flog_i)
+    flog_i /= nacc[-1]
+
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    f_intial = fitting_funcs.func_maxwellian(elog, n0, 1.5 / eth)
+    nacc, eacc = accumulated_particle_info(elog_norm_e, f_intial)
+    f_intial /= nacc[-1]
+
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.set_color_cycle(colors)
+    ax.loglog(elog_norm_e, flog_e, linewidth=3, label='electron')
+    ax.loglog(elog_norm_i, flog_i, linewidth=3, label='ion')
+    ax.loglog(elog_norm_e, f_intial, linewidth=1, color='k', linestyle='--',
+            label='initial')
+
+    ax.set_xlim([5E-1, 7E3])
+    ax.set_ylim([1E-8, 2E0])
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=20)
+    ax.tick_params(labelsize=16)
+
+    colors_plot = [colors[0], colors[1], 'k']
+    leg = ax.legend(loc=1, prop={'size': 20}, ncol=1,
+            shadow=False, fancybox=False, frameon=False)
+    for color, text in zip(colors_plot, leg.get_texts()):
+        text.set_color(color)
+
+    img_path = '../img/img_aiac/'
+    mkdir_p(img_path)
+    fname = img_path + 'final_spectra_' + run_name + '.eps'
+    fig.savefig(fname)
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
     # ntp = pic_info.ntp
@@ -2251,7 +2323,7 @@ if __name__ == "__main__":
     # plt.show()
     # plot_spectrum_bulk(ntp, 'e', pic_info)
     # plot_maximum_energy(ntp, pic_info)
-    move_energy_spectra()
+    # move_energy_spectra()
     # calc_nonthermal_fraction('h')
     # plot_spectra_beta_electron()
     # plot_spectra_beta_electron_fitted()
@@ -2264,3 +2336,4 @@ if __name__ == "__main__":
     # get_maximum_energy_multi('h')
     # plot_maximum_energy_multi()
     # plot_spectra_time_multi('e')
+    plot_final_energy_spectrum()

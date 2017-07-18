@@ -56,6 +56,8 @@ class EspectrumVdist(object):
         self.get_kwargs_dist()
         self.pic_info = kwargs['pic_info']
         self.root_dir = kwargs['root_dir']
+        self.analysis_dir = kwargs['analysis_dir']
+        self.field_lims = kwargs['field_lims']
         self.smime = math.sqrt(pic_info.mime)
         self.get_box_coords()
         self.get_dists_info()
@@ -72,7 +74,7 @@ class EspectrumVdist(object):
     def get_dists_info(self):
         """Get the distribution information
         """
-        get_spectrum_vdist(self.pic_info, **self.kwargs_dist)
+        get_spectrum_vdist(self.pic_info, self.analysis_dir, **self.kwargs_dist)
         self.read_distributions()
         self.vbins_short = self.fvel.vbins_short
         self.vbins_long = self.fvel.vbins_long
@@ -170,9 +172,6 @@ class EspectrumVdist(object):
         ye = ys + h1
         xs1 = 0.08
         self.xz_axis = self.fig_dist.add_axes([xs, ys, w1, h1])
-        self.vmax = max(abs(np.min(self.fdata1)), abs(np.max(self.fdata1)))
-        self.vmax *= 0.5
-        self.vmax = 0.05
         xst = zst = 4
         tst = 1
         self.xst = xst
@@ -184,14 +183,14 @@ class EspectrumVdist(object):
             extent=[self.xmin1, self.xmax1, self.zmin1, self.zmax1],
             aspect='auto',
             origin='lower',
-            vmin=-self.vmax,
-            vmax=self.vmax,
+            vmin=self.field_lims[0],
+            vmax=self.field_lims[1],
             interpolation='bicubic')
         divider = make_axes_locatable(self.xz_axis)
         self.cax = divider.append_axes("right", size="2%", pad=0.05)
         self.cbar = self.fig_dist.colorbar(self.im1, cax=self.cax)
         self.cbar.ax.tick_params(labelsize=16)
-        self.cbar.set_ticks(np.arange(-0.04, 0.05, 0.02))
+        self.cbar.set_ticks(np.linspace(self.field_lims[0], self.field_lims[1], 5))
         self.Ay_max = np.max(self.Ay1)
         self.Ay_min = np.min(self.Ay1)
         self.levels = np.linspace(self.Ay_min, self.Ay_max, 10)
@@ -327,7 +326,7 @@ class EspectrumVdist(object):
         self.espect_axis.tick_params(labelsize=16)
         color = self.pespect.get_color()
         self.pnth, = self.espect_axis.loglog(
-            self.elog_norm, self.fnonthermal, color=color)
+            self.elog_norm, self.fnonthermal, color='r')
 
         # set limes
         self.set_axes_lims()
@@ -397,15 +396,19 @@ class EspectrumVdist(object):
 
 if __name__ == "__main__":
     # pic_info = pic_information.get_pic_info('../../')
-    run_name = "mime25_beta002"
-    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    # run_name = "mime25_beta002"
+    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    # run_name = 'sigma100-lx300'
+    # root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    run_name = 'sigma1-mime25-beta0002-fan'
+    root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ntp = pic_info.ntp
     vthe = pic_info.vthe
     var_field = 'ey'
     var_name = '$E_y$'
-    field_range = [0, 200, -20, 20]
+    field_range = [0, 300, -75, 75]
     ct_ptl = ntp
 
     smime = math.sqrt(pic_info.mime)
@@ -413,13 +416,15 @@ if __name__ == "__main__":
 
     species = 'e'
     center = [0.5 * lx_de, 0.0, 0.0]
-    sizes = [128, 1, 256]
+    sizes = [64, 1, 64]
     center = np.asarray(center)
     sizes = np.asarray(sizes)
     nbins = 64
-    vmin, vmax = 0, 2.0
+    vmin, vmax = 0, 2
     fpath_vdist = root_dir + 'pic_analysis/vdistributions/'
     fpath_spect = root_dir + 'pic_analysis/spectrum/'
+    analysis_dir = root_dir + 'pic_analysis/'
+    field_lims = [-0.4, 0.4]
     kwargs = {
         'ct_ptl': ct_ptl,
         'var_field': var_field,
@@ -434,7 +439,9 @@ if __name__ == "__main__":
         'fpath_vdist': fpath_vdist,
         'fpath_spect': fpath_spect,
         'pic_info': pic_info,
-        'root_dir': root_dir
+        'root_dir': root_dir,
+        'analysis_dir': analysis_dir,
+        'field_lims': field_lims
     }
     fig_v = EspectrumVdist(**kwargs)
     plt.show()

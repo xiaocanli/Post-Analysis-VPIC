@@ -202,8 +202,8 @@ def plot_nrho(run_name,
     fname = fdir + 'nei_' + str(ct) + '.jpg'
     fig.savefig(fname, dpi=200)
 
-    plt.close()
-    # plt.show()
+    # plt.close()
+    plt.show()
 
 
 def plot_emf(run_name, root_dir, pic_info):
@@ -1156,8 +1156,9 @@ def read_particle_number(base_dir, pic_info):
 def save_particle_number():
     """Save PIC information and particle number information
     """
-    root_dir = '../../../tether_potential_tests/'
-    run_names = ['v50', 'v100', 'v150', 'v200']
+    root_dir = '/net/scratch3/xiaocanli/herts/tether_potential_tests/'
+    # run_names = ['v50', 'v100', 'v150', 'v200']
+    run_names = ['v200_b0_wce']
     mkdir_p('../data/pic_info/')
     mkdir_p('../data/particle_number/')
     for run_name in run_names:
@@ -1183,17 +1184,18 @@ def plot_particle_number():
     """
     temp = 0.73
     l0 = 0.13  # length in meter
-    potentials = [50, 100, 150, 200]
-    run_names = ['v50', 'v100', 'v150', 'v200']
-    nes = [1.4E6, 1.45E6, 1.48E6, 1.48E6]  # in cm^-3
+    potentials = [50, 100, 150, 200, 200]
+    run_names = ['v50', 'v100', 'v150', 'v200', 'v200_b0_wce']
+    nes = [1.4E6, 1.45E6, 1.48E6, 1.48E6, 1.48E6]  # in cm^-3
+    lnames = ['50 V', '100 V', '150 V', '200 V', '200 V, B=0']
     fig = plt.figure(figsize=[7, 5])
     xs, ys = 0.13, 0.13
     w1, h1 = 0.8, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
     tmax = 0
     current_mean = []
-    for potential, ne in zip(potentials, nes):
-        run_name = 'v' + str(potential)
+    for potential, ne, run_name, lname in zip(potentials, nes, run_names, lnames):
+        # run_name = 'v' + str(potential)
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         pic_info = read_data_from_json(picinfo_fname)
         fname = '../data/particle_number/nptl_' + run_name + '.dat'
@@ -1236,8 +1238,8 @@ def plot_particle_number():
     area = 2 * math.pi * r0  # Assume 1m length
     current_mean = np.asarray(current_mean)
     current_mean /= area
-    current_thermal = np.asarray([29.9, 31.2, 31.8, 31.8])  # mA/m^2
-    potential = np.asarray([50, 100, 150, 200])
+    current_thermal = np.asarray([29.9, 31.2, 31.8, 31.8, 31.8])  # mA/m^2
+    potential = np.asarray([50, 100, 150, 200, 200])
 
     fig = plt.figure(figsize=[7, 5])
     xs, ys = 0.13, 0.13
@@ -1278,10 +1280,12 @@ def calc_electric_current(pic_info, params):
 
 
 if __name__ == "__main__":
-    run_name = 'v200'
+    # run_name = 'v200'
+    run_name = 'v200_b0_wce'
     # root_dir = '../../'
-    # root_dir = '../../../tether_potential_tests/v200/'
-    root_dir = '../../v200/'
+    # root_dir = '../../herts/tether_potential_tests/v200/'
+    root_dir = '../../herts/tether_potential_tests/v200_b0_wce/'
+    # root_dir = '../../v200/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     # pic_info = pic_information.get_pic_info(root_dir)

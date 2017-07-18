@@ -4,6 +4,9 @@ project("energy_conversion")
 
 enable_language (Fortran)
 
+# convert relative paths to absolute paths 
+cmake_policy(SET CMP0015 NEW)
+
 # MPI libraries
 find_package(MPI REQUIRED)
 add_definitions(${MPI_Fortran_COMPILE_FLAGS})

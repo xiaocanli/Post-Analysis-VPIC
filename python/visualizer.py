@@ -24,7 +24,7 @@ from scipy.ndimage.filters import generic_filter as gf
 import colormap.colormaps as cmaps
 import pic_information
 from contour_plots import plot_2d_contour, read_2d_fields
-from energy_conversion import read_jdote_data
+from energy_conversion import read_jdote_data, read_data_from_json
 from particle_distribution import get_particle_distribution, set_mpi_ranks
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
@@ -41,7 +41,7 @@ font = {
 
 
 class viewer_2d(object):
-    def __init__(self, z, x, y):
+    def __init__(self, z, x, y, pic_info, base_directory):
         """
         Shows a given array in a 2d-viewer.
         Input: z, an 2d array.
@@ -50,6 +50,8 @@ class viewer_2d(object):
         self.x = x
         self.y = y
         self.z = z
+        self.pic_info = pic_info
+        self.base_directory = base_directory
         self.fig = plt.figure(figsize=(10, 10))
 
         # Overview
@@ -83,9 +85,8 @@ class viewer_2d(object):
         self.ycut_ax = self.fig.add_axes([xs + w1 + 0.1, ys, w1, h1])
 
         # Slider to choose time frame
-        pic_info = pic_information.get_pic_info('../../')
         self.sliderax = plt.axes([0.1, 0.1, 0.8, 0.03])
-        time_frames = np.arange(1, pic_info.ntp + 1)
+        time_frames = np.arange(1, self.pic_info.ntp + 1)
         self.slider = DiscreteSlider(self.sliderax,'Time Frame', 1, 10,\
                 allowed_vals=time_frames, valinit=time_frames[5])
         self.slider.on_changed(self.update)
@@ -100,7 +101,7 @@ class viewer_2d(object):
 
     def update(self, val):
         ct = self.slider.val
-        ratio = pic_info.particle_interval / pic_info.fields_interval
+        ratio = self.pic_info.particle_interval / self.pic_info.fields_interval
         kwargs = {
             "current_time": ct * ratio,
             "xl": 0,
@@ -109,7 +110,7 @@ class viewer_2d(object):
             "zt": 50
         }
         fname = "../../data/by.gda"
-        x, z, data = read_2d_fields(pic_info, fname, **kwargs)
+        x, z, data = read_2d_fields(self.pic_info, fname, **kwargs)
         self.im1.set_data(data)
         self.fig.canvas.draw_idle()
 
@@ -152,17 +153,15 @@ class viewer_2d(object):
 
             xpos = event.xdata
             ypos = event.ydata
-            base_directory = '../../'
-            pic_info = pic_information.get_pic_info(base_directory)
-            particle_interval = pic_info.particle_interval
+            particle_interval = self.pic_info.particle_interval
             pos = [xpos, 0.0, ypos]
             if event.button == 1:
                 sizes = np.ones(3) * 8
-                corners, mpi_ranks = set_mpi_ranks(pic_info, pos, sizes)
+                corners, mpi_ranks = set_mpi_ranks(self.pic_info, pos, sizes)
                 ct = self.slider.val * particle_interval
                 print self.slider.val
-                get_particle_distribution(base_directory, ct, corners,
-                                          mpi_ranks)
+                get_particle_distribution(self.base_directory, self.pic_info,
+                        ct, corners, mpi_ranks)
 
         plt.draw()
 
@@ -200,16 +199,20 @@ class DiscreteSlider(Slider):
 
 
 if __name__ == '__main__':
-    pic_info = pic_information.get_pic_info('../../')
+    # pic_info = pic_information.get_pic_info('../../')
+    base_directory = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    run_name = 'sigma100-lx300'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     ratio = pic_info.particle_interval / pic_info.fields_interval
     ct = 5
-    kwargs = {"current_time": 40, "xl": 0, "xr": 200, "zb": -20, "zt": 20}
-    fname = "../../data/bx.gda"
+    kwargs = {"current_time": 40, "xl": 0, "xr": 300, "zb": -75, "zt": 75}
+    fname = base_directory + "/data/bx.gda"
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
-    fname = "../../data/by.gda"
+    fname = base_directory + "/data/by.gda"
     x, z, by = read_2d_fields(pic_info, fname, **kwargs)
-    fname = "../../data/bz.gda"
+    fname = base_directory + "/data/bz.gda"
     x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
     data = np.sqrt(bx * bx + by * by + bz * bz)
-    fig_v = viewer_2d(data, x, z)
+    fig_v = viewer_2d(data, x, z, pic_info, base_directory)
     plt.show()

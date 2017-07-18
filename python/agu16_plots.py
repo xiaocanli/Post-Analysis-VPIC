@@ -56,19 +56,24 @@ def plot_jdotes_fraction():
     odir = '../img/ene_evolution/'
     mkdir_p(odir)
     nrun = 4
-    ene_fraction = [[2.43, 1.63, 1.51, 1.34], [-1.70, -1.12, -0.58, -0.52]]
-    labels = ['0.2', '0.07', '0.02', '0.007']
-    fname = 'ene_fraction_beta.eps'
+    # ene_fraction = [[2.43, 1.63, 1.51, 1.34], [-1.70, -1.12, -0.58, -0.52]]
+    # x = np.arange(nrun)
+    # labels = ['0.2', '0.07', '0.02', '0.007']
+    # fname = 'ene_fraction_beta.eps'
+    # ene_fraction = [[1.34, 1.51, 1.63, 2.43], [-0.52, -0.58, -1.12, -1.70]]
+    # labels = ['0.007', '0.02', '0.07', '0.2']
+    # fname = 'ene_fraction_beta.eps'
+    # x = np.arange(nrun)
 
-    #     ene_fraction = [[1.51, 0.68, 0.41, 0.13], [-0.58, -0.06, 0.05, 0.02]]
-    #     labels = ['0.0', '0.2', '0.5', '1.0']
-    #     fname = 'ene_fraction_bg.eps'
+    ene_fraction = [[1.51, 0.68, 0.41, 0.13], [-0.58, -0.06, 0.05, 0.02]]
+    x = [0, 2, 5, 10]
+    labels = ['0.0', '0.2', '0.5', '1.0']
+    fname = 'ene_fraction_bg.eps'
 
     ene_fraction = np.asarray(ene_fraction)
     ene_fraction = ene_fraction.T
-    x = np.arange(nrun)
-    fig = plt.figure(figsize=[7, 4])
-    xs, ys = 0.1, 0.18
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.1, 0.15
     w1, h1 = 0.85, 0.8
     ax = fig.add_axes([xs, ys, w1, h1])
     ax.plot(
@@ -120,15 +125,18 @@ def plot_jdotes_fraction():
     ax.plot()
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
-    ax.set_xlim([-0.5, nrun - 0.5])
-    ax.plot([-0.5, nrun - 0.5], [1, 1], color='k', linestyle='--')
-    ax.plot([-0.5, nrun - 0.5], [0, 0], color='k', linestyle='--')
+    # ax.set_xlim([-0.5, nrun - 0.5])
+    # ax.plot([-0.5, nrun - 0.5], [1, 1], color='k', linestyle='--')
+    # ax.plot([-0.5, nrun - 0.5], [0, 0], color='k', linestyle='--')
+    ax.set_xlim([-0.5, 10.5])
+    ax.plot([-0.5, 10.5], [1, 1], color='k', linestyle='--')
+    ax.plot([-0.5, 10.5], [0, 0], color='k', linestyle='--')
 
-    ax.set_ylim([-2.0, 2.6])
-    ax.set_xlabel(r'$\beta_e$', color='k', fontdict=font, fontsize=24)
+    # ax.set_ylim([-2.0, 2.6])
+    # ax.set_xlabel(r'$\beta_e$', color='k', fontdict=font, fontsize=24)
 
-    # ax.set_ylim([-0.7, 1.6])
-    # ax.set_xlabel(r'$B_g/B_0$', color='k', fontdict=font, fontsize=24)
+    ax.set_ylim([-0.7, 1.6])
+    ax.set_xlabel(r'$B_g/B_0$', color='k', fontdict=font, fontsize=24)
 
     ax.tick_params(labelsize=20)
     img_dir = '../img/img_agu16/'
