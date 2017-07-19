@@ -25,11 +25,7 @@ Don't ask me why I have to change the repository name after cloning it.
 
 ## Install
 - On a LANL cluster, `source config_files/module_intel_lanl.sh` to load above packages. On a Cray cluster, `source config_files/module_cray.sh`.
-- We need to install [FLAP](https://github.com/szaghi/FLAP) first.
-```sh
-$ cd src/third_party/FLAP/
-$ FoBiS.py build -mode static-intel
-```
+
 - In the directory `pic_analysis`,
 ```sh
 $ mkdir build
