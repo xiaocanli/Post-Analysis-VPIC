@@ -1,9 +1,9 @@
-!*******************************************************************************
-! Parallel conversion; Using Bill's data type at LANL
-! 
-! This code convert VPIC output into gda files, which are "bricks" of data
-! 
-!*******************************************************************************
+!<*******************************************************************************
+!< Parallel conversion; Using Bill's data type at LANL
+!< 
+!< This code convert VPIC output into gda files, which are "bricks" of data
+!< 
+!<*******************************************************************************
 program translate
     use mpi_module
     use constants, only: dp
@@ -13,10 +13,9 @@ program translate
     use particle_fields, only: read_particle_fields, set_current_density_zero, &
             calc_current_density, calc_absJ, write_current_densities, &
             adjust_particle_fields, write_particle_fields
-    use path_info, only: rootpath
     implicit none
     integer :: tindex, tindex_new
-    character(len=150) :: fname
+    character(len=256) :: rootpath, fname
     real(dp) :: mp_elapsed
     logical :: dfile
 
@@ -74,9 +73,9 @@ program translate
 
     contains
 
-    !---------------------------------------------------------------------------
-    ! Initialize the analysis.
-    !---------------------------------------------------------------------------
+    !<---------------------------------------------------------------------------
+    !< Initialize the analysis.
+    !<---------------------------------------------------------------------------
     subroutine init_analysis
         use mpi_module
         use path_info, only: get_file_paths
@@ -95,7 +94,9 @@ program translate
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
         call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
-        call get_file_paths
+        call get_cmd_args
+
+        call get_file_paths(rootpath)
         if (myid == master) then
             call read_domain
             call write_pic_info
@@ -116,9 +117,9 @@ program translate
 
     end subroutine init_analysis
 
-    !---------------------------------------------------------------------------
-    ! End the analysis by free the memory.
-    !---------------------------------------------------------------------------
+    !<---------------------------------------------------------------------------
+    !< End the analysis by free the memory.
+    !<---------------------------------------------------------------------------
     subroutine end_analysis
         use mpi_module
         use topology_translate, only: free_start_stop_cells
@@ -134,5 +135,30 @@ program translate
         call MPI_INFO_FREE(fileinfo, ierror)
         call MPI_FINALIZE(ierr)
     end subroutine end_analysis
+
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'translate', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Merge VPIC simulation output from all MPI processes', &
+            examples    = ['translate -rp simulation_root_path'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+        endif
+    end subroutine get_cmd_args
 
 end program translate
