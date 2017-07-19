@@ -18,7 +18,7 @@ This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand lin
 ## Download
 In the root directory of PIC run,
 ```sh
-$ git clone --recursive -b pfields https://github.com/xiaocanli/Post-Analysis-VPIC
+$ git clone --recursive https://github.com/xiaocanli/Post-Analysis-VPIC
 $ mv Post-Analysis-VPIC pic_analysis
 ```
 Don't ask me why I have to change the repository name after cloning it.

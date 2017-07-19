@@ -13,6 +13,9 @@ add_definitions(${MPI_Fortran_COMPILE_FLAGS})
 include_directories(${MPI_Fortran_INCLUDE_PATH})
 link_directories(${MPI_Fortran_LIBRARIES})
 
+get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
+include(cmake/submodules.cmake)
+
 set(HDF5_USE_STATIC_LIBRARIES ON)
 find_package(HDF5 COMPONENTS Fortran REQUIRED)
 #find_path(HDF5_INCLUDE include/hdf5.mod HINTS ${HDF5_ROOT})
@@ -25,8 +28,10 @@ endif()
 link_directories(${HDF5_Fortran_LIBRARIES})
 MESSAGE(${HDF5_Fortran_LIBRARIES})
 
-include_directories(${CMAKE_SOURCE_DIR}/src/third_party/FLAP/static/mod)
-link_directories(${CMAKE_SOURCE_DIR}/src/third_party/FLAP/static)
+# FLAP to deal with command line arguments
+set(FLAP_DIR ${PROJECT_SOURCE_DIR}/${GIT_SUBMODULES_DIRECTORY}/FLAP)
+include_directories(${FLAP_DIR}/static/mod)
+link_directories(${FLAP_DIR}/static)
 
 # make sure that the default is a RELEASE
 if (NOT CMAKE_BUILD_TYPE)
