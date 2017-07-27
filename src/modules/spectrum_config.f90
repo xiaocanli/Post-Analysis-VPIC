@@ -12,11 +12,12 @@ module spectrum_config
     public read_spectrum_config, set_spatial_range_de, calc_pic_mpi_ids, &
            calc_energy_interval, init_pic_mpi_ranks, free_pic_mpi_ranks, &
            calc_pic_mpi_ranks, set_time_frame
-    public corners_mpi, vmax, vmin, dv, nbins_vdist, tframe
+    public corners_mpi, vmax, vmin, vmin_nonzero, dv, dv_log, nbins_vdist, tframe
     public calc_velocity_interval
     integer :: nbins
     real(fp) :: emax, emin, dve, dlogve
-    real(fp) :: vmax, vmin, dv                  ! For velocity distribution.
+    real(fp) :: vmax, vmin, vmin_nonzero
+    real(fp) :: dv, dv_log                      ! For velocity distribution.
     integer :: nbins_vdist
     integer :: tframe                           ! Time frame.
     real(fp), dimension(3) :: center            ! In electron skin length (de).
@@ -66,6 +67,7 @@ module spectrum_config
         nbins_vdist = int(temp)
         vmax = get_variable(fh, 'vmax', '=')
         vmin = get_variable(fh, 'vmin', '=')
+        vmin_nonzero = get_variable(fh, 'vmin_nonzero', '=')
         temp = get_variable(fh, 'tframe', '=')
         tframe = int(temp)
         close(fh)
@@ -84,6 +86,8 @@ module spectrum_config
             write(*, "(A,I0)") " Number of velocity bins = ", nbins_vdist
             write(*, "(A,F6.2,F6.2)") " Minimum and maximum velocity(gamma) = ", &
                 vmin, vmax
+            write(*, "(A,E14.6,E14.6)") " Minimum and maximum velocity(gamma) for log scale = ", &
+                vmin_nonzero, vmax
             write(*, "(A,I0)") " Time frame of velocity distribution = ", tframe
             print *, "---------------------------------------------------"
         endif
@@ -118,7 +122,8 @@ module spectrum_config
     !---------------------------------------------------------------------------
     subroutine calc_velocity_interval
         implicit none
-        dv = (vmax - vmin) / nbins_vdist
+        dv      = (vmax - vmin) / nbins_vdist
+        dv_log  = (log10(vmax) - log10(vmin_nonzero)) / (nbins_vdist - 1)
     end subroutine calc_velocity_interval
 
     !---------------------------------------------------------------------------

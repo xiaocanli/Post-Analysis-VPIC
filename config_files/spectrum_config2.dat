@@ -1,15 +1,16 @@
-***** Configuration file for energy spectrum *****
+***** Configuration file for energy spectrum and velocity distribution *****
 
-nbins = 600
-emax = 100.0
-emin = 0.0001
-xc/de = 500.0
-yc/de = 0.0
-zc/de = 0.0
-xsize = 1024
-ysize = 1
-zsize = 1024
-nbins_vdist = 50
-vmax = 2.0
-vmin = 0.0
-ct = 10
+nbins           = 600
+emax            = 100.0
+emin            = 0.0001
+xc/de           = 500.0
+yc/de           = 0.0
+zc/de           = 0.0
+xsize           = 4096
+ysize           = 1
+zsize           = 2048
+nbins_vdist     = 128
+vmax            = 20.0
+vmin            = 0.0
+vmin_nonzero    = 0.001
+tframe          = 10

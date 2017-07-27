@@ -11,7 +11,7 @@ module velocity_distribution
 
     public fvel_2d, fvel_xy, fvel_xz, fvel_yz, fvel_para, fvel_perp, &
            fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum, &
-           fvel_para_sum, fvel_perp_sum, vbins_short, vbins_long
+           fvel_para_sum, fvel_perp_sum, vbins_short, vbins_long, vbins_log
     public init_velocity_bins, free_velocity_bins, init_vdist_2d, &
            set_vdist_2d_zero, free_vdist_2d, init_vdist_2d_single, &
            set_vdist_2d_zero_single, free_vdist_2d_single, init_vdist_1d, &
@@ -24,14 +24,17 @@ module velocity_distribution
 
     real(dp), allocatable, dimension(:, :) :: fvel_2d, fvel_xy, fvel_xz, fvel_yz
     real(dp), allocatable, dimension(:) :: fvel_para, fvel_perp
+    real(dp), allocatable, dimension(:) :: fvel_para_log, fvel_perp_log
     real(dp), allocatable, dimension(:, :) :: fvel_2d_sum, fvel_xy_sum
     real(dp), allocatable, dimension(:, :) :: fvel_xz_sum, fvel_yz_sum
     real(dp), allocatable, dimension(:) :: fvel_para_sum, fvel_perp_sum
-    real(dp), allocatable, dimension(:) :: vbins_short, vbins_long
+    real(dp), allocatable, dimension(:) :: fvel_para_log_sum, fvel_perp_log_sum
+    real(dp), allocatable, dimension(:) :: vbins_short, vbins_long, vbins_log
     ! The index of the left corner of the bin that contains the particle.
     integer :: ibin_para, ibin_perp, ibinx, ibiny, ibinz
     ! The offset from the left corner. [0, 1)
     real(fp) :: offset_para, offset_perp, offsetx, offsety, offsetz
+    real(fp) :: vmin_log
 
     contains
 
@@ -39,12 +42,15 @@ module velocity_distribution
     ! Initialize short (nbins_vdist) and long (2*nbins_vdist) velocity bins.
     !---------------------------------------------------------------------------
     subroutine init_velocity_bins
-        use spectrum_config, only: nbins_vdist, vmax, dv
+        use spectrum_config, only: nbins_vdist, vmax, vmin_nonzero, dv, dv_log
         implicit none
         integer :: i
 
+        vmin_log = log10(vmin_nonzero)
+
         allocate(vbins_short(nbins_vdist))
         allocate(vbins_long(nbins_vdist*2))
+        allocate(vbins_log(nbins_vdist))
 
         do i = 1, nbins_vdist
             vbins_short(i) = (i - 0.5) * dv
@@ -53,6 +59,10 @@ module velocity_distribution
         do i = 1, nbins_vdist*2
             vbins_long(i) = (i - 0.5)*dv - vmax
         enddo
+
+        do i = 1, nbins_vdist
+            vbins_log(i) = vmin_nonzero * 10**((i-1)*dv_log)
+        enddo
     end subroutine init_velocity_bins
 
     !---------------------------------------------------------------------------
@@ -60,7 +70,7 @@ module velocity_distribution
     !---------------------------------------------------------------------------
     subroutine free_velocity_bins
         implicit none
-        deallocate(vbins_short, vbins_long)
+        deallocate(vbins_short, vbins_long, vbins_log)
     end subroutine free_velocity_bins
 
     !---------------------------------------------------------------------------
@@ -153,6 +163,8 @@ module velocity_distribution
         if (myid == master) then
             allocate(fvel_para_sum(nbins_vdist*2))
             allocate(fvel_perp_sum(nbins_vdist))
+            allocate(fvel_para_log_sum(nbins_vdist))
+            allocate(fvel_perp_log_sum(nbins_vdist))
         endif
         call set_vdist_1d_zero
     end subroutine init_vdist_1d
@@ -166,6 +178,8 @@ module velocity_distribution
         implicit none
         allocate(fvel_para(nbins_vdist*2))
         allocate(fvel_perp(nbins_vdist))
+        allocate(fvel_para_log(nbins_vdist))
+        allocate(fvel_perp_log(nbins_vdist))
         call set_vdist_1d_zero_single
     end subroutine init_vdist_1d_single
 
@@ -176,6 +190,8 @@ module velocity_distribution
         implicit none
         fvel_para = 0.0
         fvel_perp = 0.0
+        fvel_para_log = 0.0
+        fvel_perp_log = 0.0
     end subroutine set_vdist_1d_zero_single
 
     !---------------------------------------------------------------------------
@@ -188,6 +204,8 @@ module velocity_distribution
         if (myid == master) then
             fvel_para_sum = 0.0
             fvel_perp_sum = 0.0
+            fvel_para_log_sum = 0.0
+            fvel_perp_log_sum = 0.0
         endif
     end subroutine set_vdist_1d_zero
 
@@ -197,6 +215,7 @@ module velocity_distribution
     subroutine free_vdist_1d_single
         implicit none
         deallocate(fvel_para, fvel_perp)
+        deallocate(fvel_para_log, fvel_perp_log)
     end subroutine free_vdist_1d_single
 
     !---------------------------------------------------------------------------
@@ -208,6 +227,7 @@ module velocity_distribution
         call free_vdist_1d_single
         if (myid == master) then
             deallocate(fvel_para_sum, fvel_perp_sum)
+            deallocate(fvel_para_log_sum, fvel_perp_log_sum)
         endif
     end subroutine free_vdist_1d
 
@@ -287,7 +307,7 @@ module velocity_distribution
                  status='unknown', form='unformatted', action='write')
             write(10) center, sizes
             write(10) vmin, vmax, nbins_vdist
-            write(10) vbins_short, vbins_long
+            write(10) vbins_short, vbins_long, vbins_log
             write(10) fvel_2d_sum, fvel_xy_sum, fvel_xz_sum, fvel_yz_sum
             close(10)
         endif
@@ -439,6 +459,10 @@ module velocity_distribution
                 MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         call MPI_REDUCE(fvel_perp, fvel_perp_sum, nbins_vdist, &
                 MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(fvel_para_log, fvel_para_log_sum, nbins_vdist, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        call MPI_REDUCE(fvel_perp_log, fvel_perp_log_sum, nbins_vdist, &
+                MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
     end subroutine sum_vdist_1d_over_mpi
 
     !---------------------------------------------------------------------------
@@ -472,8 +496,9 @@ module velocity_distribution
                  status='unknown', form='unformatted', action='write')
             write(10) center, sizes
             write(10) vmin, vmax, nbins_vdist
-            write(10) vbins_short, vbins_long
+            write(10) vbins_short, vbins_long, vbins_log
             write(10) fvel_para_sum, fvel_perp_sum
+            write(10) fvel_para_log_sum, fvel_perp_log_sum
             close(10)
         endif
     end subroutine save_vdist_1d
@@ -581,6 +606,7 @@ module velocity_distribution
 
             call calc_para_perp_velocity
             call update_vdist_1d
+            call update_vdist_1d_log
         endif
 
     end subroutine single_particle_vdist_1d
@@ -748,5 +774,27 @@ module velocity_distribution
 
         endif
     end subroutine update_vdist_1d
+
+    !---------------------------------------------------------------------------
+    ! Update 1D particle velocity distributions in log scale.
+    !---------------------------------------------------------------------------
+    subroutine update_vdist_1d_log
+        use spectrum_config, only: nbins_vdist
+        use particle_module, only: vpara, vperp
+        use spectrum_config, only: dv_log
+        use particle_info, only: sqrt_ptl_mass
+        implicit none
+        integer :: ibin_para, ibin_perp
+
+        ibin_para = floor((log10(abs(vpara * sqrt_ptl_mass)) - vmin_log) / dv_log) + 1
+        ibin_perp = floor((log10(vperp * sqrt_ptl_mass) - vmin_log) / dv_log) + 1
+
+        if (ibin_para >= 1 .and. ibin_para <= nbins_vdist) then
+            fvel_para_log(ibin_para) = fvel_para_log(ibin_para) + 1
+        endif
+        if (ibin_perp >= 1 .and. ibin_perp <= nbins_vdist) then
+            fvel_perp_log(ibin_perp) = fvel_perp_log(ibin_perp) + 1
+        endif
+    end subroutine update_vdist_1d_log
 
 end module velocity_distribution

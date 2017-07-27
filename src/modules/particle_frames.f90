@@ -19,7 +19,7 @@ module particle_frames
     subroutine get_particle_frames(rootpath)
         implicit none
         character(*), intent(in) :: rootpath
-        character(len=64) :: fpath
+        character(len=256) :: fpath
 
         fpath = trim(adjustl(rootpath))//'particle/'
         call get_particle_frames_general(trim(fpath))

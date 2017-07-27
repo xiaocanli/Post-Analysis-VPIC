@@ -43,6 +43,10 @@ target_link_libraries(particle_spectrum_vdist_fieldlines.exec ${MPI_Fortran_LIBR
     particle_spectrum vdist get_info flap)
 install (TARGETS particle_spectrum_vdist_fieldlines.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(vdistribution.exec vdistribution.f90)
+target_link_libraries(vdistribution.exec ${MPI_Fortran_LIBRARIES} vdist flap)
+install (TARGETS vdistribution.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
 # # -----------------------------------------------------------------------------
@@ -79,10 +83,6 @@ install (TARGETS particle_spectrum_vdist_fieldlines.exec DESTINATION ${CMAKE_INS
 # target_link_libraries(vdist_1d_along_fieldline.exec ${MPI_Fortran_LIBRARIES}
 #     analysis_config vdist fieldline_tracing particle_fieldline)
 # install (TARGETS vdist_1d_along_fieldline.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
-# add_executable(vdistribution.exec vdistribution.f90)
-# target_link_libraries(vdistribution.exec ${MPI_Fortran_LIBRARIES} vdist)
-# install (TARGETS vdistribution.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 # 
 # add_executable(nrho_eband.exec particle_number_eband.f90)
 # target_link_libraries(nrho_eband.exec ${MPI_Fortran_LIBRARIES} analysis_config

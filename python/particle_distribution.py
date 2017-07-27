@@ -2,12 +2,14 @@
 Analysis procedures for particle energy spectrum.
 """
 import collections
+import itertools
 import math
 import multiprocessing
 import os
 import os.path
 import struct
 import subprocess
+import sys
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -621,69 +623,52 @@ def read_velocity_distribution(species,
         f, dtype='int32', mode='r', offset=offset, shape=1, order='C')
     offset += 4
     vbins_short = np.zeros(nbins)
+    vbins_log = np.zeros(nbins)
     vbins_long = np.zeros(nbins * 2)
     vbins_short = np.memmap(
         f, dtype='float64', mode='c', offset=offset, shape=(nbins), order='C')
     offset += 8 * nbins
     vbins_long = np.memmap(
-        f,
-        dtype='float64',
-        mode='c',
-        offset=offset,
-        shape=(2 * nbins),
-        order='C')
+        f, dtype='float64', mode='c', offset=offset, shape=(2 * nbins), order='C')
     offset += 8 * nbins * 2
+    vbins_log = np.memmap(
+        f, dtype='float64', mode='c', offset=offset, shape=(nbins), order='C')
+    offset += 8 * nbins
     fvel_para_perp = np.zeros((nbins, 2 * nbins))
     fvel_xy = np.zeros((2 * nbins, 2 * nbins))
     fvel_xz = np.zeros((2 * nbins, 2 * nbins))
     fvel_yz = np.zeros((2 * nbins, 2 * nbins))
     fvel_para_perp = np.memmap(
-        f,
-        dtype='float64',
-        mode='c',
-        offset=offset,
-        shape=(nbins, 2 * nbins),
-        order='C')
+        f, dtype='float64', mode='c', offset=offset, shape=(nbins, 2 * nbins), order='C')
     offset += 8 * nbins * 2 * nbins
     fvel_xy = np.memmap(
-        f,
-        dtype='float64',
-        mode='c',
-        offset=offset,
-        shape=(2 * nbins, 2 * nbins),
-        order='C')
+        f, dtype='float64', mode='c', offset=offset, shape=(2 * nbins, 2 * nbins), order='C')
     offset += 8 * 2 * nbins * 2 * nbins
     fvel_xz = np.memmap(
-        f,
-        dtype='float64',
-        mode='c',
-        offset=offset,
-        shape=(2 * nbins, 2 * nbins),
-        order='C')
+        f, dtype='float64', mode='c', offset=offset, shape=(2 * nbins, 2 * nbins), order='C')
     offset += 8 * 2 * nbins * 2 * nbins
+    print offset
     fvel_yz = np.memmap(
-        f,
-        dtype='float64',
-        mode='c',
-        offset=offset,
-        shape=(2 * nbins, 2 * nbins),
-        order='C')
+        f, dtype='float64', mode='c', offset=offset, shape=(2 * nbins, 2 * nbins), order='C')
     f.close()
 
     f = open(fpath + fname_1d, 'r')
     # skip headers
-    offset = 9 * 4 + 8 * nbins * 3
+    offset = 9 * 4 + 8 * nbins * 4
     fvel_para = np.zeros(2 * nbins)
     fvel_perp = np.zeros(nbins)
+    fvel_para_log = np.zeros(nbins)
+    fvel_perp_log = np.zeros(nbins)
     fvel_para = np.memmap(
-        f,
-        dtype='float64',
-        mode='c',
-        offset=offset,
-        shape=(2 * nbins),
-        order='C')
+        f, dtype='float64', mode='c', offset=offset, shape=(2 * nbins), order='C')
     offset += 8 * nbins * 2
     fvel_perp = np.memmap(
+        f, dtype='float64', mode='c', offset=offset, shape=(nbins), order='C')
+    offset += 8 * nbins
+    fvel_para_log = np.memmap(
+        f, dtype='float64', mode='c', offset=offset, shape=(nbins), order='C')
+    offset += 8 * nbins
+    fvel_perp_log = np.memmap(
         f, dtype='float64', mode='c', offset=offset, shape=(nbins), order='C')
     f.close()
 
@@ -726,9 +711,9 @@ def read_velocity_distribution(species,
 
     fvelocity = collections.namedtuple("fvelocity", [
         'species', 'tframe', 'center', 'sizes', 'vmin', 'vmax', 'nbins',
-        'vbins_short', 'vbins_long', 'fvel_para_perp', 'fvel_xy', 'fvel_xz',
-        'fvel_yz', 'fvel_para', 'fvel_perp', 'vmin_2d', 'vmax_2d', 'vmin_1d',
-        'vmax_1d'
+        'vbins_short', 'vbins_long', 'vbins_log', 'fvel_para_perp', 'fvel_xy',
+        'fvel_xz', 'fvel_yz', 'fvel_para', 'fvel_perp', 'fvel_para_log',
+        'fvel_perp_log', 'vmin_2d', 'vmax_2d', 'vmin_1d', 'vmax_1d'
     ])
 
     fvel = fvelocity(
@@ -741,12 +726,15 @@ def read_velocity_distribution(species,
         nbins=nbins,
         vbins_short=vbins_short,
         vbins_long=vbins_long,
+        vbins_log=vbins_log,
         fvel_para_perp=fvel_para_perp,
         fvel_xy=fvel_xy,
         fvel_xz=fvel_xz,
         fvel_yz=fvel_yz,
         fvel_para=fvel_para,
         fvel_perp=fvel_perp,
+        fvel_para_log=fvel_para_log,
+        fvel_perp_log=fvel_perp_log,
         vmin_2d=vmin_2d,
         vmax_2d=vmax_2d,
         vmin_1d=vmin_1d,
@@ -1175,14 +1163,54 @@ def plot_particle_spectrum_rank(base_dir, pic_info, species, ct, xshock):
     plt.show()
 
 
-if __name__ == "__main__":
-    # traj_sigma1()
-    base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
-    run_name = '2D-90-Mach4-sheet4-multi'
-    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
-    tratio = pic_info.particle_interval / pic_info.fields_interval
+def plot_ptl_vdist(species, pic_info, run_name, nt):
+    """Plot particle velocity distribution.
+    """
+    for ct in range(1, nt+1):
+        fname_1d = 'vdist_1d-' + species + '.' + str(ct)
+        fname_2d = 'vdist_2d-' + species + '.' + str(ct)
+        fpath = '../vdistributions/' + run_name + '/'
+        fvel1 = read_velocity_distribution(species, ct, pic_info, fname_1d,
+                                           fname_2d, fpath)
+        vbins_short = fvel1.vbins_short
+        vbins_long = fvel1.vbins_long
+        vbins_log = fvel1.vbins_log
+        fvel_para = fvel1.fvel_para
+        fvel_perp = fvel1.fvel_perp
+        fvel_para_log = fvel1.fvel_para_log
+        fvel_perp_log = fvel1.fvel_perp_log
+        dvbins_log = np.gradient(vbins_log)
 
+        fig = plt.figure(figsize=[7, 5])
+        xs, ys = 0.15, 0.15
+        w1, h1 = 0.8, 0.8
+        ax = fig.add_axes([xs, ys, w1, h1])
+
+        print np.sum(fvel_para_log), np.sum(fvel_perp_log)
+
+        fvel_para_log /= dvbins_log
+        fvel_perp_log /= dvbins_log
+        # fvel_perp_log *= 0.5
+
+        ax.loglog(vbins_log, fvel_para_log, linewidth=2,
+                color='r', label='Para')
+        ax.loglog(vbins_log, fvel_perp_log, linewidth=2,
+                color='b', label='Perp')
+        # ax.loglog(vbins_log, fvel_para_log/fvel_perp_log, linewidth=2,
+        #         color='r', label='Para/Perp')
+
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$v_\parallel, v_\perp$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$f(v_\parallel), f(v_\perp)$', fontdict=font, fontsize=20)
+    leg = ax.legend(loc=3, prop={'size': 20}, ncol=1,
+        shadow=False, fancybox=False, frameon=False)
+
+    plt.show()
+
+
+def shock_current_sheet():
+    """
+    """
     ct = 370
     cts = range(10, pic_info.ntf - 1, tratio)
     ixs = range(pic_info.topology_x)
@@ -1201,6 +1229,24 @@ if __name__ == "__main__":
     x, z, vx = read_2d_fields(pic_info, fname, **kwargs)
     xm = x[shock_loc[ct]]
 
+
+if __name__ == "__main__":
+    cmdargs = sys.argv
+    if (len(cmdargs) > 2):
+        base_dir = cmdargs[1]
+        run_name = cmdargs[2]
+    else:
+        base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
+        run_name = '2D-90-Mach4-sheet4-multi'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    tratio = pic_info.particle_interval / pic_info.fields_interval
+
+    nt = 24
+    plot_ptl_vdist('e', pic_info, run_name, nt)
+
+    # shock_current_sheet()
+
     def processInput(job_id):
         print job_id
         ct = job_id
@@ -1211,7 +1257,7 @@ if __name__ == "__main__":
         # get_particle_spectrum_rank(base_dir, pic_info, 'ion', ct, job_id)
 
     num_cores = multiprocessing.cpu_count()
-    Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
+    # Parallel(n_jobs=num_cores)(delayed(processInput)(ct) for ct in cts)
     # plot_particle_phase_distribution(pic_info, ct, base_dir,
     #         run_name, 'ion', shock_loc[ct])
     # Parallel(n_jobs=num_cores)(delayed(processInput)(ix) for ix in ixs)
