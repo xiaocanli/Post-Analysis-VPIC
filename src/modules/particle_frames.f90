@@ -16,11 +16,12 @@ module particle_frames
     ! Get the number of particle frames and the time step interval. This is
     ! based on particle dump.
     !---------------------------------------------------------------------------
-    subroutine get_particle_frames
+    subroutine get_particle_frames(rootpath)
         implicit none
+        character(*), intent(in) :: rootpath
         character(len=64) :: fpath
 
-        fpath = '../particle/'
+        fpath = trim(adjustl(rootpath))//'particle/'
         call get_particle_frames_general(trim(fpath))
     end subroutine get_particle_frames
 

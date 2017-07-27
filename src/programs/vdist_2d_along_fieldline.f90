@@ -16,9 +16,11 @@ program vdist_2d_along_fieldline
     real(fp), allocatable, dimension(:, :, :) :: vdist_2d  ! Para and perp to B.
     real(fp), allocatable, dimension(:, :, :) :: vdist_xy, vdist_xz, vdist_yz
     real(fp) :: x0, z0
+    character(len=256) :: rootpath
 
     ct = 10
-    call init_analysis(ct)
+    call get_cmd_args
+    call init_analysis(ct, rootpath)
     x0 = 1.0
     z0 = 60.0
     call get_fieldline_points(x0, z0)
@@ -182,4 +184,28 @@ program vdist_2d_along_fieldline
         call MPI_TYPE_FREE(datatype_long, ierror)
     end subroutine write_vdist_2d
 
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'translate', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Merge VPIC simulation output from all MPI processes', &
+            examples    = ['translate -rp simulation_root_path'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+        endif
+    end subroutine get_cmd_args
 end program vdist_2d_along_fieldline

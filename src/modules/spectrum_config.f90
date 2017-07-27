@@ -34,17 +34,24 @@ module spectrum_config
 
     contains
 
-    !---------------------------------------------------------------------------
-    ! Read the setup information from file.
-    !---------------------------------------------------------------------------
-    subroutine read_spectrum_config
+    !<--------------------------------------------------------------------------
+    !< Read the setup information from file.
+    !< Args:
+    !<  spect_config_name: spectrum configuration filename
+    !<--------------------------------------------------------------------------
+    subroutine read_spectrum_config(spect_config_name)
         use mpi_module
         use read_config, only: get_variable
         implicit none
+        character(*), intent(in), optional :: spect_config_name
         integer :: fh
         real(fp) :: temp
         fh = 10
-        open(unit=fh, file=config_name, status='old')
+        if (present(spect_config_name)) then
+            open(unit=fh, file=spect_config_name, status='old')
+        else
+            open(unit=fh, file='config_files/spectrum_config.dat', status='old')
+        endif
         temp = get_variable(fh, 'nbins', '=')   ! Number of energy bins
         nbins = int(temp)
         emax = get_variable(fh, 'emax', '=')    ! Maximum energy

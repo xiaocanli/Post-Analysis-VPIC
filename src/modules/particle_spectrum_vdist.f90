@@ -1,7 +1,7 @@
-!*******************************************************************************
-! Module for calculating particle energy spectrum and velocity distributions
-! in a box.
-!*******************************************************************************
+!<******************************************************************************
+!< Module for calculating particle energy spectrum and velocity distributions
+!< in a box.
+!<******************************************************************************
 module particle_spectrum_vdist_module
     use mpi_module
     use constants, only: dp
@@ -25,6 +25,7 @@ module particle_spectrum_vdist_module
     implicit none
     private
     public particle_spectrum_vdist_main
+    character(len=256) :: rootpath
 
     contains
 
@@ -39,10 +40,10 @@ module particle_spectrum_vdist_module
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
         call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
-        call get_cmdline_arguments
-        call get_file_paths
+        call get_cmd_args
+        call get_file_paths(rootpath)
         if (myid==master) then
-            call get_particle_frames
+            call get_particle_frames(rootpath)
         endif
         call MPI_BCAST(nt, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(tinterval, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -110,9 +111,9 @@ module particle_spectrum_vdist_module
         call MPI_FINALIZE(ierr)
     end subroutine particle_spectrum_vdist_main
     
-    !---------------------------------------------------------------------------
-    ! Calculate spectrum and velocity distributions.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Calculate spectrum and velocity distributions.
+    !<--------------------------------------------------------------------------
     subroutine calc_spectrum_vdist(ct, species)
         use mpi_module
         use constants, only: fp
@@ -147,9 +148,9 @@ module particle_spectrum_vdist_module
         endif
     end subroutine calc_spectrum_vdist
 
-    !---------------------------------------------------------------------------
-    ! Calculate spectrum and velocity distributions for multiple PIC MPI ranks.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Calculate spectrum and velocity distributions for multiple PIC MPI ranks.
+    !<--------------------------------------------------------------------------
     subroutine calc_distributions_mpi(tindex, species)
         use mpi_module
         use picinfo, only: domain
@@ -182,10 +183,10 @@ module particle_spectrum_vdist_module
         enddo
     end subroutine calc_distributions_mpi
 
-    !---------------------------------------------------------------------------
-    ! Calculate energy and velocities for one single particle and update the
-    ! distribution arrays.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Calculate energy and velocities for one single particle and update the
+    !< distribution arrays.
+    !<--------------------------------------------------------------------------
     function single_particle_energy_vel(fh) result(IOstatus)
         use particle_module, only: ptl, calc_particle_energy, px, py, pz, &
                 calc_ptl_coord, calc_para_perp_velocity
@@ -214,4 +215,30 @@ module particle_spectrum_vdist_module
         endif
 
     end function single_particle_energy_vel
+
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'translate', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Merge VPIC simulation output from all MPI processes', &
+            examples    = ['translate -rp simulation_root_path'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+        endif
+    end subroutine get_cmd_args
+
 end module particle_spectrum_vdist_module

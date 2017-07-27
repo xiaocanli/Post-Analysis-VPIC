@@ -279,6 +279,8 @@ module picinfo
 
         close(fh)
 
+        print*, '*******************************************************'
+
         call read_pic_mpi_topology
 
         ! Echo this information
@@ -364,10 +366,12 @@ module picinfo
     subroutine write_pic_info
         implicit none
         logical :: dir_e
+        character(len=256) :: fname
         dir_e = .false.
-        inquire(file=trim(adjustl(rootpath))//'data/.', exist=dir_e)
+        fname = trim(adjustl(rootpath))//'data/.'
+        inquire(file=fname, exist=dir_e)
         if (.not. dir_e) then
-            call system('mkdir ../data')
+            call system('mkdir'//trim(adjustl(fname)))
         endif
         open(unit=17, file=trim(adjustl(rootpath))//'data/info', &
              access='stream', status='replace', form='unformatted', action='write')

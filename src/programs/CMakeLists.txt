@@ -25,7 +25,7 @@ install (TARGETS compression.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(parspec.exec parspec.f90)
 target_link_libraries(parspec.exec ${MPI_Fortran_LIBRARIES} particle_spectrum
-    get_info commandline_arguments maximum_energy)
+    get_info maximum_energy flap)
 install (TARGETS parspec.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(parspec_cpu_based.exec parspec_cpu_based.f90)

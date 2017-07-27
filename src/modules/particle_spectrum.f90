@@ -184,15 +184,14 @@ module particle_energy_spectrum
     !   ct: current time frame.
     !   species: 'e' for electron. 'h' for others.
     !---------------------------------------------------------------------------
-    subroutine calc_energy_spectra(ct, species)
+    subroutine calc_energy_spectra(ct, species, is_emax_cell)
         use mpi_module
         use constants, only: fp
         use particle_frames, only: tinterval
         use particle_file, only: check_existence
-        use commandline_arguments, only: is_emax_cell
         use particle_maximum_energy, only: write_emax
         implicit none
-        integer, intent(in) :: ct
+        integer, intent(in) :: ct, is_emax_cell
         character(len=1), intent(in) :: species
         integer :: tindex
         logical :: is_exist
@@ -204,11 +203,11 @@ module particle_energy_spectrum
         call check_existence(tindex, species, is_exist)
         emax_tmp = emax_local(ct)
         if (is_exist) then
-            if (is_emax_cell) then
-                call calc_energy_spectrum_mpi_con(tindex, species)
+            if (is_emax_cell == 1) then
+                call calc_energy_spectrum_mpi_con(tindex, species, is_emax_cell)
                 call write_emax(ct, species)
             else
-                call calc_energy_spectrum_mpi(tindex, species)
+                call calc_energy_spectrum_mpi(tindex, species, is_emax_cell)
             endif
             emax_local(ct) = emax_tmp  ! emax_tmp has been updated
             call sum_spectra_over_mpi
@@ -300,7 +299,7 @@ module particle_energy_spectrum
     !   tindex: the time index, indicating the time step numbers in PIC simulation.
     !   species: 'e' for electron. 'h' for others.
     !---------------------------------------------------------------------------
-    subroutine calc_energy_spectrum_mpi(tindex, species)
+    subroutine calc_energy_spectrum_mpi(tindex, species, is_emax_cell)
         use mpi_module
         use picinfo, only: domain
         use file_header, only: pheader
@@ -309,7 +308,7 @@ module particle_energy_spectrum
                 close_particle_file, fh
         implicit none
         character(len=1), intent(in) :: species
-        integer, intent(in) :: tindex
+        integer, intent(in) :: tindex, is_emax_cell
         character(len=50) :: cid
         logical :: isrange
         integer :: np, iptl
@@ -324,7 +323,7 @@ module particle_energy_spectrum
             if (isrange) then
                 ! Loop over particles
                 do iptl = 1, pheader%dim, 1
-                    IOstatus = single_particle_energy(fh)
+                    IOstatus = single_particle_energy(fh, is_emax_cell)
                     if (IOstatus /= 0) exit
                 enddo
             endif
@@ -339,7 +338,7 @@ module particle_energy_spectrum
     !   tindex: the time index, indicating the time step numbers in PIC simulation.
     !   species: 'e' for electron. 'h' for others.
     !---------------------------------------------------------------------------
-    subroutine calc_energy_spectrum_mpi_con(tindex, species)
+    subroutine calc_energy_spectrum_mpi_con(tindex, species, is_emax_cell)
         use mpi_module
         use picinfo, only: domain
         use file_header, only: pheader
@@ -348,10 +347,9 @@ module particle_energy_spectrum
                 close_particle_file, fh
         use particle_maximum_energy, only: txs, tys, tzs, txe, tye, tze, &
                 update_emax_array
-        use commandline_arguments, only: is_emax_cell
         implicit none
         character(len=1), intent(in) :: species
-        integer, intent(in) :: tindex
+        integer, intent(in) :: tindex, is_emax_cell
         character(len=50) :: cid
         logical :: isrange
         integer :: np, iptl
@@ -369,10 +367,10 @@ module particle_energy_spectrum
                     if (isrange) then
                         ! Loop over particles
                         do iptl = 1, pheader%dim, 1
-                            IOstatus = single_particle_energy(fh)
+                            IOstatus = single_particle_energy(fh, is_emax_cell)
                             if (IOstatus /= 0) exit
                         enddo
-                        if (is_emax_cell) then
+                        if (is_emax_cell == 1) then
                             otx = ix - txs
                             oty = iy - tys
                             otz = iz - tzs
@@ -394,7 +392,7 @@ module particle_energy_spectrum
     !   tindex: the time index, indicating the time step numbers in PIC simulation.
     !   species: 'e' for electron. 'h' for others.
     !---------------------------------------------------------------------------
-    subroutine calc_energy_spectrum_single(tindex, species)
+    subroutine calc_energy_spectrum_single(tindex, species, is_emax_cell)
         use picinfo, only: domain
         use file_header, only: pheader
         use spectrum_config, only: spatial_range, corners_mpi
@@ -402,7 +400,7 @@ module particle_energy_spectrum
                 close_particle_file, fh
         implicit none
         character(len=1), intent(in) :: species
-        integer, intent(in) :: tindex
+        integer, intent(in) :: tindex, is_emax_cell
         character(len=50) :: cid
         integer :: np, iptl
         integer :: ix, iy, iz
@@ -418,7 +416,7 @@ module particle_energy_spectrum
 
                     ! Loop over particles
                     do iptl = 1, pheader%dim, 1
-                        IOstatus = single_particle_energy(fh)
+                        IOstatus = single_particle_energy(fh, is_emax_cell)
                         if (IOstatus /= 0) exit
                     enddo
 
@@ -438,14 +436,13 @@ module particle_energy_spectrum
     !   IOstatus: '0' is OK. 'negative' indicates the end of a file.
     !             'positive' indicates something is wrong.
     !---------------------------------------------------------------------------
-    function single_particle_energy(fh) result(IOstatus)
+    function single_particle_energy(fh, is_emax_cell) result(IOstatus)
         use particle_module, only: ptl, calc_particle_energy, px, py, pz, &
                                    calc_ptl_coord
         use spectrum_config, only: spatial_range
         use constants, only: fp
-        use commandline_arguments, only: is_emax_cell
         implicit none
-        integer, intent(in) :: fh
+        integer, intent(in) :: fh, is_emax_cell
         integer :: IOstatus
 
         read(fh, IOSTAT=IOstatus) ptl
@@ -459,7 +456,7 @@ module particle_energy_spectrum
                 call calc_particle_energy
                 call update_energy_spectrum
                 call update_maximum_energy
-                if (is_emax_cell) then
+                if (is_emax_cell == 1) then
                     call update_emax_pic_mpi
                 endif
             endif

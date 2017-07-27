@@ -1,8 +1,8 @@
-!*******************************************************************************
-! This module gives the parameters and routines for analysis dealing with
-! particle information along a field line, e.g. particle spectrum along a
-! field line or particle velocity distribution along a field line.
-!*******************************************************************************
+!<******************************************************************************
+!< This module gives the parameters and routines for analysis dealing with
+!< particle information along a field line, e.g. particle spectrum along a
+!< field line or particle velocity distribution along a field line.
+!<******************************************************************************
 module particle_fieldline
     use mpi_module
     use constants, only: fp
@@ -17,12 +17,12 @@ module particle_fieldline
 
     contains
 
-    !---------------------------------------------------------------------------
-    ! Initialize this analysis
-    ! Input:
-    !   ct: current time frame for fields.
-    !---------------------------------------------------------------------------
-    subroutine init_analysis(ct)
+    !<--------------------------------------------------------------------------
+    !< Initialize this analysis
+    !< Input:
+    !<   ct: current time frame for fields.
+    !<--------------------------------------------------------------------------
+    subroutine init_analysis(ct, rootpath)
         use path_info, only: get_file_paths
         use picinfo, only: read_domain, broadcast_pic_info
         use particle_frames, only: get_particle_frames, tinterval
@@ -33,6 +33,7 @@ module particle_fieldline
                 get_relativistic_flag
         implicit none
         integer, intent(in) :: ct
+        character(*), intent(in) :: rootpath
 
         call MPI_INIT(ierr)
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -44,7 +45,7 @@ module particle_fieldline
         ! The PIC simulation information.
         if (myid==master) then
             call read_domain
-            call get_particle_frames
+            call get_particle_frames(rootpath)
         endif
         call MPI_BCAST(tinterval, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
         call broadcast_pic_info
@@ -60,12 +61,12 @@ module particle_fieldline
 
     end subroutine init_analysis
 
-    !---------------------------------------------------------------------------
-    ! Trace a field line starting at one point, save the points along the field
-    ! line, and distribute the coordinates of the points for further analysis.
-    ! Inputs:
-    !   x0, z0: the coordinates of the starting point.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Trace a field line starting at one point, save the points along the field
+    !< line, and distribute the coordinates of the points for further analysis.
+    !< Inputs:
+    !<   x0, z0: the coordinates of the starting point.
+    !<--------------------------------------------------------------------------
     subroutine get_fieldline_points(x0, z0)
         use fieldline_tracing, only: npoints, trace_field_line
         use mpi_topology, only: distribute_tasks
@@ -77,9 +78,9 @@ module particle_fieldline
         call distribute_tasks(nptot, numprocs, myid, np, startp, endp)
     end subroutine get_fieldline_points
 
-    !---------------------------------------------------------------------------
-    ! End the analysis.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< End the analysis.
+    !<--------------------------------------------------------------------------
     subroutine end_analysis
         use fieldline_tracing, only: end_fieldline_tracing, free_fieldline_points
         implicit none
@@ -88,10 +89,10 @@ module particle_fieldline
         call MPI_FINALIZE(ierr)
     end subroutine end_analysis
 
-    !---------------------------------------------------------------------------
-    ! Check if both particle and fields exist at current time frame. If not,
-    ! the analysis is ended and an error message is given.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Check if both particle and fields exist at current time frame. If not,
+    !< the analysis is ended and an error message is given.
+    !<--------------------------------------------------------------------------
     subroutine validate_time_frame(ct)
         use particle_file, only: check_both_particle_fields_exist, &
                 get_ratio_interval, ratio_interval

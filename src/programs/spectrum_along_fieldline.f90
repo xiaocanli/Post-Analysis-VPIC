@@ -1,8 +1,8 @@
-!*******************************************************************************
-! This module is to calculate particle energy spectrum along a field line.
-! We trace one field line first starting at one point. The particle energy
-! spectrum at each point along the field line is then calculated.
-!*******************************************************************************
+!<******************************************************************************
+!< This module is to calculate particle energy spectrum along a field line.
+!< We trace one field line first starting at one point. The particle energy
+!< spectrum at each point along the field line is then calculated.
+!<******************************************************************************
 program spectrum_along_fieldline
     use mpi_module
     use constants, only: fp
@@ -15,9 +15,11 @@ program spectrum_along_fieldline
     ! The spectra at these points.
     real(fp), allocatable, dimension(:, :) :: flog_np, flin_np
     real(fp) :: x0, z0
+    character(len=256) :: rootpath
 
     ct = 10
-    call init_analysis(ct)
+    call get_cmd_args
+    call init_analysis(ct, rootpath)
     x0 = 1.0
     z0 = 60.0
     call get_fieldline_points(x0, z0)
@@ -34,11 +36,11 @@ program spectrum_along_fieldline
 
     contains
 
-    !---------------------------------------------------------------------------
-    ! Calculate the particle energy spectrum along a line.
-    ! Input:
-    !   species: 'e' for electron; 'i' for ion.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Calculate the particle energy spectrum along a line.
+    !< Input:
+    !<   species: 'e' for electron; 'i' for ion.
+    !<--------------------------------------------------------------------------
     subroutine calc_particle_energy_spectrum(species)
         use spectrum_config, only: emax, emin, center, sizes
         use spectrum_config, only: set_spatial_range_de, &
@@ -79,9 +81,9 @@ program spectrum_along_fieldline
         call free_energy_spectra_single
     end subroutine calc_particle_energy_spectrum
 
-    !---------------------------------------------------------------------------
-    ! Check if the folder for the data exist. If not, make one.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Check if the folder for the data exist. If not, make one.
+    !<--------------------------------------------------------------------------
     subroutine check_folder_exist
         implicit none
         logical :: dir_e
@@ -92,9 +94,9 @@ program spectrum_along_fieldline
         endif
     end subroutine check_folder_exist
 
-    !---------------------------------------------------------------------------
-    ! Write the spectra data to file.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Write the spectra data to file.
+    !<--------------------------------------------------------------------------
     subroutine write_particle_spectrum(species)
         use mpi_module
         use mpi_io_module, only: open_data_mpi_io, write_data_mpi_io
@@ -149,4 +151,28 @@ program spectrum_along_fieldline
         call MPI_TYPE_FREE(datatype, ierror)
     end subroutine write_particle_spectrum
 
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'translate', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Merge VPIC simulation output from all MPI processes', &
+            examples    = ['translate -rp simulation_root_path'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+        endif
+    end subroutine get_cmd_args
 end program spectrum_along_fieldline

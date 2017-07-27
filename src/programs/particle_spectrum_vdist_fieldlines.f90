@@ -32,16 +32,17 @@ program particle_spectrum_vdist_fieldlines
     character(len=128) :: filepath
     real(dp) :: mp_elapsed
     real(dp) :: xlim(2), zlim(2)
+    character(len=256) :: rootpath
 
     ! Initialize Message Passing
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
     call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
-    call get_cmdline_arguments
-    call get_file_paths
+    call get_cmd_args
+    call get_file_paths(rootpath)
     if (myid==master) then
-        call get_particle_frames
+        call get_particle_frames(rootpath)
     endif
     call MPI_BCAST(nt, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
     call MPI_BCAST(tinterval, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, ierr)
@@ -429,4 +430,30 @@ program particle_spectrum_vdist_fieldlines
         zb = fieldline1(2, i) * (1 - delta_bottom) + &
              fieldline1(2, i+1) * delta_bottom
     end subroutine get_zpositions
+
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'translate', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Merge VPIC simulation output from all MPI processes', &
+            examples    = ['translate -rp simulation_root_path'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+        endif
+    end subroutine get_cmd_args
+
 end program particle_spectrum_vdist_fieldlines
