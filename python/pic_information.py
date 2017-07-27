@@ -6,6 +6,7 @@ import cPickle as pickle
 import math
 import os.path
 import struct
+import sys
 from os import listdir
 from os.path import isfile, join
 
@@ -515,6 +516,13 @@ def list_pic_info_dir(filepath):
 
 
 if __name__ == "__main__":
+    cmdargs = sys.argv
+    if (len(cmdargs) > 2):
+        base_directory = cmdargs[1]
+        run_name = cmdargs[2]
+    else:
+        base_directory = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
+        run_name = 'sigma1-mime25-beta001-average'
     # base_directory = '../../'
     # pic_info = get_pic_info(base_directory)
     # pic_info_json = data_to_json(pic_info)
@@ -533,8 +541,6 @@ if __name__ == "__main__":
     # run_name = 'sigma1-mime25-beta0002-fan'
     # base_directory = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
     # run_name = 'sigma100-lx300'
-    base_directory = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
-    run_name = 'sigma1-mime25-beta001-average'
     pic_info = get_pic_info(base_directory)
     pic_info_json = data_to_json(pic_info)
     fname = '../data/pic_info/pic_info_' + run_name + '.json'
