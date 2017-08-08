@@ -208,13 +208,18 @@ def get_main_source_filename(base_directory):
         f.close()
         nlines = len(content)
         current_line = 0
-        while not 'vpic' in content[current_line]:
+        cond1 = not '.cxx' in content[current_line]
+        cond2 = not '.cc' in content[current_line]
+        cond3 = '#' in content[current_line]
+        while (cond1 and cond2) or cond3:
             current_line += 1
+            cond1 = not '.cxx' in content[current_line]
+            cond2 = not '.cc' in content[current_line]
+            cond3 = '#' in content[current_line]
         single_line = content[current_line]
-        line_splits = single_line.split(".op")
-        word_splits = line_splits[1].split(" ")
+        line_splits = single_line.split(" ")
 
-    filename = word_splits[1]
+    filename = line_splits[1]
     fname = base_directory + '/' + filename[:-1]
     return fname
 
