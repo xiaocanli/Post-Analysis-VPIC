@@ -1163,9 +1163,14 @@ def plot_particle_spectrum_rank(base_dir, pic_info, species, ct, xshock):
     plt.show()
 
 
-def plot_ptl_vdist(species, pic_info, run_name, nt):
+def plot_vdist_time(species, pic_info, run_name, nt):
     """Plot particle velocity distribution.
     """
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+
     for ct in range(1, nt+1):
         fname_1d = 'vdist_1d-' + species + '.' + str(ct)
         fname_2d = 'vdist_2d-' + species + '.' + str(ct)
@@ -1181,29 +1186,36 @@ def plot_ptl_vdist(species, pic_info, run_name, nt):
         fvel_perp_log = fvel1.fvel_perp_log
         dvbins_log = np.gradient(vbins_log)
 
-        fig = plt.figure(figsize=[7, 5])
-        xs, ys = 0.15, 0.15
-        w1, h1 = 0.8, 0.8
-        ax = fig.add_axes([xs, ys, w1, h1])
-
         print np.sum(fvel_para_log), np.sum(fvel_perp_log)
 
         fvel_para_log /= dvbins_log
         fvel_perp_log /= dvbins_log
         # fvel_perp_log *= 0.5
 
-        ax.loglog(vbins_log, fvel_para_log, linewidth=2,
-                color='r', label='Para')
-        ax.loglog(vbins_log, fvel_perp_log, linewidth=2,
-                color='b', label='Perp')
-        # ax.loglog(vbins_log, fvel_para_log/fvel_perp_log, linewidth=2,
-        #         color='r', label='Para/Perp')
+        # fig = plt.figure(figsize=[7, 5])
+        # xs, ys = 0.15, 0.15
+        # w1, h1 = 0.8, 0.8
+        # ax = fig.add_axes([xs, ys, w1, h1])
+
+        # ax.loglog(vbins_log, fvel_para_log, linewidth=2,
+        #         color='r', label='Para')
+        # ax.loglog(vbins_log, fvel_perp_log, linewidth=2,
+        #         color='b', label='Perp')
+        color = plt.cm.jet(ct / float(nt), 1)
+        ax.loglog(vbins_log, fvel_para_log/fvel_perp_log,
+                linewidth=2, color=color, label=str(ct))
 
     ax.tick_params(labelsize=16)
-    ax.set_xlabel(r'$v_\parallel, v_\perp$', fontdict=font, fontsize=20)
-    ax.set_ylabel(r'$f(v_\parallel), f(v_\perp)$', fontdict=font, fontsize=20)
-    leg = ax.legend(loc=3, prop={'size': 20}, ncol=1,
-        shadow=False, fancybox=False, frameon=False)
+    # ax.set_xlabel(r'$p_\parallel, p_\perp$', fontdict=font, fontsize=20)
+    # ax.set_ylabel(r'$f(p_\parallel), f(p_\perp)$', fontdict=font, fontsize=20)
+    # leg = ax.legend(loc=3, prop={'size': 20}, ncol=1,
+    #     shadow=False, fancybox=False, frameon=False)
+    ax.loglog(ax.get_xlim(), [1, 1], color='k', linestyle='--')
+    ax.loglog(ax.get_xlim(), [0.1, 0.1], color='k', linestyle='--')
+    ax.loglog(ax.get_xlim(), [10, 10], color='k', linestyle='--')
+    ax.set_xlabel(r'$p_\parallel, p_\perp$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$f(p_\parallel)/f(p_\perp)$', fontdict=font, fontsize=20)
+    ax.set_xlim([1E-2, 2E1])
 
     plt.show()
 
@@ -1242,8 +1254,8 @@ if __name__ == "__main__":
     pic_info = read_data_from_json(picinfo_fname)
     tratio = pic_info.particle_interval / pic_info.fields_interval
 
-    nt = 24
-    plot_ptl_vdist('e', pic_info, run_name, nt)
+    nt = pic_info.ntp
+    plot_vdist_time('e', pic_info, run_name, nt)
 
     # shock_current_sheet()
 
