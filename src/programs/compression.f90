@@ -2,9 +2,10 @@
 ! The main procedure to calculate the compressional and shear heating terms.
 !*******************************************************************************
 program compression
+    use mpi_module
     use particle_info, only: species, ibtag
-    use analysis_management, only: init_analysis, end_analysis
     implicit none
+    character(len=256) :: rootpath
 
     call init_analysis
 
@@ -17,6 +18,66 @@ program compression
     call end_analysis
 
     contains
+
+    !---------------------------------------------------------------------------
+    ! Initialize the analysis by reading the PIC simulation domain information,
+    ! get file paths for the field data and the outputs.
+    !---------------------------------------------------------------------------
+    subroutine init_analysis
+        use path_info, only: get_file_paths
+        use mpi_topology, only: set_mpi_topology
+        use mpi_datatype_fields, only: set_mpi_datatype_fields
+        use mpi_info_module, only: fileinfo, set_mpi_info
+        use picinfo, only: read_domain, broadcast_pic_info, &
+                get_total_time_frames, get_energy_band_number, &
+                read_thermal_params, calc_energy_interval, nbands
+        use parameters, only: get_start_end_time_points, get_inductive_flag, &
+                tp2, get_relativistic_flag
+        use configuration_translate, only: read_configuration
+        use time_info, only: get_nout
+
+        implicit none
+
+        call MPI_INIT(ierr)
+        call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
+        call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
+
+        call get_cmd_args
+
+        call get_file_paths(rootpath)
+        if (myid == master) then
+            call read_domain
+        endif
+        call broadcast_pic_info
+        call get_start_end_time_points
+        call get_inductive_flag
+        call get_relativistic_flag
+        call read_configuration
+        call get_total_time_frames(tp2)
+        call get_energy_band_number
+        call read_thermal_params
+        if (nbands > 0) then
+            call calc_energy_interval
+        endif
+        call set_mpi_topology   ! MPI topology
+        call set_mpi_datatype_fields
+        call set_mpi_info
+    end subroutine init_analysis
+
+    !---------------------------------------------------------------------------
+    ! Finalizing the analysis by release the memory, MPI data types, MPI info.
+    !---------------------------------------------------------------------------
+    subroutine end_analysis
+        use mpi_module
+        use mpi_datatype_fields, only: filetype_ghost, filetype_nghost
+        use mpi_info_module, only: fileinfo
+        implicit none
+
+        call MPI_TYPE_FREE(filetype_ghost, ierror)
+        call MPI_TYPE_FREE(filetype_nghost, ierror)
+        call MPI_INFO_FREE(fileinfo, ierror)
+        call MPI_FINALIZE(ierr)
+    end subroutine end_analysis
 
     !---------------------------------------------------------------------------
     ! Doing the analysis for one species.
@@ -86,5 +147,30 @@ program compression
         call free_pic_fields
         call close_pic_fields_file
     end subroutine commit_analysis
+
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'compression', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Calculate compression related energy conversion', &
+            examples    = ['compression -rp simulation_root_path'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+        endif
+    end subroutine get_cmd_args
 
 end program compression

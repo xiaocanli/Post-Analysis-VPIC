@@ -15,12 +15,12 @@ install (TARGETS translate.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(dissipation.exec dissipation.f90)
 target_link_libraries(dissipation.exec ${MPI_Fortran_LIBRARIES} get_info
-    analysis_config fields jdote statistics saving_flags compression_shear)
+    analysis_config fields jdote statistics saving_flags compression_shear flap)
 install (TARGETS dissipation.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(compression.exec compression.f90)
 target_link_libraries(compression.exec ${MPI_Fortran_LIBRARIES} analysis_config
-    fields compression_shear)
+    fields compression_shear flap)
 install (TARGETS compression.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(parspec.exec parspec.f90)
