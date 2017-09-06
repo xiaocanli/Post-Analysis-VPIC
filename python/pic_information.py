@@ -3,6 +3,7 @@ Read particle-in-cell (VPIC) simulation information.
 """
 import collections
 import cPickle as pickle
+import errno
 import math
 import os.path
 import struct
@@ -30,8 +31,9 @@ def get_pic_info(base_directory):
     dtwpi = dtwpe / math.sqrt(pic_initial_info.mime)
     ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
+    deck_file = get_main_source_filename(base_directory)
     fields_interval, particle_interval, trace_interval = \
-            get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory)
+            get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
     ntp = ntf / (particle_interval / fields_interval)
@@ -55,7 +57,7 @@ def get_pic_info(base_directory):
         fields_interval=fields_interval,
         particle_interval=particle_interval,
         trace_interval=trace_interval)
-    pic_topology = get_pic_topology(base_directory)
+    pic_topology = get_pic_topology(base_directory, deck_file)
     pic_information = collections.namedtuple(
         "pic_information", pic_initial_info._fields + pic_times_info._fields +
         pic_ene._fields + pic_topology._fields)
@@ -148,28 +150,35 @@ def get_fields_frames(base_directory):
     nx = pic_initial_info.nx
     ny = pic_initial_info.ny
     nz = pic_initial_info.nz
-    fname = base_directory + '/data/ex.gda'
     fname_fields = base_directory + '/fields/T.1'
+    fname_ex = base_directory + '/data/ex.gda'
+    fname_Ex = base_directory + '/data/Ex.gda'
     fname_bx = base_directory + '/data/bx_0.gda'
-    if (os.path.isfile(fname_bx)):
+    fname_Bx = base_directory + '/data/Bx_0.gda'
+    if os.path.isfile(fname_bx) or os.path.isfile(fname_Bx):
         current_time = 1
         is_exist = False
         while (not is_exist):
             current_time += 1
-            fname = base_directory + '/data/bx_' + str(current_time) + '.gda'
-            is_exist = os.path.isfile(fname)
+            fname1 = base_directory + '/data/bx_' + str(current_time) + '.gda'
+            fname2 = base_directory + '/data/Bx_' + str(current_time) + '.gda'
+            is_exist = os.path.isfile(fname1) or os.path.isfile(fname2)
         fields_interval = current_time
         ntf = 1
         is_exist = True
         while (is_exist):
             ntf += 1
             current_time += fields_interval
-            fname = base_directory + '/data/bx_' + str(current_time) + '.gda'
-            is_exist = os.path.isfile(fname)
-    elif (os.path.isfile(fname)):
-        file_size = os.path.getsize(fname)
+            fname1 = base_directory + '/data/bx_' + str(current_time) + '.gda'
+            fname2 = base_directory + '/data/Bx_' + str(current_time) + '.gda'
+            is_exist = os.path.isfile(fname1) or os.path.isfile(fname2)
+    elif os.path.isfile(fname_ex):
+        file_size = os.path.getsize(fname_ex)
         ntf = int(file_size / (nx * ny * nz * 4))
-    elif (os.path.isdir(fname_fields)):
+    elif os.path.isfile(fname_Ex):
+        file_size = os.path.getsize(fname_Ex)
+        ntf = int(file_size / (nx * ny * nz * 4))
+    elif os.path.isdir(fname_fields):
         current_time = 1
         is_exist = False
         while (not is_exist):
@@ -201,8 +210,12 @@ def get_main_source_filename(base_directory):
     fname = base_directory + '/Makefile'
     try:
         f = open(fname, 'r')
-    except IOError:
-        print 'cannot open ', fname
+    except IOError as e:
+        if e.errno == errno.ENOENT:
+            fname = input("The deck filename? ")
+            fname = base_directory + '/' + fname
+        else:
+            raise e
     else:
         content = f.readlines()
         f.close()
@@ -218,13 +231,12 @@ def get_main_source_filename(base_directory):
             cond3 = '#' in content[current_line]
         single_line = content[current_line]
         line_splits = single_line.split(" ")
-
-    filename = line_splits[1]
-    fname = base_directory + '/' + filename[:-1]
+        filename = line_splits[1]
+        fname = base_directory + '/' + filename[:-1]
     return fname
 
 
-def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
+def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file):
     """
     Get output intervals from the main configuration file for current PIC
     simulation.
@@ -235,8 +247,9 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory):
         dtwpi: the time step in 1/wpi.
         dtwci: the time step in 1/wci.
         base_directory: the base directory for different runs.
+        deck_file: simulation deck source file
     """
-    fname = get_main_source_filename(base_directory)
+    fname = deck_file
     try:
         f = open(fname, 'r')
     except IOError:
@@ -447,13 +460,14 @@ def get_variable_value_h(variable_name, content):
     raise StandardError(variable_name + ' is not found')
 
 
-def get_pic_topology(base_directory):
+def get_pic_topology(base_directory, deck_file):
     """Get the PIC simulation topology
 
     Args:
         base_directory: the base directory for different runs.
+        deck_file: simulation deck source file
     """
-    fname = get_main_source_filename(base_directory)
+    fname = deck_file
     try:
         f = open(fname, 'r')
     except IOError:
