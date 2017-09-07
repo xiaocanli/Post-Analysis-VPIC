@@ -55,23 +55,29 @@ module picinfo
         character(len=64) :: fname
         character(len=256) :: buff
         integer :: fh, index1
-        logical :: log1, log2, log3
+        logical :: log1, log2, log3, is_exist
         fh = 40
         ! Get the main configuration file for current PIC simulation.
-        open(unit=fh, file=trim(adjustl(rootpath))//'Makefile', status='old')
-        read(fh, '(A)') buff
-        log1 = .true.
-        log2 = .true.
-        log3 = .true.
-        do while ((log1 .and. log2) .or. log3)
+        inquire(file=trim(adjustl(rootpath))//'Makefile', exist=is_exist)
+        if (is_exist) then
+            open(unit=fh, file=trim(adjustl(rootpath))//'Makefile', status='old')
             read(fh, '(A)') buff
-            log1 = index(buff, '.cxx') == 0
-            log2 = index(buff, '.cc') == 0
-            log3 = index(buff, '#') /= 0
-        enddo
-        index1 = index(buff, ' ')
-        fname = trim(buff(index1+1:))
-        close(fh)
+            log1 = .true.
+            log2 = .true.
+            log3 = .true.
+            do while ((log1 .and. log2) .or. log3)
+                read(fh, '(A)') buff
+                log1 = index(buff, '.cxx') == 0
+                log2 = index(buff, '.cc') == 0
+                log3 = index(buff, '#') /= 0
+            enddo
+            index1 = index(buff, ' ')
+            fname = trim(buff(index1+1:))
+            close(fh)
+        else
+            write(*, *) "Deck filename?"
+            read(*, *) fname
+        endif
     end function get_main_fname
 
     !---------------------------------------------------------------------------
@@ -446,7 +452,12 @@ module picinfo
         if (myid == master) then
             if (output_format == 1) then
                 ! One field is saved in one file for all time steps.
-                inquire(file=trim(adjustl(filepath))//'bx.gda', size=filesize)
+                inquire(file=trim(adjustl(filepath))//'bx.gda', exist=is_exist)
+                if (is_exist) then
+                    inquire(file=trim(adjustl(filepath))//'bx.gda', size=filesize)
+                else
+                    inquire(file=trim(adjustl(filepath))//'Bx.gda', size=filesize)
+                endif
                 nt = filesize / (domain%nx*domain%ny*domain%nz*4)
             else
                 is_exist = .false.
