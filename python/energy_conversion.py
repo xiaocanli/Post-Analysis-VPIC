@@ -6,6 +6,7 @@ import math
 import os.path
 import re
 import struct
+import sys
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -23,6 +24,7 @@ import pic_information
 from pic_information import list_pic_info_dir
 from runs_name_path import *
 from serialize_json import data_to_json, json_to_data
+from shell_functions import mkdir_p
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -220,23 +222,12 @@ def plot_particle_energy_gain():
     plt.show()
 
 
-def read_jdote_data(species, pic_info, rootpath='../../', is_inductive=False):
-    """Read j.E data.
-
-    Args:
-        species: particle species. 'e' for electron, 'h' for ion.
-        pic_info: PIC simulation information
-        rootpath: rootpath of this run
-        fpath_jdote: filepath of the jdote file.
+def read_jdote(pic_info, fname):
+    """
     """
     ntf = pic_info.ntf
     dt_fields = pic_info.dt_fields
     dtf_wpe = dt_fields * pic_info.dtwpe / pic_info.dtwci
-    fpath_jdote = rootpath + 'pic_analysis/data/'
-    if is_inductive:
-        fname = fpath_jdote + "jdote_in00_" + species + ".gda"
-    else:
-        fname = fpath_jdote + "jdote00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -301,6 +292,43 @@ def read_jdote_data(species, pic_info, rootpath='../../', is_inductive=False):
         jpara_dote_int, jperp_dote_int, jperp1_dote_int, jperp2_dote_int,
         jqnupara_dote_int, jqnuperp_dote_int, jagy_dote_int, jtot_dote_int,
         jdivu_dote_int)
+    return jdote
+
+
+def read_jdote_data(species, pic_info, rootpath='../../', is_inductive=False):
+    """Read j.E data.
+
+    Args:
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: PIC simulation information
+        rootpath: rootpath of this run
+        fpath_jdote: filepath of the jdote file.
+    """
+    fpath_jdote = rootpath + 'pic_analysis/data/'
+    if is_inductive:
+        fname = fpath_jdote + "jdote_in00_" + species + ".gda"
+    else:
+        fname = fpath_jdote + "jdote00_" + species + ".gda"
+    jdote = read_jdote(pic_info, fname)
+    return jdote
+
+
+def read_jdote_run_name(species, pic_info, run_name, is_inductive=False):
+    """Read j.E data for a run with name
+
+    Args:
+        species: particle species. 'e' for electron, 'h' for ion.
+        pic_info: PIC simulation information
+        run_name: name for this run
+        is_inductive: whether inductive electric field is used
+    """
+    fpath_jdote = '../data/jdote_data/' + run_name + '/'
+    if is_inductive:
+        fname = fpath_jdote + "jdote_in00_" + species + ".gda"
+    else:
+        fname = fpath_jdote + "jdote00_" + species + ".gda"
+    print(fname)
+    jdote = read_jdote(pic_info, fname)
     return jdote
 
 
@@ -1360,15 +1388,49 @@ def plot_jpara_jperp_dotein_multi():
         # plt.close()
 
 
+def save_jdote_json_single(species, run_name_old, run_name_new):
+    """Save jdote data as json file for a single run
+
+    Args:
+        species: particle species
+    """
+    fdir = '../data/jdote_data/'
+    mkdir_p(fdir)
+
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name_new + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    jdote = read_jdote_run_name(species, pic_info, run_name_old, is_inductive=True)
+    fname = fdir + 'jdote_in_' + run_name_new + '_' + species + '.json'
+    jdote_json = data_to_json(jdote)
+    with open(fname, 'w') as f:
+        json.dump(jdote_json, f)
+    jdote = read_jdote_run_name(species, pic_info, run_name_old, is_inductive=False)
+    fname = fdir + 'jdote_' + run_name_new + '_' + species + '.json'
+    jdote_json = data_to_json(jdote)
+    with open(fname, 'w') as f:
+        json.dump(jdote_json, f)
+
+
 if __name__ == "__main__":
+    cmdargs = sys.argv
+    if (len(cmdargs) > 3):
+        base_dir = cmdargs[1]
+        run_name_old = cmdargs[2]
+        run_name_new = cmdargs[3]
+    else:
+        base_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
+        run_name_old = 'sigma1-mime25-beta001-average'
+        run_name_new = 'sigma1_mime25_beta001_average'
     # species = 'e'
     # base_dir = '/net/scratch3/xiaocanli/mime25-sigma30-200-100/'
     # base_dir = '/net/scratch3/xiaocanli/mime25-sigma100-200-100/'
     # pic_info = pic_information.get_pic_info(base_dir)
     # base_dir = '/net/scratch3/xiaocanli/2D-90-Mach4-sheet4-multi/'
     # run_name = '2D-90-Mach4-sheet4-multi'
-    # picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
-    # pic_info = read_data_from_json(picinfo_fname)
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name_new + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    save_jdote_json_single('e', run_name_old, run_name_new)
+    save_jdote_json_single('i', run_name_old, run_name_new)
     # jdote = read_jdote_data(pic_info, species)
     # jdote_e = read_jdote_data(pic_info, 'e')
     # jdote_i = read_jdote_data(pic_info, 'i')
@@ -1386,7 +1448,7 @@ if __name__ == "__main__":
     # plot_jpara_jperp_dote_multi()
     # plot_jdotes_evolution_multi('e')
     # calc_jdotes_fraction_multi('i')
-    plot_jdotes_evolution_both_multi()
+    # plot_jdotes_evolution_both_multi()
     # plot_jpolar_dote_evolution_both_multi()
     # plot_jpolar_dote_evolution_multi()
     # plot_jpara_jperp_dotein_multi()

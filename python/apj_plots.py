@@ -3532,7 +3532,8 @@ def plot_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     # plt.close()
 
 
-def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
+def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel,
+                      indicate_rec_layer=True, show_color_map=True):
     """Get the coordinates when plotting contours
 
     Args:
@@ -3565,7 +3566,12 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     # p1, cbar1 = plot_2d_contour(x, z, jy, ax1, fig, **kwargs_plot)
     # p1.set_cmap(plt.cm.get_cmap('seismic'))
     # p1.set_cmap(cmaps.inferno)
-    levels = np.linspace(np.min(Ay), np.max(Ay), nlevels)
+    Ay_min = np.min(Ay)
+    Ay_max = np.max(Ay)
+    levels = np.linspace(Ay_min, Ay_max, nlevels)
+    print("Min and max of Ay: %f %f" % (Ay_min, Ay_max))
+    # levels = [1, 104.5]
+    levels = [1, 103]
     cs = ax1.contour(
         x[0:nx:xstep],
         z[0:nz:zstep],
@@ -3586,7 +3592,7 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
     fdir = 'pic_analysis/data/field_line/'
     fpath = root_dir + fdir + 't' + str(ct) + '/'
     mkdir_p(fpath)
-    for cl in cs.collections[1:-1]:
+    for cl in cs.collections:
         j = 1
         sz = len(cl.get_paths())
         for p in cl.get_paths():
@@ -3663,23 +3669,25 @@ def get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel):
 
             j = j + 1
 
-    for cl in cs.collections[ilevel:ilevel + 1]:
-        sz = len(cl.get_paths())
-        for p in cl.get_paths():
-            v = p.vertices
-            x = v[:, 0]
-            y = v[:, 1]
-            ax1.plot(x, y, color='k', linewidth=2)
+    if indicate_rec_layer:
+        for cl in cs.collections[ilevel:ilevel + 1]:
+            sz = len(cl.get_paths())
+            for p in cl.get_paths():
+                v = p.vertices
+                x = v[:, 0]
+                y = v[:, 1]
+                ax1.plot(x, y, color='k', linewidth=2)
 
-    xs += width + gap
-    width1 = 0.03
-    ax2 = fig.add_axes([xs, ys, width1, height])
-    cmap = mpl.colors.ListedColormap(colors_jet)
-    norm = mpl.colors.Normalize(vmin=0.5, vmax=nlevels+0.5)
-    cb1 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
-            norm=norm, orientation='vertical')
-    cb1.set_ticks(np.arange(1, nlevels+1, 2))
-    cb1.ax.tick_params(labelsize=16)
+    if show_color_map:
+        xs += width + gap
+        width1 = 0.03
+        ax2 = fig.add_axes([xs, ys, width1, height])
+        cmap = mpl.colors.ListedColormap(colors_jet)
+        norm = mpl.colors.Normalize(vmin=0.5, vmax=nlevels+0.5)
+        cb1 = mpl.colorbar.ColorbarBase(ax2, cmap=cmap,
+                norm=norm, orientation='vertical')
+        cb1.set_ticks(np.arange(1, nlevels+1, 2))
+        cb1.ax.tick_params(labelsize=16)
 
     # plt.show()
     # plt.close()
@@ -3750,6 +3758,7 @@ def read_spectrum_vdist_in_sectors(ct, ct_particle, species, root_dir,
     vdist_path = root_dir + 'pic_analysis/vdistributions/'
     spect_path = root_dir + 'pic_analysis/spectrum/'
     files = [f for f in listdir(fpath) if isfile(join(fpath, f))]
+    print files
     files = sorted(files)
     fnames = []
     for fname in files:
@@ -3912,11 +3921,15 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     for i in range(start_level, nsector, 2):
         f = (flogs[str(i)] - flogs[str(i + 1)]) * norm
         nacc1, eacc1 = accumulated_particle_info(elog, f)
-        ax.loglog(elog, f * nacc_max / nacc1[-1], linewidth=3, color=colors_jet[i-1])
+        # ax.loglog(elog, f * nacc_max / nacc1[-1], linewidth=3, color=colors_jet[i-1])
+        ax.loglog(elog, f, linewidth=3, color=colors_jet[i-1])
+        fthermal1, popt = fit_thermal_core(elog, f)
+        ax.loglog(elog, fthermal1, linewidth=1, color='k', linestyle='--')
+        print("sector %d peaks at %f" % (i, elog[np.argmax(fthermal1)]))
         print colors_jet[i-1]
     flog = flogs[str(nsector)] * norm
     nacc1, eacc1 = accumulated_particle_info(elog, flog)
-    flog *= nacc_max / nacc1[-1]
+    # flog *= nacc_max / nacc1[-1]
     # flog = flogs[str(nsector-1)] - flogs[str(nsector)]
     fthermal1, popt = fit_thermal_core(elog, flog)
     fnonthermal1 = flog - fthermal1
@@ -3932,31 +3945,24 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     powerIndex = "{%0.2f}" % pindex
     pname = '$\sim (\gamma - 1)^{' + powerIndex + '}$'
     ax.loglog(elog, flog, linewidth=3, color=colors_jet[nsector-1])
-    ax.loglog(
-        elog,
-        flogs[str(ilevel)],
-        linewidth=3,
-        color='k',
-        label='Reconnection region')
-    # ax.loglog(elog[ns:], fpower[ns:], linewidth=2, linestyle='--',
-    #         color='k', label=pname)
-    # ax.loglog(
-    #     elog,
-    #     fthermal1,
-    #     color='k',
-    #     linestyle='--',
-    #     linewidth=2,
-    #     label='Fitted Maxwellian')
-    # ax.loglog(elog, fnonthermal1, color='k', linestyle='-', linewidth=2)
-    # ax.loglog(elog, fthermal2, color='k', linestyle='--', linewidth=2)
-    # ax.loglog(elog, fnonthermal2, color='k', linestyle='--', linewidth=2)
-    leg = ax.legend(
-        loc=3,
-        prop={'size': 16},
-        ncol=1,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
+    ax.loglog(elog, fthermal1, linewidth=1, color='k', linestyle='--')
+    print("sector %d peaks at %f" % (i+1, elog[np.argmax(fthermal1)]))
+    # ax.loglog(elog, flogs[str(ilevel)], linewidth=3,
+    #     color='k', label='Reconnection region')
+    # # ax.loglog(elog[ns:], fpower[ns:], linewidth=2, linestyle='--',
+    # #         color='k', label=pname)
+    # # ax.loglog(
+    # #     elog,
+    # #     fthermal1,
+    # #     color='k',
+    # #     linestyle='--',
+    # #     linewidth=2,
+    # #     label='Fitted Maxwellian')
+    # # ax.loglog(elog, fnonthermal1, color='k', linestyle='-', linewidth=2)
+    # # ax.loglog(elog, fthermal2, color='k', linestyle='--', linewidth=2)
+    # # ax.loglog(elog, fnonthermal2, color='k', linestyle='--', linewidth=2)
+    # leg = ax.legend( loc=3, prop={'size': 16}, ncol=1,
+    #         shadow=False, fancybox=False, frameon=False)
     ax.xaxis.grid()
     ax.tick_params(labelsize=20)
     ax.set_xlabel(r'$\gamma - 1$', fontdict=font, fontsize=24)
@@ -4021,6 +4027,13 @@ def plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
         if species == 'e':
             ax.set_xlim([1E-2, 1E3])
             ax.set_ylim([1E-4, 1E4])
+        else:
+            ax.set_xlim([1E-4, 3E0])
+            ax.set_ylim([1E-4, 1E6])
+    else:
+        if species == 'e':
+            ax.set_xlim([1E-3, 2E0])
+            ax.set_ylim([1E-2, 1E6])
         else:
             ax.set_xlim([1E-4, 3E0])
             ax.set_ylim([1E-4, 1E6])
@@ -4409,16 +4422,14 @@ def ay_at_boundary(run_name, root_dir, pic_info):
     plt.show()
 
 
-
-
 def spectrum_between_fieldlines():
     """Analysis for particle spectrum between field lines
     """
     species = 'e'
     # run_name = "mime25_beta02"
     # root_dir = "/net/scratch2/xiaocanli/mime25-sigma01-beta02-200-100/"
-    run_name = "mime25_beta002"
-    root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
+    # run_name = "mime25_beta002"
+    # root_dir = "/net/scratch2/guofan/sigma1-mime25-beta001/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
     # run_name = "mime25_beta0002"
@@ -4435,11 +4446,16 @@ def spectrum_between_fieldlines():
     # root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
     # run_name = 'sigma100-lx300'
     # root_dir = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
+    run_name = 'Lx164-nuwce0.04-betabol0.08-L2di-nx3072-150nppc-dumppart'
+    root_dir = '/net/scratch3/stanier/VPIC-collisions-test/FF-coll-plasmoid/' + run_name + '/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    ct_particle = pic_info.ntp
+    # ct_particle = pic_info.ntp
+    ct_particle = 4
     ct = ct_particle * pic_info.particle_interval / pic_info.fields_interval
     nlevels = 20
+    indicate_rec_layer = True
+    show_color_map = True
     fpath = '../img/spect_vdist_fieldlines/' + run_name
     if run_name == 'mime25_beta02':
         ilevel = 8
@@ -4451,19 +4467,25 @@ def spectrum_between_fieldlines():
         ilevel = 6
     elif run_name == 'sigma1-mime25-beta0002-fan':
         ilevel = 10
-    elif run_name == 'sigma100-lx300':
-        ilevel = 4
-    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel)
-    # mkdir_p(fpath)
-    # fname = fpath + '/contour_' + str(ct) + '.jpg'
+    elif run_name == 'Lx164-nuwce0.04-betabol0.08-L2di-nx3072-150nppc-dumppart':
+        nlevels = 2
+        ilevel = 1
+        root_dir = '/net/scratch3/xiaocanli/reconnection/NERSC_ADAM/'
+        indicate_rec_layer = False
+        show_color_map = False
+    get_contour_paths(run_name, root_dir, pic_info, ct, nlevels, ilevel,
+                      indicate_rec_layer, show_color_map)
+    mkdir_p(fpath)
+    fname = fpath + '/contour_' + str(ct) + '.jpg'
+    plt.savefig(fname, dpi=300)
     # for tframe in range(ct+1):
     #     plot_contour_paths(run_name, root_dir, pic_info, tframe, nlevels, ilevel)
     #     fname = fpath + '/contour_label_' + str(ct) + '.jpg'
     #     plt.savefig(fname, dpi=300)
     #     plt.close()
     # gen_run_script(ct, ct_particle, species, root_dir)
-    # plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
-    #                          run_name, nlevels, ilevel)
+    plot_spectrum_in_sectors(ct, ct_particle, species, root_dir, pic_info,
+                             run_name, nlevels, ilevel)
     # plot_vdist_in_sectors(ct, ct_particle, species, root_dir, pic_info,
     #                          run_name, nlevels, ilevel)
     # fname = fpath + '/spect_sector_' + species + '_' + str(ct) + '.eps'
@@ -4603,6 +4625,13 @@ def calc_canonical_momentum():
 
 
 if __name__ == "__main__":
+    cmdargs = sys.argv
+    if (len(cmdargs) > 2):
+        base_dir = cmdargs[1]
+        run_name = cmdargs[2]
+    else:
+        base_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
+        run_name = 'sigma1-mime25-beta001-average'
     # scratch_dir = '/net/scratch2/xiaocanli/'
     # run_name = "mime25_beta002_noperturb"
     # root_dir = scratch_dir + 'mime25-sigma1-beta002-200-100-noperturb/'
@@ -4612,8 +4641,8 @@ if __name__ == "__main__":
     # root_dir = "/net/scratch3/xiaocanli/sigma1-mime25-beta0002/"
     # run_name = "mime25_beta0007"
     # root_dir = '/net/scratch2/xiaocanli/mime25-guide0-beta0007-200-100/'
-    run_name = "mime25_beta002_track"
-    root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
+    # run_name = "mime25_beta002_track"
+    # root_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-track-3/'
     # run_name = 'sigma1-mime25-beta0002-fan'
     # root_dir = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -4621,7 +4650,7 @@ if __name__ == "__main__":
     # plot_by_time(run_name, root_dir, pic_info)
     # plot_absB_time(run_name, root_dir, pic_info)
     # plot_absB(run_name, root_dir, pic_info, 62)
-    plot_agyrotropy(run_name, root_dir, pic_info, 'e', 62)
+    # plot_agyrotropy(run_name, root_dir, pic_info, 'e', 62)
     # plot_vx_time(run_name, root_dir, pic_info)
     # plot_epara_eperp(pic_info, 26, root_dir)
     # plot_epara_eperp(pic_info, 61, root_dir)
@@ -4638,6 +4667,6 @@ if __name__ == "__main__":
     # plot_spectra_electron()
     # plot_spectra_R1_R5()
     # fit_two_maxwellian()
-    # spectrum_between_fieldlines()
+    spectrum_between_fieldlines()
     # plot_velocity_fields(run_name, root_dir, pic_info, 'e')
     # calc_canonical_momentum()
