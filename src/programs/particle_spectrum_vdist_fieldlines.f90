@@ -9,7 +9,7 @@ program particle_spectrum_vdist_fieldlines
     use picinfo, only: read_domain, broadcast_pic_info, domain
     use particle_frames, only: get_particle_frames, nt, tinterval
     use spectrum_config, only: read_spectrum_config, set_spatial_range_de, &
-            calc_pic_mpi_ids, tframe, init_pic_mpi_ranks, free_pic_mpi_ranks, &
+            calc_pic_mpi_ids, init_pic_mpi_ranks, free_pic_mpi_ranks, &
             calc_pic_mpi_ranks, calc_velocity_interval, set_time_frame
     use velocity_distribution, only: init_velocity_bins, free_velocity_bins, &
             init_vdist_2d, set_vdist_2d_zero, free_vdist_2d, init_vdist_1d, &
@@ -22,7 +22,6 @@ program particle_spectrum_vdist_fieldlines
     use magnetic_field, only: init_magnetic_fields, free_magnetic_fields, &
             read_magnetic_fields
     use particle_info, only: species, get_ptl_mass_charge
-    use commandline_arguments, only: is_species, get_cmdline_arguments
     implicit none
     real(dp), allocatable, dimension(:,:) :: fieldline1, fieldline2
     integer :: nps1, nps2 ! Number of field line points
@@ -57,8 +56,6 @@ program particle_spectrum_vdist_fieldlines
     call read_spectrum_config
     call calc_velocity_interval
 
-    species = 'e'
-    call get_fieldlines_fielnames
     call read_fieldlines_data
     call calc_fieldline_range
     call set_spatial_range_de(xlim, zlim)
@@ -78,11 +75,11 @@ program particle_spectrum_vdist_fieldlines
 
     ! Ratio of particle output interval to fields output interval
     ratio_particle_field = domain%Particle_interval / domain%fields_interval
-    ct_field = ratio_particle_field * tframe
+    ct_field = ratio_particle_field * ct
     call read_magnetic_fields(ct_field)
 
     call get_ptl_mass_charge(species)
-    call calc_spectrum_vdist(tframe, species)
+    call calc_spectrum_vdist(ct, species)
 
     call free_fieldlines_data
 
@@ -102,55 +99,6 @@ program particle_spectrum_vdist_fieldlines
     call MPI_FINALIZE(ierr)
 
     contains
-
-    !---------------------------------------------------------------------------
-    ! Get the filenames of the two field lines
-    !---------------------------------------------------------------------------
-    subroutine get_fieldlines_fielnames
-        use flap                                !< FLAP package
-        use penf
-        implicit none
-        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
-        integer(I4P)                 :: error   !< Error trapping flag.
-        call cli%init(progname = 'particle_spectrum_vdist_fieldlines', &
-            authors     = 'Xiaocan Li', &
-            help        = 'Usage: ', &
-            description = 'Get particle spectrum and velocity distributions between two field lines', &
-            examples    = ['particle_spectrum_vdist_fieldlines -ft filename_top &
-                            -fb filename_bottom -fp filepath -t 40 -p e'])
-        call cli%add(switch='--fieldline_top', switch_ab='-ft', help='a string', &
-            required=.true., act='store', error=error) ; if (error/=0) stop
-        call cli%add(switch='--fieldline_bottom', switch_ab='-fb', help='a string', &
-            required=.true., act='store', error=error) ; if (error/=0) stop
-        call cli%add(switch='--filepath', switch_ab='-fp', help='a string', &
-            required=.true., act='store', error=error) ; if (error/=0) stop
-        call cli%add(switch='--time_frame', switch_ab='-t', help='an integer', &
-            required=.true., act='store', error=error) ; if (error/=0) stop
-        call cli%add(switch='--species', switch_ab='-p', help='a string', &
-            required=.false., def='e', act='store', error=error) ; if (error/=0) stop
-        call cli%get(switch='-ft', val=filename_top, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-fb', val=filename_bottom, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-fp', val=filepath, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-t', val=ct, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-p', val=species, error=error)
-        if (error/=0) stop
-
-        if (myid == 0) then
-            print '(A)',     'filepath:        '//trim(adjustl(filepath))
-            print '(A)',     'filename_top:    '//trim(adjustl(filename_top))
-            print '(A)',     'filename_bottom: '//trim(adjustl(filename_bottom))
-            print '(A, I0)', 'time_frame:      ', ct
-            print '(A, A)',  'species:         ', species
-        endif
-
-        filename_top = trim(adjustl(filepath))//'/'//trim(adjustl(filename_top))
-        filename_bottom = trim(adjustl(filepath))//'/'//trim(adjustl(filename_bottom))
-
-    end subroutine get_fieldlines_fielnames
 
     !---------------------------------------------------------------------------
     ! Read the data points of the two field lines
@@ -431,29 +379,59 @@ program particle_spectrum_vdist_fieldlines
              fieldline1(2, i+1) * delta_bottom
     end subroutine get_zpositions
 
-    !<--------------------------------------------------------------------------
-    !< Get commandline arguments
-    !<--------------------------------------------------------------------------
+    !---------------------------------------------------------------------------
+    ! Get commandline arguments
+    !---------------------------------------------------------------------------
     subroutine get_cmd_args
         use flap                                !< FLAP package
         use penf
         implicit none
         type(command_line_interface) :: cli     !< Command Line Interface (CLI).
         integer(I4P)                 :: error   !< Error trapping flag.
-        call cli%init(progname = 'translate', &
+        call cli%init(progname = 'particle_spectrum_vdist_fieldlines', &
             authors     = 'Xiaocan Li', &
             help        = 'Usage: ', &
-            description = 'Merge VPIC simulation output from all MPI processes', &
-            examples    = ['translate -rp simulation_root_path'])
+            description = 'Get particle spectrum and velocity distributions between two field lines', &
+            examples    = ['particle_spectrum_vdist_fieldlines -rp simulation_root_path &
+                            -ft filename_top -fb filename_bottom -fp filepath -t 40 -p e'])
         call cli%add(switch='--rootpath', switch_ab='-rp', &
             help='simulation root path', required=.true., act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--fieldline_top', switch_ab='-ft', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--fieldline_bottom', switch_ab='-fb', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--filepath', switch_ab='-fp', help='a string', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--time_frame', switch_ab='-t', help='an integer', &
+            required=.true., act='store', error=error) ; if (error/=0) stop
+        call cli%add(switch='--species', switch_ab='-p', help='a string', &
+            required=.false., def='e', act='store', error=error) ; if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ft', val=filename_top, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-fb', val=filename_bottom, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-fp', val=filepath, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-t', val=ct, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-p', val=species, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,A)',   'The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A)',     'filepath:        '//trim(adjustl(filepath))
+            print '(A)',     'filename_top:    '//trim(adjustl(filename_top))
+            print '(A)',     'filename_bottom: '//trim(adjustl(filename_bottom))
+            print '(A, I0)', 'time_frame:      ', ct
+            print '(A, A)',  'species:         ', species
         endif
+
+        filename_top = trim(adjustl(filepath))//'/'//trim(adjustl(filename_top))
+        filename_bottom = trim(adjustl(filepath))//'/'//trim(adjustl(filename_bottom))
+
     end subroutine get_cmd_args
 
 end program particle_spectrum_vdist_fieldlines
