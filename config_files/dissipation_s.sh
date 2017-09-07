@@ -28,6 +28,13 @@ run_dissipation () {
     mv data/*.gda data/jdote_data/$3
 }
 
+run_compression () {
+    cd $ana_path
+    mpirun -np $mpi_sizes ./compression.exec -rp $1
+    mkdir -p data/compression/$2
+    mv data/*.gda data/compression/$2
+}
+
 runs_path=/net/scratch3/xiaocanli/reconnection
 
 # run_name=mime25-sigma1-beta002-guide02
@@ -48,14 +55,50 @@ runs_path=/net/scratch3/xiaocanli/reconnection
 # run_dissipation $rootpath e $run_name
 # run_dissipation $rootpath i $run_name
 
-run_name=mime25-sigma1-beta008-guide00
-rootpath=$runs_path/$run_name-200-100/
-ch_tp2 241
-run_dissipation $rootpath e $run_name
-run_dissipation $rootpath i $run_name
+# run_name=mime25-sigma1-beta008-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 241
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
 
 run_name=mime25-sigma1-beta032-guide00
 rootpath=$runs_path/$run_name-200-100/
 ch_tp2 241
 run_dissipation $rootpath e $run_name
 run_dissipation $rootpath i $run_name
+
+# run_name=mime25-sigma1-beta002-guide02
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 235
+# run_compression $rootpath $run_name
+
+# run_name=mime25-sigma1-beta002-guide05
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 241
+# run_compression $rootpath $run_name
+
+# run_name=mime25-sigma1-beta002-guide10
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 241
+# run_compression $rootpath $run_name
+
+# run_name=mime25-sigma1-beta008-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 241
+# run_compression $rootpath $run_name
+
+run_name=mime25-sigma1-beta032-guide00
+rootpath=$runs_path/$run_name-200-100/
+ch_tp2 241
+run_compression $rootpath $run_name
+
+# run_name=mime25-sigma1-beta002-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 204
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=mime25-sigma1-beta002-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 204
+# run_compression $rootpath $run_name
