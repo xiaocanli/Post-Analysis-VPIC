@@ -6,10 +6,12 @@ import math
 import os
 import os.path
 import struct
+import sys
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import simplejson as json
 from matplotlib import rc
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import MaxNLocator
@@ -17,13 +19,15 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.mplot3d import Axes3D
 from scipy import signal
 from scipy.fftpack import fft2, fftshift, ifft2
-from scipy.interpolate import spline
+from scipy.interpolate import spline, interp1d
 from scipy.ndimage.filters import generic_filter as gf
 
 import pic_information
-from contour_plots import plot_2d_contour, read_2d_fields
+from contour_plots import plot_2d_contour, read_2d_fields, find_closest
 from energy_conversion import read_data_from_json, read_jdote_data
 from runs_name_path import ApJ_long_paper_runs
+from serialize_json import data_to_json, json_to_data
+from shell_functions import mkdir_p
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
@@ -564,16 +568,11 @@ def angle_current(pic_info, current_time):
     # plt.close()
 
 
-def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
-    """The time evolution of compression related terms.
-
-    Args:
-        pic_info: namedtuple for the PIC simulation information.
-        species: 'e' for electrons, 'i' for ions.
+def read_compression_data(pic_info, fdir, species):
+    """
     """
     ntf = pic_info.ntf
-    tfields = pic_info.tfields
-    fname = root_dir + "compression00_" + species + ".gda"
+    fname = fdir + "compression00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -581,6 +580,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     index_start = 0
     index_end = 4
     ndset = 6
+    print ntf
     for ct in range(ntf):
         for i in range(ndset):
             compression_data[ct, i], = \
@@ -594,7 +594,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     pdiv_usingle = compression_data[:, 4]
     pdiv_upara_usingle = compression_data[:, 5]
 
-    fname = root_dir + "shear00_" + species + ".gda"
+    fname = fdir + "shear00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -614,7 +614,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     pshear_single = shear_data[:, 4]
     pshear_para_usingle = shear_data[:, 5]
 
-    fname = root_dir + "div_vdot_ptensor00_" + species + ".gda"
+    fname = fdir + "div_vdot_ptensor00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -627,7 +627,7 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
         index_end += 4
     div_vdot_ptensor = data1[:]
 
-    fname = root_dir + "vdot_div_ptensor00_" + species + ".gda"
+    fname = fdir + "vdot_div_ptensor00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
     fh.close()
@@ -640,13 +640,10 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
         index_end += 4
     vdot_div_ptensor = data1[:]
 
-    ene_bx = pic_info.ene_bx
-    enorm = ene_bx[0]
     dtwpe = pic_info.dtwpe
     dtwci = pic_info.dtwci
     dt_fields = pic_info.dt_fields * dtwpe / dtwci
     pdiv_u_cum = np.cumsum(pdiv_u) * dt_fields
-    pdiv_upara_cum = np.cumsum(pdiv_upara) * dt_fields
     pshear_cum = np.cumsum(pshear) * dt_fields
     pdiv_usingle_cum = np.cumsum(pdiv_usingle) * dt_fields
     pdiv_upara_usingle_cum = np.cumsum(pdiv_upara_usingle) * dt_fields
@@ -654,20 +651,42 @@ def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
     pshear_para_usingle_cum = np.cumsum(pshear_para_usingle) * dt_fields
     div_vdot_ptensor_cum = np.cumsum(div_vdot_ptensor) * dt_fields
     vdot_div_ptensor_cum = np.cumsum(vdot_div_ptensor) * dt_fields
-    pdiv_u_cum /= enorm
-    pdiv_upara_cum /= enorm
-    pshear_cum /= enorm
-    pdiv_usingle_cum /= enorm
-    pdiv_upara_usingle_cum /= enorm
-    pshear_single_cum /= enorm
-    pshear_para_usingle_cum /= enorm
-    div_vdot_ptensor_cum /= enorm
-    vdot_div_ptensor_cum /= enorm
 
     pdiv_uperp_usingle = pdiv_usingle - pdiv_upara_usingle
     pshear_perp_usingle = pshear_single - pshear_para_usingle
     pdiv_uperp_usingle_cum = pdiv_usingle_cum - pdiv_upara_usingle_cum
     pshear_perp_usingle_cum = pshear_single_cum - pshear_para_usingle_cum
+
+    compression_collection = collections.namedtuple('compression_collection', [
+        'div_u', 'pdiv_u', 'div_usingle', 'div_upara_usingle', 'pdiv_usingle',
+        'pdiv_upara_usingle', 'pdiv_uperp_usingle', 'bbsigma', 'pshear',
+        'bbsigma_single', 'bbsigma_para_usingle', 'pshear_single',
+        'pshear_para_usingle', 'pshear_perp_usingle', 'div_vdot_ptensor',
+        'vdot_div_ptensor', 'pdiv_u_cum', 'pshear_cum', 'pdiv_usingle_cum',
+        'pdiv_upara_usingle_cum', 'pdiv_uperp_usingle_cum', 'pshear_single_cum',
+        'pshear_para_usingle_cum', 'pshear_perp_usingle_cum',  'div_vdot_ptensor_cum',
+        'vdot_div_ptensor_cum'
+        ])
+    compression_data = compression_collection(div_u, pdiv_u, div_usingle,
+            div_upara_usingle, pdiv_usingle, pdiv_upara_usingle,
+            pdiv_uperp_usingle, bbsigma, pshear, bbsigma_single,
+            bbsigma_para_usingle, pshear_single, pshear_para_usingle,
+            pshear_perp_usingle, div_vdot_ptensor, vdot_div_ptensor,
+            pdiv_u_cum, pshear_cum, pdiv_usingle_cum, pdiv_upara_usingle_cum,
+            pdiv_uperp_usingle_cum, pshear_single_cum, pshear_para_usingle_cum,
+            pshear_perp_usingle_cum,  div_vdot_ptensor_cum, vdot_div_ptensor_cum)
+    return compression_data
+
+
+def compression_time(pic_info, species, jdote, ylim1, root_dir='../data/'):
+    """The time evolution of compression related terms.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        species: 'e' for electrons, 'i' for ions.
+    """
+    tfields = pic_info.tfields
+    read_compression_data(pic_info, root_dir, species)
 
     # jdote = read_jdote_data(species)
     jpolar_dote = jdote.jpolar_dote
@@ -1052,6 +1071,245 @@ def plot_compression_shear(pic_info, species, current_time):
     # fname = '../img/img_compression/' + fname
     # fig.savefig(fname)
     # plt.close()
+
+
+def calc_usingle(pic_info, root_dir, current_time):
+    """
+    """
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
+    fname = root_dir + "data/vex.gda"
+    x, z, vex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/vey.gda"
+    x, z, vey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/vez.gda"
+    x, z, vez = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/vix.gda"
+    x, z, vix = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/viy.gda"
+    x, z, viy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/viz.gda"
+    x, z, viz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/ne.gda"
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/ni.gda"
+    x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
+
+    mime = pic_info.mime
+    irho = 1.0 / (ne + ni * mime)
+    vx = (vex * ne + vix * ni * mime) * irho
+    vy = (vey * ne + viy * ni * mime) * irho
+    vz = (vez * ne + viz * ni * mime) * irho
+
+    return (vx, vy, vz)
+
+
+def plot_compression_shear_single(pic_info, root_dir, run_name, species, current_time):
+    """
+    Plot compression heating and shear heating terms using single fluid velocity
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information.
+        root_dir: simulation root directory
+        species: 'e' for electrons, 'i' for ions.
+        current_time: current time frame.
+    """
+    print(current_time)
+    kwargs = {
+        "current_time": current_time,
+        "xl": 0,
+        "xr": 200,
+        "zb": -20,
+        "zt": 20
+    }
+    fname = root_dir + "data1/pdiv_vpara_vsingle00_" + species + ".gda"
+    x, z, pdiv_vpara_vsingle = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data1/pshear_para_vsingle00_" + species + ".gda"
+    x, z, pshear_vpara_vsingle = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data1/pdiv_vsingle00_" + species + ".gda"
+    x, z, pdiv_vsingle = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data1/pshear_vsingle00_" + species + ".gda"
+    x, z, pshear_vsingle = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/v" + species + "x.gda"
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/v" + species + "y.gda"
+    x, z, vy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/v" + species + "z.gda"
+    x, z, vz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/bx.gda"
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/by.gda"
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/bz.gda"
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/absB.gda"
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/ex.gda"
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/ey.gda"
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/ez.gda"
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/n" + species + ".gda"
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = root_dir + "data/p" + species + "-xx.gda"
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/p" + species + "-xy.gda"
+    x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/p" + species + "-xz.gda"
+    x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/p" + species + "-yy.gda"
+    x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/p" + species + "-yz.gda"
+    x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + "data/p" + species + "-zz.gda"
+    x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+    ppara = pxx*bx*bx + pyy*by*by + pzz*bz*bz + \
+            pxy*bx*by*2.0 + pxz*bx*bz*2.0 + pyz*by*bz*2.0
+    ppara /= absB * absB
+    pperp = 0.5 * (pxx + pyy + pzz - ppara)
+    vsx, vsy, vsz = calc_usingle(pic_info, root_dir, current_time)
+
+    nx, = x.shape
+    nz, = z.shape
+
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    
+    ib2 = 1.0 / absB**2
+    vxb = vx * bx + vy * by + vz * bz
+    vparax = vxb * bx * ib2
+    vparay = vxb * by * ib2
+    vparaz = vxb * bz * ib2
+    vperpx = vx - vparax
+    vperpy = vy - vparay
+    vperpz = vz - vparaz
+    vsxb = vsx * bx + vsy * by + vsz * bz
+    vsparax = vsxb * bx * ib2
+    vsparay = vsxb * by * ib2
+    vsparaz = vsxb * bz * ib2
+    vsperpx = vsx - vsparax
+    vsperpy = vsy - vsparay
+    vsperpz = vsz - vsparaz
+
+    div_pperp_vperp = np.gradient(pperp * vsperpx, dx, axis=1) + \
+                      np.gradient(pperp * vsperpz, dz, axis=0)
+
+    charge = -1 if species == 'e' else 1
+    jqnuperp_dote = charge * nrho * (vperpx * ex + vperpy * ey + vperpz * ez)
+
+    pdiv_vperp_vsingle = pdiv_vsingle - pdiv_vpara_vsingle
+    pshear_vperp_vsingle = pshear_vsingle - pshear_vpara_vsingle
+
+    # fdata1 = pdiv_vperp_vsingle + pshear_vpara_vsingle + div_pperp_vperp
+    fdata1 = pdiv_vperp_vsingle + pshear_vpara_vsingle
+    fdata2 = div_pperp_vperp
+    fdata3 = jqnuperp_dote
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
+    print(np.sum(fdata1)*dv, np.sum(fdata2)*dv, np.sum(fdata3)*dv)
+    fdata1_cum = np.cumsum(np.sum(fdata1, axis=0)) * dx * dz
+    fdata2_cum = np.cumsum(np.sum(fdata2, axis=0)) * dx * dz
+    fdata3_cum = np.cumsum(np.sum(fdata3, axis=0)) * dx * dz
+
+    ng = 5
+    kernel = np.ones((ng, ng)) / float(ng * ng)
+    fdata1 = signal.convolve2d(fdata1, kernel, 'same')
+    fdata2 = signal.convolve2d(fdata2, kernel, 'same')
+    fdata3 = signal.convolve2d(fdata3, kernel, 'same')
+
+    nx, = x.shape
+    nz, = z.shape
+    xs0, ys0 = 0.12, 0.76
+    w1, h1 = 0.80, 0.21
+    vgap = 0.02
+    hgap = 0.10
+
+    fig = plt.figure(figsize=[10, 10])
+    xs = xs0
+    ys = ys0
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    vmin, vmax = -0.005, 0.005
+    crange = np.arange(vmin, vmax+0.005, 0.005)
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":vmin, "vmax":vmax}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, fdata1, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(cmaps.inferno)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    Ay_min = np.min(Ay)
+    Ay_max = np.max(Ay)
+    levels = np.linspace(Ay_min, Ay_max, 10)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='k', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=16)
+    cbar1.set_ticks(crange)
+    cbar1.ax.tick_params(labelsize=16)
+    text1 = r'$-p_e\nabla\cdot\boldsymbol{u}_\perp$'
+    text1 += r'$-(p_{e\parallel}-p_{e\perp})b_ib_j\sigma_{ij}$'
+    ax1.text(0.02, 0.8, text1, color='r', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                pad=10.0), horizontalalignment='left',
+            verticalalignment='center', transform = ax1.transAxes)
+
+    ys = ys0 -h1 - vgap
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    p2, cbar2 = plot_2d_contour(x, z, fdata2, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.seismic)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax2.tick_params(axis='x', labelbottom='off')
+    ax2.tick_params(labelsize=16)
+    cbar2.set_ticks(crange)
+    cbar2.ax.tick_params(labelsize=16)
+    text2 = r'$\nabla\cdot(p_{e\perp}\boldsymbol{u}_\perp)$'
+    ax2.text(0.02, 0.8, text2, color='b', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                pad=10.0), horizontalalignment='left',
+            verticalalignment='center', transform = ax2.transAxes)
+
+    ys -= h1 + vgap
+    ax3 = fig.add_axes([xs, ys, w1, h1])
+    p3, cbar3 = plot_2d_contour(x, z, fdata3, ax3, fig, **kwargs_plot)
+    p3.set_cmap(plt.cm.seismic)
+    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax3.tick_params(axis='x', labelbottom='off')
+    ax3.tick_params(labelsize=16)
+    cbar3.set_ticks(crange)
+    cbar3.ax.tick_params(labelsize=16)
+    text3 = r'$\boldsymbol{j}_{e\perp}\cdot\boldsymbol{E}_\perp$'
+    ax3.text(0.02, 0.8, text3, color='k', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                pad=10.0), horizontalalignment='left',
+            verticalalignment='center', transform = ax3.transAxes)
+
+    ys -= h1 + vgap
+    ax4 = fig.add_axes([xs, ys, w1, h1])
+    ax4.plot(x, fdata1_cum, linewidth=2, color='r')
+    ax4.plot(x, fdata2_cum, linewidth=2, color='b')
+    ax4.plot(x, fdata3_cum, linewidth=2, color='k')
+    ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax4.tick_params(labelsize=16)
+
+    fdir = '../img/compression/' + run_name + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'comp_jdote_' + str(current_time) + '.jpg'
+    fig.savefig(fname, dpi=200)
+
+    plt.show()
 
 
 def plot_shear(pic_info, species, current_time):
@@ -1837,9 +2095,339 @@ def calc_compression(run_dir, pic_info):
     plt.show()
 
 
+def save_compression_json_single(pic_info, run_name):
+    """Save compression data as json file for a single run
+    """
+    fdir = '../data/compression/'
+    mkdir_p(fdir)
+
+    cdir = fdir + run_name + '/'
+    compression_data = read_compression_data(pic_info, cdir, 'e')
+    fname = fdir + 'compression_' + run_name + '_e.json'
+    compression_json = data_to_json(compression_data)
+    with open(fname, 'w') as f:
+        json.dump(compression_json, f)
+    compression_data = read_compression_data(pic_info, cdir, 'i')
+    fname = fdir + 'compression_' + run_name + '_i.json'
+    compression_json = data_to_json(compression_data)
+    with open(fname, 'w') as f:
+        json.dump(compression_json, f)
+
+
+def plot_compression_time(pic_info, run_name, species):
+    """Plot the time evolution of compression-related terms.
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information
+        run_name: simulation run name
+        species: 'e' for electrons, 'i' for ions
+    """
+    tfields = pic_info.tfields
+    fdir = '../data/compression/'
+    cdata_name = fdir + 'compression_' + run_name + '_' + species + '.json'
+    cdata = read_data_from_json(cdata_name)
+    jdote_name = '../data/jdote_data/jdote_' + run_name + '_' + species + '.json'
+    jdote = read_data_from_json(jdote_name)
+
+    jpolar_dote = jdote.jpolar_dote
+    jpolar_dote_int = jdote.jpolar_dote_int
+    jqnudote = jdote.jqnupara_dote + jdote.jqnuperp_dote
+    jqnudote_cum = jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
+    # jqnudote -= jpolar_dote
+    # jqnudote_cum -= jpolar_dote_int
+    print cdata.pdiv_uperp_usingle[49]
+    print jdote.jqnuperp_dote[49]
+
+    fdata1 = cdata.pdiv_uperp_usingle + cdata.pshear_perp_usingle
+    fdata2 = jdote.jqnuperp_dote
+    f = interp1d(tfields, fdata1, kind='slinear')
+    t_new = np.linspace(tfields[0], tfields[-1], 5000)
+    fdata1_new = f(t_new)
+    
+    fig = plt.figure(figsize=[7, 5])
+    w1, h1 = 0.8, 0.4
+    xs, ys = 0.96 - w1, 0.96 - h1
+    ax = fig.add_axes([xs, ys, w1, h1])
+    label1 = r'$-p\nabla\cdot\boldsymbol{V}_\perp$'
+    label2 = r'$-(p_\parallel - p_\perp)b_ib_j\sigma_{ij}$'
+    label3 = r'$\nabla\cdot(\mathcal{P}\cdot\mathbf{u})$'
+    label4 = label3 + label1 + label2
+    label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
+    label6 = r'$\mathbf{j}_' + species + '\cdot\mathbf{E}$'
+    p1 = ax.plot(tfields, fdata1, linewidth=2, color='r', label=label1)
+    p11 = ax.plot(t_new, fdata1_new)
+    # p1 = ax.plot(tfields, cdata.pdiv_upara_usingle, linewidth=2, color='r',
+    #         label=label1, linestyle='--')
+    # p2 = ax.plot(tfields, cdata.pshear_perp_usingle, linewidth=2, color='g', label=label2)
+    # p3 = ax.plot(tfields, cdata.div_vdot_ptensor, linewidth=2, color='b', label=label3)
+    # p4 = ax.plot(tfields, cdata.pdiv_u + cdata.pshear + cdata.div_vdot_ptensor, linewidth=2,
+    #     color='darkred', label=label4)
+    # p5 = ax.plot(tfields, cdata.vdot_div_ptensor, linewidth=2, color='k', label=label5)
+    # p6 = ax.plot(tfields, jqnudote, linewidth=2, color='k', linestyle='--', label=label6)
+    p6 = ax.plot(tfields, fdata2, linewidth=2, color='k',
+            linestyle='--', label=label6)
+    ax.set_ylabel(r'$d\varepsilon_c/dt$', fontdict=font, fontsize=20)
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=16)
+    tmax = min(np.max(pic_info.tfields), 800)
+    ax.set_xlim([0, 800])
+    # ax.set_ylim(ylim1)
+
+
+    ax.text(0.65, 0.7, label1, color='red', fontsize=20,
+        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+    ax.text(0.65, 0.9, label2, color='green', fontsize=20,
+        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+    # ax.text(0.6, 0.7, label3, color='blue', fontsize=20,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='center',
+    #         transform=ax.transAxes)
+    # ax.text(0.75, 0.7, label5, color='black', fontsize=20,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='center',
+    #         transform=ax.transAxes)
+    ax.text(0.8, 0.07, label4, color='k', fontsize=20,
+        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
+
+    fdata1 = cdata.pdiv_uperp_usingle_cum + cdata.pshear_perp_usingle_cum
+    fdata2 = jdote.jqnuperp_dote_int
+    print fdata1[-1] / fdata2[-1]
+
+    ys -= h1 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    # p1 = ax1.plot(tfields, cdata.pdiv_upara_usingle_cum, linewidth=2, color='r')
+    p1 = ax1.plot(tfields, fdata1, linewidth=2, color='r')
+    # p2 = ax1.plot(tfields, cdata.pshear_perp_usingle_cum, linewidth=2, color='g')
+    # p3 = ax1.plot(tfields, cdata.div_vdot_ptensor_cum, linewidth=2, color='b')
+    # p3 = ax1.plot(tfields, pdiv_u_cum + pshear_cum + div_vdot_ptensor_cum,
+    #     linewidth=2, color='darkred')
+    # p5 = ax1.plot(tfields, vdot_div_ptensor_cum, linewidth=2, color='k')
+    # p6 = ax1.plot(tfields, jqnudote_cum, linewidth=2, color='k',
+    #     linestyle='--', label=label6)
+    p6 = ax1.plot(tfields, fdata2, linewidth=2, color='k',
+        linestyle='--', label=label6)
+    ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$\varepsilon_c$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    # ax1.legend(loc=2, prop={'size': 20}, ncol=1,
+    #            shadow=False, fancybox=False, frameon=False)
+    ax1.set_xlim(ax.get_xlim())
+    # ax1.set_ylim(ylim2)
+    # if not os.path.isdir('../img/'):
+    #     os.makedirs('../img/')
+    # fname = '../img/compressional_' + species + '.eps'
+    # fig.savefig(fname)
+    plt.show()
+
+
+def plot_compression_time_both(pic_info, run_name):
+    """Plot the time evolution of compression-related terms for both species
+
+    Args:
+        pic_info: namedtuple for the PIC simulation information
+        run_name: simulation run name
+    """
+    tfields = pic_info.tfields
+    fdir = '../data/compression/'
+    cdata_name = fdir + 'compression_' + run_name + '_e.json'
+    cdata_e = read_data_from_json(cdata_name)
+    cdata_name = fdir + 'compression_' + run_name + '_i.json'
+    cdata_i = read_data_from_json(cdata_name)
+    jdote_name = '../data/jdote_data/jdote_' + run_name + '_e.json'
+    jdote_e = read_data_from_json(jdote_name)
+    jdote_name = '../data/jdote_data/jdote_' + run_name + '_i.json'
+    jdote_i = read_data_from_json(jdote_name)
+    jdote_name = '../data/jdote_data/jdote_in_' + run_name + '_e.json'
+    jdote_in_e = read_data_from_json(jdote_name)
+    jdote_name = '../data/jdote_data/jdote_in_' + run_name + '_i.json'
+    jdote_in_i = read_data_from_json(jdote_name)
+
+    fig = plt.figure(figsize=[7, 6])
+    w1, h1 = 0.81, 0.33
+    xs, ys = 0.96 - w1, 0.84 - h1
+    ax = fig.add_axes([xs, ys, w1, h1])
+    label1 = r'$-p_s\nabla\cdot\boldsymbol{u}_\perp$'
+    label2 = r'$-(p_{s\parallel} - p_{s\perp})b_ib_j\sigma_{ij}$'
+    label3 = r'$\nabla\cdot(\mathcal{P}\cdot\mathbf{u})$'
+    label4 = label3 + label1 + label2
+    label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
+    label6 = r'$\boldsymbol{j}_{s\perp}\cdot\boldsymbol{E}_\perp$'
+    p1 = ax.plot(tfields, cdata_e.pdiv_uperp_usingle,
+                 linewidth=2, color='r', label=label1)
+    p2 = ax.plot(tfields, cdata_e.pshear_perp_usingle,
+                 linewidth=2, color='g', label=label2)
+    p12 = ax.plot(tfields, cdata_e.pdiv_uperp_usingle + cdata_e.pshear_perp_usingle,
+                 linewidth=2, color='k', label='Sum')
+    # fdata = jdote_in_e.jqnuperp_dote - jdote_in_e.jpolar_dote
+    fdata = jdote_e.jqnuperp_dote - jdote_e.jpolar_dote
+    # fdata = jdote_e.jqnuperp_dote
+    p3 = ax.plot(tfields, fdata, linewidth=2, color='k', linestyle='--', label=label6)
+    ax.set_ylabel(r'$d\varepsilon_e/dt$', fontdict=font, fontsize=20)
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=16)
+    tmax = min(np.max(pic_info.tfields), 800)
+    ax.set_xlim([0, 800])
+    # ax.set_ylim([-0.2, 0.8])
+    # ax.set_ylim([-0.05, 0.12])
+    ax.legend(loc='upper center', prop={'size': 20}, ncol=2,
+            bbox_to_anchor=(0.5, 1.5),
+            # bbox_to_anchor=(0.5, 1.4),
+            shadow=False, fancybox=False, frameon=False)
+
+    ax.text(0.95, 0.8, 'electron', color='k', fontsize=20,
+        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='right', verticalalignment='bottom', transform=ax.transAxes)
+
+    ys -= h1 + 0.05
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    p1 = ax1.plot(tfields, cdata_i.pdiv_uperp_usingle,
+                 linewidth=2, color='r', label=label1)
+    p2 = ax1.plot(tfields, cdata_i.pshear_perp_usingle,
+                 linewidth=2, color='g', label=label1)
+    p12 = ax1.plot(tfields, cdata_i.pdiv_uperp_usingle + cdata_i.pshear_perp_usingle,
+                 linewidth=2, color='k', label=label1)
+    # fdata = jdote_in_i.jqnuperp_dote - jdote_in_i.jpolar_dote
+    # fdata = jdote_in_e.jqnuperp_dote - jdote_in_e.jpolar_dote
+    fdata = jdote_i.jqnuperp_dote - jdote_i.jpolar_dote
+    # fdata = jdote_i.jqnuperp_dote
+    p3 = ax1.plot(tfields, fdata, linewidth=2, color='k',
+            linestyle='--', label=label6)
+    ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    ax1.set_ylabel(r'$d\varepsilon_i/dt$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlim(ax.get_xlim())
+    # ax1.set_ylim([-0.05, 0.12])
+    ax1.text(0.95, 0.8, 'ion', color='k', fontsize=20,
+        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+        horizontalalignment='right', verticalalignment='bottom',
+        transform=ax1.transAxes)
+    fdir = '../img/compression/'
+    mkdir_p(fdir)
+    fname = fdir + 'compression_both_' + run_name + '.eps'
+    fig.savefig(fname)
+    plt.show()
+
+
+def compression_ratio_apjl_runs():
+    """Compression ratio for all ApJL runs
+    """
+    run_names = ['mime25_beta002_guide00',
+                 'mime25_beta002_guide02',
+                 'mime25_beta002_guide05',
+                 'mime25_beta002_guide10',
+                 'mime25_beta002_guide00',
+                 'mime25_beta008_guide00',
+                 'mime25_beta032_guide00']
+    nrun = len(run_names)
+    ratios = np.zeros((nrun, 4))
+    i = 0
+    for run_name in run_names:
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        tfields = pic_info.tfields
+        ct = find_closest(tfields, 500)
+        fdir = '../data/compression/'
+        cdata_name = fdir + 'compression_' + run_name + '_e.json'
+        cdata_e = read_data_from_json(cdata_name)
+        cdata_name = fdir + 'compression_' + run_name + '_i.json'
+        cdata_i = read_data_from_json(cdata_name)
+        jdote_name = '../data/jdote_data/jdote_' + run_name + '_e.json'
+        jdote_e = read_data_from_json(jdote_name)
+        jdote_name = '../data/jdote_data/jdote_' + run_name + '_i.json'
+        jdote_i = read_data_from_json(jdote_name)
+        jdote_name = '../data/jdote_data/jdote_in_' + run_name + '_e.json'
+        jdote_in_e = read_data_from_json(jdote_name)
+        jdote_name = '../data/jdote_data/jdote_in_' + run_name + '_i.json'
+        jdote_in_i = read_data_from_json(jdote_name)
+        # jdote_e = jdote_e.jqnuperp_dote_int[ct] - jdote_e.jpolar_dote_int[ct]
+        # jdote_i = jdote_i.jqnuperp_dote_int[ct] - jdote_i.jpolar_dote_int[ct]
+        jdote_e = jdote_e.jqnuperp_dote_int[ct]
+        jdote_i = jdote_i.jqnuperp_dote_int[ct]
+        ratios[i, 0] = cdata_e.pdiv_uperp_usingle_cum[ct] / jdote_e 
+        ratios[i, 1] = cdata_e.pshear_perp_usingle_cum[ct] / jdote_e
+        ratios[i, 2] = cdata_i.pdiv_uperp_usingle_cum[ct] / jdote_i
+        ratios[i, 3] = cdata_i.pshear_perp_usingle_cum[ct] / jdote_i
+        i += 1
+
+    text0 = r'$/\boldsymbol{j}_{e\perp}\cdot\boldsymbol{E}_\perp$'
+    text1 = r'$-p_e\nabla\cdot\boldsymbol{u}_\perp$' + text0
+    text2 = r'$-(p_{e\parallel}-p_{e\perp})b_ib_j\sigma_{ij}$' + text0
+    text0 = r'$/\boldsymbol{j}_{i\perp}\cdot\boldsymbol{E}_\perp$'
+    text3 = r'$-p_i\nabla\cdot\boldsymbol{u}_\perp$' + text0
+    text4 = r'$-(p_{i\parallel}-p_{i\perp})b_ib_j\sigma_{ij}$' + text0
+
+    # Runs with different guide field
+    bg = [0, 0.2, 0.5, 1.0]
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.16
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.plot(bg, ratios[:4, 0], linewidth=2, linestyle='-',
+            color='r', marker=".", markersize=20, label=text1)
+    ax.plot(bg, ratios[:4, 1], linewidth=2, linestyle='--',
+            color='r', marker=".", markersize=20, label=text2)
+    ax.plot(bg, ratios[:4, 2], linewidth=2, linestyle='-',
+            color='b', marker=".", markersize=20, label=text3)
+    ax.plot(bg, ratios[:4, 3], linewidth=2, linestyle='--',
+            color='b', marker=".", markersize=20, label=text4)
+    ax.set_xlabel(r'$B_g/B_0$', fontdict=font, fontsize=20)
+    ax.set_ylabel('Fraction', fontdict=font, fontsize=20)
+    ax.tick_params(labelsize=16)
+    ax.set_xlim([-0.1, 1.1])
+    # ax.set_ylim([0, 1])
+    ax.legend(loc=3, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    fdir = '../img/compression/'
+    mkdir_p(fdir)
+    fig.savefig(fdir + 'comp_frac_bg.eps')
+
+    # Runs with different plasma beta
+    bg = [0.02, 0.08, 0.32]
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.13, 0.16
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    ax.semilogx(bg, ratios[4:, 0], linewidth=2, linestyle='-',
+            color='r', marker=".", markersize=20, label=text1)
+    ax.semilogx(bg, ratios[4:, 1], linewidth=2, linestyle='--',
+            color='r', marker=".", markersize=20, label=text2)
+    ax.semilogx(bg, ratios[4:, 2], linewidth=2, linestyle='-',
+            color='b', marker=".", markersize=20, label=text3)
+    ax.semilogx(bg, ratios[4:, 3], linewidth=2, linestyle='--',
+            color='b', marker=".", markersize=20, label=text4)
+    ax.set_xlabel(r'$\beta_e$', fontdict=font, fontsize=20)
+    ax.set_ylabel('Fraction', fontdict=font, fontsize=20)
+    ax.tick_params(labelsize=16)
+    ax.set_xlim([0.01, 0.5])
+    # ax.set_ylim([0, 1])
+    ax.legend(loc=2, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    fdir = '../img/compression/'
+    mkdir_p(fdir)
+    fig.savefig(fdir + 'comp_frac_beta.eps')
+    plt.show()
+
+
 if __name__ == "__main__":
-    run_dir = '../../'
-    pic_info = pic_information.get_pic_info(run_dir)
+    cmdargs = sys.argv
+    if (len(cmdargs) > 2):
+        base_dir = cmdargs[1]
+        run_name = cmdargs[2]
+    else:
+        base_dir = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
+        run_name = 'sigma1-mime25-beta001-average'
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    # # save_compression_json_single(pic_info, run_name)
+    # plot_compression_time(pic_info, run_name, 'e')
+    compression_ratio_apjl_runs()
+    # plot_compression_time_both(pic_info, run_name)
+    # plot_compression_shear_single(pic_info, base_dir, run_name, 'e', 25)
+    # run_dir = '../../'
+    # pic_info = pic_information.get_pic_info(run_dir)
     # ntp = pic_info.ntp
     # for i in range(pic_info.ntf):
     #     plot_compression(pic_info, 'i', i)
@@ -1871,4 +2459,4 @@ if __name__ == "__main__":
     #     plot_velocity_components(pic_info, 'i', ct)
     # move_compression()
     # plot_compression_time_multi('i')
-    calc_compression(run_dir, pic_info)
+    # calc_compression(run_dir, pic_info)
