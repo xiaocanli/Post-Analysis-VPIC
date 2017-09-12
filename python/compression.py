@@ -2135,11 +2135,14 @@ def plot_compression_time(pic_info, run_name, species):
     jqnudote_cum = jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
     # jqnudote -= jpolar_dote
     # jqnudote_cum -= jpolar_dote_int
-    print cdata.pdiv_uperp_usingle[49]
-    print jdote.jqnuperp_dote[49]
+    tframe = 40
+    print cdata.pdiv_uperp_usingle[tframe], \
+          cdata.pshear_perp_usingle[tframe], \
+          jdote.jqnuperp_dote[tframe]
 
     fdata1 = cdata.pdiv_uperp_usingle + cdata.pshear_perp_usingle
     fdata2 = jdote.jqnuperp_dote
+    # fdata2 -= jdote.jpolar_dote + jdote.jagy_dote
     f = interp1d(tfields, fdata1, kind='slinear')
     t_new = np.linspace(tfields[0], tfields[-1], 5000)
     fdata1_new = f(t_new)
@@ -2155,7 +2158,7 @@ def plot_compression_time(pic_info, run_name, species):
     label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
     label6 = r'$\mathbf{j}_' + species + '\cdot\mathbf{E}$'
     p1 = ax.plot(tfields, fdata1, linewidth=2, color='r', label=label1)
-    p11 = ax.plot(t_new, fdata1_new)
+    # p11 = ax.plot(t_new, fdata1_new)
     # p1 = ax.plot(tfields, cdata.pdiv_upara_usingle, linewidth=2, color='r',
     #         label=label1, linestyle='--')
     # p2 = ax.plot(tfields, cdata.pshear_perp_usingle, linewidth=2, color='g', label=label2)
@@ -2262,8 +2265,9 @@ def plot_compression_time_both(pic_info, run_name):
     p12 = ax.plot(tfields, cdata_e.pdiv_uperp_usingle + cdata_e.pshear_perp_usingle,
                  linewidth=2, color='k', label='Sum')
     # fdata = jdote_in_e.jqnuperp_dote - jdote_in_e.jpolar_dote
-    fdata = jdote_e.jqnuperp_dote - jdote_e.jpolar_dote
-    # fdata = jdote_e.jqnuperp_dote
+    fdata = jdote_e.jqnuperp_dote
+    fdata -= jdote_e.jpolar_dote
+    fdata -= jdote_e.jagy_dote
     p3 = ax.plot(tfields, fdata, linewidth=2, color='k', linestyle='--', label=label6)
     ax.set_ylabel(r'$d\varepsilon_e/dt$', fontdict=font, fontsize=20)
     ax.tick_params(axis='x', labelbottom='off')
@@ -2291,8 +2295,9 @@ def plot_compression_time_both(pic_info, run_name):
                  linewidth=2, color='k', label=label1)
     # fdata = jdote_in_i.jqnuperp_dote - jdote_in_i.jpolar_dote
     # fdata = jdote_in_e.jqnuperp_dote - jdote_in_e.jpolar_dote
-    fdata = jdote_i.jqnuperp_dote - jdote_i.jpolar_dote
-    # fdata = jdote_i.jqnuperp_dote
+    fdata = jdote_i.jqnuperp_dote
+    fdata -= jdote_i.jpolar_dote
+    fdata -= jdote_i.jagy_dote
     p3 = ax1.plot(tfields, fdata, linewidth=2, color='k',
             linestyle='--', label=label6)
     ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
@@ -2422,8 +2427,8 @@ if __name__ == "__main__":
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     # # save_compression_json_single(pic_info, run_name)
-    # plot_compression_time(pic_info, run_name, 'e')
-    compression_ratio_apjl_runs()
+    plot_compression_time(pic_info, run_name, 'i')
+    # compression_ratio_apjl_runs()
     # plot_compression_time_both(pic_info, run_name)
     # plot_compression_shear_single(pic_info, base_dir, run_name, 'e', 25)
     # run_dir = '../../'

@@ -171,7 +171,7 @@ def plot_epara_eperp(pic_info, ct, root_dir='../../'):
     ys -= h1 + gap
     ax3 = fig.add_axes([xs, ys, w1, h1])
     kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
-    p3, cbar3 = plot_2d_contour(x, z, dpe, ax3, fig, **kwargs_plot)
+    p3, cbar3 = plot_2d_contour(x, z, dpez, ax3, fig, **kwargs_plot)
     p3.set_cmap(plt.cm.seismic)
     ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
             colors='black', linewidths=0.5)
@@ -923,17 +923,411 @@ def j_curlB(pic_info, ct, root_dir='../../'):
     # plt.close()
 
 
+def plot_ohm_efield(pic_info, ct, root_dir='../../'):
+    """Plot electric field in generalized Ohm's law
+    """
+    kwargs = {"current_time": ct, "xl": 50, "xr": 150, "zb": -20, "zt": 20}
+    fname = root_dir + 'data/bx.gda'
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/by.gda'
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/bz.gda'
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/absB.gda'
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/ex.gda'
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/ey.gda'
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/ez.gda'
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/Ay.gda'
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = root_dir + 'data/jx.gda'
+    x, z, jx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/jy.gda'
+    x, z, jy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/jz.gda'
+    x, z, jz = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = root_dir + 'data1/vx.gda'
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data1/vy.gda'
+    x, z, vy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data1/vz.gda'
+    x, z, vz = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = root_dir + 'data/pe-xx.gda'
+    x, z, pexx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/pe-xy.gda'
+    x, z, pexy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/pe-xz.gda'
+    x, z, pexz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/pe-yy.gda'
+    x, z, peyy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/pe-yz.gda'
+    x, z, peyz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/pe-zz.gda'
+    x, z, pezz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = root_dir + 'data/ne.gda'
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
+
+    einx = vz * by - vy * bz
+    einy = vx * bz - vz * bx
+    einz = vy * bx - vx * by
+
+    hallx = jy * bz - jz * by
+    hally = jz * bx - jx * bz
+    hallz = jx * by - jy * bx
+
+    absE = np.sqrt(ex * ex + ey * ey + ez * ez)
+    epara = (ex * bx + ey * by + ez * bz) / absB
+    eperp = np.sqrt(absE * absE - epara * epara)
+    ng = 5
+    kernel = np.ones((ng, ng)) / float(ng * ng)
+    epara = signal.convolve2d(epara, kernel, 'same')
+    eperp = signal.convolve2d(eperp, kernel, 'same')
+    ex = signal.convolve2d(ex, kernel, 'same')
+    ey = signal.convolve2d(ey, kernel, 'same')
+    ez = signal.convolve2d(ez, kernel, 'same')
+
+    dx = x[1] - x[0]
+    dz = z[1] - z[0]
+    dpex = np.gradient(pexx, dx, axis=1) + np.gradient(pexz, dz, axis=0)
+    dpey = np.gradient(pexy, dx, axis=1) + np.gradient(peyz, dz, axis=0)
+    dpez = np.gradient(pexz, dx, axis=1) + np.gradient(pezz, dz, axis=0)
+    dpex /= ne
+    dpey /= ne
+    dpez /= ne
+    hallx /= ne
+    hally /= ne
+    hallz /= ne
+    dpe  = np.sqrt(dpex**2 + dpey**2 + dpez**2)
+    dpex = signal.convolve2d(dpex, kernel, 'same')
+    dpey = signal.convolve2d(dpey, kernel, 'same')
+    dpez = signal.convolve2d(dpez, kernel, 'same')
+
+    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+    va = wpe_wce / math.sqrt(pic_info.mime)  # Alfven speed of inflow region
+    b0 = pic_info.b0
+    e0 = va * b0
+    epara /= 0.5 * e0
+    eperp /= 0.5 * e0
+    ex /= 0.5 * e0
+    ey /= 0.5 * e0
+    ez /= 0.5 * e0
+    einx /= 0.5 * e0
+    einy /= 0.5 * e0
+    einz /= 0.5 * e0
+    dpex /= 0.5 * e0
+    dpey /= 0.5 * e0
+    dpez /= 0.5 * e0
+    hallx /= 0.5 * e0
+    hally /= 0.5 * e0
+    hallz /= 0.5 * e0
+
+
+    text_ex = r'$E_x$'
+    text_ey = r'$E_y$'
+    text_ez = r'$E_z$'
+    text_vxbx = r'$-(\boldsymbol{v}\times\boldsymbol{B})_x$'
+    text_vxby = r'$-(\boldsymbol{v}\times\boldsymbol{B})_y$'
+    text_vxbz = r'$-(\boldsymbol{v}\times\boldsymbol{B})_z$'
+    text_dpex = r'$-(\nabla\cdot\mathcal{P}_e)_x/n_ee$'
+    text_dpey = r'$-(\nabla\cdot\mathcal{P}_e)_y/n_ee$'
+    text_dpez = r'$-(\nabla\cdot\mathcal{P}_e)_z/n_ee$'
+    text_hallx = r'$(\boldsymbol{j}\times\boldsymbol{B})_x/n_ee$'
+    text_hally = r'$(\boldsymbol{j}\times\boldsymbol{B})_y/n_ee$'
+    text_hallz = r'$(\boldsymbol{j}\times\boldsymbol{B})_z/n_ee$'
+
+    fdata11 = ex
+    fdata12 = einx
+    fdata13 = dpex
+    fdata14 = hallx
+    text11 = text_ex
+    text12 = text_vxbx
+    text13 = text_dpex
+    text14 = text_hallx
+
+    fdata21 = ey
+    fdata22 = einy
+    fdata23 = dpey
+    fdata24 = hally
+    text21 = text_ey
+    text22 = text_vxby
+    text23 = text_dpey
+    text24 = text_hally
+
+    fdata31 = ez
+    fdata32 = einz
+    fdata33 = dpez
+    fdata34 = hallz
+    text31 = text_ez
+    text32 = text_vxbz
+    text33 = text_dpez
+    text34 = text_hallz
+
+    nx, = x.shape
+    nz, = z.shape
+    xs0, ys0 = 0.05, 0.78
+    w1, h1 = 0.28, 0.2
+    vgap, hgap = 0.03, 0.03
+
+    xs = xs0
+    ys = ys0
+
+    fig = plt.figure(figsize=[24, 12])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, fdata11, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(cmaps.inferno)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    Ay_min = np.min(Ay)
+    Ay_max = np.max(Ay)
+    levels = np.linspace(Ay_min, Ay_max, 10)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='k', linewidths=0.5)
+    ax1.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=16)
+    cbar1.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar1.ax.tick_params(labelsize=16)
+    ax1.text(0.02, 0.8, text11, color='k', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                pad=10.0), horizontalalignment='left',
+            verticalalignment='center', transform = ax1.transAxes)
+
+    ys -= h1 + vgap
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p2, cbar2 = plot_2d_contour(x, z, fdata12, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.seismic)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax2.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax2.tick_params(axis='x', labelbottom='off')
+    ax2.tick_params(labelsize=16)
+    cbar2.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar2.ax.tick_params(labelsize=16)
+    ax2.text(0.02, 0.8, text12, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax2.transAxes)
+
+    ys -= h1 + vgap
+    ax3 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p3, cbar3 = plot_2d_contour(x, z, fdata13, ax3, fig, **kwargs_plot)
+    p3.set_cmap(plt.cm.seismic)
+    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax3.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax3.tick_params(axis='x', labelbottom='off')
+    ax3.tick_params(labelsize=16)
+    cbar3.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar3.ax.tick_params(labelsize=16)
+    ax3.text(0.02, 0.8, text13, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax3.transAxes)
+
+    ys -= h1 + vgap
+    ax4 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p4, cbar4 = plot_2d_contour(x, z, fdata14, ax4, fig, **kwargs_plot)
+    p4.set_cmap(plt.cm.seismic)
+    ax4.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax4.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+    ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax4.tick_params(labelsize=16)
+    cbar4.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar4.ax.tick_params(labelsize=16)
+    ax4.text(0.02, 0.8, text14, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax4.transAxes)
+
+    xs = xs0 + hgap + w1
+    ys = ys0
+
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, fdata21, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(cmaps.inferno)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    Ay_min = np.min(Ay)
+    Ay_max = np.max(Ay)
+    levels = np.linspace(Ay_min, Ay_max, 10)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='k', linewidths=0.5)
+    ax1.set_ylabel('', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(axis='y', labelleft='off')
+    ax1.tick_params(labelsize=16)
+    cbar1.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar1.ax.tick_params(labelsize=16)
+    ax1.text(0.02, 0.8, text21, color='k', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                pad=10.0), horizontalalignment='left',
+            verticalalignment='center', transform = ax1.transAxes)
+
+    ys -= h1 + vgap
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p2, cbar2 = plot_2d_contour(x, z, fdata22, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.seismic)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax2.set_ylabel('', fontdict=font, fontsize=20)
+    ax2.tick_params(axis='x', labelbottom='off')
+    ax2.tick_params(axis='y', labelleft='off')
+    ax2.tick_params(labelsize=16)
+    cbar2.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar2.ax.tick_params(labelsize=16)
+    ax2.text(0.02, 0.8, text22, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax2.transAxes)
+
+    ys -= h1 + vgap
+    ax3 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p3, cbar3 = plot_2d_contour(x, z, fdata23, ax3, fig, **kwargs_plot)
+    p3.set_cmap(plt.cm.seismic)
+    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax3.set_ylabel('', fontdict=font, fontsize=20)
+    ax3.tick_params(axis='x', labelbottom='off')
+    ax3.tick_params(axis='y', labelleft='off')
+    ax3.tick_params(labelsize=16)
+    cbar3.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar3.ax.tick_params(labelsize=16)
+    ax3.text(0.02, 0.8, text23, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax3.transAxes)
+
+    ys -= h1 + vgap
+    ax4 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p4, cbar4 = plot_2d_contour(x, z, fdata24, ax4, fig, **kwargs_plot)
+    p4.set_cmap(plt.cm.seismic)
+    ax4.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax4.set_ylabel('', fontdict=font, fontsize=20)
+    ax4.tick_params(axis='y', labelleft='off')
+    ax4.tick_params(labelsize=16)
+    cbar4.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar4.ax.tick_params(labelsize=16)
+    ax4.text(0.02, 0.8, text24, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax4.transAxes)
+
+    xs = xs0 + 2 * hgap + 2 * w1
+    ys = ys0
+
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    xstep = kwargs_plot["xstep"]
+    zstep = kwargs_plot["zstep"]
+    p1, cbar1 = plot_2d_contour(x, z, fdata31, ax1, fig, **kwargs_plot)
+    # p1.set_cmap(cmaps.inferno)
+    p1.set_cmap(plt.cm.get_cmap('seismic'))
+    Ay_min = np.min(Ay)
+    Ay_max = np.max(Ay)
+    levels = np.linspace(Ay_min, Ay_max, 10)
+    ax1.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='k', linewidths=0.5)
+    ax1.set_ylabel('', fontdict=font, fontsize=20)
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(axis='y', labelleft='off')
+    ax1.tick_params(labelsize=16)
+    cbar1.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar1.ax.tick_params(labelsize=16)
+    ax1.text(0.02, 0.8, text31, color='k', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                pad=10.0), horizontalalignment='left',
+            verticalalignment='center', transform = ax1.transAxes)
+
+    ys -= h1 + vgap
+    ax2 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p2, cbar2 = plot_2d_contour(x, z, fdata32, ax2, fig, **kwargs_plot)
+    p2.set_cmap(plt.cm.seismic)
+    ax2.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax2.set_ylabel('', fontdict=font, fontsize=20)
+    ax2.tick_params(axis='x', labelbottom='off')
+    ax2.tick_params(axis='y', labelleft='off')
+    ax2.tick_params(labelsize=16)
+    cbar2.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar2.ax.tick_params(labelsize=16)
+    ax2.text(0.02, 0.8, text32, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax2.transAxes)
+
+    ys -= h1 + vgap
+    ax3 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p3, cbar3 = plot_2d_contour(x, z, fdata33, ax3, fig, **kwargs_plot)
+    p3.set_cmap(plt.cm.seismic)
+    ax3.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax3.set_ylabel('', fontdict=font, fontsize=20)
+    ax3.tick_params(axis='x', labelbottom='off')
+    ax3.tick_params(axis='y', labelleft='off')
+    ax3.tick_params(labelsize=16)
+    cbar3.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar3.ax.tick_params(labelsize=16)
+    ax3.text(0.02, 0.8, text33, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax3.transAxes)
+
+    ys -= h1 + vgap
+    ax4 = fig.add_axes([xs, ys, w1, h1])
+    kwargs_plot = {"xstep":1, "zstep":1, "vmin":-0.5, "vmax":0.5}
+    p4, cbar4 = plot_2d_contour(x, z, fdata34, ax4, fig, **kwargs_plot)
+    p4.set_cmap(plt.cm.seismic)
+    ax4.contour(x[0:nx:xstep], z[0:nz:zstep], Ay[0:nz:zstep, 0:nx:xstep],
+            colors='black', linewidths=0.5)
+    ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax4.set_ylabel('', fontdict=font, fontsize=20)
+    ax4.tick_params(axis='y', labelleft='off')
+    ax4.tick_params(labelsize=16)
+    cbar4.set_ticks(np.arange(-0.5, 0.6, 0.5))
+    cbar4.ax.tick_params(labelsize=16)
+    ax4.text(0.02, 0.8, text34, color='k', fontsize=20,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none',
+                       pad=10.0), horizontalalignment='left',
+             verticalalignment='center', transform=ax4.transAxes)
+
+
+    plt.show()
+    # plt.close()
+
+
 if __name__ == "__main__":
     cmdargs = sys.argv
     if (len(cmdargs) > 2):
         base_dir = cmdargs[1]
         run_name = cmdargs[2]
     else:
-        base_dir = '/net/scratch3/xiaocanli/reconnection/mime25-sigma1-beta002-guide05-200-100/'
-        run_name = 'mime25_beta002_guide05'
+        base_dir = '/net/scratch3/xiaocanli/reconnection/mime25-sigma1-beta002-guide00-200-100/'
+        run_name = 'mime25_beta002_guide00'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    # plot_epara_eperp(pic_info, 26, base_dir)
-    # plot_epara(pic_info, 26, base_dir)
-    plot_jdote(pic_info, 25, base_dir)
+    # plot_epara_eperp(pic_info, 25, base_dir)
+    plot_ohm_efield(pic_info, 25, base_dir)
+    # plot_epara(pic_info, 25, base_dir)
+    # plot_jdote(pic_info, 25, base_dir)
     # j_curlB(pic_info, 25, base_dir)
