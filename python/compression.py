@@ -10,8 +10,11 @@ import sys
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.style as style
+import multiprocessing
 import numpy as np
 import simplejson as json
+from joblib import Parallel, delayed
 from matplotlib import rc
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import MaxNLocator
@@ -20,9 +23,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy import signal
 from scipy.fftpack import fft2, fftshift, ifft2
 from scipy.interpolate import spline, interp1d
+from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 from scipy.ndimage.filters import generic_filter as gf
 
 import pic_information
+from particle_compression import read_hydro_velocity_density, read_fields
 from contour_plots import plot_2d_contour, read_2d_fields, find_closest
 from energy_conversion import read_data_from_json, read_jdote_data
 from runs_name_path import ApJ_long_paper_runs
@@ -41,6 +46,7 @@ font = {
     'size': 24,
 }
 
+# style.use('classic')
 
 def plot_compression(pic_info, species, current_time):
     """Plot compression related terms.
@@ -594,6 +600,26 @@ def read_compression_data(pic_info, fdir, species):
     pdiv_usingle = compression_data[:, 4]
     pdiv_upara_usingle = compression_data[:, 5]
 
+    fname = fdir + "compression00_exb_" + species + ".gda"
+    fh = open(fname, 'r')
+    data = fh.read()
+    fh.close()
+    compression_data = np.zeros((ntf, 6))
+    index_start = 0
+    index_end = 4
+    ndset = 6
+    print ntf
+    for ct in range(ntf):
+        for i in range(ndset):
+            compression_data[ct, i], = \
+                struct.unpack('f', data[index_start:index_end])
+            index_start = index_end
+            index_end += 4
+    div_usingle_exb = compression_data[:, 2]
+    div_upara_usingle_exb = compression_data[:, 3]
+    pdiv_usingle_exb = compression_data[:, 4]
+    pdiv_upara_usingle_exb = compression_data[:, 5]
+
     fname = fdir + "shear00_" + species + ".gda"
     fh = open(fname, 'r')
     data = fh.read()
@@ -613,6 +639,24 @@ def read_compression_data(pic_info, fdir, species):
     bbsigma_para_usingle = shear_data[:, 3]
     pshear_single = shear_data[:, 4]
     pshear_para_usingle = shear_data[:, 5]
+
+    fname = fdir + "shear00_exb_" + species + ".gda"
+    fh = open(fname, 'r')
+    data = fh.read()
+    fh.close()
+    shear_data = np.zeros((ntf, ndset))
+    index_start = 0
+    index_end = 4
+    for ct in range(ntf):
+        for i in range(ndset):
+            shear_data[ct, i], = \
+                struct.unpack('f', data[index_start:index_end])
+            index_start = index_end
+            index_end += 4
+    bbsigma_single_exb = shear_data[:, 2]
+    bbsigma_para_usingle_exb = shear_data[:, 3]
+    pshear_single_exb = shear_data[:, 4]
+    pshear_para_usingle_exb = shear_data[:, 5]
 
     fname = fdir + "div_vdot_ptensor00_" + species + ".gda"
     fh = open(fname, 'r')
@@ -649,6 +693,12 @@ def read_compression_data(pic_info, fdir, species):
     pdiv_upara_usingle_cum = np.cumsum(pdiv_upara_usingle) * dt_fields
     pshear_single_cum = np.cumsum(pshear_single) * dt_fields
     pshear_para_usingle_cum = np.cumsum(pshear_para_usingle) * dt_fields
+
+    pdiv_usingle_exb_cum = np.cumsum(pdiv_usingle_exb) * dt_fields
+    pdiv_upara_usingle_exb_cum = np.cumsum(pdiv_upara_usingle_exb) * dt_fields
+    pshear_single_exb_cum = np.cumsum(pshear_single_exb) * dt_fields
+    pshear_para_usingle_exb_cum = np.cumsum(pshear_para_usingle_exb) * dt_fields
+
     div_vdot_ptensor_cum = np.cumsum(div_vdot_ptensor) * dt_fields
     vdot_div_ptensor_cum = np.cumsum(vdot_div_ptensor) * dt_fields
 
@@ -656,6 +706,11 @@ def read_compression_data(pic_info, fdir, species):
     pshear_perp_usingle = pshear_single - pshear_para_usingle
     pdiv_uperp_usingle_cum = pdiv_usingle_cum - pdiv_upara_usingle_cum
     pshear_perp_usingle_cum = pshear_single_cum - pshear_para_usingle_cum
+
+    pdiv_uperp_usingle_exb = pdiv_usingle_exb - pdiv_upara_usingle_exb
+    pshear_perp_usingle_exb = pshear_single_exb - pshear_para_usingle_exb
+    pdiv_uperp_usingle_exb_cum = pdiv_usingle_exb_cum - pdiv_upara_usingle_exb_cum
+    pshear_perp_usingle_exb_cum = pshear_single_exb_cum - pshear_para_usingle_exb_cum
 
     compression_collection = collections.namedtuple('compression_collection', [
         'div_u', 'pdiv_u', 'div_usingle', 'div_upara_usingle', 'pdiv_usingle',
@@ -665,7 +720,12 @@ def read_compression_data(pic_info, fdir, species):
         'vdot_div_ptensor', 'pdiv_u_cum', 'pshear_cum', 'pdiv_usingle_cum',
         'pdiv_upara_usingle_cum', 'pdiv_uperp_usingle_cum', 'pshear_single_cum',
         'pshear_para_usingle_cum', 'pshear_perp_usingle_cum',  'div_vdot_ptensor_cum',
-        'vdot_div_ptensor_cum'
+        'vdot_div_ptensor_cum', 'div_usingle_exb', 'div_upara_usingle_exb',
+        'bbsigma_single_exb', 'bbsigma_para_usingle_exb', 'pdiv_usingle_exb',
+        'pdiv_upara_usingle_exb', 'pdiv_uperp_usingle_exb', 'pshear_single_exb',
+        'pshear_para_usingle_exb', 'pshear_perp_usingle_exb', 'pdiv_usingle_exb_cum',
+        'pdiv_upara_usingle_exb_cum', 'pdiv_uperp_usingle_exb_cum', 'pshear_single_exb_cum',
+        'pshear_para_usingle_exb_cum', 'pshear_perp_usingle_exb_cum'
         ])
     compression_data = compression_collection(div_u, pdiv_u, div_usingle,
             div_upara_usingle, pdiv_usingle, pdiv_upara_usingle,
@@ -674,7 +734,14 @@ def read_compression_data(pic_info, fdir, species):
             pshear_perp_usingle, div_vdot_ptensor, vdot_div_ptensor,
             pdiv_u_cum, pshear_cum, pdiv_usingle_cum, pdiv_upara_usingle_cum,
             pdiv_uperp_usingle_cum, pshear_single_cum, pshear_para_usingle_cum,
-            pshear_perp_usingle_cum,  div_vdot_ptensor_cum, vdot_div_ptensor_cum)
+            pshear_perp_usingle_cum,  div_vdot_ptensor_cum, vdot_div_ptensor_cum,
+            div_usingle_exb, div_upara_usingle_exb, bbsigma_single_exb,
+            bbsigma_para_usingle_exb, pdiv_usingle_exb, pdiv_upara_usingle_exb,
+            pdiv_uperp_usingle_exb, pshear_single_exb, pshear_para_usingle_exb,
+            pshear_perp_usingle_exb, pdiv_usingle_exb_cum,
+            pdiv_upara_usingle_exb_cum, pdiv_uperp_usingle_exb_cum,
+            pshear_single_exb_cum, pshear_para_usingle_exb_cum,
+            pshear_perp_usingle_exb_cum)
     return compression_data
 
 
@@ -2126,23 +2193,38 @@ def plot_compression_time(pic_info, run_name, species):
     fdir = '../data/compression/'
     cdata_name = fdir + 'compression_' + run_name + '_' + species + '.json'
     cdata = read_data_from_json(cdata_name)
+    print cdata
     jdote_name = '../data/jdote_data/jdote_' + run_name + '_' + species + '.json'
     jdote = read_data_from_json(jdote_name)
 
     jpolar_dote = jdote.jpolar_dote
+    # fdir = '../data/jdote_data/jpolar_dote/'
+    # # fname = fdir + 'jpolar_dote_' + run_name + '_' + species + '.dat'
+    # fname = fdir + 'jpolar_dote_' + run_name + '.dat'
+    # jpolar_dote = np.fromfile(fname)
     jpolar_dote_int = jdote.jpolar_dote_int
     jqnudote = jdote.jqnupara_dote + jdote.jqnuperp_dote
     jqnudote_cum = jdote.jqnupara_dote_int + jdote.jqnuperp_dote_int
     # jqnudote -= jpolar_dote
     # jqnudote_cum -= jpolar_dote_int
-    tframe = 40
-    print cdata.pdiv_uperp_usingle[tframe], \
-          cdata.pshear_perp_usingle[tframe], \
-          jdote.jqnuperp_dote[tframe]
+    nt, = tfields.shape
+    print("-----------------------------------------------------------------------")
+    print("frame pdiv_perp pshear_perp jpara_dote jperp_dote jagy_dote jpolar_dote")
+    print("-----------------------------------------------------------------------")
+    for tframe in range(0, nt, 10):
+        print("%3d %10.4f %10.4f %10.4f %10.4f %10.4f %10.4f" % (tframe,
+              cdata.pdiv_uperp_usingle_exb[tframe], \
+              cdata.pshear_perp_usingle_exb[tframe], \
+              jdote.jqnupara_dote[tframe],
+              jdote.jqnuperp_dote[tframe],
+              jdote.jagy_dote[tframe],
+              jpolar_dote[tframe]))
 
-    fdata1 = cdata.pdiv_uperp_usingle + cdata.pshear_perp_usingle
+    fdata1 = cdata.pdiv_uperp_usingle_exb + cdata.pshear_perp_usingle_exb
+    # fdata1 += jdote.jagy_dote
     fdata2 = jdote.jqnuperp_dote
-    # fdata2 -= jdote.jpolar_dote + jdote.jagy_dote
+    fdata2 -= jpolar_dote
+    fdata2 -= jdote.jagy_dote
     f = interp1d(tfields, fdata1, kind='slinear')
     t_new = np.linspace(tfields[0], tfields[-1], 5000)
     fdata1_new = f(t_new)
@@ -2158,6 +2240,7 @@ def plot_compression_time(pic_info, run_name, species):
     label5 = r'$\mathbf{u}\cdot(\nabla\cdot\mathcal{P})$'
     label6 = r'$\mathbf{j}_' + species + '\cdot\mathbf{E}$'
     p1 = ax.plot(tfields, fdata1, linewidth=2, color='r', label=label1)
+    p1 = ax.plot(tfields, jpolar_dote, linewidth=2, color='b', label=label1)
     # p11 = ax.plot(t_new, fdata1_new)
     # p1 = ax.plot(tfields, cdata.pdiv_upara_usingle, linewidth=2, color='r',
     #         label=label1, linestyle='--')
@@ -2195,9 +2278,12 @@ def plot_compression_time(pic_info, run_name, species):
         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
         horizontalalignment='left', verticalalignment='center', transform=ax.transAxes)
 
-    fdata1 = cdata.pdiv_uperp_usingle_cum + cdata.pshear_perp_usingle_cum
+    fdata1 = cdata.pdiv_uperp_usingle_exb_cum + cdata.pshear_perp_usingle_exb_cum
+    # fdata1 += jdote.jagy_dote_int
     fdata2 = jdote.jqnuperp_dote_int
-    print fdata1[-1] / fdata2[-1]
+    fdata2 -= jdote.jpolar_dote_int
+    fdata2 -= jdote.jagy_dote_int
+    # print fdata1[-1] / fdata2[-1]
 
     ys -= h1 + 0.05
     ax1 = fig.add_axes([xs, ys, w1, h1])
@@ -2416,6 +2502,559 @@ def compression_ratio_apjl_runs():
     plt.show()
 
 
+def jdote_calculation_test(pic_info, run_dir, current_time):
+    """Test on the methods to calculate jdote
+
+    Hydro fields, electric field and magnetic field are all staggered.
+    The operation between them may change with the calculation method.
+    """
+    kwargs = {"current_time": current_time,
+              "xl": 0, "xr": 200, "zb": -50, "zt": 50 }
+    fname = run_dir + "data/vex.gda"
+    x, z, vex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/vey.gda"
+    x, z, vey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/vez.gda"
+    x, z, vez = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ne.gda"
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ex.gda"
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ey.gda"
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ez.gda"
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    jdote1 = -ne * (ex * vex + ey * vey + ez * vez)
+    jdote1_sum = np.sum(jdote1) * dx * dz
+
+    nx = pic_info.nx / pic_info.topology_x
+    ny = pic_info.ny / pic_info.topology_y
+    nz = pic_info.nz / pic_info.topology_z
+    nx2 = nx + 2
+    ny2 = ny + 2
+    nz2 = nz + 2
+    dsize = nx2 * ny2 * nz2
+    nprocs = pic_info.topology_x * pic_info.topology_y * pic_info.topology_z
+    tindex = pic_info.fields_interval * current_time
+    hydro_dir = run_dir + 'hydro/T.' + str(tindex) + '/'
+    fields_dir = run_dir + 'fields/T.' + str(tindex) + '/'
+    ehydro_name = hydro_dir + 'ehydro.' + str(tindex)
+    field_name = fields_dir + 'fields.' + str(tindex)
+    jdote2_sum = 0
+    data_shape = ex.shape
+    # vex1 = np.zeros(data_shape)
+    # vey1 = np.zeros(data_shape)
+    # vez1 = np.zeros(data_shape)
+    # ne1 = np.zeros(data_shape)
+    # ex1 = np.zeros(data_shape)
+    # ey1 = np.zeros(data_shape)
+    # ez1 = np.zeros(data_shape)
+    for rank in range(nprocs):
+        print("Rank: %d" % rank)
+        ix = rank % pic_info.topology_x
+        iz = rank / pic_info.topology_x
+        ix1 = ix * nx
+        ix2 = (ix + 1) * nx
+        iz1 = iz * nz
+        iz2 = (iz + 1) * nz
+        fname = ehydro_name + '.' + str(rank)
+        (vx, vy, vz, nrho) = read_hydro_velocity_density(fname, nx2, ny2, nz2, dsize)
+        # vex1[iz1:iz2, ix1:ix2] = vx[1:-1, 1:-1]
+        # vey1[iz1:iz2, ix1:ix2] = vy[1:-1, 1:-1]
+        # vez1[iz1:iz2, ix1:ix2] = vz[1:-1, 1:-1]
+        # ne1[iz1:iz2, ix1:ix2] = nrho[1:-1, 1:-1]
+        fname = field_name + '.' + str(rank)
+        (v0, pheader, fields) = read_fields(fname, nx2, ny2, nz2, dsize)
+        # ex1[iz1:iz2, ix1:ix2] = fields[0, 1:-1, 1, 1:-1]
+        # ey1[iz1:iz2, ix1:ix2] = fields[1, 1:-1, 1, 1:-1]
+        # ez1[iz1:iz2, ix1:ix2] = fields[2, 1:-1, 1, 1:-1]
+        ex = fields[0, :, 1, :]
+        ey = fields[1, :, 1, :]
+        ez = fields[2, :, 1, :]
+        # jdote2_sum += np.sum((ex[1:-1, 1:-1]*vx[1:-1, 1:-1] +
+        #                       ey[1:-1, 1:-1]*vy[1:-1, 1:-1] +
+        #                       ez[1:-1, 1:-1]*vz[1:-1, 1:-1])) * dx * dz
+        jdote2_sum += np.sum(0.5*(ex[1:-1, 1:-1] + ex[1:-1, 2:]) *
+            (vx[1:-1, 1:-1] + vx[2:, 1:-1] + vx[1:-1, 2:] + vx[2:, 2:])*0.25 +
+            0.25*(ey[1:-1, 1:-1] + ey[2:, 1:-1] + ey[1:-1:, 2:] + ey[2::, 2:]) *
+            0.25*(vy[1:-1, 1:-1] + vy[2:, 1:-1] + vy[1:-1:, 2:] + vy[2::, 2:]) +
+            0.5*(ez[1:-1, 1:-1] + ez[2:, 1:-1]) *
+            0.25*(vz[1:-1, 1:-1] + vz[2:, 1:-1] + vz[1:-1:, 2:] + vz[2::, 2:])) * dx * dz
+    # vex1 /= -ne1
+    # vey1 /= -ne1
+    # vez1 /= -ne1
+    # ne1 = np.abs(ne1)
+    # print(np.min(vex - vex1), np.max(vex - vex1))
+    # print(np.min(vey - vey1), np.max(vey - vey1))
+    # print(np.min(vez - vez1), np.max(vez - vez1))
+    # print(np.min(ex - ex1), np.max(ex - ex1))
+    # print(np.min(ey - ey1), np.max(ey - ey1))
+    # print(np.min(ez - ez1), np.max(ez - ez1))
+    # print(np.min(ne - ne1), np.max(ne - ne1))
+    # jdote2 = -(ex1 * vex1 + ey1 * vey1 + ez1 * vez1) * ne1
+    # jdote2_sum = np.sum(jdote2) * dx * dz
+
+    print("Total jdote at %d: %f %f" % (current_time, jdote1_sum, jdote2_sum))
+
+
+def calc_jpolar_dote(pic_info, current_time, run_dir, species):
+    """Calculate the energy conversion due to polarization drift (inertial term)
+    """
+    kwargs = {"current_time": current_time,
+              "xl": 0, "xr": 200, "zb": -50, "zt": 50 }
+    fname = run_dir + "data/v" + species + "x.gda"
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "y.gda"
+    x, z, vy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "z.gda"
+    x, z, vz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/n" + species + ".gda"
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "x.gda"
+    x, z, ux = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "y.gda"
+    x, z, uy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "z.gda"
+    x, z, uz = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/v" + species + "x_pre.gda"
+    x, z, vx_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "y_pre.gda"
+    x, z, vy_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "z_pre.gda"
+    x, z, vz_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/n" + species + "_pre.gda"
+    x, z, nrho_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "x_pre.gda"
+    x, z, ux_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "y_pre.gda"
+    x, z, uy_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "z_pre.gda"
+    x, z, uz_pre = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/v" + species + "x_post.gda"
+    x, z, vx_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "y_post.gda"
+    x, z, vy_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "z_post.gda"
+    x, z, vz_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/n" + species + "_post.gda"
+    x, z, nrho_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "x_post.gda"
+    x, z, ux_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "y_post.gda"
+    x, z, uy_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "z_post.gda"
+    x, z, uz_post = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/ex.gda"
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ey.gda"
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ez.gda"
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/ex_pre.gda"
+    x, z, ex_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ey_pre.gda"
+    x, z, ey_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ez_pre.gda"
+    x, z, ez_pre = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/ex_post.gda"
+    x, z, ex_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ey_post.gda"
+    x, z, ey_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ez_post.gda"
+    x, z, ez_post = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/bx.gda"
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/by.gda"
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/bz.gda"
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/absB.gda"
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/bx_pre.gda"
+    x, z, bx_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/by_pre.gda"
+    x, z, by_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/bz_pre.gda"
+    x, z, bz_pre = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/absB_pre.gda"
+    x, z, absB_pre = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/bx_post.gda"
+    x, z, bx_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/by_post.gda"
+    x, z, by_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/bz_post.gda"
+    x, z, bz_post = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/absB_post.gda"
+    x, z, absB_post = read_2d_fields(pic_info, fname, **kwargs)
+
+    if species == 'e':
+        pmass = 1.0
+        charge = -1.0
+    else:
+        pmass = pic_info.mime
+        charge = 1.0
+    idt = 0.5 / pic_info.dtwpe
+
+    ib2 = 1.0 / absB**2
+
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    dv = dx * dz
+    # jpolar_x = by * (vz_post - vz_pre) - bz * (vy_post - vy_pre)
+    # jpolar_y = bz * (vx_post - vx_pre) - bx * (vz_post - vz_pre)
+    # jpolar_z = bx * (vy_post - vy_pre) - by * (vx_post - vx_pre)
+    # jpolar_dote = pmass * idt * nrho * ib2* (jpolar_x * ex +
+    #                                          jpolar_y * ey +
+    #                                          jpolar_z * ez) 
+    # tmpx = (vx_post - vx_pre) * idt + vx * np.gradient(vx, dx, axis=1) + \
+    #         vz * np.gradient(vx, dz, axis=0)
+    # tmpy = (vy_post - vy_pre) * idt + vx * np.gradient(vy, dx, axis=1) + \
+    #         vz * np.gradient(vy, dz, axis=0)
+    # tmpz = (vz_post - vz_pre) * idt + vx * np.gradient(vz, dx, axis=1) + \
+    #         vz * np.gradient(vz, dz, axis=0)
+    # jpolar_x = by * tmpz - bz * tmpy
+    # jpolar_y = bz * tmpx - bx * tmpz
+    # jpolar_z = bx * tmpy - by * tmpx
+    # jpolar_dote = (jpolar_x * ex + jpolar_y * ey + jpolar_z * ez) * nrho * ib2 * pmass
+
+    # divp = np.gradient(ux*nrho, dx, axis=1) + \
+    #        np.gradient(uz*nrho, dz, axis=0)
+
+    # tmpx = (ux_post * nrho_post - ux_pre * nrho_pre) * idt
+    # tmpy = (uy_post * nrho_post - uy_pre * nrho_pre) * idt
+    # tmpz = (uz_post * nrho_post - uz_pre * nrho_pre) * idt
+
+    # tmpx += nrho * ux * np.gradient(vx, dx, axis=1) + \
+    #         nrho * uz * np.gradient(vx, dz, axis=0)
+    # tmpy += nrho * ux * np.gradient(vy, dx, axis=1) + \
+    #         nrho * uz * np.gradient(vy, dz, axis=0)
+    # tmpz += nrho * ux * np.gradient(vz, dx, axis=1) + \
+    #         nrho * uz * np.gradient(vz, dz, axis=0)
+
+    # tmpx += divp * vx
+    # tmpy += divp * vy
+    # tmpz += divp * vz
+
+    # jpolar_x = by * tmpz - bz * tmpy
+    # jpolar_y = bz * tmpx - bx * tmpz
+    # jpolar_z = bx * tmpy - by * tmpx
+    # jpolar_dote = (jpolar_x * ex + jpolar_y * ey + jpolar_z * ez) * ib2 * pmass
+
+    dt = pic_info.dtwpe * 2
+
+    # ib2 = 1.0 / absB_pre**2
+    # exb = ex_pre * bx_pre + ey_pre * by_pre + ez_pre * bz_pre
+    # eperpx_pre = ex_pre - exb * bx_pre * ib2
+    # eperpy_pre = ey_pre - exb * by_pre * ib2
+    # eperpz_pre = ez_pre - exb * bz_pre * ib2
+    # ib2 = 1.0 / absB_post**2
+    # exb = ex_post * bx_post + ey_post * by_post + ez_post * bz_post
+    # eperpx_post = ex_post - exb * bx_post * ib2
+    # eperpy_post = ey_post - exb * by_post * ib2
+    # eperpz_post = ez_post - exb * bz_post * ib2
+
+    # deperpx_dt = (eperpx_post / absB_post - eperpx_pre / absB_pre) / dt
+    # deperpy_dt = (eperpy_post / absB_post - eperpy_pre / absB_pre) / dt
+    # deperpz_dt = (eperpz_post / absB_post - eperpz_pre / absB_pre) / dt
+
+    # omega = charge * absB / pmass
+    # jpolar_dote = charge * nrho * (deperpx_dt * ex + deperpy_dt * ey + deperpz_dt * ez) / omega
+
+    ng = 3
+    kernel = np.ones((ng, ng)) / float(ng * ng)
+
+    # ib2 = 1.0 / absB_pre**2
+    # ex_pre = signal.convolve2d(ex_pre, kernel, 'same')
+    # ey_pre = signal.convolve2d(ey_pre, kernel, 'same')
+    # ez_pre = signal.convolve2d(ez_pre, kernel, 'same')
+    # bx_pre = signal.convolve2d(bx_pre, kernel, 'same')
+    # by_pre = signal.convolve2d(by_pre, kernel, 'same')
+    # bz_pre = signal.convolve2d(bz_pre, kernel, 'same')
+    # uexb_x_pre = (ey_pre * bz_pre - ez_pre * by_pre) * ib2
+    # uexb_y_pre = (ez_pre * bx_pre - ex_pre * bz_pre) * ib2
+    # uexb_z_pre = (ex_pre * by_pre - ey_pre * bx_pre) * ib2
+
+    # ib2 = 1.0 / absB_post**2
+    # ex_post = signal.convolve2d(ex_post, kernel, 'same')
+    # ey_post = signal.convolve2d(ey_post, kernel, 'same')
+    # ez_post = signal.convolve2d(ez_post, kernel, 'same')
+    # bx_post = signal.convolve2d(bx_post, kernel, 'same')
+    # by_post = signal.convolve2d(by_post, kernel, 'same')
+    # bz_post = signal.convolve2d(bz_post, kernel, 'same')
+    # uexb_x_post = (ey_post * bz_post - ez_post * by_post) * ib2
+    # uexb_y_post = (ez_post * bx_post - ex_post * bz_post) * ib2
+    # uexb_z_post = (ex_post * by_post - ey_post * bx_post) * ib2
+
+    # dux_dt = (uexb_x_post - uexb_x_pre) / dt
+    # duy_dt = (uexb_y_post - uexb_y_pre) / dt
+    # duz_dt = (uexb_z_post - uexb_z_pre) / dt
+
+    # ib2 = 1.0 / absB**2
+    # uexb_x = (ey * bz - ez * by) * ib2
+    # uexb_y = (ez * bx - ex * bz) * ib2
+    # uexb_z = (ex * by - ey * bx) * ib2
+    # dux_dt += vx * np.gradient(uexb_x, dx, axis=1) + vz * np.gradient(uexb_x, dz, axis=1)
+    # duy_dt += vx * np.gradient(uexb_y, dx, axis=1) + vz * np.gradient(uexb_y, dz, axis=1)
+    # duz_dt += vx * np.gradient(uexb_z, dx, axis=1) + vz * np.gradient(uexb_z, dz, axis=1)
+
+    # upolar_x = (by * duz_dt - bz * duy_dt) * ib2 * pmass / charge
+    # upolar_y = (bz * dux_dt - bx * duz_dt) * ib2 * pmass / charge
+    # upolar_z = (bx * duy_dt - by * dux_dt) * ib2 * pmass / charge
+
+    # jpolar_dote = (ex * upolar_x + ey * upolar_y + ez * upolar_z) * charge * nrho
+
+    tmpx = (ux_post - ux_pre) * idt
+    tmpy = (uy_post - uy_pre) * idt
+    tmpz = (uz_post - uz_pre) * idt
+    # tmpx += vx * np.gradient(ux, dx, axis=1) + vz * np.gradient(ux, dz, axis=0)
+    # tmpy += vx * np.gradient(uy, dx, axis=1) + vz * np.gradient(uy, dz, axis=0)
+    # tmpz += vx * np.gradient(uz, dx, axis=1) + vz * np.gradient(uz, dz, axis=0)
+    jpolar_x = by * tmpz - bz * tmpy
+    jpolar_y = bz * tmpx - bx * tmpz
+    jpolar_z = bx * tmpy - by * tmpx
+    jpolar_dote = (jpolar_x * ex + jpolar_y * ey + jpolar_z * ez) * ib2 * nrho * pmass
+    jpolar_dote = signal.convolve2d(jpolar_dote, kernel, 'same')
+
+    print("Min and max: %f %f" % (np.min(jpolar_dote), np.max(jpolar_dote)))
+    jpolar_dote_tot = np.sum(jpolar_dote) * dv
+    print(jpolar_dote_tot)
+    vmin = -3.0
+    vmax = -vmin
+    # plt.imshow(jpolar_dote, cmap=plt.cm.seismic,
+    #            vmin=vmin, vmax=vmax)
+    jpolar_dote_cum = np.cumsum(np.sum(jpolar_dote, axis=0))
+    plt.plot(x, jpolar_dote_cum * dv, linewidth=2)
+    plt.show()
+
+    return jpolar_dote_tot
+
+
+def calc_comperssional_heating(pic_info, current_time, run_dir, species):
+    """Calculate the energy conversion due to compression 
+    """
+    kwargs = {"current_time": current_time,
+              "xl": 0, "xr": 200, "zb": -50, "zt": 50 }
+    fname = run_dir + "data/ex.gda"
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ey.gda"
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ez.gda"
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/bx.gda"
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/by.gda"
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/bz.gda"
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/absB.gda"
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/p" + species + "-xx.gda"
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-yy.gda"
+    x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-zz.gda"
+    x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-xy.gda"
+    x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-xz.gda"
+    x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-yz.gda"
+    x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-yx.gda"
+    x, z, pyx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-zx.gda"
+    x, z, pzx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/p" + species + "-zy.gda"
+    x, z, pzy = read_2d_fields(pic_info, fname, **kwargs)
+
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    dv = dx * dz
+
+    ib2 = 1.0 / absB**2
+    vx_exb = (ey * bz - ez * by) * ib2
+    vy_exb = (ez * bx - ex * bz) * ib2
+    vz_exb = (ex * by - ey * bx) * ib2
+    divv = np.gradient(vx_exb, dx, axis=1) + \
+           np.gradient(vz_exb, dz, axis=0)
+    sigmaxx = np.gradient(vx_exb, dx, axis=1) - divv / 3.0
+    sigmayy = -divv / 3.0
+    sigmazz = np.gradient(vz_exb, dz, axis=0) - divv / 3.0
+    sigmaxy = 0.5 * np.gradient(vy_exb, dx, axis=1)
+    sigmaxz = 0.5 * (np.gradient(vz_exb, dx, axis=1) + 
+                     np.gradient(vx_exb, dz, axis=0))
+    sigmayz = 0.5 * np.gradient(vy_exb, dz, axis=0)
+
+    bbsigma = sigmaxx * bx**2 + sigmayy * by**2 + sigmazz * bz**2 + \
+              2.0 * sigmaxy * bx * by + 2.0 * sigmaxz * bx * bz + \
+              2.0 * sigmayz * by * bz
+    bbsigma *= ib2
+
+    pscalar = (pxx + pyy + pzz) / 3.0
+    ppara = pxx * bx**2 + pyy * by**2 + pzz * bz**2 + \
+            (pxy + pyx) * bx * by + (pxz + pzx) * bx * bz + \
+            (pyz + pzy) * by * bz
+    ppara *= ib2
+    pperp = (pscalar * 3 - ppara) * 0.5
+    ecov_comp = -np.sum(pscalar*divv) * dv
+    ecov_shear = np.sum((pperp - ppara) * bbsigma) * dv
+
+    divpx = np.gradient(pxx, dx, axis=1) + np.gradient(pxz, dz, axis=0)
+    divpy = np.gradient(pyx, dx, axis=1) + np.gradient(pyz, dz, axis=0)
+    divpz = np.gradient(pzx, dx, axis=1) + np.gradient(pzz, dz, axis=0)
+    ecov = divpx * vx_exb + divpy * vy_exb + divpz * vz_exb
+    ecov_pre1 = np.sum(ecov) * dv
+
+    dvx_dx = np.gradient(vx_exb, dx, axis=1)
+    dvy_dx = np.gradient(vy_exb, dx, axis=1)
+    dvz_dx = np.gradient(vz_exb, dx, axis=1)
+    dvx_dz = np.gradient(vx_exb, dz, axis=0)
+    dvy_dz = np.gradient(vy_exb, dz, axis=0)
+    dvz_dz = np.gradient(vz_exb, dz, axis=0)
+    ecov = pxx * dvx_dx + pxy * dvy_dx + pxz * dvz_dx + \
+           pzx * dvx_dz + pzy * dvy_dz + pzz * dvz_dz
+    ecov_pre2 = np.sum(ecov) * dv
+
+    print(ecov_comp, ecov_shear, ecov_pre1, ecov_pre2)
+
+
+def calc_para_perp_heating(pic_info, current_time, run_dir, species):
+    """Calculate the energy conversion due to para and perp E-field 
+    """
+    kwargs = {"current_time": current_time,
+              "xl": 0, "xr": 200, "zb": -50, "zt": 50 }
+    fname = run_dir + "data/ex.gda"
+    x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ey.gda"
+    x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/ez.gda"
+    x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/bx.gda"
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/by.gda"
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/bz.gda"
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/absB.gda"
+    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/v" + species + "x.gda"
+    x, z, vx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "y.gda"
+    x, z, vy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "z.gda"
+    x, z, vz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/n" + species + ".gda"
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+
+    smime = math.sqrt(pic_info.mime)
+    dx = (x[1] - x[0]) * smime
+    dz = (z[1] - z[0]) * smime
+    dxh = 0.5 * dx
+    dzh = 0.5 * dz
+    lx = pic_info.lx_di * smime
+    lz = pic_info.lz_di * smime
+    nx = pic_info.nx
+    nz = pic_info.nz
+    x1 = np.linspace(-dxh, lx + dxh, nx + 2)
+    x2 = np.linspace(-dx, lx, nx + 2)
+    z1 = np.linspace(-dzh - 0.5 * lz, 0.5 * lz + dzh, nz + 2)
+    z2 = np.linspace(-dz - 0.5 * lz, 0.5 * lz, nz + 2)
+
+    f_ex = RectBivariateSpline(x1[1:-1], z2[1:-1], ex.T)
+    f_ey = RectBivariateSpline(x2[1:-1], z2[1:-1], ey.T)
+    f_ez = RectBivariateSpline(x2[1:-1], z1[1:-1], ez.T)
+    f_bx = RectBivariateSpline(x2[1:-1], z1[1:-1], bx.T)
+    f_by = RectBivariateSpline(x1[1:-1], z1[1:-1], by.T)
+    f_bz = RectBivariateSpline(x1[1:-1], z2[1:-1], bz.T)
+    f_vx = RectBivariateSpline(x2[1:-1], z2[1:-1], vx.T)
+    f_vy = RectBivariateSpline(x2[1:-1], z2[1:-1], vy.T)
+    f_vz = RectBivariateSpline(x2[1:-1], z2[1:-1], vz.T)
+    f_nrho = RectBivariateSpline(x2[1:-1], z2[1:-1], nrho.T)
+
+    xv, zv = np.meshgrid(x1[1:-1], z1[1:-1])
+
+    ex = f_ex(xv, zv, grid=False)
+    ey = f_ey(xv, zv, grid=False)
+    ez = f_ez(xv, zv, grid=False)
+    bx = f_bx(xv, zv, grid=False)
+    by = f_by(xv, zv, grid=False)
+    bz = f_bz(xv, zv, grid=False)
+    vx = f_vx(xv, zv, grid=False)
+    vy = f_vy(xv, zv, grid=False)
+    vz = f_vz(xv, zv, grid=False)
+    nrho = f_nrho(xv, zv, grid=False)
+
+    absB = np.sqrt(bx**2 + by**2 + bz**2)
+
+    charge = -1 if species == 'e' else 1.0
+
+    ib2 = 1.0 / absB**2
+    vdotB = vx * bx + vy * by + vz * bz
+    vparax = vdotB * bx * ib2
+    vparay = vdotB * by * ib2
+    vparaz = vdotB * bz * ib2
+
+    dv = dx * dz
+    jdote_para = charge * nrho * (vparax * ex + vparay * ey + vparaz * ez)
+    jdote_perp = charge * nrho * (vx * ex + vy * ey + vz * ez) - jdote_para
+
+    jdote_para_tot = np.sum(jdote_para) * dv
+    jdote_perp_tot = np.sum(jdote_perp) * dv
+
+    print(jdote_para_tot, jdote_perp_tot)
+
+    jdotes = np.asarray([jdote_para_tot, jdote_perp_tot])
+
+    return jdotes
+
+
+def calc_jpolar_dote_multi(pic_info, run_dir, run_name, species):
+    """
+    """
+    ntf = pic_info.ntf
+    # jdote = np.zeros(ntf)
+    jdote = np.zeros((ntf, 2))
+    # calc_jpolar_dote(pic_info, 30, run_dir, species)
+    # calc_para_perp_heating(pic_info, 10, run_dir, species)
+    # calc_comperssional_heating(pic_info, 30, run_dir, species)
+    for ct in range(ntf):
+        print(ct)
+        # jdote[ct] = calc_jpolar_dote(pic_info, ct, base_dir, species)
+        jdote[ct] = calc_para_perp_heating(pic_info, ct, run_dir, species)
+
+    # var = 'jpolar_dote'
+    var = 'jpara_perp_dote'
+    fdir = '../data/jdote_data/' + var + '/'
+    mkdir_p(fdir)
+    fname = fdir + var + '_' + run_name + '_' + species + '.dat'
+    jdote.tofile(fname)
+    jdote = np.fromfile(fname)
+    jdote = jdote.reshape((ntf, 2))
+    fig, ax = plt.subplots()
+    ax.plot(jdote, linewidth=2)
+    ax.plot(np.sum(jdote, axis=1), linewidth=2)
+    ax.set_ylim([-0.15, 0.15])
+    plt.show()
+
+
 if __name__ == "__main__":
     cmdargs = sys.argv
     if (len(cmdargs) > 2):
@@ -2426,8 +3065,10 @@ if __name__ == "__main__":
         run_name = 'sigma1-mime25-beta001-average'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    # # save_compression_json_single(pic_info, run_name)
+    # save_compression_json_single(pic_info, run_name)
     plot_compression_time(pic_info, run_name, 'i')
+    # calc_jpolar_dote_multi(pic_info, base_dir, run_name, 'e')
+    # jdote_calculation_test(pic_info, base_dir, 60)
     # compression_ratio_apjl_runs()
     # plot_compression_time_both(pic_info, run_name)
     # plot_compression_shear_single(pic_info, base_dir, run_name, 'e', 25)
