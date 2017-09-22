@@ -491,6 +491,26 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     dkene = pic_info.dkene_e
     kene = pic_info.kene_e
     kename = r'$\dot{K_e}$'
+    
+    f1 = interp1d(tenergy, pic_info.dkene_e, 'linear')
+    f2 = interp1d(tenergy, pic_info.dkene_i, 'linear')
+
+    dkene_e = f1(tfields)
+    dkene_i = f2(tfields)
+
+    print("-"*(6 + 13 * 6))
+    print(("%5s|" + "%12s|" * 6) % ("Frame", "jpara_dote_e", "jperp_dote_e",
+                                  "dKe/dt", "jpara_dote_i", "jperp_dote_i",
+                                  "dKi/dt"))
+    print("-"*(6 + 13 * 6))
+    for tframe in range(0, pic_info.ntf, 10):
+        print(("%5d|" + "%12.4f|" * 6) % (tframe,
+                                          jdote_e.jqnupara_dote[tframe],
+                                          jdote_e.jqnuperp_dote[tframe],
+                                          dkene_e[tframe],
+                                          jdote_i.jqnupara_dote[tframe],
+                                          jdote_i.jqnuperp_dote[tframe],
+                                          dkene_i[tframe]))
 
     #fig, axes = plt.subplots(2, sharex=True, sharey=False)
     fig = plt.figure(figsize=[7, 5])
@@ -506,7 +526,7 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     colors_en[0] = colors[0]
     colors_en[1] = colors[2]
     colors_en[2] = colors[1]
-    ax1.set_color_cycle(colors_en)
+    ax1.set_prop_cycle('color', colors_en)
     ax1.plot(
         tfields,
         jdote_e.jqnuperp_dote,
@@ -540,8 +560,10 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     # ax1.yaxis.set_ticks_position('none')
     # ax1.xaxis.set_ticks_position('bottom')
     ax1.tick_params(axis='x', labelbottom='off')
-    # ax1.set_xlim([np.min(tenergy), np.max(tenergy)])
-    ax1.set_xlim([0, 800])
+    if (tenergy[-1] < 800):
+        ax1.set_xlim([0, tenergy[-1]])
+    else:
+        ax1.set_xlim([0, 800])
     dmax = np.max([jdote_e.jqnuperp_dote, jdote_e.jqnupara_dote, jtot_dote])
     dmin = np.min(
         [jdote_e.jqnuperp_dote[2:], jdote_e.jqnupara_dote[2:], jtot_dote[2:]])
@@ -633,7 +655,7 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     # if not os.path.isdir('../img/'):
     #     os.makedirs('../img/')
     # fig.savefig('../img/jpp_dote.eps')
-    # plt.show()
+    plt.show()
 
 
 def plot_jtot_dote():
@@ -1437,7 +1459,11 @@ if __name__ == "__main__":
     # plot_energy_evolution(pic_info)
     # plot_particle_energy_gain()
     # plot_jdotes_evolution(pic_info, jdote, species)
-    # plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
+    jdote_e_fname = '../data/jdote_data/jdote_' + run_name_new + '_e.json'
+    jdote_i_fname = '../data/jdote_data/jdote_' + run_name_new + '_i.json'
+    jdote_e = read_data_from_json(jdote_e_fname)
+    jdote_i = read_data_from_json(jdote_i_fname)
+    plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
