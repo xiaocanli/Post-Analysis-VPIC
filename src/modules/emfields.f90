@@ -126,29 +126,35 @@ module emfields
         nc3 = fheader%nc(3) - 1
 
         read(fh) buffer
-        ex(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(2:nc1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(2:nc1, 3:nc2+1, 3:nc3+1)) * 0.25
+        ! ex(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(2:nc1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(2:nc1, 3:nc2+1, 3:nc3+1)) * 0.25
+        ex(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ey(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1)) * 0.25
+        ! ey(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1)) * 0.25
+        ey(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ez(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3)) * 0.25
+        ! ez(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3)) * 0.25
+        ez(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         if (is_only_emf == 0) then
             read(fh) buffer  ! Skip div_e_err
         endif
         read(fh) buffer
-        bx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3)) * 0.5
+        ! bx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3)) * 0.5
+        bx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        by(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(2:nc1, 3:nc2+1, 2:nc3)) * 0.5
+        ! by(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(2:nc1, 3:nc2+1, 2:nc3)) * 0.5
+        by(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        bz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(2:nc1, 2:nc2, 3:nc3+1)) * 0.5
+        ! bz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(2:nc1, 2:nc2, 3:nc3+1)) * 0.5
+        bz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         deallocate(buffer)
         close(fh)
     end subroutine read_emfields_single
@@ -157,27 +163,49 @@ module emfields
     ! Save electromagnetic fields.
     !   tindex: the time step index.
     !   output_record: it decides the offset from the file head.
+    !   with_suffix: whether files will have suffix
+    !   suffix: indicates the kind of data
     !---------------------------------------------------------------------------
-    subroutine write_emfields(tindex, output_record)
+    subroutine write_emfields(tindex, output_record, with_suffix, suffix)
         use path_info, only: rootpath
         use mpi_io_translate, only: write_data
         implicit none
         integer, intent(in) :: tindex, output_record
-        call write_data(trim(adjustl(rootpath))//'data/ex', &
-                        ex, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/ey', &
-                        ey, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/ez', &
-                        ez, tindex, output_record)
+        logical, intent(in) :: with_suffix
+        character(*), intent(in) :: suffix
+        if (with_suffix) then
+            call write_data(trim(adjustl(rootpath))//'data/ex'//suffix, &
+                            ex, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/ey'//suffix, &
+                            ey, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/ez'//suffix, &
+                            ez, tindex, output_record)
 
-        call write_data(trim(adjustl(rootpath))//'data/bx', &
-                        bx, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/by', &
-                        by, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/bz', &
-                        bz, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/absB', &
-                        absB, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/bx'//suffix, &
+                            bx, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/by'//suffix, &
+                            by, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/bz'//suffix, &
+                            bz, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/absB'//suffix, &
+                            absB, tindex, output_record)
+        else
+            call write_data(trim(adjustl(rootpath))//'data/ex', &
+                            ex, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/ey', &
+                            ey, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/ez', &
+                            ez, tindex, output_record)
+
+            call write_data(trim(adjustl(rootpath))//'data/bx', &
+                            bx, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/by', &
+                            by, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/bz', &
+                            bz, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/absB', &
+                            absB, tindex, output_record)
+        endif
     end subroutine write_emfields
 
 end module emfields

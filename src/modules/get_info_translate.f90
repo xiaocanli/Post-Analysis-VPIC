@@ -14,10 +14,14 @@ module time_info
 
     !---------------------------------------------------------------------------
     ! Get PIC the number of iterations between output files.
+    !
+    ! Args:
+    !   frequent_dump: whether VPIC saves fields from previous and next time steps
     !---------------------------------------------------------------------------
-    subroutine get_nout
+    subroutine get_nout(frequent_dump)
         implicit none
         logical :: dfile
+        logical, intent(in) :: frequent_dump
         character(len=150) :: fname
 
         if (myid == master) then
@@ -32,6 +36,10 @@ module time_info
             enddo
             tindex_first = tindex
             dfile = .false.
+
+            if (frequent_dump) then
+                tindex = tindex + 2 ! Skip two steps
+            endif
 
             do while(.not.dfile)
                 tindex = tindex + 1

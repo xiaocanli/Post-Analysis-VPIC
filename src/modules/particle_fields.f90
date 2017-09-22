@@ -292,33 +292,33 @@ module particle_fields
                 izl, izh, nc1, nc2, nc3)
         
         read(fh) buffer
-        vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        nrho(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! nrho(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
 
         if (is_rel == 1) then
             read(fh) buffer
@@ -331,47 +331,47 @@ module particle_fields
         endif
 
         read(fh) buffer
-        pxx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! pxx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pyy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! pyy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pzz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! pzz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pyz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! pyz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pxz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! pxz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        pxy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
-        ! pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        ! pxy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         
         ! Particle fraction in each energy band.
         if (nbands > 0) then
@@ -413,23 +413,26 @@ module particle_fields
                 izl, izh, nc1, nc2, nc3)
         
         read(fh) buffer
-        vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-            buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-            buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-            buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-            buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        ! vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
+        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
+        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
+        vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
 
         if (is_rel == 1) then
@@ -658,54 +661,102 @@ module particle_fields
     !   tindex: the time step index.
     !   output_record: it decides the offset from the file head.
     !   species: 'e' for electron. 'i' for ion.
+    !   with_suffix: whether files will have suffix
+    !   suffix: indicates the kind of data
     !---------------------------------------------------------------------------
-    subroutine write_particle_fields(tindex, output_record, species)
+    subroutine write_particle_fields(tindex, output_record, species, &
+                                     with_suffix, suffix)
         use mpi_io_translate, only: write_data
         implicit none
         integer, intent(in) :: tindex, output_record
         character(len=1), intent(in) :: species
-        character(len=150) :: fname
+        character(*), intent(in) :: suffix
+        logical, intent(in) :: with_suffix
+        character(len=256) :: fname
         integer :: ib
-        fname = trim(adjustl(rootpath))//'data/v'//species//'x'
-        call write_data(fname, vx, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/v'//species//'y'
-        call write_data(fname, vy, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/v'//species//'z'
-        call write_data(fname, vz, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/n'//species
-        call write_data(fname, nrho, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/p'//species//'-xx'
-        call write_data(fname, pxx, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/p'//species//'-yy'
-        call write_data(fname, pyy, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/p'//species//'-zz'
-        call write_data(fname, pzz, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/p'//species//'-yz'
-        call write_data(fname, pyz, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/p'//species//'-xz'
-        call write_data(fname, pxz, tindex, output_record)
-        fname = trim(adjustl(rootpath))//'data/p'//species//'-xy'
-        call write_data(fname, pxy, tindex, output_record)
+        if (with_suffix) then
+            fname = trim(adjustl(rootpath))//'data/v'//species//'x'//suffix
+            call write_data(fname, vx, tindex, output_record)              
+            fname = trim(adjustl(rootpath))//'data/v'//species//'y'//suffix
+            call write_data(fname, vy, tindex, output_record)              
+            fname = trim(adjustl(rootpath))//'data/v'//species//'z'//suffix
+            call write_data(fname, vz, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/n'//species//suffix
+            call write_data(fname, nrho, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-xx'//suffix
+            call write_data(fname, pxx, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-yy'//suffix
+            call write_data(fname, pyy, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-zz'//suffix
+            call write_data(fname, pzz, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-yz'//suffix
+            call write_data(fname, pyz, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-xz'//suffix
+            call write_data(fname, pxz, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-xy'//suffix
+            call write_data(fname, pxy, tindex, output_record)
+        else
+            fname = trim(adjustl(rootpath))//'data/v'//species//'x'
+            call write_data(fname, vx, tindex, output_record)      
+            fname = trim(adjustl(rootpath))//'data/v'//species//'y'
+            call write_data(fname, vy, tindex, output_record)      
+            fname = trim(adjustl(rootpath))//'data/v'//species//'z'
+            call write_data(fname, vz, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/n'//species
+            call write_data(fname, nrho, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-xx'
+            call write_data(fname, pxx, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-yy'
+            call write_data(fname, pyy, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-zz'
+            call write_data(fname, pzz, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-yz'
+            call write_data(fname, pyz, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-xz'
+            call write_data(fname, pxz, tindex, output_record)       
+            fname = trim(adjustl(rootpath))//'data/p'//species//'-xy'
+            call write_data(fname, pxy, tindex, output_record)
+        endif
 
         if (is_rel == 1) then
-            fname = trim(adjustl(rootpath))//'data/u'//species//'x'
-            call write_data(fname, ux, tindex, output_record)
-            fname = trim(adjustl(rootpath))//'data/u'//species//'y'
-            call write_data(fname, uy, tindex, output_record)
-            fname = trim(adjustl(rootpath))//'data/u'//species//'z'
-            call write_data(fname, uz, tindex, output_record)
-            fname = trim(adjustl(rootpath))//'data/p'//species//'-yx'
-            call write_data(fname, pyx, tindex, output_record)
-            fname = trim(adjustl(rootpath))//'data/p'//species//'-zx'
-            call write_data(fname, pzx, tindex, output_record)
-            fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'
-            call write_data(fname, pzy, tindex, output_record)
+            if (with_suffix) then
+                fname = trim(adjustl(rootpath))//'data/u'//species//'x'//suffix
+                call write_data(fname, ux, tindex, output_record)              
+                fname = trim(adjustl(rootpath))//'data/u'//species//'y'//suffix
+                call write_data(fname, uy, tindex, output_record)              
+                fname = trim(adjustl(rootpath))//'data/u'//species//'z'//suffix
+                call write_data(fname, uz, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/p'//species//'-yx'//suffix
+                call write_data(fname, pyx, tindex, output_record)       
+                fname = trim(adjustl(rootpath))//'data/p'//species//'-zx'//suffix
+                call write_data(fname, pzx, tindex, output_record)       
+                fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'//suffix
+                call write_data(fname, pzy, tindex, output_record)
+            else
+                fname = trim(adjustl(rootpath))//'data/u'//species//'x'
+                call write_data(fname, ux, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'y'
+                call write_data(fname, uy, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'z'
+                call write_data(fname, uz, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/p'//species//'-yx'
+                call write_data(fname, pyx, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/p'//species//'-zx'
+                call write_data(fname, pzx, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'
+                call write_data(fname, pzy, tindex, output_record)
+            endif
         endif
                     
         if (nbands > 0) then
             do ib = 1, nbands
-                write(fname, '(A,A,A,I2.2)') &
-                    trim(adjustl(rootpath))//'data/', species, 'EB', ib
+                if (with_suffix) then
+                    write(fname, '(A,A,A,I2.2,A)') &
+                        trim(adjustl(rootpath))//'data/', species, 'EB', ib, suffix
+                else
+                    write(fname, '(A,A,A,I2.2)') &
+                        trim(adjustl(rootpath))//'data/', species, 'EB', ib
+                endif
                 call write_data(fname, reshape(eb(:, :, :, ib), shape(nrho)), &
                                 tindex, output_record)
             enddo
@@ -714,18 +765,33 @@ module particle_fields
 
     !---------------------------------------------------------------------------
     ! Save current densities to file.
+    !   with_suffix: whether files will have suffix
+    !   suffix: indicates the kind of data
     !---------------------------------------------------------------------------
-    subroutine write_current_densities(tindex, output_record)
+    subroutine write_current_densities(tindex, output_record, with_suffix, suffix)
         use mpi_io_translate, only: write_data
         implicit none
         integer, intent(in) :: tindex, output_record
-        call write_data(trim(adjustl(rootpath))//'data/jx', &
-                        jx, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/jy', &
-                        jy, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/jz', &
-                        jz, tindex, output_record)
-        call write_data(trim(adjustl(rootpath))//'data/absJ', &
-                        absJ, tindex, output_record)
+        logical, intent(in) :: with_suffix
+        character(*), intent(in) :: suffix
+        if (with_suffix) then
+            call write_data(trim(adjustl(rootpath))//'data/jx'//suffix, &
+                            jx, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/jy'//suffix, &
+                            jy, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/jz'//suffix, &
+                            jz, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/absJ'//suffix, &
+                            absJ, tindex, output_record)
+        else
+            call write_data(trim(adjustl(rootpath))//'data/jx', &
+                            jx, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/jy', &
+                            jy, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/jz', &
+                            jz, tindex, output_record)
+            call write_data(trim(adjustl(rootpath))//'data/absJ', &
+                            absJ, tindex, output_record)
+        endif
     end subroutine write_current_densities
 end module particle_fields
