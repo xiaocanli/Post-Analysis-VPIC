@@ -776,39 +776,61 @@ module current_densities
                         ib2 = 1.0/(btot1*btot1)
 
                         ! vdx1... here is actually 4-velocity
-                        duxdt = (vdx2(ix,iy,iz)*nrho2(ix,iy,iz) - &
-                                 vdx1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
-                        duydt = (vdy2(ix,iy,iz)*nrho2(ix,iy,iz) - &
-                                 vdy1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
-                        duzdt = (vdz2(ix,iy,iz)*nrho2(ix,iy,iz) - &
-                                 vdz1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        ! duxdt = (vdx2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                        !          vdx1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        ! duydt = (vdy2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                        !          vdy1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
+                        ! duzdt = (vdz2(ix,iy,iz)*nrho2(ix,iy,iz) - &
+                        !          vdz1(ix,iy,iz)*nrho1(ix,iy,iz)) * idt
 
-                        duxdt = (ux(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
-                                 ux(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
+                        ! duxdt = (ux(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                        !          ux(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
+                        !         vx(ix,iy,iz) * idx(ix) + &
+                        !         (ux(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                        !          ux(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
+                        !         vy(ix,iy,iz) * idy(iy) + &
+                        !         (ux(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                        !          ux(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
+                        !         vz(ix,iy,iz) * idz(iz) + duxdt
+                        ! duydt = (uy(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                        !          uy(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
+                        !         vx(ix,iy,iz) * idx(ix) + &
+                        !         (uy(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                        !          uy(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
+                        !         vy(ix,iy,iz) * idy(iy) + &
+                        !         (uy(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                        !          uy(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
+                        !         vz(ix,iy,iz) * idz(iz) + duydt
+                        ! duzdt = (uz(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
+                        !          uz(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
+                        !         vx(ix,iy,iz) * idx(ix) + &
+                        !         (uz(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
+                        !          uz(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
+                        !         vy(ix,iy,iz) * idy(iy) + &
+                        !         (uz(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
+                        !          uz(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
+                        !         vz(ix,iy,iz) * idz(iz) + duzdt
+                        duxdt = (vdx2(ix,iy,iz) - vdx1(ix,iy,iz)) * idt
+                        duydt = (vdy2(ix,iy,iz) - vdy1(ix,iy,iz)) * idt
+                        duzdt = (vdz2(ix,iy,iz) - vdz1(ix,iy,iz)) * idt
+
+                        duxdt = (ux(ixh(ix),iy,iz) - ux(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (ux(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
-                                 ux(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
+                                (ux(ix,iyh(iy),iz) - ux(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (ux(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
-                                 ux(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
+                                (ux(ix,iy,izh(iz)) - ux(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + duxdt
-                        duydt = (uy(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
-                                 uy(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
+                        duydt = (uy(ixh(ix),iy,iz) - uy(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (uy(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
-                                 uy(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
+                                (uy(ix,iyh(iy),iz) - uy(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (uy(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
-                                 uy(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
+                                (uy(ix,iy,izh(iz)) - uy(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + duydt
-                        duzdt = (uz(ixh(ix),iy,iz)*num_rho(ixh(ix),iy,iz) - &
-                                 uz(ixl(ix),iy,iz)*num_rho(ixl(ix),iy,iz)) * &
+                        duzdt = (uz(ixh(ix),iy,iz) - uz(ixl(ix),iy,iz)) * &
                                 vx(ix,iy,iz) * idx(ix) + &
-                                (uz(ix,iyh(iy),iz)*num_rho(ix,iyh(iy),iz) - &
-                                 uz(ix,iyl(iy),iz)*num_rho(ix,iyl(iy),iz)) * &
+                                (uz(ix,iyh(iy),iz) - uz(ix,iyl(iy),iz)) * &
                                 vy(ix,iy,iz) * idy(iy) + &
-                                (uz(ix,iy,izh(iz))*num_rho(ix,iy,izh(iz)) - &
-                                 uz(ix,iy,izl(iz))*num_rho(ix,iy,izl(iz))) * &
+                                (uz(ix,iy,izh(iz)) - uz(ix,iy,izl(iz))) * &
                                 vz(ix,iy,iz) * idz(iz) + duzdt
                         jx1(ix,iy,iz) = -(duydt*bz1 - duzdt*by1) * ib2
                         jy1(ix,iy,iz) = -(duzdt*bx1 - duxdt*bz1) * ib2
@@ -816,6 +838,9 @@ module current_densities
                     enddo
                 enddo
             enddo
+            jx1 = jx1 * num_rho
+            jy1 = jy1 * num_rho
+            jz1 = jz1 * num_rho
         else
             do iz = 1, nz
                 do iy = 1, ny
