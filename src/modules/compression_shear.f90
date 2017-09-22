@@ -13,7 +13,7 @@ module compression_shear
            free_div_vdot_ptensor, calc_div_vdot_ptensor, &
            save_div_vdot_ptensor, save_tot_div_vdot_ptensor, &
            init_div_v, free_div_v, calc_div_v, calc_div_v_single, &
-           calc_bbsigma_single
+           calc_bbsigma_single, calc_exb_drift
 
     real(fp), allocatable, dimension(:, :, :) :: pdiv_v, pshear, &
         pdiv_vsingle, pshear_vsingle, pdiv_vpara_vsingle, pshear_para_vsingle
@@ -25,15 +25,17 @@ module compression_shear
     real(fp), allocatable, dimension(:, :, :) :: vdot_ptensor_x, &
             vdot_ptensor_y, vdot_ptensor_z, div_vdot_ptensor
     real(fp), allocatable, dimension(:,:,:) :: vpx, vpy, vpz, vdotb
+    real(fp), allocatable, dimension(:,:,:) :: exb_x, exb_y, exb_z
 
     contains
 
     !---------------------------------------------------------------------------
     ! Initialize the data arrays.
     !---------------------------------------------------------------------------
-    subroutine init_compression_shear
+    subroutine init_compression_shear(use_exb_drift)
         implicit none
-        call init_compression
+        logical, intent(in) :: use_exb_drift
+        call init_compression(use_exb_drift)
         call init_shear
         call init_vdot_div_ptensor
         call init_div_vdot_ptensor
@@ -52,8 +54,9 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Initialize div_v, pdiv_v.
     !---------------------------------------------------------------------------
-    subroutine init_compression
+    subroutine init_compression(use_exb_drift)
         implicit none
+        logical, intent(in) :: use_exb_drift
         allocate(div_v(htg%nx, htg%ny, htg%nz))
         allocate(pdiv_v(htg%nx, htg%ny, htg%nz))
         allocate(div_vsingle(htg%nx, htg%ny, htg%nz))
@@ -74,6 +77,15 @@ module compression_shear
         vdotb = 0.0
         pdiv_vsingle = 0.0
         pdiv_vpara_vsingle = 0.0
+
+        if (use_exb_drift) then
+            allocate(exb_x(htg%nx, htg%ny, htg%nz))
+            allocate(exb_y(htg%nx, htg%ny, htg%nz))
+            allocate(exb_z(htg%nx, htg%ny, htg%nz))
+            exb_x = 0.0
+            exb_y = 0.0
+            exb_z = 0.0
+        endif
     end subroutine init_compression
 
     !---------------------------------------------------------------------------
@@ -122,9 +134,10 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Free the data arrays.
     !---------------------------------------------------------------------------
-    subroutine free_compression_shear
+    subroutine free_compression_shear(use_exb_drift)
         implicit none
-        call free_compression
+        logical, intent(in) :: use_exb_drift
+        call free_compression(use_exb_drift)
         call free_shear
         call free_vdot_div_ptensor
         call free_div_vdot_ptensor
@@ -141,12 +154,16 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Free div_v, pdiv_v.
     !---------------------------------------------------------------------------
-    subroutine free_compression
+    subroutine free_compression(use_exb_drift)
         implicit none
+        logical, intent(in) :: use_exb_drift
         deallocate(div_v, pdiv_v)
         deallocate(div_vsingle, div_vpara_vsingle)
         deallocate(vpx, vpy, vpz, vdotb)
         deallocate(pdiv_vsingle, pdiv_vpara_vsingle)
+        if (use_exb_drift) then
+            deallocate(exb_x, exb_y, exb_z)
+        endif
     end subroutine free_compression
 
     !---------------------------------------------------------------------------
@@ -175,6 +192,17 @@ module compression_shear
         deallocate(div_vdot_ptensor)
         deallocate(vdot_ptensor_x, vdot_ptensor_y, vdot_ptensor_z)
     end subroutine free_div_vdot_ptensor
+
+    !---------------------------------------------------------------------------
+    ! Calculate ExB drift
+    !---------------------------------------------------------------------------
+    subroutine calc_exb_drift
+        use pic_fields, only: ex, ey, ez, bx, by, bz, absB
+        implicit none
+        exb_x = (ey * bz - ez * by) / absB**2
+        exb_y = (ez * bx - ex * bz) / absB**2
+        exb_z = (ex * by - ey * bx) / absB**2
+    end subroutine calc_exb_drift
 
     !---------------------------------------------------------------------------
     ! Calculate the divergence of v.
@@ -206,38 +234,69 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Calculate the divergence of v of a single fluid
     !---------------------------------------------------------------------------
-    subroutine calc_div_v_single
+    subroutine calc_div_v_single(use_exb_drift)
         use usingle, only: vsx, vsy, vsz
         use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
         use pic_fields, only: bx, by, bz, absB
         implicit none
+        logical, intent(in) :: use_exb_drift
         integer :: nx, ny, nz, ix, iy, iz
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
 
-        vdotb = (vsx*bx + vsy*by + vsz*bz) / absB**2
-        vpx = vdotb * bx
-        vpy = vdotb * by
-        vpz = vdotb * bz
+        if (use_exb_drift) then
+            vdotb = (exb_x*bx + exb_y*by + exb_z*bz) / absB**2
+            vpx = vdotb * bx
+            vpy = vdotb * by
+            vpz = vdotb * bz
 
+            do ix = 1, nx
+                div_vsingle(ix, :, :) = &
+                    (exb_x(ixh(ix), :, :) - exb_x(ixl(ix), :, :)) * idx(ix)
+            enddo
+
+            do iy = 1, ny
+                div_vsingle(:, iy, :) = div_vsingle(:, iy, :) + &
+                    (exb_y(:, iyh(iy), :) - exb_y(:, iyl(iy), :)) * idy(iy)
+            enddo
+
+            do iz = 1, nz
+                div_vsingle(:, :, iz) = div_vsingle(:, :, iz) + &
+                    (exb_z(:, :, izh(iz)) - exb_z(:, :, izl(iz))) * idz(iz)
+            enddo
+        else
+            vdotb = (vsx*bx + vsy*by + vsz*bz) / absB**2
+            vpx = vdotb * bx
+            vpy = vdotb * by
+            vpz = vdotb * bz
+
+            do ix = 1, nx
+                div_vsingle(ix, :, :) = &
+                    (vsx(ixh(ix), :, :) - vsx(ixl(ix), :, :)) * idx(ix)
+            enddo
+
+            do iy = 1, ny
+                div_vsingle(:, iy, :) = div_vsingle(:, iy, :) + &
+                    (vsy(:, iyh(iy), :) - vsy(:, iyl(iy), :)) * idy(iy)
+            enddo
+
+            do iz = 1, nz
+                div_vsingle(:, :, iz) = div_vsingle(:, :, iz) + &
+                    (vsz(:, :, izh(iz)) - vsz(:, :, izl(iz))) * idz(iz)
+            enddo
+        endif
         do ix = 1, nx
-            div_vsingle(ix, :, :) = &
-                (vsx(ixh(ix), :, :) - vsx(ixl(ix), :, :)) * idx(ix)
             div_vpara_vsingle(ix, :, :) = &
                 (vpx(ixh(ix), :, :) - vpx(ixl(ix), :, :)) * idx(ix)
         enddo
 
         do iy = 1, ny
-            div_vsingle(:, iy, :) = div_vsingle(:, iy, :) + &
-                (vsy(:, iyh(iy), :) - vsy(:, iyl(iy), :)) * idy(iy)
             div_vpara_vsingle(:, iy, :) = div_vpara_vsingle(:, iy, :) + &
                 (vpy(:, iyh(iy), :) - vpy(:, iyl(iy), :)) * idy(iy)
         enddo
 
         do iz = 1, nz
-            div_vsingle(:, :, iz) = div_vsingle(:, :, iz) + &
-                (vsz(:, :, izh(iz)) - vsz(:, :, izl(iz))) * idz(iz)
             div_vpara_vsingle(:, :, iz) = div_vpara_vsingle(:, :, iz) + &
                 (vpz(:, :, izh(iz)) - vpz(:, :, izl(iz))) * idz(iz)
         enddo
@@ -259,21 +318,23 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Calculate the compression related variables.
     !---------------------------------------------------------------------------
-    subroutine calc_compression
+    subroutine calc_compression(use_exb_drift)
         implicit none
+        logical, intent(in) :: use_exb_drift
         call calc_div_v
-        call calc_div_v_single
+        call calc_div_v_single(use_exb_drift)
         call calc_pdiv_v
     end subroutine calc_compression
 
     !---------------------------------------------------------------------------
     ! Calculate bbsigma = b_ib_j\sigma_{ij} for a single fluid
     !---------------------------------------------------------------------------
-    subroutine calc_bbsigma_single
+    subroutine calc_bbsigma_single(use_exb_drift)
         use pic_fields, only: bx, by, bz, absB
         use usingle, only: vsx, vsy, vsz
         use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
         implicit none
+        logical, intent(in) :: use_exb_drift
         real(fp) :: sigma_xx, sigma_xy, sigma_xz, sigma_yy, sigma_yz, sigma_zz
         real(fp) :: sigma_yx, sigma_zx, sigma_zy
         real(fp) :: bxc, byc, bzc
@@ -281,6 +342,74 @@ module compression_shear
         nx = htg%nx
         ny = htg%ny
         nz = htg%nz
+
+        if (use_exb_drift) then
+            do iz = 1, nz
+                do iy = 1, ny
+                     do ix = 1, nx
+                        sigma_xx = (exb_x(ixh(ix), iy, iz) - exb_x(ixl(ix), iy, iz)) * &
+                                   idx(ix) - div_vsingle(ix, iy, iz) / 3.0
+                        sigma_yy = (exb_y(ix, iyh(iy), iz) - exb_y(ix, iyl(iy), iz)) * &
+                                   idy(iy) - div_vsingle(ix, iy, iz) / 3.0
+                        sigma_zz = (exb_z(ix, iy, izh(iz)) - exb_z(ix, iy, izl(iz))) * &
+                                   idz(iz) - div_vsingle(ix, iy, iz) / 3.0
+                        sigma_xy = 0.5 * (exb_x(ix, iyh(iy), iz) - &
+                                          exb_x(ix, iyl(iy), iz)) * idy(iy) + &
+                                   0.5 * (exb_y(ixh(ix), iy, iz) - &
+                                          exb_y(ixl(ix), iy, iz)) * idx(ix)
+                        sigma_xz = 0.5 * (exb_x(ix, iy, izh(iz)) - &
+                                          exb_x(ix, iy, izl(iz))) * idz(iz) + &
+                                   0.5 * (exb_z(ixh(ix), iy, iz) - &
+                                          exb_z(ixl(ix), iy, iz)) * idx(ix)
+                        sigma_yz = 0.5 * (exb_y(ix, iy, izh(iz)) - &
+                                          exb_y(ix, iy, izl(iz))) * idz(iz) + &
+                                   0.5 * (exb_z(ix, iyh(iy), iz) - &
+                                          exb_z(ix, iyl(iy), iz)) * idy(iy)
+                        bxc = bx(ix, iy, iz)
+                        byc = by(ix, iy, iz)
+                        bzc = bz(ix, iy, iz)
+                        bbsigma_single(ix, iy, iz) = bxc**2 * sigma_xx + &
+                            byc**2 * sigma_yy + bzc**2 * sigma_zz + &
+                            2.0 * bxc * byc * sigma_xy + &
+                            2.0 * bxc * bzc * sigma_xz + &
+                            2.0 * byc * bzc * sigma_yz
+                     enddo
+                enddo
+            enddo
+        else
+            do iz = 1, nz
+                do iy = 1, ny
+                     do ix = 1, nx
+                        sigma_xx = (vsx(ixh(ix), iy, iz) - vsx(ixl(ix), iy, iz)) * &
+                                   idx(ix) - div_vsingle(ix, iy, iz) / 3.0
+                        sigma_yy = (vsy(ix, iyh(iy), iz) - vsy(ix, iyl(iy), iz)) * &
+                                   idy(iy) - div_vsingle(ix, iy, iz) / 3.0
+                        sigma_zz = (vsz(ix, iy, izh(iz)) - vsz(ix, iy, izl(iz))) * &
+                                   idz(iz) - div_vsingle(ix, iy, iz) / 3.0
+                        sigma_xy = 0.5 * (vsx(ix, iyh(iy), iz) - &
+                                          vsx(ix, iyl(iy), iz)) * idy(iy) + &
+                                   0.5 * (vsy(ixh(ix), iy, iz) - &
+                                          vsy(ixl(ix), iy, iz)) * idx(ix)
+                        sigma_xz = 0.5 * (vsx(ix, iy, izh(iz)) - &
+                                          vsx(ix, iy, izl(iz))) * idz(iz) + &
+                                   0.5 * (vsz(ixh(ix), iy, iz) - &
+                                          vsz(ixl(ix), iy, iz)) * idx(ix)
+                        sigma_yz = 0.5 * (vsy(ix, iy, izh(iz)) - &
+                                          vsy(ix, iy, izl(iz))) * idz(iz) + &
+                                   0.5 * (vsz(ix, iyh(iy), iz) - &
+                                          vsz(ix, iyl(iy), iz)) * idy(iy)
+                        bxc = bx(ix, iy, iz)
+                        byc = by(ix, iy, iz)
+                        bzc = bz(ix, iy, iz)
+                        bbsigma_single(ix, iy, iz) = bxc**2 * sigma_xx + &
+                            byc**2 * sigma_yy + bzc**2 * sigma_zz + &
+                            2.0 * bxc * byc * sigma_xy + &
+                            2.0 * bxc * bzc * sigma_xz + &
+                            2.0 * byc * bzc * sigma_yz
+                     enddo
+                enddo
+            enddo
+        endif
 
         do iz = 1, nz
             do iy = 1, ny
@@ -307,29 +436,6 @@ module compression_shear
                     byc = by(ix, iy, iz)
                     bzc = bz(ix, iy, iz)
                     bbsigma_para_vsingle(ix, iy, iz) = bxc**2 * sigma_xx + &
-                        byc**2 * sigma_yy + bzc**2 * sigma_zz + &
-                        2.0 * bxc * byc * sigma_xy + &
-                        2.0 * bxc * bzc * sigma_xz + &
-                        2.0 * byc * bzc * sigma_yz
-                    sigma_xx = (vsx(ixh(ix), iy, iz) - vsx(ixl(ix), iy, iz)) * &
-                               idx(ix) - div_vsingle(ix, iy, iz) / 3.0
-                    sigma_yy = (vsy(ix, iyh(iy), iz) - vsy(ix, iyl(iy), iz)) * &
-                               idy(iy) - div_vsingle(ix, iy, iz) / 3.0
-                    sigma_zz = (vsz(ix, iy, izh(iz)) - vsz(ix, iy, izl(iz))) * &
-                               idz(iz) - div_vsingle(ix, iy, iz) / 3.0
-                    sigma_xy = 0.5 * (vsx(ix, iyh(iy), iz) - &
-                                      vsx(ix, iyl(iy), iz)) * idy(iy) + &
-                               0.5 * (vsy(ixh(ix), iy, iz) - &
-                                      vsy(ixl(ix), iy, iz)) * idx(ix)
-                    sigma_xz = 0.5 * (vsx(ix, iy, izh(iz)) - &
-                                      vsx(ix, iy, izl(iz))) * idz(iz) + &
-                               0.5 * (vsz(ixh(ix), iy, iz) - &
-                                      vsz(ixl(ix), iy, iz)) * idx(ix)
-                    sigma_yz = 0.5 * (vsy(ix, iy, izh(iz)) - &
-                                      vsy(ix, iy, izl(iz))) * idz(iz) + &
-                               0.5 * (vsz(ix, iyh(iy), iz) - &
-                                      vsz(ix, iyl(iy), iz)) * idy(iy)
-                    bbsigma_single(ix, iy, iz) = bxc**2 * sigma_xx + &
                         byc**2 * sigma_yy + bzc**2 * sigma_zz + &
                         2.0 * bxc * byc * sigma_xy + &
                         2.0 * bxc * bzc * sigma_xz + &
@@ -405,10 +511,11 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Calculate shear related variables.
     !---------------------------------------------------------------------------
-    subroutine calc_shear
+    subroutine calc_shear(use_exb_drift)
         implicit none
+        logical, intent(in) :: use_exb_drift
         call calc_bbsigma
-        call calc_bbsigma_single
+        call calc_bbsigma_single(use_exb_drift)
         call calc_pshear
     end subroutine calc_shear
 
@@ -425,10 +532,11 @@ module compression_shear
     !---------------------------------------------------------------------------
     ! Calculate the compressional and shear heating terms.
     !---------------------------------------------------------------------------
-    subroutine calc_compression_shear
+    subroutine calc_compression_shear(use_exb_drift)
         implicit none
-        call calc_compression
-        call calc_shear
+        logical, intent(in) :: use_exb_drift
+        call calc_compression(use_exb_drift)
+        call calc_shear(use_exb_drift)
         call calc_vdot_div_ptensor
         call calc_div_vdot_ptensor
     end subroutine calc_compression_shear
@@ -696,8 +804,9 @@ module compression_shear
     ! Save the total of the compressional terms.
     ! Input:
     !   ct: current time frame.
+    !   use_exb_drift: whether to use ExB drift
     !---------------------------------------------------------------------------
-    subroutine save_tot_compression(ct)
+    subroutine save_tot_compression(ct, use_exb_drift)
         use mpi_module
         use constants, only: fp
         use particle_info, only: ibtag, species
@@ -705,6 +814,7 @@ module compression_shear
         use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in) :: use_exb_drift
         real(fp) :: div_v_tot, pdiv_v_tot, avg
         real(fp) :: div_vsingle_tot, div_vpara_vsingle_tot
         real(fp) :: pdiv_vsingle_tot, pdiv_vpara_vsingle_tot
@@ -727,7 +837,11 @@ module compression_shear
         call get_average_and_total(pdiv_vpara_vsingle, avg, &
             pdiv_vpara_vsingle_tot)
         if (myid == master) then
-            fname = 'data/compression'//ibtag//'_'//species//'.gda'
+            if (use_exb_drift) then
+                fname = 'data/compression'//ibtag//'_exb_'//species//'.gda'
+            else
+                fname = 'data/compression'//ibtag//'_'//species//'.gda'
+            endif
             open(unit=51, file=trim(adjustl(fname)), access='stream',&
                  status='unknown', form='unformatted', action='write')
             output_record = ct - tp1 + 1
@@ -743,8 +857,9 @@ module compression_shear
     ! Save the total of the shear terms.
     ! Input:
     !   ct: current time frame.
+    !   use_exb_drift: whether to use ExB drift
     !---------------------------------------------------------------------------
-    subroutine save_tot_shear(ct)
+    subroutine save_tot_shear(ct, use_exb_drift)
         use mpi_module
         use constants, only: fp
         use particle_info, only: ibtag, species
@@ -752,6 +867,7 @@ module compression_shear
         use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in) :: use_exb_drift
         real(fp) :: bbsigma_tot, pshear_tot, avg
         real(fp) :: bbsigma_single_tot, bbsigma_para_vsingle_tot
         real(fp) :: pshear_vsingle_tot, pshear_para_vsingle_tot
@@ -775,7 +891,11 @@ module compression_shear
         call get_average_and_total(pshear_para_vsingle, avg, &
             pshear_para_vsingle_tot)
         if (myid == master) then
-            fname = 'data/shear'//ibtag//'_'//species//'.gda'
+            if (use_exb_drift) then
+                fname = 'data/shear'//ibtag//'_exb_'//species//'.gda'
+            else
+                fname = 'data/shear'//ibtag//'_'//species//'.gda'
+            endif
             open(unit=51, file=trim(adjustl(fname)), access='stream',&
                  status='unknown', form='unformatted', action='write')
             output_record = ct - tp1 + 1
@@ -791,8 +911,9 @@ module compression_shear
     ! Save the total of vdot_div_ptensor.
     ! Input:
     !   ct: current time frame.
+    !   use_exb_drift: whether to use ExB drift
     !---------------------------------------------------------------------------
-    subroutine save_tot_vdot_div_ptensor(ct)
+    subroutine save_tot_vdot_div_ptensor(ct, use_exb_drift)
         use mpi_module
         use constants, only: fp
         use particle_info, only: ibtag, species
@@ -800,6 +921,7 @@ module compression_shear
         use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in) :: use_exb_drift
         real(fp) :: vdot_div_ptensor_tot, avg
         character(len=100) :: fname
         integer :: current_pos, output_record
@@ -814,7 +936,11 @@ module compression_shear
 
         call get_average_and_total(vdot_div_ptensor, avg, vdot_div_ptensor_tot)
         if (myid == master) then
-            fname = 'data/vdot_div_ptensor'//ibtag//'_'//species//'.gda'
+            if (use_exb_drift) then
+                fname = 'data/vdot_div_ptensor'//ibtag//'_exb_'//species//'.gda'
+            else
+                fname = 'data/vdot_div_ptensor'//ibtag//'_'//species//'.gda'
+            endif
             open(unit=51, file=trim(adjustl(fname)), access='stream',&
                  status='unknown', form='unformatted', action='write')
             output_record = ct - tp1 + 1
@@ -828,22 +954,25 @@ module compression_shear
     ! Save the total of the compressional and shear heating terms.
     ! Input:
     !   ct: current time frame.
+    !   use_exb_drift: whether to use ExB drift
     !---------------------------------------------------------------------------
-    subroutine save_tot_compression_shear(ct)
+    subroutine save_tot_compression_shear(ct, use_exb_drift)
         implicit none
         integer, intent(in) :: ct
-        call save_tot_compression(ct)
-        call save_tot_shear(ct)
-        call save_tot_vdot_div_ptensor(ct)
-        call save_tot_div_vdot_ptensor(ct)
+        logical, intent(in) :: use_exb_drift
+        call save_tot_compression(ct, use_exb_drift)
+        call save_tot_shear(ct, use_exb_drift)
+        call save_tot_vdot_div_ptensor(ct, use_exb_drift)
+        call save_tot_div_vdot_ptensor(ct, use_exb_drift)
     end subroutine save_tot_compression_shear
 
     !---------------------------------------------------------------------------
     ! Save the total of div_vdot_ptensor.
     ! Input:
     !   ct: current time frame.
+    !   use_exb_drift: whether to use ExB drift
     !---------------------------------------------------------------------------
-    subroutine save_tot_div_vdot_ptensor(ct)
+    subroutine save_tot_div_vdot_ptensor(ct, use_exb_drift)
         use mpi_module
         use constants, only: fp
         use particle_info, only: ibtag, species
@@ -851,6 +980,7 @@ module compression_shear
         use parameters, only: tp1
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in) :: use_exb_drift
         real(fp) :: div_vdot_ptensor_tot, avg
         character(len=100) :: fname
         integer :: current_pos, output_record
@@ -865,7 +995,11 @@ module compression_shear
 
         call get_average_and_total(div_vdot_ptensor, avg, div_vdot_ptensor_tot)
         if (myid == master) then
-            fname = 'data/div_vdot_ptensor'//ibtag//'_'//species//'.gda'
+            if (use_exb_drift) then
+                fname = 'data/div_vdot_ptensor'//ibtag//'_exb_'//species//'.gda'
+            else
+                fname = 'data/div_vdot_ptensor'//ibtag//'_'//species//'.gda'
+            endif
             open(unit=51, file=trim(adjustl(fname)), access='stream',&
                  status='unknown', form='unformatted', action='write')
             output_record = ct - tp1 + 1

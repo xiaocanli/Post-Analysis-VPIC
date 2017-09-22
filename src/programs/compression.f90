@@ -6,6 +6,8 @@ program compression
     use particle_info, only: species, ibtag
     implicit none
     character(len=256) :: rootpath
+    logical :: use_exb_drift  ! Use ExB drift as single fluid velocity
+    logical :: save_2d_fields ! Whether to save 2D fields
 
     call init_analysis
 
@@ -96,7 +98,8 @@ program compression
         use neighbors_module, only: init_neighbors, free_neighbors, get_neighbors
         use compression_shear, only: init_compression_shear, &
                 free_compression_shear, calc_compression_shear, &
-                save_compression_shear, save_tot_compression_shear
+                save_compression_shear, save_tot_compression_shear, &
+                calc_exb_drift
         use pressure_tensor, only: init_scalar_pressure, init_div_ptensor, &
                 free_scalar_pressure, free_div_ptensor, calc_scalar_pressure, &
                 calc_div_ptensor
@@ -120,7 +123,7 @@ program compression
 
         call init_scalar_pressure
         call init_div_ptensor
-        call init_compression_shear
+        call init_compression_shear(use_exb_drift)
         call init_usingle(species)
         call open_velocity_density_files(species)
         do input_record = tp1, tp2
@@ -129,16 +132,21 @@ program compression
             call read_pic_fields(input_record)
             call read_velocity_density(input_record, species)
             call calc_usingle(species)
+            if (use_exb_drift) then
+                call calc_exb_drift
+            endif
             call calc_real_para_perp_pressure(input_record)
             call calc_scalar_pressure
             call calc_div_ptensor
-            call calc_compression_shear
-            call save_compression_shear(input_record)
-            call save_tot_compression_shear(input_record)
+            call calc_compression_shear(use_exb_drift)
+            if (save_2d_fields) then
+                call save_compression_shear(input_record)
+            endif
+            call save_tot_compression_shear(input_record, use_exb_drift)
         enddo
         call close_velocity_density_files(species)
         call free_usingle(species)
-        call free_compression_shear
+        call free_compression_shear(use_exb_drift)
         call free_div_ptensor
         call free_scalar_pressure
 
@@ -165,11 +173,29 @@ program compression
         call cli%add(switch='--rootpath', switch_ab='-rp', &
             help='simulation root path', required=.true., act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--use_exb_drift', switch_ab='-uexb', &
+            help='whether to use ExB drift as the single fluid velocity', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--save_2d_fields', switch_ab='-s2', &
+            help='whether to save 2D fields', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-uexb', val=use_exb_drift, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-s2', val=save_2d_fields, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
             print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+            if (use_exb_drift) then
+                print '(A)', 'ExB drift will be used as single fluid velocity'
+            endif
+            if (save_2d_fields) then
+                print '(A)', '2D fields will be saved'
+            endif
         endif
     end subroutine get_cmd_args
 
