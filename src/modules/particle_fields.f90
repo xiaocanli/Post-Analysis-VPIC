@@ -206,7 +206,7 @@ module particle_fields
         integer, intent(in) :: fh   ! File handler
         integer, intent(in) :: tindex0, pic_mpi_id
         character(len=1), intent(in) :: species
-        character(len=150) :: fname
+        character(len=256) :: fname
         integer :: tindex
         logical :: is_exist
         tindex = tindex0

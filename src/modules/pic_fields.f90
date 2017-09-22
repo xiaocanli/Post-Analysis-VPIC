@@ -378,7 +378,7 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine open_magnetic_field_files_single
         implicit none
-        character(len=100) :: fname
+        character(len=256) :: fname
         bfields_fh = 0
         fname = trim(adjustl(filepath))//'bx.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(1))
@@ -398,7 +398,7 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine open_electric_field_files_single
         implicit none
-        character(len=100) :: fname
+        character(len=256) :: fname
         efields_fh = 0
         fname = trim(adjustl(filepath))//'ex.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(1))
@@ -413,7 +413,7 @@ module pic_fields
     !---------------------------------------------------------------------------
     subroutine open_current_density_files_single
         implicit none
-        character(len=100) :: fname
+        character(len=256) :: fname
         jfields_fh = 0
         fname = trim(adjustl(filepath))//'jx.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(1))
@@ -429,7 +429,7 @@ module pic_fields
     subroutine open_pressure_tensor_files_single(species)
         implicit none
         character(*), intent(in) :: species
-        character(len=100) :: fname
+        character(len=256) :: fname
         pre_fh = 0
         fname = trim(adjustl(filepath))//'p'//species//'-xx.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(1))
@@ -459,7 +459,7 @@ module pic_fields
     subroutine open_velocity_field_files_single(species)
         implicit none
         character(*), intent(in) :: species
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=1) :: vel
         logical :: ex, is_opened
         integer :: file_size
@@ -504,7 +504,7 @@ module pic_fields
     subroutine open_number_density_file_single(species)
         implicit none
         character(*), intent(in) :: species
-        character(len=100) :: fname
+        character(len=256) :: fname
         logical :: is_opened
         nrho_fh = 0
         fname = trim(adjustl(filepath))//'n'//species//'.gda'
@@ -525,7 +525,7 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         integer, intent(in) :: iband
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=2) :: tag_band
         eband_fh = 0
         write(tag_band, '(I2.2)') iband
@@ -541,7 +541,7 @@ module pic_fields
     subroutine open_magnetic_field_files_multiple(tindex)
         implicit none
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=16) :: cfname
         write(cfname, "(I0)") tindex
         bfields_fh = 0
@@ -566,7 +566,7 @@ module pic_fields
     subroutine open_electric_field_files_multiple(tindex)
         implicit none
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=16) :: cfname
         write(cfname, "(I0)") tindex
         efields_fh = 0
@@ -586,7 +586,7 @@ module pic_fields
     subroutine open_current_density_files_multiple(tindex)
         implicit none
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=16) :: cfname
         write(cfname, "(I0)") tindex
         jfields_fh = 0
@@ -608,7 +608,7 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=16) :: cfname
         write(cfname, "(I0)") tindex
         pre_fh = 0
@@ -647,7 +647,7 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=16) :: cfname
         character(len=1) :: vel
         logical :: ex, is_opened
@@ -691,7 +691,7 @@ module pic_fields
         implicit none
         character(*), intent(in) :: species
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=16) :: cfname
         logical :: is_opened
         write(cfname, "(I0)") tindex
@@ -715,7 +715,7 @@ module pic_fields
         character(*), intent(in) :: species
         integer, intent(in) :: iband
         integer, intent(in) :: tindex
-        character(len=100) :: fname
+        character(len=256) :: fname
         character(len=2) :: tag_band
         character(len=16) :: cfname
         write(cfname, "(I0)") tindex

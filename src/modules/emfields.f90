@@ -77,7 +77,7 @@ module emfields
         implicit none
         integer, intent(in) :: tindex0, pic_mpi_id
         real(fp), allocatable, dimension(:,:,:) :: buffer
-        character(len=150) :: fname
+        character(len=256) :: fname
         logical :: is_exist
         integer :: fh   ! File handler
         integer :: n, ixl, iyl, izl, ixh, iyh, izh
