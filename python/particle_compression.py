@@ -25,28 +25,36 @@ from mpl_toolkits.mplot3d import Axes3D
 from scipy import signal
 from scipy.interpolate import RectBivariateSpline, RegularGridInterpolator
 from scipy.interpolate import LinearNDInterpolator
+from scipy.ndimage.filters import median_filter, gaussian_filter
 
-import pic_information
+import palettable
 from contour_plots import read_2d_fields
 from dolointerpolation import MultilinearInterpolator
 from energy_conversion import read_data_from_json
 from particle_distribution import read_particle_data
 from shell_functions import mkdir_p
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+style.use(['seaborn-white', 'seaborn-paper'])
+# rc('font', **{'family': 'serif', 'serif': ["Times", "Palatino", "serif"]})
+# rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+rc("font", family="Times New Roman")
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {'family': 'serif',
+colors_Set1_9 = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+colors_Dark2_8 = palettable.colorbrewer.qualitative.Dark2_8.mpl_colors
+colors_Paired_12 = palettable.colorbrewer.qualitative.Paired_12.mpl_colors
+colors_Tableau_10 = palettable.tableau.Tableau_10.mpl_colors
+colors_GreenOrange_6 = palettable.tableau.GreenOrange_6.mpl_colors
+colors_Bold_10 = palettable.cartocolors.qualitative.Bold_10.mpl_colors
+
+font = {
+    'family': 'serif',
     #'color'  : 'darkred',
     'color': 'black',
     'weight': 'normal',
     'size': 24,
-}
-
-# style.use(['dark_background'])
-# style.use('fivethirtyeight')
-style.use('ggplot')
+    }
 
 def read_hydro_header(fh):
     """Read hydro file header
@@ -171,7 +179,7 @@ def read_hydro_four_velocity_density(fname, nx2, ny2, nz2, dsize):
 
 
 def div0(a, b):
-    """ ignore / 0, div0( [-1, 0, 1], 0 ) -> [0, 0, 0] 
+    """ ignore / 0, div0( [-1, 0, 1], 0 ) -> [0, 0, 0]
 
     From: http://stackoverflow.com/a/35696047/2561161
 
@@ -290,7 +298,7 @@ def interp_hydro_particle(pic_info, run_dir, tindex, rank):
     ez_perp_ptl = ez_ptl - ez_para_ptl
 
     del ex_ptl, ey_ptl, ez_ptl, bx_ptl, by_ptl, bz_ptl, ib2_ptl, exb_ptl
-    
+
     de_para = -(vxp * ex_para_ptl + vyp * ey_para_ptl + vzp * ez_para_ptl)
     de_perp = -(vxp * ex_perp_ptl + vyp * ey_perp_ptl + vzp * ez_perp_ptl)
     de_tot = de_para + de_perp
@@ -307,13 +315,13 @@ def interp_hydro_particle(pic_info, run_dir, tindex, rank):
 
     # pdivv = -2.0/3.0 * (gamma - 1) * divv_ptl
     # # pdivv_fraction = -pdivv / de_tot
-    print("Ratio of parallel heating: %d, %f" % 
-            (rank, np.sum(de_para)/np.sum(de_tot)))
-    print("Parallel and perpendicular heating: %d, %f, %f" % 
-            (rank, np.sum(de_para), np.sum(de_perp)))
+    print("Ratio of parallel heating: %d, %f" %
+          (rank, np.sum(de_para)/np.sum(de_tot)))
+    print("Parallel and perpendicular heating: %d, %f, %f" %
+          (rank, np.sum(de_para), np.sum(de_perp)))
     # print("Energy change due to compression: %d, %f" % (rank, np.sum(pdivv)))
     print("Maximum and minimum energy gain: %12.5e, %12.5e, %12.5e, %12.5e" %
-            (np.max(de_para), np.min(de_para), np.max(de_perp), np.min(de_perp)))
+          (np.max(de_para), np.min(de_para), np.max(de_perp), np.min(de_perp)))
 
     nbins = 500
     drange = [[1, 1.1], [0, 1]]
@@ -325,7 +333,7 @@ def interp_hydro_particle(pic_info, run_dir, tindex, rank):
     fdir = run_dir + 'data_ene/'
     mkdir_p(fdir)
     print("Maximum and minimum gamma: %12.5e, %12.5e" %
-            (np.max(gamma-1), np.min(gamma-1)))
+          (np.max(gamma-1), np.min(gamma-1)))
     # hist_perp, fbin_edges, fbin_edges = np.histogram2d(
     #         gamma-1, de_perp_fraction, bins=[ebins, fbins])
     # hist_para, fbin_edges, fbin_edges = np.histogram2d(
@@ -442,7 +450,7 @@ def calc_pdivv_from_fluid(pic_info, run_dir, tindex):
         vix = hhydro[0, :, 1, :]
         viy = hhydro[1, :, 1, :]
         viz = hhydro[2, :, 1, :]
-        ni  = np.abs(hhydro[3, :, 1, :])
+        ni = np.abs(hhydro[3, :, 1, :])
         uix = hhydro[4, :, 1, :]
         uiy = hhydro[5, :, 1, :]
         uiz = hhydro[6, :, 1, :]
@@ -452,7 +460,7 @@ def calc_pdivv_from_fluid(pic_info, run_dir, tindex):
         viz *= ini
         del hhydro, ini
 
-        inrho = div0(1.0 , ne + ni*mime)
+        inrho = div0(1.0, ne + ni*mime)
         vx = (vex*ne + vix*ni*mime) * inrho
         vy = (vey*ne + viy*ni*mime) * inrho
         vz = (vez*ne + viz*ni*mime) * inrho
@@ -470,7 +478,7 @@ def calc_pdivv_from_fluid(pic_info, run_dir, tindex):
     # plt.show()
     divv = np.gradient(vxt, v0.dx, axis=1) + np.gradient(vzt, v0.dz, axis=0)
     pdivv2 = np.sum(-p2t * divv * v0.dx * v0.dz)
-        
+
     print pdivv, pdivv2
 
 
@@ -539,6 +547,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     uex = ehydro[4, :, 1, :]
     uey = ehydro[5, :, 1, :]
     uez = ehydro[6, :, 1, :]
+    kee = ehydro[7, :, 1, :]
     texx = ehydro[8, :, 1, :]
     teyy = ehydro[9, :, 1, :]
     tezz = ehydro[10, :, 1, :]
@@ -572,10 +581,11 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     vix = hhydro[0, :, 1, :]
     viy = hhydro[1, :, 1, :]
     viz = hhydro[2, :, 1, :]
-    ni  = hhydro[3, :, 1, :]
+    ni = hhydro[3, :, 1, :]
     uix = hhydro[4, :, 1, :]
     uiy = hhydro[5, :, 1, :]
     uiz = hhydro[6, :, 1, :]
+    kei = hhydro[7, :, 1, :]
     tixx = hhydro[8, :, 1, :]
     tiyy = hhydro[9, :, 1, :]
     tizz = hhydro[10, :, 1, :]
@@ -611,7 +621,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     # vx_pre, vy_pre, vz_pre, nrho_pre = \
     #         read_hydro_velocity_density(fname, nx2, ny2, nz2, dsize);
     ux_pre, uy_pre, uz_pre, nrho_pre = \
-            read_hydro_four_velocity_density(fname, nx2, ny2, nz2, dsize);
+            read_hydro_four_velocity_density(fname, nx2, ny2, nz2, dsize)
     if species == 'e':
         fname = ehydro_name_post + '.' + str(rank)
     else:
@@ -619,7 +629,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     # vx_post, vy_post, vz_post, nrho_post = \
     #         read_hydro_velocity_density(fname, nx2, ny2, nz2, dsize);
     ux_post, uy_post, uz_post, nrho_post = \
-            read_hydro_four_velocity_density(fname, nx2, ny2, nz2, dsize);
+            read_hydro_four_velocity_density(fname, nx2, ny2, nz2, dsize)
     dtf = pic_info.dtwpe * (tindex_post - tindex_pre)
     # dvx_dt = (vx_post - vx_pre) / dtf
     # dvy_dt = (vy_post - vy_pre) / dtf
@@ -629,20 +639,20 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     dvz_dt = (uz_post - uz_pre) / dtf
     if species == 'e':
         inrho = div0(1.0, ne)
-        dvx_dt[1:,1:] += vex[1:,1:] * np.gradient(uex[1:,1:]*inrho[1:,1:], dx, axis=1) + \
-                         vez[1:,1:] * np.gradient(uex[1:,1:]*inrho[1:,1:], dz, axis=0)
-        dvy_dt[1:,1:] += vex[1:,1:] * np.gradient(uey[1:,1:]*inrho[1:,1:], dx, axis=1) + \
-                         vez[1:,1:] * np.gradient(uey[1:,1:]*inrho[1:,1:], dz, axis=0)
-        dvz_dt[1:,1:] += vex[1:,1:] * np.gradient(uez[1:,1:]*inrho[1:,1:], dx, axis=1) + \
-                         vez[1:,1:] * np.gradient(uez[1:,1:]*inrho[1:,1:], dz, axis=0)
+        dvx_dt[1:, 1:] += vex[1:, 1:] * np.gradient(uex[1:, 1:]*inrho[1:, 1:], dx, axis=1) + \
+                          vez[1:, 1:] * np.gradient(uex[1:, 1:]*inrho[1:, 1:], dz, axis=0)
+        dvy_dt[1:, 1:] += vex[1:, 1:] * np.gradient(uey[1:, 1:]*inrho[1:, 1:], dx, axis=1) + \
+                          vez[1:, 1:] * np.gradient(uey[1:, 1:]*inrho[1:, 1:], dz, axis=0)
+        dvz_dt[1:, 1:] += vex[1:, 1:] * np.gradient(uez[1:, 1:]*inrho[1:, 1:], dx, axis=1) + \
+                          vez[1:, 1:] * np.gradient(uez[1:, 1:]*inrho[1:, 1:], dz, axis=0)
     else:
         inrho = div0(1.0, ni)
-        dvx_dt[1:,1:] += vix[1:,1:] * np.gradient(uix[1:,1:]*inrho[1:,1:], dx, axis=1) + \
-                         viz[1:,1:] * np.gradient(uix[1:,1:]*inrho[1:,1:], dz, axis=0)
-        dvy_dt[1:,1:] += vix[1:,1:] * np.gradient(uiy[1:,1:]*inrho[1:,1:], dx, axis=1) + \
-                         viz[1:,1:] * np.gradient(uiy[1:,1:]*inrho[1:,1:], dz, axis=0)
-        dvz_dt[1:,1:] += vix[1:,1:] * np.gradient(uiz[1:,1:]*inrho[1:,1:], dx, axis=1) + \
-                         viz[1:,1:] * np.gradient(uiz[1:,1:]*inrho[1:,1:], dz, axis=0)
+        dvx_dt[1:, 1:] += vix[1:, 1:] * np.gradient(uix[1:, 1:]*inrho[1:, 1:], dx, axis=1) + \
+                          viz[1:, 1:] * np.gradient(uix[1:, 1:]*inrho[1:, 1:], dz, axis=0)
+        dvy_dt[1:, 1:] += vix[1:, 1:] * np.gradient(uiy[1:, 1:]*inrho[1:, 1:], dx, axis=1) + \
+                          viz[1:, 1:] * np.gradient(uiy[1:, 1:]*inrho[1:, 1:], dz, axis=0)
+        dvz_dt[1:, 1:] += vix[1:, 1:] * np.gradient(uiz[1:, 1:]*inrho[1:, 1:], dx, axis=1) + \
+                          viz[1:, 1:] * np.gradient(uiz[1:, 1:]*inrho[1:, 1:], dz, axis=0)
     dvx_dt /= pmass
     dvy_dt /= pmass
     dvz_dt /= pmass
@@ -657,20 +667,26 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
         pres = pe
         ppara = pe_para
         pperp = pe_perp
+        ke_density = kee
     else:
         fname = hparticle_name + '.' + str(rank)
         pres = pi
         ppara = pi_para
         pperp = pi_perp
+        ke_density = kei
 
-    del pe, pi, pe_para, pe_perp, pi_para, pi_perp
+    del pe, pi, pe_para, pe_perp, pi_para, pi_perp, kee, kei
     if verbose:
         print('Total pressure from fluid: %f' %
-                (np.sum(pres[1:-1,1:-1])*v0.dx*v0.dz))
-        print('Para, perp pressure and anisotropy from fluid: %f %f %f' % 
-                (np.sum(ppara[1:-1,1:-1])*v0.dx*v0.dz,
-                 np.sum(pperp[1:-1,1:-1])*v0.dx*v0.dz,
-                (np.sum(ppara[1:-1,1:-1]) - np.sum(pperp[1:-1,1:-1]))*v0.dx*v0.dz))
+              (np.sum(pres[1:-1, 1:-1])*v0.dx*v0.dz))
+        print('Para, perp pressure and anisotropy from fluid: %f %f %f' %
+              (np.sum(ppara[1:-1, 1:-1])*v0.dx*v0.dz,
+               np.sum(pperp[1:-1, 1:-1])*v0.dx*v0.dz,
+               (np.sum(ppara[1:-1, 1:-1]) - np.sum(pperp[1:-1, 1:-1]))*v0.dx*v0.dz))
+        print('Total kinetic energy from fluid: %f' %
+              (np.sum(ke_density[1:-1, 1:-1])*v0.dx*v0.dz))
+
+    del ke_density
 
     # read particle data
     (v0, pheader, ptl) = read_particle_data(fname)
@@ -680,7 +696,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     uxp = ptl['u'][:, 0]
     uyp = ptl['u'][:, 1]
     uzp = ptl['u'][:, 2]
-    q =  ptl['q']
+    q = ptl['q']
     nx = v0.nx + 2
     ny = v0.ny + 2
     nz = v0.nz + 2
@@ -743,7 +759,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     del x1, z1, x2, z2
 
     # interpolate compressional terms
-    inrho = div0(1.0 , ne + ni*mime)
+    inrho = div0(1.0, ne + ni*mime)
     if exb_drift:
         vx = (ey * bz - ez * by) * ib2
         vy = (ez * bx - ex * bz) * ib2
@@ -791,17 +807,17 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
                            (dvperpx_dz[1:, 1:] + dvperpz_dx[1:, 1:]) * bx[1:, 1:] * bz[1:, 1:] + \
                            dvperpy_dz[1:, 1:] * by[1:, 1:] * bz[1:, 1:]
     bbsigma_perp *= ib2
-                           
+
     if fitting_method == RectBivariateSpline:
-        f_divv = RectBivariateSpline(x, z, divv[1:,1:].T)
-        f_div_vperp = RectBivariateSpline(x, z, div_vperp[1:,1:].T)
-        f_bbsigma_perp = RectBivariateSpline(x, z, bbsigma_perp[1:,1:].T)
-        f_dvperpx_dx = RectBivariateSpline(x, z, dvperpx_dx[1:,1:].T)
-        f_dvperpy_dx = RectBivariateSpline(x, z, dvperpy_dx[1:,1:].T)
-        f_dvperpz_dx = RectBivariateSpline(x, z, dvperpz_dx[1:,1:].T)
-        f_dvperpx_dz = RectBivariateSpline(x, z, dvperpx_dz[1:,1:].T)
-        f_dvperpy_dz = RectBivariateSpline(x, z, dvperpy_dz[1:,1:].T)
-        f_dvperpz_dz = RectBivariateSpline(x, z, dvperpz_dz[1:,1:].T)
+        f_divv = RectBivariateSpline(x, z, divv[1:, 1:].T)
+        f_div_vperp = RectBivariateSpline(x, z, div_vperp[1:, 1:].T)
+        f_bbsigma_perp = RectBivariateSpline(x, z, bbsigma_perp[1:, 1:].T)
+        f_dvperpx_dx = RectBivariateSpline(x, z, dvperpx_dx[1:, 1:].T)
+        f_dvperpy_dx = RectBivariateSpline(x, z, dvperpy_dx[1:, 1:].T)
+        f_dvperpz_dx = RectBivariateSpline(x, z, dvperpz_dx[1:, 1:].T)
+        f_dvperpx_dz = RectBivariateSpline(x, z, dvperpx_dz[1:, 1:].T)
+        f_dvperpy_dz = RectBivariateSpline(x, z, dvperpy_dz[1:, 1:].T)
+        f_dvperpz_dz = RectBivariateSpline(x, z, dvperpz_dz[1:, 1:].T)
         divv_ptl = f_divv(x_ptl, z_ptl, grid=False)
         div_vperp_ptl = f_div_vperp(x_ptl, z_ptl, grid=False)
         bbsigma_perp_ptl = f_bbsigma_perp(x_ptl, z_ptl, grid=False)
@@ -812,15 +828,15 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
         dvperpy_dz_ptl = f_dvperpy_dz(x_ptl, z_ptl, grid=False)
         dvperpz_dz_ptl = f_dvperpz_dz(x_ptl, z_ptl, grid=False)
     elif fitting_method == RegularGridInterpolator:
-        f_divv = RegularGridInterpolator((x, z), divv[1:,1:].T)
-        f_div_vperp = RegularGridInterpolator((x, z), div_vperp[1:,1:].T)
-        f_bbsigma_perp = RegularGridInterpolator((x, z), bbsigma_perp[1:,1:].T)
-        f_dvperpx_dx = RegularGridInterpolator((x, z), dvperpx_dx[1:,1:].T)
-        f_dvperpy_dx = RegularGridInterpolator((x, z), dvperpy_dx[1:,1:].T)
-        f_dvperpz_dx = RegularGridInterpolator((x, z), dvperpz_dx[1:,1:].T)
-        f_dvperpx_dz = RegularGridInterpolator((x, z), dvperpx_dz[1:,1:].T)
-        f_dvperpy_dz = RegularGridInterpolator((x, z), dvperpy_dz[1:,1:].T)
-        f_dvperpz_dz = RegularGridInterpolator((x, z), dvperpz_dz[1:,1:].T)
+        f_divv = RegularGridInterpolator((x, z), divv[1:, 1:].T)
+        f_div_vperp = RegularGridInterpolator((x, z), div_vperp[1:, 1:].T)
+        f_bbsigma_perp = RegularGridInterpolator((x, z), bbsigma_perp[1:, 1:].T)
+        f_dvperpx_dx = RegularGridInterpolator((x, z), dvperpx_dx[1:, 1:].T)
+        f_dvperpy_dx = RegularGridInterpolator((x, z), dvperpy_dx[1:, 1:].T)
+        f_dvperpz_dx = RegularGridInterpolator((x, z), dvperpz_dx[1:, 1:].T)
+        f_dvperpx_dz = RegularGridInterpolator((x, z), dvperpx_dz[1:, 1:].T)
+        f_dvperpy_dz = RegularGridInterpolator((x, z), dvperpy_dz[1:, 1:].T)
+        f_dvperpz_dz = RegularGridInterpolator((x, z), dvperpz_dz[1:, 1:].T)
         divv_ptl = f_divv((x_ptl, z_ptl))
         div_vperp_ptl = f_div_vperp((x_ptl, z_ptl))
         bbsigma_perp_ptl = f_bbsigma_perp((x_ptl, z_ptl))
@@ -834,9 +850,9 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     ds = v0.dx * v0.dz
     if verbose:
         print("pdivv and pdiv_vperp and pshear from fluid: %f %f %f" %
-                (np.sum(-pres[1:, 1:]*divv[1:, 1:])*ds,
-                 np.sum(-pres[1:, 1:]*div_vperp[1:, 1:])*ds,
-                 np.sum(-(ppara[1:, 1:] - pperp[1:, 1:])*bbsigma_perp[1:, 1:])*ds))
+              (np.sum(-pres[1:, 1:]*divv[1:, 1:])*ds,
+               np.sum(-pres[1:, 1:]*div_vperp[1:, 1:])*ds,
+               np.sum(-(ppara[1:, 1:] - pperp[1:, 1:])*bbsigma_perp[1:, 1:])*ds))
     del f_divv, f_div_vperp, f_bbsigma_perp
     del f_dvperpx_dx, f_dvperpy_dx, f_dvperpz_dx
     del f_dvperpx_dz, f_dvperpy_dz, f_dvperpz_dz
@@ -849,16 +865,16 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     einy = vx*bz - vz*bx
     einz = vy*bx - vx*by
     if fitting_method == RectBivariateSpline:
-        f_einx = RectBivariateSpline(x, z, einx[1:,1:].T)
-        f_einy = RectBivariateSpline(x, z, einy[1:,1:].T)
-        f_einz = RectBivariateSpline(x, z, einz[1:,1:].T)
+        f_einx = RectBivariateSpline(x, z, einx[1:, 1:].T)
+        f_einy = RectBivariateSpline(x, z, einy[1:, 1:].T)
+        f_einz = RectBivariateSpline(x, z, einz[1:, 1:].T)
         einx_ptl = f_einx(x_ptl, z_ptl, grid=False)
         einy_ptl = f_einy(x_ptl, z_ptl, grid=False)
         einz_ptl = f_einz(x_ptl, z_ptl, grid=False)
     elif fitting_method == RegularGridInterpolator:
-        f_einx = RegularGridInterpolator((x, z), einx[1:,1:].T)
-        f_einy = RegularGridInterpolator((x, z), einy[1:,1:].T)
-        f_einz = RegularGridInterpolator((x, z), einz[1:,1:].T)
+        f_einx = RegularGridInterpolator((x, z), einx[1:, 1:].T)
+        f_einy = RegularGridInterpolator((x, z), einy[1:, 1:].T)
+        f_einz = RegularGridInterpolator((x, z), einz[1:, 1:].T)
         einx_ptl = f_einx((x_ptl, z_ptl))
         einy_ptl = f_einy((x_ptl, z_ptl))
         einz_ptl = f_einz((x_ptl, z_ptl))
@@ -869,70 +885,70 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     # interpolate fluid velocities
     if species == 'e':
         if fitting_method == RectBivariateSpline:
-            f_vx = RectBivariateSpline(x, z, vex[1:,1:].T)
-            f_vy = RectBivariateSpline(x, z, vey[1:,1:].T)
-            f_vz = RectBivariateSpline(x, z, vez[1:,1:].T)
-            f_ux = RectBivariateSpline(x, z, uex[1:,1:].T/ne[1:,1:].T)
-            f_uy = RectBivariateSpline(x, z, uey[1:,1:].T/ne[1:,1:].T)
-            f_uz = RectBivariateSpline(x, z, uez[1:,1:].T/ne[1:,1:].T)
-            f_vx_ux = RectBivariateSpline(x, z, vex[1:,1:].T*uex[1:,1:].T/ne[1:,1:].T)
-            f_vy_uy = RectBivariateSpline(x, z, vey[1:,1:].T*uey[1:,1:].T/ne[1:,1:].T)
-            f_vz_uz = RectBivariateSpline(x, z, vez[1:,1:].T*uez[1:,1:].T/ne[1:,1:].T)
-            f_vx_uy = RectBivariateSpline(x, z, vex[1:,1:].T*uey[1:,1:].T/ne[1:,1:].T)
-            f_vx_uz = RectBivariateSpline(x, z, vex[1:,1:].T*uez[1:,1:].T/ne[1:,1:].T)
-            f_vy_uz = RectBivariateSpline(x, z, vey[1:,1:].T*uez[1:,1:].T/ne[1:,1:].T)
-            f_vy_ux = RectBivariateSpline(x, z, vey[1:,1:].T*uex[1:,1:].T/ne[1:,1:].T)
-            f_vz_ux = RectBivariateSpline(x, z, vez[1:,1:].T*uex[1:,1:].T/ne[1:,1:].T)
-            f_vz_uy = RectBivariateSpline(x, z, vez[1:,1:].T*uey[1:,1:].T/ne[1:,1:].T)
+            f_vx = RectBivariateSpline(x, z, vex[1:, 1:].T)
+            f_vy = RectBivariateSpline(x, z, vey[1:, 1:].T)
+            f_vz = RectBivariateSpline(x, z, vez[1:, 1:].T)
+            f_ux = RectBivariateSpline(x, z, uex[1:, 1:].T/ne[1:, 1:].T)
+            f_uy = RectBivariateSpline(x, z, uey[1:, 1:].T/ne[1:, 1:].T)
+            f_uz = RectBivariateSpline(x, z, uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vx_ux = RectBivariateSpline(x, z, vex[1:, 1:].T*uex[1:, 1:].T/ne[1:, 1:].T)
+            f_vy_uy = RectBivariateSpline(x, z, vey[1:, 1:].T*uey[1:, 1:].T/ne[1:, 1:].T)
+            f_vz_uz = RectBivariateSpline(x, z, vez[1:, 1:].T*uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vx_uy = RectBivariateSpline(x, z, vex[1:, 1:].T*uey[1:, 1:].T/ne[1:, 1:].T)
+            f_vx_uz = RectBivariateSpline(x, z, vex[1:, 1:].T*uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vy_uz = RectBivariateSpline(x, z, vey[1:, 1:].T*uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vy_ux = RectBivariateSpline(x, z, vey[1:, 1:].T*uex[1:, 1:].T/ne[1:, 1:].T)
+            f_vz_ux = RectBivariateSpline(x, z, vez[1:, 1:].T*uex[1:, 1:].T/ne[1:, 1:].T)
+            f_vz_uy = RectBivariateSpline(x, z, vez[1:, 1:].T*uey[1:, 1:].T/ne[1:, 1:].T)
         elif fitting_method == RegularGridInterpolator:
-            f_vx = RegularGridInterpolator((x, z), vex[1:,1:].T)
-            f_vy = RegularGridInterpolator((x, z), vey[1:,1:].T)
-            f_vz = RegularGridInterpolator((x, z), vez[1:,1:].T)
-            f_ux = RegularGridInterpolator((x, z), uex[1:,1:].T/ne[1:,1:].T)
-            f_uy = RegularGridInterpolator((x, z), uey[1:,1:].T/ne[1:,1:].T)
-            f_uz = RegularGridInterpolator((x, z), uez[1:,1:].T/ne[1:,1:].T)
-            f_vx_ux = RegularGridInterpolator((x, z), vex[1:,1:].T*uex[1:,1:].T/ne[1:,1:].T)
-            f_vy_uy = RegularGridInterpolator((x, z), vey[1:,1:].T*uey[1:,1:].T/ne[1:,1:].T)
-            f_vz_uz = RegularGridInterpolator((x, z), vez[1:,1:].T*uez[1:,1:].T/ne[1:,1:].T)
-            f_vx_uy = RegularGridInterpolator((x, z), vex[1:,1:].T*uey[1:,1:].T/ne[1:,1:].T)
-            f_vx_uz = RegularGridInterpolator((x, z), vex[1:,1:].T*uez[1:,1:].T/ne[1:,1:].T)
-            f_vy_uz = RegularGridInterpolator((x, z), vey[1:,1:].T*uez[1:,1:].T/ne[1:,1:].T)
-            f_vy_ux = RegularGridInterpolator((x, z), vey[1:,1:].T*uex[1:,1:].T/ne[1:,1:].T)
-            f_vz_ux = RegularGridInterpolator((x, z), vez[1:,1:].T*uex[1:,1:].T/ne[1:,1:].T)
-            f_vz_uy = RegularGridInterpolator((x, z), vez[1:,1:].T*uey[1:,1:].T/ne[1:,1:].T)
+            f_vx = RegularGridInterpolator((x, z), vex[1:, 1:].T)
+            f_vy = RegularGridInterpolator((x, z), vey[1:, 1:].T)
+            f_vz = RegularGridInterpolator((x, z), vez[1:, 1:].T)
+            f_ux = RegularGridInterpolator((x, z), uex[1:, 1:].T/ne[1:, 1:].T)
+            f_uy = RegularGridInterpolator((x, z), uey[1:, 1:].T/ne[1:, 1:].T)
+            f_uz = RegularGridInterpolator((x, z), uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vx_ux = RegularGridInterpolator((x, z), vex[1:, 1:].T*uex[1:, 1:].T/ne[1:, 1:].T)
+            f_vy_uy = RegularGridInterpolator((x, z), vey[1:, 1:].T*uey[1:, 1:].T/ne[1:, 1:].T)
+            f_vz_uz = RegularGridInterpolator((x, z), vez[1:, 1:].T*uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vx_uy = RegularGridInterpolator((x, z), vex[1:, 1:].T*uey[1:, 1:].T/ne[1:, 1:].T)
+            f_vx_uz = RegularGridInterpolator((x, z), vex[1:, 1:].T*uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vy_uz = RegularGridInterpolator((x, z), vey[1:, 1:].T*uez[1:, 1:].T/ne[1:, 1:].T)
+            f_vy_ux = RegularGridInterpolator((x, z), vey[1:, 1:].T*uex[1:, 1:].T/ne[1:, 1:].T)
+            f_vz_ux = RegularGridInterpolator((x, z), vez[1:, 1:].T*uex[1:, 1:].T/ne[1:, 1:].T)
+            f_vz_uy = RegularGridInterpolator((x, z), vez[1:, 1:].T*uey[1:, 1:].T/ne[1:, 1:].T)
     else:
         if fitting_method == RectBivariateSpline:
-            f_vx = RectBivariateSpline(x, z, vix[1:,1:].T)
-            f_vy = RectBivariateSpline(x, z, viy[1:,1:].T)
-            f_vz = RectBivariateSpline(x, z, viz[1:,1:].T)
-            f_ux = RectBivariateSpline(x, z, uix[1:,1:].T/ni[1:,1:].T)
-            f_uy = RectBivariateSpline(x, z, uiy[1:,1:].T/ni[1:,1:].T)
-            f_uz = RectBivariateSpline(x, z, uiz[1:,1:].T/ni[1:,1:].T)
-            f_vx_ux = RectBivariateSpline(x, z, vix[1:,1:].T*uix[1:,1:].T/ni[1:,1:].T)
-            f_vy_uy = RectBivariateSpline(x, z, viy[1:,1:].T*uiy[1:,1:].T/ni[1:,1:].T)
-            f_vz_uz = RectBivariateSpline(x, z, viz[1:,1:].T*uiz[1:,1:].T/ni[1:,1:].T)
-            f_vx_uy = RectBivariateSpline(x, z, vix[1:,1:].T*uiy[1:,1:].T/ni[1:,1:].T)
-            f_vx_uz = RectBivariateSpline(x, z, vix[1:,1:].T*uiz[1:,1:].T/ni[1:,1:].T)
-            f_vy_uz = RectBivariateSpline(x, z, viy[1:,1:].T*uiz[1:,1:].T/ni[1:,1:].T)
-            f_vy_ux = RectBivariateSpline(x, z, viy[1:,1:].T*uix[1:,1:].T/ni[1:,1:].T)
-            f_vz_ux = RectBivariateSpline(x, z, viz[1:,1:].T*uix[1:,1:].T/ni[1:,1:].T)
-            f_vz_uy = RectBivariateSpline(x, z, viz[1:,1:].T*uiy[1:,1:].T/ni[1:,1:].T)
+            f_vx = RectBivariateSpline(x, z, vix[1:, 1:].T)
+            f_vy = RectBivariateSpline(x, z, viy[1:, 1:].T)
+            f_vz = RectBivariateSpline(x, z, viz[1:, 1:].T)
+            f_ux = RectBivariateSpline(x, z, uix[1:, 1:].T/ni[1:, 1:].T)
+            f_uy = RectBivariateSpline(x, z, uiy[1:, 1:].T/ni[1:, 1:].T)
+            f_uz = RectBivariateSpline(x, z, uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vx_ux = RectBivariateSpline(x, z, vix[1:, 1:].T*uix[1:, 1:].T/ni[1:, 1:].T)
+            f_vy_uy = RectBivariateSpline(x, z, viy[1:, 1:].T*uiy[1:, 1:].T/ni[1:, 1:].T)
+            f_vz_uz = RectBivariateSpline(x, z, viz[1:, 1:].T*uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vx_uy = RectBivariateSpline(x, z, vix[1:, 1:].T*uiy[1:, 1:].T/ni[1:, 1:].T)
+            f_vx_uz = RectBivariateSpline(x, z, vix[1:, 1:].T*uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vy_uz = RectBivariateSpline(x, z, viy[1:, 1:].T*uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vy_ux = RectBivariateSpline(x, z, viy[1:, 1:].T*uix[1:, 1:].T/ni[1:, 1:].T)
+            f_vz_ux = RectBivariateSpline(x, z, viz[1:, 1:].T*uix[1:, 1:].T/ni[1:, 1:].T)
+            f_vz_uy = RectBivariateSpline(x, z, viz[1:, 1:].T*uiy[1:, 1:].T/ni[1:, 1:].T)
         elif fitting_method == RegularGridInterpolator:
-            f_vx = RegularGridInterpolator((x, z), vix[1:,1:].T)
-            f_vy = RegularGridInterpolator((x, z), viy[1:,1:].T)
-            f_vz = RegularGridInterpolator((x, z), viz[1:,1:].T)
-            f_ux = RegularGridInterpolator((x, z), uix[1:,1:].T/ni[1:,1:].T) # including particle mass
-            f_uy = RegularGridInterpolator((x, z), uiy[1:,1:].T/ni[1:,1:].T)
-            f_uz = RegularGridInterpolator((x, z), uiz[1:,1:].T/ni[1:,1:].T)
-            f_vx_ux = RegularGridInterpolator((x, z), vix[1:,1:].T*uix[1:,1:].T/ni[1:,1:].T)
-            f_vy_uy = RegularGridInterpolator((x, z), viy[1:,1:].T*uiy[1:,1:].T/ni[1:,1:].T)
-            f_vz_uz = RegularGridInterpolator((x, z), viz[1:,1:].T*uiz[1:,1:].T/ni[1:,1:].T)
-            f_vx_uy = RegularGridInterpolator((x, z), vix[1:,1:].T*uiy[1:,1:].T/ni[1:,1:].T)
-            f_vx_uz = RegularGridInterpolator((x, z), vix[1:,1:].T*uiz[1:,1:].T/ni[1:,1:].T)
-            f_vy_uz = RegularGridInterpolator((x, z), viy[1:,1:].T*uiz[1:,1:].T/ni[1:,1:].T)
-            f_vy_ux = RegularGridInterpolator((x, z), viy[1:,1:].T*uix[1:,1:].T/ni[1:,1:].T)
-            f_vz_ux = RegularGridInterpolator((x, z), viz[1:,1:].T*uix[1:,1:].T/ni[1:,1:].T)
-            f_vz_uy = RegularGridInterpolator((x, z), viz[1:,1:].T*uiy[1:,1:].T/ni[1:,1:].T)
+            f_vx = RegularGridInterpolator((x, z), vix[1:, 1:].T)
+            f_vy = RegularGridInterpolator((x, z), viy[1:, 1:].T)
+            f_vz = RegularGridInterpolator((x, z), viz[1:, 1:].T)
+            f_ux = RegularGridInterpolator((x, z), uix[1:, 1:].T/ni[1:, 1:].T)
+            f_uy = RegularGridInterpolator((x, z), uiy[1:, 1:].T/ni[1:, 1:].T)
+            f_uz = RegularGridInterpolator((x, z), uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vx_ux = RegularGridInterpolator((x, z), vix[1:, 1:].T*uix[1:, 1:].T/ni[1:, 1:].T)
+            f_vy_uy = RegularGridInterpolator((x, z), viy[1:, 1:].T*uiy[1:, 1:].T/ni[1:, 1:].T)
+            f_vz_uz = RegularGridInterpolator((x, z), viz[1:, 1:].T*uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vx_uy = RegularGridInterpolator((x, z), vix[1:, 1:].T*uiy[1:, 1:].T/ni[1:, 1:].T)
+            f_vx_uz = RegularGridInterpolator((x, z), vix[1:, 1:].T*uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vy_uz = RegularGridInterpolator((x, z), viy[1:, 1:].T*uiz[1:, 1:].T/ni[1:, 1:].T)
+            f_vy_ux = RegularGridInterpolator((x, z), viy[1:, 1:].T*uix[1:, 1:].T/ni[1:, 1:].T)
+            f_vz_ux = RegularGridInterpolator((x, z), viz[1:, 1:].T*uix[1:, 1:].T/ni[1:, 1:].T)
+            f_vz_uy = RegularGridInterpolator((x, z), viz[1:, 1:].T*uiy[1:, 1:].T/ni[1:, 1:].T)
 
     if fitting_method == RectBivariateSpline:
         vx_ux_ptl = f_vx_ux(x_ptl, z_ptl, grid=False)
@@ -973,16 +989,16 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
 
     # interpolate fluid acceleration
     if fitting_method == RectBivariateSpline:
-        f_dvx_dt = RectBivariateSpline(x, z, dvx_dt[1:,1:].T)
-        f_dvy_dt = RectBivariateSpline(x, z, dvy_dt[1:,1:].T)
-        f_dvz_dt = RectBivariateSpline(x, z, dvz_dt[1:,1:].T)
+        f_dvx_dt = RectBivariateSpline(x, z, dvx_dt[1:, 1:].T)
+        f_dvy_dt = RectBivariateSpline(x, z, dvy_dt[1:, 1:].T)
+        f_dvz_dt = RectBivariateSpline(x, z, dvz_dt[1:, 1:].T)
         dvx_dt_ptl = f_dvx_dt(x_ptl, z_ptl, grid=False)
         dvy_dt_ptl = f_dvy_dt(x_ptl, z_ptl, grid=False)
         dvz_dt_ptl = f_dvz_dt(x_ptl, z_ptl, grid=False)
     else:
-        f_dvx_dt = RegularGridInterpolator((x, z), dvx_dt[1:,1:].T)
-        f_dvy_dt = RegularGridInterpolator((x, z), dvy_dt[1:,1:].T)
-        f_dvz_dt = RegularGridInterpolator((x, z), dvz_dt[1:,1:].T)
+        f_dvx_dt = RegularGridInterpolator((x, z), dvx_dt[1:, 1:].T)
+        f_dvy_dt = RegularGridInterpolator((x, z), dvy_dt[1:, 1:].T)
+        f_dvz_dt = RegularGridInterpolator((x, z), dvz_dt[1:, 1:].T)
         dvx_dt_ptl = f_dvx_dt((x_ptl, z_ptl))
         dvy_dt_ptl = f_dvy_dt((x_ptl, z_ptl))
         dvz_dt_ptl = f_dvz_dt((x_ptl, z_ptl))
@@ -1013,7 +1029,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     pscalar = (pxx + pyy + pzz) / 3.0
     pdivv = -pscalar * divv_ptl
     pdiv_vperp = -pscalar * div_vperp_ptl
-    ptensor_dv  = -(pxx * dvperpx_dx_ptl + pxy * dvperpy_dx_ptl + pxz * dvperpz_dx_ptl)
+    ptensor_dv = -(pxx * dvperpx_dx_ptl + pxy * dvperpy_dx_ptl + pxz * dvperpz_dx_ptl)
     ptensor_dv -= pzx * dvperpx_dz_ptl + pzy * dvperpy_dz_ptl + pzz * dvperpz_dz_ptl
 
     bx2 = bx_ptl**2
@@ -1031,12 +1047,12 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     pshear = (pperp_ptl - ppara_ptl) * bbsigma_perp_ptl
 
     if verbose:
-        print('Total pressure from particles: %f' % (np.sum(pscalar)))
+        print('Total pressure from particles: %f' % np.sum(pscalar))
         print('Para, perp pressure and anisotropy from particles: %f %f %f' %
-                (np.sum(ppara_ptl), np.sum(pperp_ptl),
-                 np.sum(ppara_ptl) - np.sum(pperp_ptl)))
+              (np.sum(ppara_ptl), np.sum(pperp_ptl), np.sum(ppara_ptl) - np.sum(pperp_ptl)))
         print("pdivv, pdiv_vperp, pshear and ptensor_dv from particles: %f %f %f %f" %
-                (np.sum(pdivv), np.sum(pdiv_vperp), np.sum(pshear), np.sum(ptensor_dv)))
+              (np.sum(pdivv), np.sum(pdiv_vperp), np.sum(pshear), np.sum(ptensor_dv)))
+        print('Total kinetic energy from particles: %f' % (np.sum(gamma - 1) * weight * pmass))
     del bx2, by2, bz2, bxy, bxz, byz
     del bbsigma_perp_ptl, ppara_ptl, pperp_ptl
     del pscalar, vx_ptl, vy_ptl, vz_ptl, ux_ptl, uy_ptl, uz_ptl
@@ -1072,19 +1088,19 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
 
     del ex_ptl, ey_ptl, ez_ptl, bx_ptl, by_ptl, bz_ptl, ib2_ptl
     del dvx_dt_ptl, dvy_dt_ptl, dvz_dt_ptl
-    
+
     # heating due -vxb electric field
     de_vxb = charge * (vxp*einx_ptl + vyp*einy_ptl + vzp*einz_ptl) * weight
     del einx_ptl, einy_ptl, einz_ptl
     del vxp, vyp, vzp
 
     if verbose:
-        print("Parallel and perpendicular heating: %d, %f, %f" % 
-                (rank, np.sum(de_para), np.sum(de_perp)))
+        print("Parallel and perpendicular heating: %d, %f, %f" %
+              (rank, np.sum(de_para), np.sum(de_perp)))
         print("Heating due to ideal electric field: %d, %f" % (rank, np.sum(de_vxb)))
         print("Maximum and minimum energy gain: %12.5e, %12.5e, %12.5e, %12.5e" %
-                (np.max(de_para), np.min(de_para), np.max(de_perp), np.min(de_perp)))
-        print("Heating due inertial term: %f" % (np.sum(de_dvdt)))
+              (np.max(de_para), np.min(de_para), np.max(de_perp), np.min(de_perp)))
+        print("Heating due inertial term: %f" % np.sum(de_dvdt))
 
     # get the distribution and save the data
     nbins = 60
@@ -1095,7 +1111,7 @@ def interp_particle_compression(pic_info, run_dir, tindex, tindex_pre, tindex_po
     mkdir_p(fdir)
     if verbose:
         print("Maximum and minimum energy: %12.5e, %12.5e" %
-                (np.max(gamma-1), np.min(gamma-1)))
+              (np.max(gamma-1), np.min(gamma-1)))
 
     hist_de_para, bin_edges = np.histogram(gamma-1, bins=ebins, weights=de_para)
     hist_de_perp, bin_edges = np.histogram(gamma-1, bins=ebins, weights=de_perp)
@@ -1143,10 +1159,10 @@ def fill_boundary_values(data_pre):
     nz, nx = data_pre.shape
     data_after = np.zeros((nz + 2, nx + 2))
     data_after[1:-1, 1:-1] = data_pre
-    data_after[0, :]  = data_after[nz, :]
-    data_after[-1, :] = data_after[1, :]
-    data_after[:, 0]  = data_after[:, nx]
-    data_after[:, -1] = data_after[:, 1]
+    # data_after[0, :] = data_after[nz, :]
+    # data_after[-1, :] = data_after[1, :]
+    # data_after[:, 0] = data_after[:, nx]
+    # data_after[:, -1] = data_after[:, 1]
 
     return data_after
 
@@ -1179,7 +1195,7 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     uxp = ptl['u'][:, 0]
     uyp = ptl['u'][:, 1]
     uzp = ptl['u'][:, 2]
-    q =  ptl['q']
+    q = ptl['q']
     nx = v0.nx + 2
     ny = v0.ny + 2
     nz = v0.nz + 2
@@ -1193,6 +1209,7 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     vyp = uyp * igamma
     vzp = uzp * igamma
     weight = abs(q[0])
+    coord = np.vstack((x_ptl, z_ptl))
     del ptl, icell, dxp, dzp, ix, iz, igamma, q
 
     # ex_ptl = fitting_functions['f_ex'](x_ptl, z_ptl, grid=False)
@@ -1201,19 +1218,19 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     # bx_ptl = fitting_functions['f_bx'](x_ptl, z_ptl, grid=False)
     # by_ptl = fitting_functions['f_by'](x_ptl, z_ptl, grid=False)
     # bz_ptl = fitting_functions['f_bz'](x_ptl, z_ptl, grid=False)
-    ex_ptl = fitting_functions['f_ex']((x_ptl, z_ptl))
-    ey_ptl = fitting_functions['f_ey']((x_ptl, z_ptl))
-    ez_ptl = fitting_functions['f_ez']((x_ptl, z_ptl))
-    bx_ptl = fitting_functions['f_bx']((x_ptl, z_ptl))
-    by_ptl = fitting_functions['f_by']((x_ptl, z_ptl))
-    bz_ptl = fitting_functions['f_bz']((x_ptl, z_ptl))
+    ex_ptl = fitting_functions['f_ex'](coord)
+    ey_ptl = fitting_functions['f_ey'](coord)
+    ez_ptl = fitting_functions['f_ez'](coord)
+    bx_ptl = fitting_functions['f_bx'](coord)
+    by_ptl = fitting_functions['f_by'](coord)
+    bz_ptl = fitting_functions['f_bz'](coord)
     bx2 = bx_ptl**2
     by2 = by_ptl**2
     bz2 = bz_ptl**2
     bxy = bx_ptl * by_ptl
     bxz = bx_ptl * bz_ptl
     byz = by_ptl * bz_ptl
-    ib2_ptl = div0(1.0 , bx2 + by2 + bz2)
+    ib2_ptl = div0(1.0, bx2 + by2 + bz2)
 
     # parallel and perpendicular heating
     # exb_ptl = ex_ptl * bx_ptl + ey_ptl * by_ptl + ez_ptl * bz_ptl
@@ -1233,15 +1250,14 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     de_para *= ib2_ptl * charge * weight
     de_perp = (vxp * ex_ptl + vyp * ey_ptl + vzp * ez_ptl) * charge * weight
     de_perp -= de_para
-    del vdotb_ptl
 
     # heating due to inertial term (fluid acceleration term)
     # dux_dt_ptl = fitting_functions['f_dux_dt'](x_ptl, z_ptl, grid=False)
     # duy_dt_ptl = fitting_functions['f_duy_dt'](x_ptl, z_ptl, grid=False)
     # duz_dt_ptl = fitting_functions['f_duz_dt'](x_ptl, z_ptl, grid=False)
-    dux_dt_ptl = fitting_functions['f_dux_dt']((x_ptl, z_ptl))
-    duy_dt_ptl = fitting_functions['f_duy_dt']((x_ptl, z_ptl))
-    duz_dt_ptl = fitting_functions['f_duz_dt']((x_ptl, z_ptl))
+    dux_dt_ptl = fitting_functions['f_dux_dt'](coord)
+    duy_dt_ptl = fitting_functions['f_duy_dt'](coord)
+    duz_dt_ptl = fitting_functions['f_duz_dt'](coord)
 
     # dux_dx_ptl = fitting_functions['f_dux_dx']((x_ptl, z_ptl))
     # duy_dx_ptl = fitting_functions['f_duy_dx']((x_ptl, z_ptl))
@@ -1249,19 +1265,19 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     # dux_dz_ptl = fitting_functions['f_dux_dz']((x_ptl, z_ptl))
     # duy_dz_ptl = fitting_functions['f_duy_dz']((x_ptl, z_ptl))
     # duz_dz_ptl = fitting_functions['f_duz_dz']((x_ptl, z_ptl))
-    # divv_species_ptl = fitting_functions['f_divv_species']((x_ptl, z_ptl))
+    divv_species_ptl = fitting_functions['f_divv_species']((x_ptl, z_ptl))
     # vx_ptl = fitting_functions['f_vx'](x_ptl, z_ptl, grid=False)
     # vy_ptl = fitting_functions['f_vy'](x_ptl, z_ptl, grid=False)
     # vz_ptl = fitting_functions['f_vz'](x_ptl, z_ptl, grid=False)
     # ux_ptl = fitting_functions['f_ux'](x_ptl, z_ptl, grid=False)
     # uy_ptl = fitting_functions['f_uy'](x_ptl, z_ptl, grid=False)
     # uz_ptl = fitting_functions['f_uz'](x_ptl, z_ptl, grid=False)
-    vx_ptl = fitting_functions['f_vx']((x_ptl, z_ptl))
-    vy_ptl = fitting_functions['f_vy']((x_ptl, z_ptl))
-    vz_ptl = fitting_functions['f_vz']((x_ptl, z_ptl))
-    ux_ptl = fitting_functions['f_ux']((x_ptl, z_ptl))
-    uy_ptl = fitting_functions['f_uy']((x_ptl, z_ptl))
-    uz_ptl = fitting_functions['f_uz']((x_ptl, z_ptl))
+    vx_ptl = fitting_functions['f_vx'](coord)
+    vy_ptl = fitting_functions['f_vy'](coord)
+    vz_ptl = fitting_functions['f_vz'](coord)
+    ux_ptl = fitting_functions['f_ux'](coord)
+    uy_ptl = fitting_functions['f_uy'](coord)
+    uz_ptl = fitting_functions['f_uz'](coord)
 
     # dux_dt_ptl += vxp * dux_dx_ptl + vzp * dux_dz_ptl
     # duy_dt_ptl += vxp * duy_dx_ptl + vzp * duy_dz_ptl
@@ -1287,16 +1303,47 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
               (dux_dt_ptl * bz_ptl - duz_dt_ptl * bx_ptl) * ey_ptl + \
               (duy_dt_ptl * bx_ptl - dux_dt_ptl * by_ptl) * ez_ptl
     de_dudt *= pmass * weight * ib2_ptl
+    # de_dudt = dux_dt_ptl * vxp + duy_dt_ptl * vyp + duz_dt_ptl * vzp
+    # de_dudt = (dux_dt_ptl * (vxp - vdotb_ptl * bx_ptl * ib2_ptl) +
+    #            duy_dt_ptl * (vyp - vdotb_ptl * by_ptl * ib2_ptl) +
+    #            duz_dt_ptl * (vzp - vdotb_ptl * bz_ptl * ib2_ptl))
+    # de_dudt *= pmass * weight
+    del vdotb_ptl
+
+    # de_dudt *= pmass * weight * ib2_ptl * (gamma - 1.0)
+    # de_dudt = pmass * weight * dux_dt_ptl * (gamma - 1.0)
+    # dux_dt_ptl = uxp * divv_species_ptl
+    # duy_dt_ptl = uyp * divv_species_ptl
+    # duz_dt_ptl = uzp * divv_species_ptl
+    # dux_dt_ptl = vxp * dux_dx_ptl + vzp * dux_dz_ptl
+    # duy_dt_ptl = vxp * duy_dx_ptl + vzp * duy_dz_ptl
+    # duz_dt_ptl = vxp * duz_dx_ptl + vzp * duz_dz_ptl
+    # de_dudt += ((duz_dt_ptl * by_ptl - duy_dt_ptl * bz_ptl) * ex_ptl +
+    #             (dux_dt_ptl * bz_ptl - duz_dt_ptl * bx_ptl) * ey_ptl +
+    #             (duy_dt_ptl * bx_ptl - dux_dt_ptl * by_ptl) * ez_ptl) * pmass * weight * ib2_ptl
+    # de_dudt = divv_species_ptl - (uxp * dux_dt_ptl +
+    #                               uyp * duy_dt_ptl +
+    #                               uzp * duz_dt_ptl)
+    # de_dudt *= pmass * weight
+
+    # vex = ey_ptl * bz_ptl - ez_ptl * by_ptl
+    # vey = ez_ptl * bx_ptl - ex_ptl * bz_ptl
+    # vez = ex_ptl * by_ptl - ey_ptl * bx_ptl
+    # ve2 = (vex**2 + vey**2 + vez**2) * ib2_ptl * ib2_ptl
+    # ve2[ve2 >= 1] = 0.0
+    # gamma1 = np.squeeze(gamma * np.sqrt(1.0/(1.0 - ve2)) * (1.0 - vex*vxp - vey*vyp - vez*vzp))
+
+    # del vex, vey, vez, ve2
 
     del ex_ptl, ey_ptl, ez_ptl
     del dux_dt_ptl, duy_dt_ptl, duz_dt_ptl
     # del dux_dx_ptl, duy_dx_ptl, duz_dx_ptl
     # del dux_dz_ptl, duy_dz_ptl, duz_dz_ptl
-    # del divv_species_ptl
+    del divv_species_ptl
 
     # heating due to conservation of mu
     # db_dt_ptl = fitting_functions['f_db_dt'](x_ptl, z_ptl, grid=False)
-    db_dt_ptl = fitting_functions['f_db_dt']((x_ptl, z_ptl))
+    db_dt_ptl = fitting_functions['f_db_dt'](coord)
     upara = uxp * bx_ptl + uyp * vy_ptl + uzp * bz_ptl
     uperp2 = uxp**2 + uyp**2 + uzp**2 - upara**2 * ib2_ptl
     de_cons_mu = 0.5 * (pmass * uperp2 * np.sqrt(ib2_ptl) / gamma) * db_dt_ptl * weight
@@ -1364,28 +1411,28 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     # dvperpx_dz_ptl = fitting_functions['f_dvperpx_dz'](x_ptl, z_ptl, grid=False)
     # dvperpy_dz_ptl = fitting_functions['f_dvperpy_dz'](x_ptl, z_ptl, grid=False)
     # dvperpz_dz_ptl = fitting_functions['f_dvperpz_dz'](x_ptl, z_ptl, grid=False)
-    divv_ptl = fitting_functions['f_divv']((x_ptl, z_ptl))
-    div_vperp_ptl = fitting_functions['f_div_vperp']((x_ptl, z_ptl))
-    bbsigma_perp_ptl = fitting_functions['f_bbsigma_perp']((x_ptl, z_ptl))
-    dvperpx_dx_ptl = fitting_functions['f_dvperpx_dx']((x_ptl, z_ptl))
-    dvperpy_dx_ptl = fitting_functions['f_dvperpy_dx']((x_ptl, z_ptl))
-    dvperpz_dx_ptl = fitting_functions['f_dvperpz_dx']((x_ptl, z_ptl))
-    dvperpx_dz_ptl = fitting_functions['f_dvperpx_dz']((x_ptl, z_ptl))
-    dvperpy_dz_ptl = fitting_functions['f_dvperpy_dz']((x_ptl, z_ptl))
-    dvperpz_dz_ptl = fitting_functions['f_dvperpz_dz']((x_ptl, z_ptl))
+    divv_ptl = fitting_functions['f_divv'](coord)
+    div_vperp_ptl = fitting_functions['f_div_vperp'](coord)
+    bbsigma_perp_ptl = fitting_functions['f_bbsigma_perp'](coord)
+    dvperpx_dx_ptl = fitting_functions['f_dvperpx_dx'](coord)
+    dvperpy_dx_ptl = fitting_functions['f_dvperpy_dx'](coord)
+    dvperpz_dx_ptl = fitting_functions['f_dvperpz_dx'](coord)
+    dvperpx_dz_ptl = fitting_functions['f_dvperpx_dz'](coord)
+    dvperpy_dz_ptl = fitting_functions['f_dvperpy_dz'](coord)
+    dvperpz_dz_ptl = fitting_functions['f_dvperpz_dz'](coord)
 
     bbsigma_perp_ptl = (dvperpx_dx_ptl - (1./3.) * div_vperp_ptl) * bx2 + \
-                   (-(1./3.) * div_vperp_ptl) * by2 + \
-                   (dvperpz_dz_ptl - (1./3.) * div_vperp_ptl) * bz2 + \
-                   dvperpy_dx_ptl * bxy + \
-                   (dvperpx_dz_ptl + dvperpz_dx_ptl) * bxz + dvperpy_dz_ptl * byz
+            (-(1./3.) * div_vperp_ptl) * by2 + \
+            (dvperpz_dz_ptl - (1./3.) * div_vperp_ptl) * bz2 + \
+            dvperpy_dx_ptl * bxy + \
+            (dvperpx_dz_ptl + dvperpz_dx_ptl) * bxz + dvperpy_dz_ptl * byz
     bbsigma_perp_ptl *= ib2_ptl
 
     del bx2, by2, bz2, bxy, bxz, byz, ib2_ptl
 
     pdivv = -pscalar * divv_ptl
     pdiv_vperp = -pscalar * div_vperp_ptl
-    ptensor_dv  = -(pxx * dvperpx_dx_ptl + pyx * dvperpy_dx_ptl + pzx * dvperpz_dx_ptl)
+    ptensor_dv = -(pxx * dvperpx_dx_ptl + pyx * dvperpy_dx_ptl + pzx * dvperpz_dx_ptl)
     ptensor_dv -= pxz * dvperpx_dz_ptl + pyz * dvperpy_dz_ptl + pzz * dvperpz_dz_ptl
     pshear = (pperp_ptl - ppara_ptl) * bbsigma_perp_ptl
 
@@ -1398,15 +1445,16 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     # flux term
     # div_ptensor_vperp_ptl = fitting_functions['f_div_ptensor_vperp'](x_ptl, z_ptl, grid=False)
     # div_pperp_vperp_ptl = fitting_functions['f_div_pperp_vperp'](x_ptl, z_ptl, grid=False)
-    div_ptensor_vperp_ptl = fitting_functions['f_div_ptensor_vperp']((x_ptl, z_ptl))
-    div_pperp_vperp_ptl = fitting_functions['f_div_pperp_vperp']((x_ptl, z_ptl))
+    div_ptensor_vperp_ptl = fitting_functions['f_div_ptensor_vperp'](coord)
+    div_pperp_vperp_ptl = fitting_functions['f_div_pperp_vperp'](coord)
 
     div_ptensor_vperp_ptl *= weight
     div_pperp_vperp_ptl *= weight
 
     hists = np.zeros((11, nbins))
 
-    hists[0, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(de_para))
+    # hists[0, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(de_para))
+    hists[0, :], bin_edges = np.histogram(gamma1-1, bins=ebins, weights=np.squeeze(de_para))
     hists[1, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(de_perp))
     hists[2, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(pdivv))
     hists[3, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(pdiv_vperp))
@@ -1414,19 +1462,22 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     hists[5, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(ptensor_dv))
     hists[6, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(de_dudt))
     hists[7, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(de_cons_mu))
-    hists[8, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(div_ptensor_vperp_ptl))
-    hists[9, :], bin_edges = np.histogram(gamma-1, bins=ebins, weights=np.squeeze(div_pperp_vperp_ptl))
+    hists[8, :], bin_edges = np.histogram(gamma-1, bins=ebins,
+                                          weights=np.squeeze(div_ptensor_vperp_ptl))
+    hists[9, :], bin_edges = np.histogram(gamma-1, bins=ebins,
+                                          weights=np.squeeze(div_pperp_vperp_ptl))
     hists[10, :], bin_edges = np.histogram(gamma-1, bins=ebins)
 
     del x_ptl, z_ptl, gamma, bin_edges
     del de_para, de_perp, pdivv, pdiv_vperp, pshear, ptensor_dv, de_dudt, de_cons_mu
     del div_ptensor_vperp_ptl, div_pperp_vperp_ptl
+    del coord
     del fitting_functions
 
     return hists
 
 
-def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
+def interp_particle_compression_single(pic_info, run_dir, run_name, tindex, tindex_pre,
                                        tindex_post, species='e'):
     """Use single field files to interpolate compression effects
     """
@@ -1439,6 +1490,7 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     mime = pic_info.mime
     smime = math.sqrt(mime)
     current_time = tindex / pic_info.fields_interval
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
 
     particle_dir = run_dir + 'particle/T.' + str(tindex) + '/'
     eparticle_name = particle_dir + 'eparticle.' + str(tindex)
@@ -1461,7 +1513,7 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     x2 = np.linspace(-dx, lx_pic, nx_pic + 2)
     z1 = np.linspace(-dzh - 0.5 * lz_pic, 0.5 * lz_pic + dzh, nz_pic + 2)
     z2 = np.linspace(-dz - 0.5 * lz_pic, 0.5 * lz_pic, nz_pic + 2)
-    points_x, points_z = np.broadcast_arrays(x2.reshape(-1,1), z2)
+    points_x, points_z = np.broadcast_arrays(x2.reshape(-1, 1), z2)
     points = np.vstack((points_x.flatten(),
                         points_z.flatten())).T
     smin = [x2[0], z2[0]]
@@ -1469,10 +1521,13 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     orders = [len(x2), len(z2)]
     del points_x, points_z
 
+    ng = 3
+    kernel = np.ones((ng, ng)) / float(ng * ng)
+
     fitting_functions = {}
 
     kwargs = {"current_time": current_time,
-              "xl": 0, "xr": 200, "zb": -50, "zt": 50 }
+              "xl": 0, "xr": 200, "zb": -50, "zt": 50}
     # read velocity fields
     fname = run_dir + "data/v" + species + "x.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
@@ -1500,6 +1555,17 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
              vz_pic * np.gradient(uy_pic, dz, axis=0)
     duz_dt = vx_pic * np.gradient(uz_pic, dx, axis=1) + \
              vz_pic * np.gradient(uz_pic, dz, axis=0)
+
+    fname = run_dir + "data/n" + species + ".gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    nrho_pic = fill_boundary_values(fdata)
+
+    # dux_dt = vx_pic * np.gradient(nrho_pic * ux_pic, dx, axis=1) + \
+    #          vz_pic * np.gradient(nrho_pic * ux_pic, dz, axis=0)
+    # duy_dt = vx_pic * np.gradient(nrho_pic * uy_pic, dx, axis=1) + \
+    #          vz_pic * np.gradient(nrho_pic * uy_pic, dz, axis=0)
+    # duz_dt = vx_pic * np.gradient(nrho_pic * uz_pic, dx, axis=1) + \
+    #          vz_pic * np.gradient(nrho_pic * uz_pic, dz, axis=0)
 
     order = 1
 
@@ -1544,16 +1610,13 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     # fitting_functions['f_vz_ux'] = RegularGridInterpolator((x2, z2), vz_pic.T*ux_pic.T)
     # fitting_functions['f_vz_uy'] = RegularGridInterpolator((x2, z2), vz_pic.T*uy_pic.T)
 
-    del vx_pic, vy_pic, vz_pic
-    del ux_pic, uy_pic, uz_pic
-
     # read electric and magnetic fields
     nx = pic_info.nx
     nz = pic_info.nz
     fname = run_dir + "data/ex.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     ex = fill_boundary_values(fdata)
-    ex[:, 1:nx+1] = (ex[:, 0:nx] + ex[:, 1:nx+1]) * 0.5
+    # ex[:, 1:nx+1] = (ex[:, 0:nx] + ex[:, 1:nx+1]) * 0.5
 
     fname = run_dir + "data/ey.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
@@ -1562,23 +1625,28 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     fname = run_dir + "data/ez.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     ez = fill_boundary_values(fdata)
-    ez[1:nz+1, :] = (ez[0:nz, :] + ez[1:nz+1, :]) * 0.5
+    # ez[1:nz+1, :] = (ez[0:nz, :] + ez[1:nz+1, :]) * 0.5
 
     fname = run_dir + "data/bx.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     bx = fill_boundary_values(fdata)
-    bx[1:nz+1, :] = (bx[0:nz, :] + bx[1:nz+1, :]) * 0.5
+    # bx[1:nz+1, :] = (bx[0:nz, :] + bx[1:nz+1, :]) * 0.5
 
     fname = run_dir + "data/by.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     by = fill_boundary_values(fdata)
-    by[1:nz+1, 1:nx+1] = (by[0:nz, 0:nx] + by[1:nz+1, 0:nx] +
-                          by[0:nz, 1:nx+1] + by[1:nz+1, 1:nx+1]) * 0.25
+    # by[1:nz+1, 1:nx+1] = (by[0:nz, 0:nx] + by[1:nz+1, 0:nx] +
+    #                       by[0:nz, 1:nx+1] + by[1:nz+1, 1:nx+1]) * 0.25
 
     fname = run_dir + "data/bz.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     bz = fill_boundary_values(fdata)
-    bz[:, 1:nx+1] = (bz[:, 0:nx] + bz[:, 1:nx+1]) * 0.5
+    # bz[:, 1:nx+1] = (bz[:, 0:nx] + bz[:, 1:nx+1]) * 0.5
+
+    sigma = 3
+    ex = median_filter(ex, sigma)
+    ey = median_filter(ey, sigma)
+    ez = median_filter(ez, sigma)
 
     # fitting_functions['f_ex'] = RectBivariateSpline(x2, z2, ex.T, kx=order, ky=order)
     # fitting_functions['f_ey'] = RectBivariateSpline(x2, z2, ey.T, kx=order, ky=order)
@@ -1629,64 +1697,70 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     del vx, vy, vz
 
     # read pressure fields
-    fname = run_dir + "data/n" + species + ".gda"
-    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
-    nrho_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-xx.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pxx_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-yy.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pyy_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-zz.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pzz_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-xy.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pxy_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-xz.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pxz_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-yz.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pyz_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-yx.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pyx_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-zx.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pzx_pic = fill_boundary_values(fdata)
     fname = run_dir + "data/p" + species + "-zy.gda"
-    x, z, fdata= read_2d_fields(pic_info, fname, **kwargs)
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     pzy_pic = fill_boundary_values(fdata)
 
     ppara = pxx_pic*bx**2 + pyy_pic*by**2 + pzz_pic*bz**2 + \
             (pxy_pic + pyx_pic)*bx*by + (pxz_pic + pzx_pic)*bx*bz + \
             (pyz_pic + pzy_pic)*by*bz
+    ppara *= ib2
     pperp = 0.5 * (pxx_pic + pyy_pic + pzz_pic - ppara)
 
     div_ptensor_vperp = np.gradient(pxx_pic*vx_perp + pyx_pic*vy_perp +
                                     pzx_pic*vz_perp, dx, axis=1) + \
-                        np.gradient(pxz_pic*vx_perp + pyz_pic*vy_perp + 
-                                    pzz_pic*vz_perp, dz, axis=0) 
+                        np.gradient(pxz_pic*vx_perp + pyz_pic*vy_perp +
+                                    pzz_pic*vz_perp, dz, axis=0)
     div_pperp_vperp = np.gradient(pperp * vx_perp, dx, axis=1) + \
-                      np.gradient(pperp * vz_perp, dz, axis=0) 
-    div_ptensor_vperp = div0(div_ptensor_vperp, nrho_pic)
-    div_pperp_vperp = div0(div_pperp_vperp, nrho_pic)
+                      np.gradient(pperp * vz_perp, dz, axis=0)
+    # div_ptensor_vperp = div0(div_ptensor_vperp, nrho_pic)
+    # div_pperp_vperp = div0(div_pperp_vperp, nrho_pic)
 
-    # fitting_functions['f_div_ptensor_vperp'] = RectBivariateSpline(x2, z2, div_ptensor_vperp.T, kx=order, ky=order)
-    # fitting_functions['f_div_pperp_vperp'] = RectBivariateSpline(x2, z2, div_pperp_vperp.T, kx=order, ky=order)
-    # fitting_functions['f_div_ptensor_vperp'] = RegularGridInterpolator((x2, z2), div_ptensor_vperp.T)
-    # fitting_functions['f_div_pperp_vperp'] = RegularGridInterpolator((x2, z2), div_pperp_vperp.T)
-    # fitting_functions['f_div_ptensor_vperp'] = LinearNDInterpolator(points, np.transpose(div_ptensor_vperp).flatten())
-    # fitting_functions['f_div_pperp_vperp'] = LinearNDInterpolator(points, np.transpose(div_pperp_vperp).flatten())
+    # fitting_functions['f_div_ptensor_vperp'] = RectBivariateSpline(
+    #         x2, z2, div_ptensor_vperp.T, kx=order, ky=order)
+    # fitting_functions['f_div_pperp_vperp'] = RectBivariateSpline(
+    #         x2, z2, div_pperp_vperp.T, kx=order, ky=order)
+    # fitting_functions['f_div_ptensor_vperp'] = RegularGridInterpolator(
+    #         (x2, z2), div_ptensor_vperp.T)
+    # fitting_functions['f_div_pperp_vperp'] = RegularGridInterpolator(
+    #         (x2, z2), div_pperp_vperp.T)
+    # fitting_functions['f_div_ptensor_vperp'] = LinearNDInterpolator(
+    #         points, np.transpose(div_ptensor_vperp).flatten())
+    # fitting_functions['f_div_pperp_vperp'] = LinearNDInterpolator(
+    #         points, np.transpose(div_pperp_vperp).flatten())
     fitting_functions['f_div_ptensor_vperp'] = MultilinearInterpolator(smin, smax, orders)
     fitting_functions['f_div_pperp_vperp'] = MultilinearInterpolator(smin, smax, orders)
-    fitting_functions['f_div_ptensor_vperp'].set_values(np.atleast_2d(np.transpose(div_ptensor_vperp).flatten()))
-    fitting_functions['f_div_pperp_vperp'].set_values(np.atleast_2d(np.transpose(div_pperp_vperp).flatten()))
+    fitting_functions['f_div_ptensor_vperp'].set_values(
+            np.atleast_2d(np.transpose(div_ptensor_vperp).flatten()))
+    fitting_functions['f_div_pperp_vperp'].set_values(
+            np.atleast_2d(np.transpose(div_pperp_vperp).flatten()))
     del div_ptensor_vperp, div_pperp_vperp
 
-    del ppara, pperp, nrho_pic
+    del ppara, pperp
     del pxx_pic, pyy_pic, pzz_pic
     del pxy_pic, pxz_pic, pyz_pic
     del pyx_pic, pzx_pic, pzy_pic
@@ -1698,8 +1772,6 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     dvperpy_dz = np.gradient(vy_perp, dz, axis=0)
     dvperpz_dz = np.gradient(vz_perp, dz, axis=0)
 
-    del vx_perp, vy_perp, vz_perp
-
     bbsigma_perp = (dvperpx_dx - (1./3.) * div_vperp) * bx**2 + \
                    (-(1./3.) * div_vperp) * by**2 + \
                    (dvperpz_dz - (1./3.) * div_vperp) * bz**2 + \
@@ -1708,14 +1780,22 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     bbsigma_perp *= ib2
 
     # fitting_functions['f_divv'] = RectBivariateSpline(x2, z2, divv.T, kx=order, ky=order)
-    # fitting_functions['f_div_vperp'] = RectBivariateSpline(x2, z2, div_vperp.T, kx=order, ky=order)
-    # fitting_functions['f_bbsigma_perp'] = RectBivariateSpline(x2, z2, bbsigma_perp.T, kx=order, ky=order)
-    # fitting_functions['f_dvperpx_dx'] = RectBivariateSpline(x2, z2, dvperpx_dx.T, kx=order, ky=order)
-    # fitting_functions['f_dvperpy_dx'] = RectBivariateSpline(x2, z2, dvperpy_dx.T, kx=order, ky=order)
-    # fitting_functions['f_dvperpz_dx'] = RectBivariateSpline(x2, z2, dvperpz_dx.T, kx=order, ky=order)
-    # fitting_functions['f_dvperpx_dz'] = RectBivariateSpline(x2, z2, dvperpx_dz.T, kx=order, ky=order)
-    # fitting_functions['f_dvperpy_dz'] = RectBivariateSpline(x2, z2, dvperpy_dz.T, kx=order, ky=order)
-    # fitting_functions['f_dvperpz_dz'] = RectBivariateSpline(x2, z2, dvperpz_dz.T, kx=order, ky=order)
+    # fitting_functions['f_div_vperp'] = RectBivariateSpline(x2, z2, div_vperp.T,
+    #                                                        kx=order, ky=order)
+    # fitting_functions['f_bbsigma_perp'] = RectBivariateSpline(x2, z2, bbsigma_perp.T,
+    #                                                           kx=order, ky=order)
+    # fitting_functions['f_dvperpx_dx'] = RectBivariateSpline(x2, z2, dvperpx_dx.T,
+    #                                                         kx=order, ky=order)
+    # fitting_functions['f_dvperpy_dx'] = RectBivariateSpline(x2, z2, dvperpy_dx.T,
+    #                                                         kx=order, ky=order)
+    # fitting_functions['f_dvperpz_dx'] = RectBivariateSpline(x2, z2, dvperpz_dx.T,
+    #                                                         kx=order, ky=order)
+    # fitting_functions['f_dvperpx_dz'] = RectBivariateSpline(x2, z2, dvperpx_dz.T,
+    #                                                         kx=order, ky=order)
+    # fitting_functions['f_dvperpy_dz'] = RectBivariateSpline(x2, z2, dvperpy_dz.T,
+    #                                                         kx=order, ky=order)
+    # fitting_functions['f_dvperpz_dz'] = RectBivariateSpline(x2, z2, dvperpz_dz.T,
+    #                                                         kx=order, ky=order)
     # fitting_functions['f_divv'] = RegularGridInterpolator((x2, z2), divv.T)
     # fitting_functions['f_div_vperp'] = RegularGridInterpolator((x2, z2), div_vperp.T)
     # fitting_functions['f_bbsigma_perp'] = RegularGridInterpolator((x2, z2), bbsigma_perp.T)
@@ -1726,14 +1806,23 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     # fitting_functions['f_dvperpy_dz'] = RegularGridInterpolator((x2, z2), dvperpy_dz.T)
     # fitting_functions['f_dvperpz_dz'] = RegularGridInterpolator((x2, z2), dvperpz_dz.T)
     # fitting_functions['f_divv'] = LinearNDInterpolator(points, np.transpose(divv).flatten())
-    # fitting_functions['f_div_vperp'] = LinearNDInterpolator(points, np.transpose(div_vperp).flatten())
-    # fitting_functions['f_bbsigma_perp'] = LinearNDInterpolator(points, np.transpose(bbsigma_perp).flatten())
-    # fitting_functions['f_dvperpx_dx'] = LinearNDInterpolator(points, np.transpose(dvperpx_dx).flatten())
-    # fitting_functions['f_dvperpy_dx'] = LinearNDInterpolator(points, np.transpose(dvperpy_dx).flatten())
-    # fitting_functions['f_dvperpz_dx'] = LinearNDInterpolator(points, np.transpose(dvperpz_dx).flatten())
-    # fitting_functions['f_dvperpx_dz'] = LinearNDInterpolator(points, np.transpose(dvperpx_dz).flatten())
-    # fitting_functions['f_dvperpy_dz'] = LinearNDInterpolator(points, np.transpose(dvperpy_dz).flatten())
-    # fitting_functions['f_dvperpz_dz'] = LinearNDInterpolator(points, np.transpose(dvperpz_dz).flatten())
+    # fitting_functions['f_div_vperp'] = LinearNDInterpolator(
+    #         points, np.transpose(div_vperp).flatten())
+    # fitting_functions['f_bbsigma_perp'] = LinearNDInterpolator(
+    #         points, np.transpose(bbsigma_perp).flatten())
+    # fitting_functions['f_dvperpx_dx'] = LinearNDInterpolator(
+    #         points, np.transpose(dvperpx_dx).flatten())
+    # fitting_functions['f_dvperpy_dx'] = LinearNDInterpolator(
+    #         points, np.transpose(dvperpy_dx).flatten())
+    # fitting_functions['f_dvperpz_dx'] = LinearNDInterpolator(
+    #         points, np.transpose(dvperpz_dx).flatten())
+    # fitting_functions['f_dvperpx_dz'] = LinearNDInterpolator(
+    #         points, np.transpose(dvperpx_dz).flatten())
+    # fitting_functions['f_dvperpy_dz'] = LinearNDInterpolator(
+    #         points, np.transpose(dvperpy_dz).flatten())
+    # fitting_functions['f_dvperpz_dz'] = LinearNDInterpolator(
+    #         points, np.transpose(dvperpz_dz).flatten())
+
     fitting_functions['f_divv'] = MultilinearInterpolator(smin, smax, orders)
     fitting_functions['f_div_vperp'] = MultilinearInterpolator(smin, smax, orders)
     fitting_functions['f_bbsigma_perp'] = MultilinearInterpolator(smin, smax, orders)
@@ -1745,7 +1834,8 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     fitting_functions['f_dvperpz_dz'] = MultilinearInterpolator(smin, smax, orders)
     fitting_functions['f_divv'].set_values(np.atleast_2d(np.transpose(divv).flatten()))
     fitting_functions['f_div_vperp'].set_values(np.atleast_2d(np.transpose(div_vperp).flatten()))
-    fitting_functions['f_bbsigma_perp'].set_values(np.atleast_2d(np.transpose(bbsigma_perp).flatten()))
+    fitting_functions['f_bbsigma_perp'].set_values(np.atleast_2d(
+            np.transpose(bbsigma_perp).flatten()))
     fitting_functions['f_dvperpx_dx'].set_values(np.atleast_2d(np.transpose(dvperpx_dx).flatten()))
     fitting_functions['f_dvperpy_dx'].set_values(np.atleast_2d(np.transpose(dvperpy_dx).flatten()))
     fitting_functions['f_dvperpz_dx'].set_values(np.atleast_2d(np.transpose(dvperpz_dx).flatten()))
@@ -1789,21 +1879,173 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     fname = run_dir + "data/absB_post.gda"
     x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
     absB_post = fill_boundary_values(fdata)
-    
+    fname = run_dir + "data/ke-" + species + ".gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ke_pic = fill_boundary_values(fdata)
+
+    fname = run_dir + "data/ex_pre.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ex_pre = fill_boundary_values(fdata)
+    # ex_pre[:, 1:nx+1] = (ex_pre[:, 0:nx] + ex_pre[:, 1:nx+1]) * 0.5
+
+    fname = run_dir + "data/ey_pre.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ey_pre = fill_boundary_values(fdata)
+
+    fname = run_dir + "data/ez_pre.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ez_pre = fill_boundary_values(fdata)
+    # ez_pre[1:nz+1, :] = (ez_pre[0:nz, :] + ez_pre[1:nz+1, :]) * 0.5
+
+    fname = run_dir + "data/bx_pre.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    bx_pre = fill_boundary_values(fdata)
+    # bx_pre[1:nz+1, :] = (bx_pre[0:nz, :] + bx_pre[1:nz+1, :]) * 0.5
+
+    fname = run_dir + "data/by_pre.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    by_pre = fill_boundary_values(fdata)
+    # by_pre[1:nz+1, 1:nx+1] = (by_pre[0:nz, 0:nx] + by_pre[1:nz+1, 0:nx] +
+    #                           by_pre[0:nz, 1:nx+1] + by_pre[1:nz+1, 1:nx+1]) * 0.25
+
+    fname = run_dir + "data/bz_pre.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    bz_pre = fill_boundary_values(fdata)
+    # bz_pre[:, 1:nx+1] = (bz_pre[:, 0:nx] + bz_pre[:, 1:nx+1]) * 0.5
+
+    ib2_pre = div0(1.0, absB_pre**2)
+    ex_pre = median_filter(ex_pre, sigma)
+    ey_pre = median_filter(ey_pre, sigma)
+    ez_pre = median_filter(ez_pre, sigma)
+    vexb_pre_x = (ey_pre * bz_pre - ez_pre * by_pre) * ib2_pre
+    vexb_pre_y = (ez_pre * bx_pre - ex_pre * bz_pre) * ib2_pre
+    vexb_pre_z = (ex_pre * by_pre - ey_pre * bx_pre) * ib2_pre
+
+    del ex_pre, ey_pre, ez_pre
+    del bx_pre, by_pre, bz_pre
+    del ib2_pre
+
+    fname = run_dir + "data/ex_post.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ex_post = fill_boundary_values(fdata)
+    # ex_post[:, 1:nx+1] = (ex_post[:, 0:nx] + ex_post[:, 1:nx+1]) * 0.5
+
+    fname = run_dir + "data/ey_post.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ey_post = fill_boundary_values(fdata)
+
+    fname = run_dir + "data/ez_post.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    ez_post = fill_boundary_values(fdata)
+    # ez_post[1:nz+1, :] = (ez_post[0:nz, :] + ez_post[1:nz+1, :]) * 0.5
+
+    fname = run_dir + "data/bx_post.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    bx_post = fill_boundary_values(fdata)
+    # bx_post[1:nz+1, :] = (bx_post[0:nz, :] + bx_post[1:nz+1, :]) * 0.5
+
+    fname = run_dir + "data/by_post.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    by_post = fill_boundary_values(fdata)
+    # by_post[1:nz+1, 1:nx+1] = (by_post[0:nz, 0:nx] + by_post[1:nz+1, 0:nx] +
+    #                            by_post[0:nz, 1:nx+1] + by_post[1:nz+1, 1:nx+1]) * 0.25
+
+    fname = run_dir + "data/bz_post.gda"
+    x, z, fdata = read_2d_fields(pic_info, fname, **kwargs)
+    bz_post = fill_boundary_values(fdata)
+    # bz_post[:, 1:nx+1] = (bz_post[:, 0:nx] + bz_post[:, 1:nx+1]) * 0.5
+
+    ib2_post = div0(1.0, absB_post**2)
+    ex_post = median_filter(ex_post, sigma)
+    ey_post = median_filter(ey_post, sigma)
+    ez_post = median_filter(ez_post, sigma)
+    vexb_post_x = (ey_post * bz_post - ez_post * by_post) * ib2_post
+    vexb_post_y = (ez_post * bx_post - ex_post * bz_post) * ib2_post
+    vexb_post_z = (ex_post * by_post - ey_post * bx_post) * ib2_post
+
+    del ex_post, ey_post, ez_post
+    del bx_post, by_post, bz_post
+    del ib2_post
     del fdata
 
     dtf = pic_info.dtwpe * (tindex_post - tindex_pre)
     dux_dt += (ux_post - ux_pre) / dtf
     duy_dt += (uy_post - uy_pre) / dtf
     duz_dt += (uz_post - uz_pre) / dtf
+    # de_dudt = dux_dt * vx_perp + duy_dt * vy_perp + duz_dt * vz_perp
+    # de_dudt = dux_dt * vx_pic + duy_dt * vy_pic + duz_dt * vz_pic
+    # de_dudt *= nrho_pic * pmass
+    # print("Min and max: %f %f" % (np.min(de_dudt), np.max(de_dudt)))
+    # print np.sum(de_dudt) * dv
+    # vmin = -0.1
+    # vmax = -vmin
+    # # plt.imshow(jpolar_dote, cmap=plt.cm.seismic, vmin=vmin, vmax=vmax)
+    # de_dudt_cum = np.cumsum(np.sum(de_dudt, axis=0))
+    # plt.plot(de_dudt_cum * dv, linewidth=2)
+
+    # # dux_dt = vx_perp * dux_dt + vy_perp * duy_dt + vz_perp * duz_dt
+    # # dux_dt += (ux_post * nrho_post - ux_pre * nrho_pre) / dtf
+    # # duy_dt += (uy_post * nrho_post - uy_pre * nrho_pre) / dtf
+    # # duz_dt += (uz_post * nrho_post - uz_pre * nrho_pre) / dtf
+    # dux_dt = (ux_post * nrho_post - ux_pre * nrho_pre) / dtf
+    # duy_dt = (uy_post * nrho_post - uy_pre * nrho_pre) / dtf
+    # duz_dt = (uz_post * nrho_post - uz_pre * nrho_pre) / dtf
+    # dux_dt = div0(dux_dt, ke_pic / pmass)
+    # duy_dt = div0(duy_dt, ke_pic / pmass)
+    # duz_dt = div0(duz_dt, ke_pic / pmass)
+    divv_species = np.gradient(vx_pic, dx, axis=1) + \
+                   np.gradient(vz_pic, dz, axis=0)
+    # dux_dt += ux_pic * divv_species
+    # duy_dt += uy_pic * divv_species
+    # duz_dt += uz_pic * divv_species
+    # dux_dt = vx_perp * dux_dt + vy_perp * duy_dt + vz_perp * duz_dt
+
+    # idt = 1.0 / dtf
+    # dux_dt = ((vexb_post_x - vexb_pre_x) * idt +
+    #           vx_pic * np.gradient(vx_perp, dx, axis=1) +
+    #           vz_pic * np.gradient(vx_perp, dz, axis=0))
+    # duy_dt = ((vexb_post_y - vexb_pre_y) * idt +
+    #           vx_pic * np.gradient(vy_perp, dx, axis=1) +
+    #           vz_pic * np.gradient(vy_perp, dz, axis=0))
+    # duz_dt = ((vexb_post_z - vexb_pre_z) * idt +
+    #           vx_pic * np.gradient(vz_perp, dx, axis=1) +
+    #           vz_pic * np.gradient(vz_perp, dz, axis=0))
+    # udot_vexb = ux_pic * vx_perp + uy_pic * vy_perp + uz_pic * vz_perp
+    # udot_vexb_pre = (ux_pre * vexb_pre_x + uy_pre * vexb_pre_y +
+    #                  uz_pre * vexb_pre_z)
+    # udot_vexb_post = (ux_post * vexb_post_x + uy_post * vexb_post_y +
+    #                   uz_post * vexb_post_z)
+
+    # divv_species = (udot_vexb_post - udot_vexb_pre) * idt
+    # divv_species += (vx_pic * np.gradient(udot_vexb, dx, axis=1) +
+    #                  vz_pic * np.gradient(udot_vexb, dz, axis=0))
+    # # jpolar_dote = divv_species * nrho_pic * pmass
+    # jpolar_dote = (divv_species - ux_pic * dux_dt - uy_pic * duy_dt -
+    #                uz_pic * duz_dt) * nrho_pic * pmass
+    # print("Min and max: %f %f" % (np.min(jpolar_dote), np.max(jpolar_dote)))
+    # print np.sum(jpolar_dote) * dv
+    # vmin = -0.1
+    # vmax = -vmin
+    # # plt.imshow(jpolar_dote, cmap=plt.cm.seismic, vmin=vmin, vmax=vmax)
+    # jpolar_dote_cum = np.cumsum(np.sum(jpolar_dote, axis=0))
+    # plt.plot(jpolar_dote_cum * dv, linewidth=2)
+
+    del vexb_pre_x, vexb_pre_y, vexb_pre_z
+    del vexb_post_x, vexb_post_y, vexb_post_z
+    # del udot_vexb, udot_vexb_pre, udot_vexb_post
+
+    del vx_pic, vy_pic, vz_pic
+    del vx_perp, vy_perp, vz_perp
+
+    # dux_dt = div0(dux_dt * nrho_pic, ke_pic) * pmass
+    # duy_dt = div0(duy_dt * nrho_pic, ke_pic) * pmass
+    # duz_dt = div0(duz_dt * nrho_pic, ke_pic) * pmass
     # dux_dx = np.gradient(ux_pic, dx, axis=1)
     # dux_dz = np.gradient(ux_pic, dz, axis=0)
     # duy_dx = np.gradient(uy_pic, dx, axis=1)
     # duy_dz = np.gradient(uy_pic, dz, axis=0)
     # duz_dx = np.gradient(uz_pic, dx, axis=1)
     # duz_dz = np.gradient(uz_pic, dz, axis=0)
-    # divv_species = np.gradient(vx_pic, dx, axis=1) + \
-    #                np.gradient(vz_pic, dz, axis=0)
     # ng = 3
     # kernel = np.ones((ng, ng)) / float(ng * ng)
     # absB_pre = signal.convolve2d(absB_pre, kernel, 'same')
@@ -1814,10 +2056,12 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     #         np.gradient(ey, dx, axis=1) * bz
     # db_dt /= absB
 
+    del ux_pic, uy_pic, uz_pic
     del ux_pre, uy_pre, uz_pre
     del ux_post, uy_post, uz_post
     del absB_pre, absB_post
     del nrho_pre, nrho_post
+    del ke_pic, nrho_pic
 
     # fitting_functions['f_dux_dt'] = RectBivariateSpline(x2, z2, dux_dt.T, kx=order, ky=order)
     # fitting_functions['f_duy_dt'] = RectBivariateSpline(x2, z2, duy_dt.T, kx=order, ky=order)
@@ -1846,9 +2090,26 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     # fitting_functions['f_dux_dz'] = RegularGridInterpolator((x2, z2), dux_dz.T)
     # fitting_functions['f_duy_dz'] = RegularGridInterpolator((x2, z2), duy_dz.T)
     # fitting_functions['f_duz_dz'] = RegularGridInterpolator((x2, z2), duz_dz.T)
+    # fitting_functions['f_dux_dx'] = MultilinearInterpolator(smin, smax, orders)
+    # fitting_functions['f_duy_dx'] = MultilinearInterpolator(smin, smax, orders)
+    # fitting_functions['f_duz_dx'] = MultilinearInterpolator(smin, smax, orders)
+    # fitting_functions['f_dux_dz'] = MultilinearInterpolator(smin, smax, orders)
+    # fitting_functions['f_duy_dz'] = MultilinearInterpolator(smin, smax, orders)
+    # fitting_functions['f_duz_dz'] = MultilinearInterpolator(smin, smax, orders)
+    # fitting_functions['f_dux_dx'].set_values(np.atleast_2d(np.transpose(dux_dx).flatten()))
+    # fitting_functions['f_duy_dx'].set_values(np.atleast_2d(np.transpose(duy_dx).flatten()))
+    # fitting_functions['f_duz_dx'].set_values(np.atleast_2d(np.transpose(duz_dx).flatten()))
+    # fitting_functions['f_dux_dz'].set_values(np.atleast_2d(np.transpose(dux_dz).flatten()))
+    # fitting_functions['f_duy_dz'].set_values(np.atleast_2d(np.transpose(duy_dz).flatten()))
+    # fitting_functions['f_duz_dz'].set_values(np.atleast_2d(np.transpose(duz_dz).flatten()))
     # fitting_functions['f_divv_species'] = RegularGridInterpolator((x2, z2), divv_species.T)
+    fitting_functions['f_divv_species'] = MultilinearInterpolator(smin, smax, orders)
+    fitting_functions['f_divv_species'].set_values(np.atleast_2d(np.transpose(divv_species).flatten()))
 
+    del divv_species
     del dux_dt, duy_dt, duz_dt
+    # del dux_dx, duy_dx, duz_dx
+    # del dux_dz, duy_dz, duz_dz
     del db_dt
 
     # get the distribution and save the data
@@ -1856,12 +2117,12 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
     drange = [[1, 1.1], [0, 1]]
     ebins = np.logspace(-4, 2, nbins) / math.sqrt(pmass)
 
-    fdir = run_dir + 'data_ene/'
+    fdir = '../data/particle_compression/' + run_name + '/'
     mkdir_p(fdir)
 
     nprocs = pic_info.topology_x * pic_info.topology_y * pic_info.topology_z
-    hist_pdivv = np.zeros(nbins - 1)
-    
+    hist_pdivv = np.zeros(nbins - 1) 
+
     ranks = range(nprocs)
     hists = np.zeros((11, nbins))
     for rank in ranks:
@@ -1869,6 +2130,7 @@ def interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
                                            fitting_functions)
     fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
     hists.tofile(fname)
+
     # ncores = multiprocessing.cpu_count()
     # fdata = Parallel(n_jobs=ncores)(delayed(interpolation_single_rank)(rank,
     #     pmass, species, tindex, fitting_functions) for rank in ranks)
@@ -1887,7 +2149,7 @@ def combine_files(nprocs, run_dir, tindex, data_dir, var_name, species='e'):
     fname = fdir + var_name + '.' + str(tindex) + '.' + str(0)
     fdata = np.fromfile(fname)
     for rank in range(1, nprocs):
-        print("rank %d" % (rank))
+        print("rank %d" % rank)
         fname = fdir + var_name + '.' + str(tindex) + '.' + str(rank)
         fdata += np.fromfile(fname)
     fdir = fdir + 'combined/'
@@ -1938,9 +2200,9 @@ def plot_hist_para_perp(nprocs, run_dir, tindex):
     # ax1.set_ylabel('f', fontdict=font, fontsize=20)
     # ax1.tick_params(labelsize=16)
     plt.imshow(hist_perp.T, aspect='auto', cmap=plt.cm.jet,
-            origin='lower', extent=[xmin,xmax,ymin,ymax],
-            norm=LogNorm(vmin=1E-3, vmax=1),
-            interpolation='bicubic')
+               origin='lower', extent=[xmin, xmax, ymin, ymax],
+               norm=LogNorm(vmin=1E-3, vmax=1),
+               interpolation='bicubic')
     # plt.imshow(hist_perp.T, aspect='auto', cmap=plt.cm.jet,
     #         origin='lower', extent=[xmin,xmax,ymin,ymax],
     #         norm=LogNorm(vmin=1, vmax=1E6),
@@ -2033,13 +2295,13 @@ def plot_hist_de_para_perp(nprocs, run_dir, run_name, pic_info, tindex,
     hist_de_tot = hist_de_para + hist_de_perp
 
     print("Parallel and perpendicular heating: %f %f" %
-            (np.sum(hist_de_para), np.sum(hist_de_perp)))
+          (np.sum(hist_de_para), np.sum(hist_de_perp)))
     print("Heating due to ideal electric field: %f" % (np.sum(hist_de_vxb)))
     print("Number of particles: %d" % (np.sum(hist_nptl)))
     print("pdivv, pdiv_vperp, pshear, ptensor_dv, inertial term: %f %f %f %f %f" %
-            (np.sum(hist_pdivv), np.sum(hist_pdiv_vperp),
-             np.sum(hist_pshear), np.sum(hist_ptensor_dv),
-             np.sum(hist_de_dvdt)))
+          (np.sum(hist_pdivv), np.sum(hist_pdiv_vperp),
+           np.sum(hist_pshear), np.sum(hist_ptensor_dv),
+           np.sum(hist_de_dvdt)))
 
     if if_normalize:
         hist_de_para = div0(hist_de_para, hist_nptl+0.0)
@@ -2087,7 +2349,7 @@ def plot_hist_de_para_perp(nprocs, run_dir, run_name, pic_info, tindex,
     ax1.set_ylabel(r'$f$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
     leg = ax1.legend(loc=2, prop={'size': 20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+                     shadow=False, fancybox=False, frameon=False)
     fdir = '../img/de_para_perp/' + run_name + '/'
     mkdir_p(fdir)
     fname = fdir + 'de_para_perp_' + species + '_' + str(tindex) + '.eps'
@@ -2097,7 +2359,7 @@ def plot_hist_de_para_perp(nprocs, run_dir, run_name, pic_info, tindex,
 
 def get_fields_tindex(tindex, pic_info):
     """Get fields time indices before and after current time step
-    
+
     Args:
         tindex: current time index
         pic_info: pic simulation information
@@ -2108,7 +2370,7 @@ def get_fields_tindex(tindex, pic_info):
     #     tindex_pre = tindex - finterval
     # else:
     #     tindex_pre = tindex
-    # if tindex < ntf * finterval: 
+    # if tindex < ntf * finterval:
     #     tindex_post = tindex + finterval
     # else:
     #     tindex_post = tindex
@@ -2120,7 +2382,7 @@ def get_fields_tindex(tindex, pic_info):
     return (tindex_pre, tindex_post)
 
 
-def plot_compression_heating(run_dir, tindex, species):
+def plot_compression_heating(run_name, tindex, species):
     """
     """
     nbins = 60
@@ -2129,7 +2391,7 @@ def plot_compression_heating(run_dir, tindex, species):
     fbins = np.linspace(-2, 2, nbins*2)
     # fbins = np.linspace(-6E-2, 6E-2, nbins*2)
     df = fbins[1] - fbins[0]
-    fdir = run_dir + 'data_ene/'
+    fdir = '../data/particle_compression/' + run_name + '/'
     fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
     fdata = np.fromfile(fname)
     sz, = fdata.shape
@@ -2146,6 +2408,12 @@ def plot_compression_heating(run_dir, tindex, species):
     hist_div_ptensor_vperp = fdata[8, :]
     hist_div_pperp_vperp = fdata[9, :]
     hist_nptl = fdata[-1, :]
+    if species == 'e':
+        charge = r'$-e$'
+    else:
+        charge = r'$e$'
+    colors = colors_Set1_9[:5] + colors_Set1_9[6:] # remove yellow color
+    # colors = palettable.cartocolors.qualitative.Vivid_7.mpl_colors
 
     print("-----------------------------------------------------------------------")
     print("%10s " * 10 % ("de_para", "de_perp", "pdivv", "pdiv_vperp", "pshear",
@@ -2163,16 +2431,31 @@ def plot_compression_heating(run_dir, tindex, species):
     w1, h1 = 0.8, 0.8
     fig = plt.figure(figsize=[7, 5])
     ax1 = fig.add_axes([xs, ys, w1, h1])
-    ax1.semilogx(ebins[:-1], hist_de_para, linewidth=2, label=r'$\parallel$')
-    ax1.semilogx(ebins[:-1], hist_de_perp, linewidth=2, label=r'$\perp$')
-    ax1.semilogx(ebins[:-1], hist_pdiv_vperp, linewidth=2,
-                 label=r'$-p\nabla\cdot\boldsymbol{u}$')
-    ax1.semilogx(ebins[:-1], hist_pshear, linewidth=2,
-                 label=r'$-(p_\parallel-p_\perp)b_ib_j\sigma_{ij}$')
-    ax1.semilogx(ebins[:-1], hist_ptensor_dv, linewidth=2,
-                 label=r'$-\mathcal{P}:\nabla\boldsymbol{u}$')
-    ax1.semilogx(ebins[:-1], hist_de_dudt, linewidth=2,
-                 label='Inertial term')
+    ax1.set_prop_cycle('color', colors)
+    label1 = charge + r'$\boldsymbol{v}_\parallel\cdot\boldsymbol{E}_\parallel$'
+    label2 = charge + r'$\boldsymbol{v}_\perp\cdot\boldsymbol{E}_\perp$'
+    label3 = r'$-p\nabla\cdot\boldsymbol{v}_E$'
+    label4 = r'$-(p_\parallel-p_\perp)b_ib_j\sigma_{ij}$'
+    label5 = r'$-\mathbf{P}:\nabla\boldsymbol{v}_E$'
+    if species == 'e':
+        label6 = r'$m_e(d\boldsymbol{u}_e/dt)\cdot\boldsymbol{v}_E$'
+    else:
+        label6 = r'$m_i(d\boldsymbol{u}_i/dt)\cdot\boldsymbol{v}_E$'
+    label7 = label5 + r'$+$' + label6
+    data_sum = hist_ptensor_dv + hist_de_dudt
+    # data_sum = hist_pdiv_vperp + hist_pshear + hist_de_dudt
+    ax1.semilogx(ebins[:-1], data_sum, color='k', linewidth=2, label=label7)
+    ax1.semilogx(ebins[:-1], hist_de_perp, color=colors[0], linewidth=2, label=label2)
+    ax1.semilogx(ebins[:-1], hist_pdiv_vperp, color=colors[1], linewidth=2, label=label3)
+    ax1.semilogx(ebins[:-1], hist_pshear, color=colors[2], linewidth=2, label=label4)
+    ax1.semilogx(ebins[:-1], hist_de_dudt, color=colors[0], linewidth=2,
+                 linestyle='--', label=label6)
+    ax1.semilogx(ebins[:-1], hist_ptensor_dv, color=colors[1], linewidth=2,
+                 linestyle='--', label=label5)
+    ax1.semilogx(ebins[:-1], hist_de_para, color=colors[2], linewidth=2,
+                 linestyle='--', label=label1)
+    ax1.semilogx(ebins[:-1], hist_de_perp - data_sum, linewidth=2,
+                 color='k', linestyle='--', label='Difference')
     # ax1.semilogx(ebins[:-1], hist_div_ptensor_vperp, linewidth=2,
     #              label='Flux term')
     # ax1.semilogx(ebins[:-1], hist_div_pperp_vperp, linewidth=2,
@@ -2180,9 +2463,6 @@ def plot_compression_heating(run_dir, tindex, species):
     # ax1.semilogx(ebins[:-1], hist_de_cons_mu, linewidth=2,
     #              label=r'$\mu$ conservation')
     # data_sum = hist_ptensor_dv + hist_de_dudt + hist_div_ptensor_vperp
-    data_sum = hist_ptensor_dv + hist_de_dudt
-    # data_sum = hist_pdiv_vperp + hist_pshear + hist_de_dudt
-    ax1.semilogx(ebins[:-1], data_sum, linewidth=2, label='Sum')
     # ax1.loglog(ebins, hist_nptl, linewidth=2, color='k', label='Total')
     if species == 'e':
         ax1.set_xlim([1E-3, 20])
@@ -2192,8 +2472,31 @@ def plot_compression_heating(run_dir, tindex, species):
     ax1.set_xlabel(r'$\gamma-1$', fontdict=font, fontsize=20)
     ax1.set_ylabel(r'$f$', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
-    leg = ax1.legend(loc=2, prop={'size': 20}, ncol=1,
-            shadow=False, fancybox=False, frameon=False)
+    leg = ax1.legend(loc=2, prop={'size': 16}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False)
+    # for color, text in zip(colors, leg.get_texts()):
+    #     text.set_color(color)
+    # ax1.text(0.02, 0.90, label7, color=colors[6], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
+    # ax1.text(0.02, 0.80, label1, color=colors[0], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
+    # ax1.text(0.02, 0.70, label2, color=colors[1], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
+    # ax1.text(0.02, 0.60, label3, color=colors[2], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
+    # ax1.text(0.02, 0.50, label4, color=colors[3], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
+    # ax1.text(0.02, 0.40, label5, color=colors[4], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
+    # ax1.text(0.02, 0.30, label6, color=colors[5], fontsize=16,
+    #          horizontalalignment='left', verticalalignment='bottom',
+    #          transform = ax1.transAxes)
     fdir = '../img/de_para_perp/' + run_name + '/'
     mkdir_p(fdir)
     fname = fdir + 'de_para_perp_' + species + '_' + str(tindex) + '.eps'
@@ -2228,11 +2531,13 @@ def get_cmd_args():
     """Get command line arguments
     """
     # default_run_name = 'mime25_beta002_guide00'
-    # default_run_dir = '/net/scratch3/xiaocanli/reconnection/mime25-sigma1-beta002-guide00-200-100/'
+    # default_run_dir = \
+    #         '/net/scratch3/xiaocanli/reconnection/mime25-sigma1-beta002-guide00-200-100/'
     # default_run_name = 'dump_test'
     # default_run_dir = '/net/scratch3/xiaocanli/reconnection/dump_test/'
     default_run_name = 'mime25_beta008_guide00_frequent_dump'
-    default_run_dir = '/net/scratch3/xiaocanli/reconnection/frequent_dump/mime25_beta008_guide00_frequent_dump/'
+    default_run_dir = '/net/scratch3/xiaocanli/reconnection/frequent_dump/' + \
+            'mime25_beta008_guide00_frequent_dump/'
     parser = argparse.ArgumentParser(description='Compression analysis based on particles')
     parser.add_argument('--combine_files', action="store_true", default=False,
                         help='whether to combine files')
@@ -2259,7 +2564,9 @@ def get_cmd_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main():
+    """
+    """
     args = get_cmd_args()
     run_name = args.run_name
     run_dir = args.run_dir
@@ -2304,7 +2611,7 @@ if __name__ == "__main__":
         print("Time frame: %d of %d" % (ct, ntp))
         tindex = pint * ct
         tindex_pre, tindex_post = get_fields_tindex(tindex, pic_info)
-        interp_particle_compression_single(pic_info, run_dir, tindex, tindex_pre,
+        interp_particle_compression_single(pic_info, run_dir, run_name, tindex, tindex_pre,
                                            tindex_post, species)
 
     if multi_frames:
@@ -2317,7 +2624,7 @@ if __name__ == "__main__":
                     Parallel(n_jobs=ncores)(delayed(processInput)(rank) for rank in ranks)
                     combine_files_single_core(nprocs, run_dir, run_name, species)
                     p1 = subprocess.Popen([cmd], cwd=run_dir, stdout=open('outfile.out', 'w'),
-                            stderr=subprocess.STDOUT, shell=True)
+                                          stderr=subprocess.STDOUT, shell=True)
                     p1.wait()
 
                 plot_hist_de_para_perp(nprocs, run_dir, run_name, pic_info,
@@ -2325,28 +2632,30 @@ if __name__ == "__main__":
                                        if_normalize)
             else:
                 if not args.only_plotting:
-                    interp_particle_compression_single(pic_info, run_dir, tindex,
+                    interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
                                                        tindex_pre, tindex_post, species)
-                    fdata = Parallel(n_jobs=ncores, max_nbytes=1e6)\
-                            (delayed(interpolation_single_rank)(run_dir, rank,
-                                pmass, species, tindex, fitting_functions) for rank in ranks)
-                    save_econv_data(fdata, fdir, species, tindex)
-                    del fitting_functions
-                plot_compression_heating(run_dir, tindex, species)
+                    # fdata = Parallel(n_jobs=ncores, max_nbytes=1e6)\
+                    #         (delayed(interpolation_single_rank)
+                    #          (run_dir, rank, pmass, species, tindex, fitting_functions)
+                    #          for rank in ranks)
+                    # save_econv_data(fdata, fdir, species, tindex)
+                    # del fitting_functions
+                plot_compression_heating(run_name, tindex, species)
                 plt.close()
             gc.collect()
     else:
         if single_core:
-            if not args.only_plotting:
-                Parallel(n_jobs=ncores)(delayed(processInput)(rank) for rank in ranks)
-            plot_hist_de_para_perp(nprocs, run_dir, run_name, pic_info, tindex,
-                                   species, if_combine_files, if_normalize)
+            # if not args.only_plotting:
+            #     Parallel(n_jobs=ncores)(delayed(processInput)(rank) for rank in ranks)
+            # plot_hist_de_para_perp(nprocs, run_dir, run_name, pic_info, tindex,
+            #                        species, if_combine_files, if_normalize)
+            interp_particle_compression(pic_info, run_dir, tindex, tindex_pre,
+                                        tindex_post, rank, species, exb_drift,
+                                        verbose)
         else:
             if not args.only_plotting:
-                # interp_particle_compression_single(pic_info, run_dir, tindex,
-                #                                    tindex_pre, tindex_post, species)
-                ncores = ntp - 1
-                Parallel(n_jobs=ncores)(delayed(processFrames)(ct) for ct in cts)
+                interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
+                                                   tindex_pre, tindex_post, species)
                 # hists = np.zeros((11, nbins))
                 # for rank in ranks:
                 #     print(rank)
@@ -2354,10 +2663,18 @@ if __name__ == "__main__":
                 #                                        fitting_functions)
                 # fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
                 # hists.tofile(fname)
+
+                # ncores = ntp - 1
+                # Parallel(n_jobs=ncores)(delayed(processFrames)(ct) for ct in cts)
+
                 # ranks = range(36)
                 # fdata = Parallel(n_jobs=ncores)(delayed(interpolation_single_rank)(run_dir, rank,
                 #     pmass, species, tindex, fitting_functions) for rank in ranks)
                 # save_econv_data(fdata, fdir, species, tindex)
                 # del fitting_functions
-            # plot_compression_heating(run_dir, tindex, species)
-            # plt.show()
+            plot_compression_heating(run_name, tindex, species)
+            plt.show()
+
+
+if __name__ == "__main__":
+    main()
