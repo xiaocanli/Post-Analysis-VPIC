@@ -84,7 +84,7 @@ def read_2d_fields(pic_info, fname, current_time, xl, xr, zb, zt):
         zt_index = int(math.ceil((zt - zmin) / dz_di))
     nx1 = xr_index - xl_index + 1
     nz1 = zt_index - zb_index + 1
-    fp = np.zeros((nz1, nx1))
+    fp = np.zeros((nz1, nx1), dtype=np.float32)
     offset = nx * nz * current_time * 4 + zb_index * nx * 4 + xl_index * 4
     for k in range(nz1):
         fp[k, :] = np.memmap(
