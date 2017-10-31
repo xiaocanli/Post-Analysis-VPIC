@@ -23,6 +23,7 @@ module particle_fields
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
     real(fp), allocatable, dimension(:,:,:) :: jx, jy, jz, absJ
     real(fp), allocatable, dimension(:,:,:) :: pyx, pzx, pzy, ux, uy, uz
+    real(fp), allocatable, dimension(:,:,:) :: ke_density
     real(fp), allocatable, dimension(:,:,:,:) :: eb
 
     contains
@@ -35,6 +36,7 @@ module particle_fields
         call init_velocity_fields
         call init_pressure_tensor
         call init_current_densities
+        call init_kinetic_energy_density
     end subroutine init_particle_fields
 
     !---------------------------------------------------------------------------
@@ -107,6 +109,18 @@ module particle_fields
     end subroutine init_current_densities
 
     !---------------------------------------------------------------------------
+    ! Initialize kinetic energy density
+    !---------------------------------------------------------------------------
+    subroutine init_kinetic_energy_density
+        use topology_translate, only: ht
+        implicit none
+        if (is_rel == 1) then
+            allocate(ke_density(ht%nx, ht%ny, ht%nz))
+            ke_density = 0.0
+        endif
+    end subroutine init_kinetic_energy_density
+
+    !---------------------------------------------------------------------------
     ! Set current densities to zero to avoid accumulation.
     !---------------------------------------------------------------------------
     subroutine set_current_density_zero
@@ -124,6 +138,7 @@ module particle_fields
         call free_velocity_fields
         call free_pressure_tensor
         call free_current_densities
+        call free_kinetic_energy_density
     end subroutine free_particle_fields
 
     !---------------------------------------------------------------------------
@@ -166,6 +181,16 @@ module particle_fields
         implicit none
         deallocate(jx, jy, jz, absJ)
     end subroutine free_current_densities
+
+    !---------------------------------------------------------------------------
+    ! Free kinetic energy density.
+    !---------------------------------------------------------------------------
+    subroutine free_kinetic_energy_density
+        implicit none
+        if (is_rel == 1) then
+            deallocate(ke_density)
+        endif
+    end subroutine free_kinetic_energy_density
 
     !---------------------------------------------------------------------------
     ! Read electromagnetic fields from file.
@@ -328,6 +353,7 @@ module particle_fields
             read(fh) buffer
             uz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
             read(fh) buffer
+            ke_density(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         endif
 
         read(fh) buffer
@@ -732,6 +758,8 @@ module particle_fields
                 call write_data(fname, pzx, tindex, output_record)       
                 fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'//suffix
                 call write_data(fname, pzy, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/ke-'//species//suffix
+                call write_data(fname, ke_density, tindex, output_record)              
             else
                 fname = trim(adjustl(rootpath))//'data/u'//species//'x'
                 call write_data(fname, ux, tindex, output_record)
@@ -745,6 +773,8 @@ module particle_fields
                 call write_data(fname, pzx, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'
                 call write_data(fname, pzy, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/ke-'//species
+                call write_data(fname, ke_density, tindex, output_record)              
             endif
         endif
                     
