@@ -476,7 +476,7 @@ def plot_jdotes_evolution(pic_info, jdote, species):
     # plt.show()
 
 
-def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
+def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info, run_name):
     """Plot the parallel and perpendicular heating using the simulation data.
 
     Args:
@@ -515,9 +515,9 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     #fig, axes = plt.subplots(2, sharex=True, sharey=False)
     fig = plt.figure(figsize=[7, 5])
 
-    width = 0.78
+    width = 0.8
     height = 0.39
-    xs = 0.17
+    xs = 0.15
     ys = 0.96 - height
     gap = 0.05
     #mpl.rc('text', usetex=False)
@@ -527,30 +527,21 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     colors_en[1] = colors[2]
     colors_en[2] = colors[1]
     ax1.set_prop_cycle('color', colors_en)
-    ax1.plot(
-        tfields,
-        jdote_e.jqnuperp_dote,
-        lw=2,
-        # marker='^', markersize=7, markevery=10, fillstyle='full',
-        # markeredgecolor = 'none',
-        label=r'$\int\boldsymbol{j}_{\perp}\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
-    )
-    ax1.plot(
-        tfields,
-        jdote_e.jqnupara_dote,
-        lw=2,
-        # marker='d', markersize=7, markevery=10, fillstyle='full',
-        label=r'$\int\boldsymbol{j}_{\parallel}\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
-    )
+    fdata1 = jdote_e.jqnuperp_dote
+    fdata2 = jdote_e.jqnupara_dote
+    fdata3 = jtot_dote
+    # remove spikes
+    fdata1[0] = fdata1[1]
+    fdata2[0] = fdata2[1]
+    fdata3[0] = fdata3[1]
+    ax1.plot(tfields, fdata1, lw=2,
+             label=r'$\int\boldsymbol{j}_{\perp}\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
+             )
+    ax1.plot(tfields, fdata2, lw=2,
+             label=r'$\int\boldsymbol{j}_{\parallel}\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
+             )
     label1 = r'$\int\boldsymbol{j}\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
-    ax1.plot(
-        tfields,
-        jtot_dote,
-        lw=2,
-        linestyle='-',
-        # marker='o', markersize=7, markevery=10, fillstyle='full',
-        # markeredgecolor = 'none',
-        label=label1)
+    ax1.plot(tfields, fdata3, lw=2, linestyle='-', label=label1)
     ax1.plot(tenergy, dkene, lw=2, color='k', linestyle='-', label=kename)
     ax1.plot([np.min(tenergy), np.max(tenergy)], [0, 0], 'k--')
     ax1.set_ylabel(r'$\dot{\varepsilon_c}$', fontdict=font, fontsize=20)
@@ -568,31 +559,32 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     dmin = np.min(
         [jdote_e.jqnuperp_dote[2:], jdote_e.jqnupara_dote[2:], jtot_dote[2:]])
     ax1.set_ylim([dmin * 1.1, dmax * 1.3])
-    leg = ax1.legend(
-        loc=0,
-        prop={'size': 16},
-        ncol=2,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
-    for color, text in zip(colors_en, leg.get_texts()):
-        text.set_color(color)
-    # ax1.text(0.9, 0.85, r'$\dot{K_e}$', color='black', fontsize=20,
-    #         horizontalalignment='left', verticalalignment='center',
-    #         transform = ax1.transAxes)
-    # ax1.text(0.45, 0.85, r'$\boldsymbol{j}_{\parallel}\cdot\boldsymbol{E}$',
-    #         color='blue', fontsize=20,
-    #         horizontalalignment='left', verticalalignment='center',
-    #         transform = ax1.transAxes)
-    # ax1.text(0.62, 0.85, r'$\boldsymbol{j}_{\perp}\cdot\boldsymbol{E}$',
-    #         color='green', fontsize=20,
-    #         horizontalalignment='left', verticalalignment='center',
-    #         transform = ax1.transAxes)
-    # text1 = r'$(\boldsymbol{j}_{\parallel}+\boldsymbol{j}_\perp)$' + \
-    #         r'$\cdot\boldsymbol{E}$'
-    # ax1.text(0.55, 0.7, text1, color='red', fontsize=20,
-    #         horizontalalignment='left', verticalalignment='center',
-    #         transform = ax1.transAxes)
+    # leg = ax1.legend(
+    #     loc=0,
+    #     prop={'size': 16},
+    #     ncol=2,
+    #     shadow=False,
+    #     fancybox=False,
+    #     frameon=False)
+    # for color, text in zip(colors_en, leg.get_texts()):
+    #     text.set_color(color)
+    ax1.text(0.98, 0.88, r'$\boldsymbol{j}_{s\perp}\cdot\boldsymbol{E}_\perp$',
+             color=colors_en[0], fontsize=16,
+             horizontalalignment='right', verticalalignment='center',
+             transform = ax1.transAxes)
+    ax1.text(0.98, 0.73, r'$\boldsymbol{j}_{s\parallel}\cdot\boldsymbol{E}_\parallel$',
+             color=colors_en[1], fontsize=16,
+             horizontalalignment='right', verticalalignment='center',
+             transform = ax1.transAxes)
+    text1 = r'$(\boldsymbol{j}_{\parallel}+\boldsymbol{j}_\perp)$' + \
+            r'$\cdot\boldsymbol{E}$'
+    ax1.text(0.98, 0.58, r'$\boldsymbol{j}_s\cdot\boldsymbol{E}$',
+             color=colors_en[2], fontsize=16,
+             horizontalalignment='right', verticalalignment='center',
+             transform = ax1.transAxes)
+    ax1.text(0.02, 0.88, r'$\dot{K_e}$', color='k', fontsize=16,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax1.transAxes)
 
     jpara_dote_int = jdote_e.jqnupara_dote_int
     jperp_dote_int = jdote_e.jqnuperp_dote_int
@@ -609,11 +601,18 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     ys -= height + gap
     ax2 = fig.add_axes([xs, ys, width, height])
     ax2.set_color_cycle(colors_en)
-    ax2.plot(tfields, jdote_i.jqnuperp_dote, lw=2)
+    fdata1 = jdote_i.jqnuperp_dote
+    fdata2 = jdote_i.jqnupara_dote
+    fdata3 = jtot_dote
+    # remove spikes
+    fdata1[0] = fdata1[1]
+    fdata2[0] = fdata2[1]
+    fdata3[0] = fdata3[1]
+    ax2.plot(tfields, fdata1, lw=2)
     # marker='^', markersize=7, markevery=10, fillstyle='full')
-    ax2.plot(tfields, jdote_i.jqnupara_dote, lw=2)
+    ax2.plot(tfields, fdata2, lw=2)
     # marker='d', markersize=7, markevery=10, fillstyle='full')
-    ax2.plot(tfields, jtot_dote, lw=2, linestyle='-')
+    ax2.plot(tfields, fdata3, lw=2, linestyle='-')
     # marker='o', markersize=7, markevery=10, fillstyle='full')
     ax2.plot(tenergy, dkene, lw=2, color='k', linestyle='-', label=kename)
     ax2.plot([np.min(tenergy), np.max(tenergy)], [0, 0], 'k--')
@@ -629,13 +628,11 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
     # ax2.spines['top'].set_visible(False)
     # ax2.yaxis.set_ticks_position('left')
     # ax2.xaxis.set_ticks_position('bottom')
-    leg = ax2.legend(
-        loc=0,
-        prop={'size': 16},
-        ncol=2,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
+    # leg = ax2.legend(loc=0, prop={'size': 16}, ncol=2,
+    #                  shadow=False, fancybox=False, frameon=False)
+    ax2.text(0.02, 0.88, r'$\dot{K_i}$', color='k', fontsize=16,
+            horizontalalignment='left', verticalalignment='center',
+            transform = ax2.transAxes)
     # ax2.yaxis.set_ticks(np.arange(-2, 11, 2))
     # ax2.text(0.02, 0.85, r'$(i)$', color='black', fontsize=24,
     #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
@@ -652,9 +649,10 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info):
         "The ratio of parallel and perpendicular acceleration for ions: %5.3f"
         % (jpara_dote_int[-1] / jtot_dote_int[-1]))
 
-    # if not os.path.isdir('../img/'):
-    #     os.makedirs('../img/')
-    # fig.savefig('../img/jpp_dote.eps')
+    fdir = '../img/jpara_jperp_dote/'
+    mkdir_p(fdir)
+    fname = fdir + 'jpp_dote_' + run_name + '.eps'
+    fig.savefig(fname)
     plt.show()
 
 
@@ -906,7 +904,7 @@ def plot_jdotes_evolution_multi(species):
     plt.show()
 
 
-def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
+def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info, run_name):
     """Plot jdotes for both species.
 
     Args:
@@ -914,15 +912,23 @@ def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
         jdote_i: jdote data for ions.
         pic_info: PIC simulation information in a namedtuple.
     """
+    fdir = '../data/jpolar_dote/'
+    fname = fdir + 'jpolar_dote_' + run_name + '_e.dat'
+    jpolar_dote = np.fromfile(fname)
+    jpolar_dote[-1] = jpolar_dote[-2] # remove boundary spikes
+
     jdote_tot_drifts_e = jdote_e.jcpara_dote + jdote_e.jgrad_dote \
             + jdote_e.jmag_dote \
-            + jdote_e.jpolar_dote \
+            + jpolar_dote \
             # + jdote_e.jqnupara_dote \
 
+    fname = fdir + 'jpolar_dote_' + run_name + '_i.dat'
+    jpolar_dote = np.fromfile(fname)
+    jpolar_dote[-1] = jpolar_dote[-2] # remove boundary spikes
     # + jdote_e.jagy_dote \
     jdote_tot_drifts_i = jdote_i.jcpara_dote + jdote_i.jgrad_dote \
             + jdote_i.jmag_dote \
-            + jdote_i.jpolar_dote \
+            + jpolar_dote \
             # + jdote_i.jqnupara_dote \
 
     # + jdote_i.jagy_dote \
@@ -934,81 +940,56 @@ def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
     tenergy = pic_info.tenergy
     fig = plt.figure(figsize=[7, 5])
 
-    w1, h1 = 0.8, 0.4
-    xs, ys = 0.96 - w1, 0.96 - h1
+    w1, h1 = 0.82, 0.34
+    xs, ys = 0.96 - w1, 0.86 - h1
     ax1 = fig.add_axes([xs, ys, w1, h1])
     ax1.set_color_cycle(colors)
-    p1, = ax1.plot(
-        tfields,
-        jdote_e.jcpara_dote,
-        lw=2,
-        # marker='^', markersize=7, markevery=10, fillstyle='full',
-        label=r'$\int\boldsymbol{j}_c\cdot\boldsymbol{E}d^3\boldsymbol{r}$')
-    p2, = ax1.plot(
-        tfields,
-        jdote_e.jgrad_dote,
-        lw=2,
-        # marker='o', markersize=7, markevery=10, fillstyle='full',
-        label=r'$\int\boldsymbol{j}_g\cdot\boldsymbol{E}d^3\boldsymbol{r}$')
-    p3, = ax1.plot(
-        tfields,
-        jdote_e.jmag_dote,
-        lw=2,
-        # marker='d', markersize=7, markevery=10, fillstyle='full',
-        label=r'$\int\boldsymbol{j}_m\cdot\boldsymbol{E}d^3\boldsymbol{r}$')
-    p4, = ax1.plot(
-        tfields,
-        jdote_tot_drifts_e,
-        lw=2,
-        # marker='v', markersize=7, markevery=10, fillstyle='full',
-        label=r"$\int\boldsymbol{j}''_\perp\cdot\boldsymbol{E}d^3\boldsymbol{r}$"
-    )
+    # label1 = r'$\int\boldsymbol{j}_c\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
+    # label2 = r'$\int\boldsymbol{j}_g\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
+    # label3 = r'$\int\boldsymbol{j}_m\cdot\boldsymbol{E}d^3\boldsymbol{r}$'
+    # label4 = r"$\int\boldsymbol{j}''_\perp\cdot\boldsymbol{E}d^3\boldsymbol{r}$"
+    label1 = 'Curvature drift'
+    label2 = r'$\nabla B$ drift'
+    label3 = 'Magnetization'
+    label4 = 'Sum'
+    p1, = ax1.plot(tfields, jdote_e.jcpara_dote, lw=2, label=label1)
+    p2, = ax1.plot(tfields, jdote_e.jgrad_dote, lw=2, label=label2)
+    p3, = ax1.plot(tfields, jdote_e.jmag_dote, lw=2, label=label3)
+    p4, = ax1.plot(tfields, jdote_tot_drifts_e, lw=2, label=label4)
     p5, = ax1.plot(tenergy, dkene_e, lw=2, color='k', label=r'$\dot{K}_e$')
     ax1.plot([np.min(tenergy), np.max(tenergy)], [0, 0], 'k--')
     ax1.set_ylabel(r'$\dot{\varepsilon_c}$', fontdict=font, fontsize=20)
     ax1.tick_params(reset=True, labelsize=16)
     ax1.tick_params(axis='x', labelbottom='off')
-    tmax = min(800, np.max(tfields))
+    tmax = min(500, np.max(tfields))
     ylim = ax1.get_ylim()
     ax1.set_xlim([0, tmax])
     ylim = np.asarray(ylim)
     ax1.set_ylim([ylim[0] * 1.4, ylim[1]])
-    leg1 = ax1.legend(
-        handles=[p1, p3],
-        loc=1,
-        prop={'size': 16},
-        ncol=1,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
-    colors_en = [colors[0], colors[2]]
-    for color, text in zip(colors_en, leg1.get_texts()):
-        text.set_color(color)
-    # Add the legend manually to the current Axes.
+    leg1 = ax1.legend(handles=[p1, p2, p3, p4], loc='upper center',
+                      prop={'size': 16}, ncol=2, bbox_to_anchor=(0.48, 1.48),
+                      shadow=False, fancybox=False, frameon=False)
     ax1.add_artist(leg1)
-    leg2 = ax1.legend(
-        handles=[p4],
-        loc=8,
-        prop={'size': 16},
-        ncol=2,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
-    ax1.add_artist(leg2)
-    colors_en = [colors[3]]
-    for color, text in zip(colors_en, leg2.get_texts()):
-        text.set_color(color)
-    leg3 = ax1.legend(
-        handles=[p2, p5],
-        loc=4,
-        prop={'size': 16},
-        ncol=1,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
-    colors_en = [colors[1], 'k']
-    for color, text in zip(colors_en, leg3.get_texts()):
-        text.set_color(color)
+    leg2 = ax1.legend(handles=[p5], loc=1, prop={'size': 16}, ncol=1,
+                      shadow=False, fancybox=False, frameon=False)
+    # leg1 = ax1.legend(handles=[p1, p3], loc=1, prop={'size': 16}, ncol=1,
+    #                   shadow=False, fancybox=False, frameon=False)
+    # colors_en = [colors[0], colors[2]]
+    # for color, text in zip(colors_en, leg1.get_texts()):
+    #     text.set_color(color)
+    # # Add the legend manually to the current Axes.
+    # ax1.add_artist(leg1)
+    # leg2 = ax1.legend(handles=[p4], loc=8, prop={'size': 16}, ncol=2,
+    #                   shadow=False, fancybox=False, frameon=False)
+    # ax1.add_artist(leg2)
+    # colors_en = [colors[3]]
+    # for color, text in zip(colors_en, leg2.get_texts()):
+    #     text.set_color(color)
+    # leg3 = ax1.legend(handles=[p2, p5], loc=4, prop={'size': 16}, ncol=1,
+    #                   shadow=False, fancybox=False, frameon=False)
+    # colors_en = [colors[1], 'k']
+    # for color, text in zip(colors_en, leg3.get_texts()):
+    #     text.set_color(color)
 
     enorm = pic_info.ene_magnetic[0]
     ys -= h1 + 0.05
@@ -1025,13 +1006,8 @@ def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
     p21, = ax2.plot(tenergy, dkene_i, lw=2, color='k', label=r'$\dot{K}_i$')
     ax2.plot([np.min(tenergy), np.max(tenergy)], [0, 0], 'k--')
 
-    leg1 = ax2.legend(
-        loc=1,
-        prop={'size': 16},
-        ncol=1,
-        shadow=False,
-        fancybox=False,
-        frameon=False)
+    leg1 = ax2.legend(loc=1, prop={'size': 16}, ncol=1,
+                      shadow=False, fancybox=False, frameon=False)
 
     ax2.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
     ax2.set_ylabel(r'$\dot{\varepsilon_c}$', fontdict=font, fontsize=20)
@@ -1056,6 +1032,11 @@ def plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info):
     # ax2.text(0.9, 0.85, r'$\dot{K_i}$', color='k', fontsize=16,
     #         horizontalalignment='left', verticalalignment='center',
     #         transform = ax2.transAxes)
+    fdir = '../img/img_dpp17/'
+    mkdir_p(fdir)
+    fname = fdir + 'jdotes_drift.eps'
+    fig.savefig(fname)
+    plt.show()
 
 
 def plot_jdotes_evolution_both_multi():
@@ -1451,8 +1432,8 @@ if __name__ == "__main__":
     # run_name = '2D-90-Mach4-sheet4-multi'
     picinfo_fname = '../data/pic_info/pic_info_' + run_name_new + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    save_jdote_json_single('e', run_name_old, run_name_new)
-    save_jdote_json_single('i', run_name_old, run_name_new)
+    # save_jdote_json_single('e', run_name_old, run_name_new)
+    # save_jdote_json_single('i', run_name_old, run_name_new)
     # jdote = read_jdote_data(pic_info, species)
     # jdote_e = read_jdote_data(pic_info, 'e')
     # jdote_i = read_jdote_data(pic_info, 'i')
@@ -1463,7 +1444,8 @@ if __name__ == "__main__":
     jdote_i_fname = '../data/jdote_data/jdote_' + run_name_new + '_i.json'
     jdote_e = read_data_from_json(jdote_e_fname)
     jdote_i = read_data_from_json(jdote_i_fname)
-    plot_jpara_perp_dote(jdote_e, jdote_i, pic_info)
+    plot_jdotes_evolution_both(jdote_e, jdote_i, pic_info, run_name_new)
+    # plot_jpara_perp_dote(jdote_e, jdote_i, pic_info, run_name_new)
     # plot_jtot_dote()
     # calc_energy_gain_multi()
     # plot_energy_evolution_multi()
