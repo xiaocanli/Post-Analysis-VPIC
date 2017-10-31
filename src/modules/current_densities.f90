@@ -484,33 +484,24 @@ module current_densities
                     btot1 = absB(ix, iy, iz)
                     ib3 = 1.0/(btot1*btot1*btot1)
                     ib4 = ib3 / btot1
-                    curx = (bx(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz) - &
-                            bx(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz))*bx1*idx(ix) + &
-                           (bx(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz) - &
-                            bx(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz))*by1*idy(iy) + &
-                           (bx(ix,iy,izh(iz))/absB(ix,iy,izh(iz)) - &
-                            bx(ix,iy,izl(iz))/absB(ix,iy,izl(iz)))*bz1*idz(iz)
-                    cury = (by(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz) - &
-                            by(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz))*bx1*idx(ix) + &
-                           (by(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz) - &
-                            by(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz))*by1*idy(iy) + &
-                           (by(ix,iy,izh(iz))/absB(ix,iy,izh(iz)) - &
-                            by(ix,iy,izl(iz))/absB(ix,iy,izl(iz)))*bz1*idz(iz)
-                    curz = (bz(ixh(ix),iy,iz)/absB(ixh(ix),iy,iz) - &
-                            bz(ixl(ix),iy,iz)/absB(ixl(ix),iy,iz))*bx1*idx(ix) + &
-                           (bz(ix,iyh(iy),iz)/absB(ix,iyh(iy),iz) - &
-                            bz(ix,iyl(iy),iz)/absB(ix,iyl(iy),iz))*by1*idy(iy) + &
-                           (bz(ix,iy,izh(iz))/absB(ix,iy,izh(iz)) - &
-                            bz(ix,iy,izl(iz))/absB(ix,iy,izl(iz)))*bz1*idz(iz)
+                    curx = (bx(ixh(ix),iy,iz) - bx(ixl(ix),iy,iz))*bx1*idx(ix) + &
+                           (bx(ix,iyh(iy),iz) - bx(ix,iyl(iy),iz))*by1*idy(iy) + &
+                           (bx(ix,iy,izh(iz)) - bx(ix,iy,izl(iz)))*bz1*idz(iz)
+                    cury = (by(ixh(ix),iy,iz) - by(ixl(ix),iy,iz))*bx1*idx(ix) + &
+                           (by(ix,iyh(iy),iz) - by(ix,iyl(iy),iz))*by1*idy(iy) + &
+                           (by(ix,iy,izh(iz)) - by(ix,iy,izl(iz)))*bz1*idz(iz)
+                    curz = (bz(ixh(ix),iy,iz) - bz(ixl(ix),iy,iz))*bx1*idx(ix) + &
+                           (bz(ix,iyh(iy),iz) - bz(ix,iyl(iy),iz))*by1*idy(iy) + &
+                           (bz(ix,iy,izh(iz)) - bz(ix,iy,izl(iz)))*bz1*idz(iz)
                     ! Current due to curvature drift
-                    jx1(ix,iy,iz) = -(cury*bz1-curz*by1)*ppara(ix,iy,iz)*ib3
-                    jy1(ix,iy,iz) = -(curz*bx1-curx*bz1)*ppara(ix,iy,iz)*ib3
-                    jz1(ix,iy,iz) = -(curx*by1-cury*bx1)*ppara(ix,iy,iz)*ib3
+                    jx1(ix,iy,iz) = -(cury*bz1-curz*by1)*ppara(ix,iy,iz)*ib4
+                    jy1(ix,iy,iz) = -(curz*bx1-curx*bz1)*ppara(ix,iy,iz)*ib4
+                    jz1(ix,iy,iz) = -(curx*by1-cury*bx1)*ppara(ix,iy,iz)*ib4
                     ! Similar as above, but with perpendicular pressure.
                     ! This term is due to particle gyromotion.
-                    jx2(ix,iy,iz) = (cury*bz1-curz*by1)*pperp(ix,iy,iz)*ib3
-                    jy2(ix,iy,iz) = (curz*bx1-curx*bz1)*pperp(ix,iy,iz)*ib3
-                    jz2(ix,iy,iz) = (curx*by1-cury*bx1)*pperp(ix,iy,iz)*ib3
+                    jx2(ix,iy,iz) = (cury*bz1-curz*by1)*pperp(ix,iy,iz)*ib4
+                    jy2(ix,iy,iz) = (curz*bx1-curx*bz1)*pperp(ix,iy,iz)*ib4
+                    jz2(ix,iy,iz) = (curx*by1-cury*bx1)*pperp(ix,iy,iz)*ib4
                 enddo
             enddo
         enddo
