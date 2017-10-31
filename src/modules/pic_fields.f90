@@ -233,12 +233,7 @@ module pic_fields
             subsizes_ghost, disp, offset, by)
         call read_data_mpi_io(bfields_fh(3), filetype_ghost, &
             subsizes_ghost, disp, offset, bz)
-        if (absB_file_exist) then
-            call read_data_mpi_io(bfields_fh(4), filetype_ghost, &
-                subsizes_ghost, disp, offset, absB)
-        else
-            absB = sqrt(bx**2 + by**2 + bz**2)
-        endif
+        absB = sqrt(bx**2 + by**2 + bz**2)
     end subroutine read_magnetic_fields
     
     !---------------------------------------------------------------------------
