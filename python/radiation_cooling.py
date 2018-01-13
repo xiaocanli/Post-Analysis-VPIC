@@ -154,6 +154,104 @@ def plot_magentic_field_one_frame(run_dir, run_name, tframe):
     # plt.show()
 
 
+def plot_density_energy_band(run_dir, run_name, tframe, species):
+    """
+    """
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    kwargs = {"current_time": tframe, "xl": 0, "xr": pic_info.lx_di,
+              "zb": -0.5 * pic_info.lz_di, "zt": 0.5 * pic_info.lz_di}
+    size_one_frame = pic_info.nx * pic_info.nz * 4
+    fname = run_dir + "data/" + species + "EB02.gda"
+    x, z, eb02 = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/" + species + "EB03.gda"
+    x, z, eb03 = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/" + species + "EB04.gda"
+    x, z, eb04 = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/" + species + "EB05.gda"
+    x, z, eb05 = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/Ay.gda"
+    x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+    xmin, xmax = np.min(x), np.max(x)
+    zmin, zmax = np.min(z), np.max(z)
+
+    w0, h0 = 0.78, 0.2
+    xs0, ys0 = 0.09, 0.95 - h0
+    vgap, hgap = 0.02, 0.02
+
+    vmax1 = 1.0E2
+    vmin1 = 1
+    def plot_one_field(fdata, ax, text, text_color, label_bottom='on',
+                       label_left='on', ylabel=False, ay_color='k',
+                       vmin=vmin1, vmax=vmax1, cmap1=plt.cm.seismic,
+                       log_scale=False):
+        plt.tick_params(labelsize=16)
+        if log_scale:
+            im1 = ax.imshow(fdata, cmap=cmap1,
+                            extent=[xmin, xmax, zmin, zmax], aspect='auto',
+                            origin='lower', interpolation='bicubic')
+            im1.norm = LogNorm(vmin=vmin, vmax=vmax)
+        else:
+            im1 = ax.imshow(fdata, cmap=cmap1, vmin=vmin, vmax=vmax,
+                            extent=[xmin, xmax, zmin, zmax], aspect='auto',
+                            origin='lower', interpolation='bicubic')
+        ax.tick_params(axis='x', labelbottom=label_bottom)
+        ax.tick_params(axis='y', labelleft=label_left)
+        if ylabel:
+            ax.set_ylabel(r'$z/d_i$', fontdict=font, fontsize=20)
+        ax.contour(x, z, Ay, colors=ay_color, linewidths=0.5)
+        ax.text(0.02, 0.85, text, color=text_color, fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=ax.transAxes)
+        return im1
+    fig = plt.figure(figsize=[12, 12])
+    xs, ys = xs0, ys0
+    ax1 = fig.add_axes([xs, ys, w0, h0])
+    label1 = r'$N(2\times 10^3<E<4\times 10^3)$'
+    im1 = plot_one_field(eb02, ax1, label1, 'k', label_bottom='off',
+                         label_left='on', ylabel=True, ay_color='k',
+                         cmap1=plt.cm.viridis, log_scale=True)
+    ys -= h0 + vgap
+    ax2 = fig.add_axes([xs, ys, w0, h0])
+    label2 = r'$N(4\times 10^3<E<8\times 10^3)$'
+    im2 = plot_one_field(eb03, ax2, label2, 'k', label_bottom='off',
+                         label_left='on', ylabel=True, ay_color='k',
+                         cmap1=plt.cm.viridis, log_scale=True)
+    ys -= h0 + vgap
+    ax3 = fig.add_axes([xs, ys, w0, h0])
+    label3 = r'$N(8\times 10^3<E<1.6\times 10^4)$'
+    im3 = plot_one_field(eb04, ax3, label3, 'k', label_bottom='off',
+                         label_left='on', ylabel=True, ay_color='k',
+                         cmap1=plt.cm.viridis, log_scale=True)
+    ys -= h0 + vgap
+    ax4 = fig.add_axes([xs, ys, w0, h0])
+    label4 = r'$N(1.6\times 10^4<E<3.2\times 10^4)$'
+    im4 = plot_one_field(eb05, ax4, label4, 'k', label_bottom='on',
+                         label_left='on', ylabel=True, ay_color='k',
+                         cmap1=plt.cm.viridis, log_scale=True)
+    ax4.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    xs1 = xs + w0 + hgap
+    w1 = 0.03
+    h1 = 4 * h0 + 3 * vgap
+    cax1 = fig.add_axes([xs1, ys, w1, h1])
+    cbar1 = fig.colorbar(im1, cax=cax1)
+    cbar1.ax.tick_params(labelsize=16)
+
+    t_wci = tframe * pic_info.dt_fields
+    title = r'$t = ' + "{:10.1f}".format(t_wci) + '\Omega_{ci}^{-1}$'
+    title += ' (frame: %d)' % tframe
+    ax1.set_title(title, fontdict=font, fontsize=24)
+
+    fdir = '../img/radiation_cooling/density_eband/' + run_name + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'density_eband' + str(tframe) + '.jpg'
+    fig.savefig(fname, dpi=200)
+
+    plt.close()
+    # plt.show()
+
+
 def plot_nrho_momentum(run_dir, run_name, tframe):
     """
     """
@@ -517,7 +615,7 @@ def get_cmd_args():
     """
     default_run_name = 'sigma4E4_bg00_rad_vthe100_cool100'
     default_run_dir = ('/net/scratch2/xiaocanli/vpic_radiation/reconnection/' +
-                       'grizzly/cooling_scaling_16000_8000/' +
+                       'grizzly/guide_field_scaling_16000_8000/' +
                        'sigma4E4_bg00_rad_vthe100_cool100/')
     parser = argparse.ArgumentParser(description='Radiation cooling analysis')
     parser.add_argument('--species', action="store", default='e',
@@ -537,20 +635,24 @@ if __name__ == "__main__":
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     # plot_magentic_field_one_frame(run_dir, run_name, 30)
+    # plot_density_energy_band(run_dir, run_name, 200, species)
     # plot_particle_distribution_2d(run_dir, run_name, 30)
     # contour_raidation(run_dir, run_name, 60)
-    plot_nrho_momentum(run_dir, run_name, 50)
+    # plot_nrho_momentum(run_dir, run_name, 50)
     def processInput(job_id):
         print job_id
         tframe = job_id
         # plot_magentic_field_one_frame(run_dir, run_name, tframe)
+        plot_density_energy_band(run_dir, run_name, tframe, species)
         # plot_particle_distribution_2d(run_dir, run_name, tframe)
-        contour_raidation(run_dir, run_name, tframe)
+        # contour_raidation(run_dir, run_name, tframe)
+    # cts = range(pic_info.ntf)
     cts = range(pic_info.ntf)
     tratio = pic_info.particle_interval / pic_info.fields_interval
     # cts = range(0, pic_info.ntf, tratio)
     ncores = multiprocessing.cpu_count()
-    # Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
+    ncores = 10
+    Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
     # for ct in cts:
     #     print("Time frame: %d" % ct)
     #     contour_raidation(run_dir, run_name, ct)
