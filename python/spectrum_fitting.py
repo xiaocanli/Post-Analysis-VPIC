@@ -384,7 +384,7 @@ def get_normalized_energy(species, ene_bins, pic_info):
     else:
         vth = pic_info.vthi
     print vth
-    gama = 1.0 / math.sqrt(1.0 - vth**2)
+    gama = 1.0 / math.sqrt(1.0 - 3.0 * vth**2)
     eth = gama - 1.0
     ene_bins_norm = ene_bins / eth
     return ene_bins_norm
