@@ -32,13 +32,15 @@ from scipy.ndimage.filters import median_filter, gaussian_filter
 import palettable
 import pic_information
 from contour_plots import find_closest, plot_2d_contour, read_2d_fields
+from dolointerpolation import MultilinearInterpolator
 from energy_conversion import read_data_from_json, read_jdote_data
 from particle_compression import read_fields, read_hydro_velocity_density
 from runs_name_path import ApJ_long_paper_runs
 from serialize_json import data_to_json, json_to_data
 from shell_functions import mkdir_p
 
-style.use(['seaborn-white', 'seaborn-paper'])
+# style.use(['seaborn-white', 'seaborn-paper'])
+style.use(['seaborn-white', 'seaborn-paper', 'seaborn-ticks'])
 # rc('font', **{'family': 'serif', 'serif': ["Times", "Palatino", "serif"]})
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc("font", family="Times New Roman")
@@ -2429,6 +2431,54 @@ def plot_compression_time_both(pic_info, run_name):
     plt.show()
 
 
+def compression_ratio(run_name, species='e'):
+    """Compression ratio for one run
+    """
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    tratio = int(math.ceil(pic_info.dt_particles / pic_info.dt_fields))
+    fdir = '../data/compression/'
+    cdata_name = fdir + 'compression_' + run_name + '_' + species + '.json'
+    cdata = read_data_from_json(cdata_name)
+    jdote_name = '../data/jdote_data/jdote_' + run_name + '_' + species + '.json'
+    jdote = read_data_from_json(jdote_name)
+    fdir = '../data/particle_compression/' + run_name + '/'
+    print("-"*(7 + 13 * 8))
+    print(("%6s|" + "%12s|" * 8) % ("Frame", "jpara_dote", "de_para",
+                                    "jperp_dote", "de_perp", "jpara_dote+",
+                                    "de_para+", "comp_fluid", "comp_ptl"))
+    print("-"*(7 + 13 * 8))
+    dt_particle = pic_info.particle_interval * pic_info.dtwci
+    for tframe in range(pic_info.ntp - 1):
+        ct = (tframe + 1) * tratio
+        tindex = (tframe + 1) * pic_info.particle_interval
+        fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
+        nbins = 60
+        fdata = np.fromfile(fname)
+        sz, = fdata.shape
+        nvar = sz / nbins
+        fdata = fdata.reshape((nvar, nbins))
+        de_para = np.sum(fdata[0, :])
+        de_perp = np.sum(fdata[1, :])
+        pdiv_vperp = np.sum(fdata[3, :])
+        pshear = np.sum(fdata[4, :])
+        ptensor_dv = np.sum(fdata[5, :])
+        de_dudt = np.sum(fdata[6, :])
+        twci = (tframe + 1) * dt_particle
+        print(("%6.1f|" + "%12.4f|" * 8) % (
+                twci,
+                jdote.jqnupara_dote[ct],
+                de_para,
+                jdote.jqnuperp_dote[ct],
+                de_perp,
+                jdote.jqnupara_dote[ct] + jdote.jqnuperp_dote[ct],
+                de_para + de_perp,
+                cdata.pdiv_uperp_usingle_exb[ct] + cdata.pshear_perp_usingle_exb[ct],
+                ptensor_dv + de_dudt
+                ))
+
+
+
 def compression_ratio_apjl_runs():
     """Compression ratio for all ApJL runs
     """
@@ -2440,13 +2490,18 @@ def compression_ratio_apjl_runs():
                  'mime25_beta008_guide00_frequent_dump',
                  'mime25_beta032_guide00_frequent_dump']
     nrun = len(run_names)
-    ratios = np.zeros((nrun, 4))
+    nvar = 6
+    ratios = np.zeros((nrun, 12))
     i = 0
     for run_name in run_names:
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         pic_info = read_data_from_json(picinfo_fname)
         tfields = pic_info.tfields
-        ct = find_closest(tfields, 500)
+        tenergy = pic_info.tenergy
+        ct = find_closest(tfields, 600)
+        cte = find_closest(tenergy, 600)
+        dene_e = pic_info.kene_e[cte] - pic_info.kene_e[0]
+        dene_i = pic_info.kene_i[cte] - pic_info.kene_i[0]
         fdir = '../data/compression/'
         cdata_name = fdir + 'compression_' + run_name + '_e.json'
         cdata_e = read_data_from_json(cdata_name)
@@ -2462,70 +2517,91 @@ def compression_ratio_apjl_runs():
         jdote_in_i = read_data_from_json(jdote_name)
         # jdote_e = jdote_e.jqnuperp_dote_int[ct] - jdote_e.jpolar_dote_int[ct]
         # jdote_i = jdote_i.jqnuperp_dote_int[ct] - jdote_i.jpolar_dote_int[ct]
-        jdote_e = jdote_e.jqnuperp_dote_int[ct]
-        jdote_i = jdote_i.jqnuperp_dote_int[ct]
-        ratios[i, 0] = cdata_e.pdiv_uperp_usingle_cum[ct] / jdote_e 
-        ratios[i, 1] = cdata_e.pshear_perp_usingle_cum[ct] / jdote_e
-        ratios[i, 2] = cdata_i.pdiv_uperp_usingle_cum[ct] / jdote_i
-        ratios[i, 3] = cdata_i.pshear_perp_usingle_cum[ct] / jdote_i
+        # jdote_e = jdote_e.jqnuperp_dote_int[ct]
+        # jdote_i = jdote_i.jqnuperp_dote_int[ct]
+        # jdote_e = jdote_e.jqnuperp_dote_int[ct] + jdote_e.jqnupara_dote_int[ct]
+        # jdote_i = jdote_i.jqnuperp_dote_int[ct] + jdote_i.jqnupara_dote_int[ct]
+        ratios[i, 0] = jdote_e.jqnupara_dote_int[ct]
+        ratios[i, 1] = jdote_e.jqnuperp_dote_int[ct]
+        ratios[i, 2] = cdata_e.pdiv_uperp_usingle_exb_cum[ct]
+        ratios[i, 3] = cdata_e.pshear_perp_usingle_exb_cum[ct]
+        ratios[i, 4] = jdote_e.jpolar_dote_int[ct]
+        ratios[i, 5] = jdote_e.jagy_dote_int[ct]
+        ratios[i, 6] = jdote_i.jqnupara_dote_int[ct]
+        ratios[i, 7] = jdote_i.jqnuperp_dote_int[ct]
+        ratios[i, 8] = cdata_i.pdiv_uperp_usingle_exb_cum[ct]
+        ratios[i, 9] = cdata_i.pshear_perp_usingle_exb_cum[ct]
+        ratios[i, 10] = jdote_i.jpolar_dote_int[ct]
+        ratios[i, 11] = jdote_i.jagy_dote_int[ct]
+        jdote_e = dene_e
+        jdote_i = dene_i
+        ratios[i, :nvar] /= dene_e
+        ratios[i, nvar:] /= dene_i
         i += 1
 
     text0 = r'$/\boldsymbol{j}_{e\perp}\cdot\boldsymbol{E}_\perp$'
-    text1 = r'$-p_e\nabla\cdot\boldsymbol{u}_\perp$' + text0
-    text2 = r'$-(p_{e\parallel}-p_{e\perp})b_ib_j\sigma_{ij}$' + text0
-    text0 = r'$/\boldsymbol{j}_{i\perp}\cdot\boldsymbol{E}_\perp$'
-    text3 = r'$-p_i\nabla\cdot\boldsymbol{u}_\perp$' + text0
-    text4 = r'$-(p_{i\parallel}-p_{i\perp})b_ib_j\sigma_{ij}$' + text0
+    text1 = r'$-p_e\nabla\cdot\boldsymbol{v}_E$'
+    text2 = r'$-(p_{e\parallel}-p_{e\perp})b_ib_j\sigma_{ij}$'
+    text3 = r'$\boldsymbol{j}_{e\parallel}\cdot\boldsymbol{E}_\parallel$'
+    text4 = r'$\boldsymbol{j}_{e\perp}\cdot\boldsymbol{E}_\perp$'
+    text5 = r'$\boldsymbol{j}_{e-\text{agy}}\cdot\boldsymbol{E}_\perp$'
+
+    colors = colors_Set1_9
 
     # Runs with different guide field
     bg = [0, 0.2, 0.5, 1.0]
-    fig = plt.figure(figsize=[7, 5])
-    xs, ys = 0.13, 0.16
-    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[12, 6])
+    w1, h1 = 0.43, 0.67
+    xs, ys = 0.08, 0.13
     ax = fig.add_axes([xs, ys, w1, h1])
-    ax.plot(bg, ratios[:4, 0], linewidth=2, linestyle='-',
-            color='r', marker=".", markersize=20, label=text1)
-    ax.plot(bg, ratios[:4, 1], linewidth=2, linestyle='--',
-            color='r', marker=".", markersize=20, label=text2)
     ax.plot(bg, ratios[:4, 2], linewidth=2, linestyle='-',
-            color='b', marker=".", markersize=20, label=text3)
-    ax.plot(bg, ratios[:4, 3], linewidth=2, linestyle='--',
-            color='b', marker=".", markersize=20, label=text4)
+            color=colors[0], marker=".", markersize=20, label=text1)
+    ax.plot(bg, ratios[:4, 3], linewidth=2, linestyle='-',
+            color=colors[1], marker=".", markersize=20, label=text2)
+    ax.plot(bg, ratios[:4, 0], linewidth=2, linestyle='--',
+            color=colors[1], marker=".", markersize=20, label=text3)
+    ax.plot(bg, ratios[:4, 1], linewidth=2, linestyle='-',
+            color='k', marker=".", markersize=20, label=text4)
+    ax.plot(bg, ratios[:4, 5], linewidth=2, linestyle='-',
+            color=colors[3], marker=".", markersize=20, label=text5)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
     ax.set_xlabel(r'$B_g/B_0$', fontdict=font, fontsize=20)
-    ax.set_ylabel('Fraction', fontdict=font, fontsize=20)
+    ax.set_ylabel('Fraction in total energization', fontdict=font, fontsize=20)
     ax.tick_params(labelsize=16)
     ax.set_xlim([-0.1, 1.1])
-    # ax.set_ylim([0, 1])
-    ax.legend(loc=3, prop={'size': 16}, ncol=1,
-              shadow=False, fancybox=False, frameon=False)
-    fdir = '../img/compression/'
-    mkdir_p(fdir)
-    fig.savefig(fdir + 'comp_frac_bg.eps')
+    ax.set_ylim([-0.2, 1])
+    ax.legend(loc='upper center', prop={'size': 20}, ncol=3,
+            bbox_to_anchor=(1.0, 1.3),
+            shadow=False, fancybox=False, frameon=False)
 
-    # Runs with different plasma beta
-    bg = [0.02, 0.08, 0.32]
-    fig = plt.figure(figsize=[7, 5])
-    xs, ys = 0.13, 0.16
-    w1, h1 = 0.8, 0.8
-    ax = fig.add_axes([xs, ys, w1, h1])
-    ax.semilogx(bg, ratios[4:, 0], linewidth=2, linestyle='-',
-            color='r', marker=".", markersize=20, label=text1)
-    ax.semilogx(bg, ratios[4:, 1], linewidth=2, linestyle='--',
-            color='r', marker=".", markersize=20, label=text2)
-    ax.semilogx(bg, ratios[4:, 2], linewidth=2, linestyle='-',
-            color='b', marker=".", markersize=20, label=text3)
-    ax.semilogx(bg, ratios[4:, 3], linewidth=2, linestyle='--',
-            color='b', marker=".", markersize=20, label=text4)
-    ax.set_xlabel(r'$\beta_e$', fontdict=font, fontsize=20)
-    ax.set_ylabel('Fraction', fontdict=font, fontsize=20)
-    ax.tick_params(labelsize=16)
-    ax.set_xlim([0.01, 0.5])
-    # ax.set_ylim([0, 1])
-    ax.legend(loc=2, prop={'size': 16}, ncol=1,
-              shadow=False, fancybox=False, frameon=False)
+    beta = [0.02, 0.08, 0.32]
+    xs += w1 + 0.03
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.semilogx(beta, ratios[4:, 2], linewidth=2, linestyle='-',
+                 color=colors[0], marker=".", markersize=20, label=text1)
+    ax1.semilogx(beta, ratios[4:, 3], linewidth=2, linestyle='-',
+                 color=colors[1], marker=".", markersize=20, label=text2)
+    ax1.semilogx(beta, ratios[4:, 0], linewidth=2, linestyle='--',
+                 color=colors[1], marker=".", markersize=20, label=text3)
+    ax1.semilogx(beta, ratios[4:, 1], linewidth=2, linestyle='-',
+                 color='k', marker=".", markersize=20, label=text4)
+    ax1.semilogx(beta, ratios[4:, 5], linewidth=2, linestyle='-',
+                 color=colors[3], marker=".", markersize=20, label=text5)
+    ax1.tick_params(axis='y', labelleft='off')
+    ax1.tick_params(axis='x', which='minor', direction='in')
+    ax1.tick_params(axis='x', which='major', direction='in')
+    ax1.tick_params(axis='y', which='minor', direction='in')
+    ax1.tick_params(axis='y', which='major', direction='in')
+    ax1.set_xlabel(r'$\beta_e$', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlim([0.01, 0.5])
+    ax1.set_ylim(ax.get_ylim())
     fdir = '../img/compression/'
     mkdir_p(fdir)
-    fig.savefig(fdir + 'comp_frac_beta.eps')
+    fig.savefig(fdir + 'comp_frac_beta_bg.eps')
     plt.show()
 
 
@@ -2687,19 +2763,19 @@ def calc_jpolar_dote(pic_info, current_time, run_dir, species):
     fname = run_dir + "data/ez.gda"
     x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
 
-    fname = run_dir + "data/ex_pre.gda"
-    x, z, ex_pre = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ey_pre.gda"
-    x, z, ey_pre = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ez_pre.gda"
-    x, z, ez_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ex_pre.gda"
+    # x, z, ex_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ey_pre.gda"
+    # x, z, ey_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ez_pre.gda"
+    # x, z, ez_pre = read_2d_fields(pic_info, fname, **kwargs)
 
-    fname = run_dir + "data/ex_post.gda"
-    x, z, ex_post = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ey_post.gda"
-    x, z, ey_post = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ez_post.gda"
-    x, z, ez_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ex_post.gda"
+    # x, z, ex_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ey_post.gda"
+    # x, z, ey_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ez_post.gda"
+    # x, z, ez_post = read_2d_fields(pic_info, fname, **kwargs)
 
     fname = run_dir + "data/bx.gda"
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
@@ -2707,26 +2783,26 @@ def calc_jpolar_dote(pic_info, current_time, run_dir, species):
     x, z, by = read_2d_fields(pic_info, fname, **kwargs)
     fname = run_dir + "data/bz.gda"
     x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/absB.gda"
-    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/absB.gda"
+    # x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
 
-    fname = run_dir + "data/bx_pre.gda"
-    x, z, bx_pre = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/by_pre.gda"
-    x, z, by_pre = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/bz_pre.gda"
-    x, z, bz_pre = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/absB_pre.gda"
-    x, z, absB_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/bx_pre.gda"
+    # x, z, bx_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/by_pre.gda"
+    # x, z, by_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/bz_pre.gda"
+    # x, z, bz_pre = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/absB_pre.gda"
+    # x, z, absB_pre = read_2d_fields(pic_info, fname, **kwargs)
 
-    fname = run_dir + "data/bx_post.gda"
-    x, z, bx_post = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/by_post.gda"
-    x, z, by_post = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/bz_post.gda"
-    x, z, bz_post = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/absB_post.gda"
-    x, z, absB_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/bx_post.gda"
+    # x, z, bx_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/by_post.gda"
+    # x, z, by_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/bz_post.gda"
+    # x, z, bz_post = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/absB_post.gda"
+    # x, z, absB_post = read_2d_fields(pic_info, fname, **kwargs)
 
     if species == 'e':
         pmass = 1.0
@@ -2736,31 +2812,31 @@ def calc_jpolar_dote(pic_info, current_time, run_dir, species):
         charge = 1.0
     idt = 0.5 / pic_info.dtwpe
 
-    ib2 = 1.0 / absB**2
-    ib2_pre = 1.0 / absB_pre**2
-    ib2_post = 1.0 / absB_post**2
+    ib2 = div0(1.0, bx**2 + by**2 + bz**2)
+    # ib2_pre = 1.0 / absB_pre**2
+    # ib2_post = 1.0 / absB_post**2
 
     sigma = 3
     ex = gaussian_filter(ex, sigma)
     ey = gaussian_filter(ey, sigma)
     ez = gaussian_filter(ez, sigma)
-    ex_pre = gaussian_filter(ex_pre, sigma)
-    ey_pre = gaussian_filter(ey_pre, sigma)
-    ez_pre = gaussian_filter(ez_pre, sigma)
-    ex_post = gaussian_filter(ex_post, sigma)
-    ey_post = gaussian_filter(ey_post, sigma)
-    ez_post = gaussian_filter(ez_post, sigma)
+    # ex_pre = gaussian_filter(ex_pre, sigma)
+    # ey_pre = gaussian_filter(ey_pre, sigma)
+    # ez_pre = gaussian_filter(ez_pre, sigma)
+    # ex_post = gaussian_filter(ex_post, sigma)
+    # ey_post = gaussian_filter(ey_post, sigma)
+    # ez_post = gaussian_filter(ez_post, sigma)
 
     vexb_x = (ey * bz - ez * by) * ib2
     vexb_y = (ez * bx - ex * bz) * ib2
     vexb_z = (ex * by - ey * bx) * ib2
 
-    vexb_pre_x = (ey_pre * bz_pre - ez_pre * by_pre) * ib2_pre
-    vexb_pre_y = (ez_pre * bx_pre - ex_pre * bz_pre) * ib2_pre
-    vexb_pre_z = (ex_pre * by_pre - ey_pre * bx_pre) * ib2_pre
-    vexb_post_x = (ey_post * bz_post - ez_post * by_post) * ib2_post
-    vexb_post_y = (ez_post * bx_post - ex_post * bz_post) * ib2_post
-    vexb_post_z = (ex_post * by_post - ey_post * bx_post) * ib2_post
+#     vexb_pre_x = (ey_pre * bz_pre - ez_pre * by_pre) * ib2_pre
+#     vexb_pre_y = (ez_pre * bx_pre - ex_pre * bz_pre) * ib2_pre
+#     vexb_pre_z = (ex_pre * by_pre - ey_pre * bx_pre) * ib2_pre
+#     vexb_post_x = (ey_post * bz_post - ez_post * by_post) * ib2_post
+#     vexb_post_y = (ez_post * bx_post - ex_post * bz_post) * ib2_post
+#     vexb_post_z = (ex_post * by_post - ey_post * bx_post) * ib2_post
 
     # vexb_x = gaussian_filter(vexb_x, sigma)
     # vexb_y = gaussian_filter(vexb_y, sigma)
@@ -2787,98 +2863,28 @@ def calc_jpolar_dote(pic_info, current_time, run_dir, species):
     tmpy += vx * np.gradient(uy, dx, axis=1) + vz * np.gradient(uy, dz, axis=0)
     tmpz += vx * np.gradient(uz, dx, axis=1) + vz * np.gradient(uz, dz, axis=0)
 
-    vdotB = vx * bx + vy * by + vz * bz
-    vx_para = vdotB * bx * ib2
-    vy_para = vdotB * by * ib2
-    vz_para = vdotB * bz * ib2
+    # vdotB = vx * bx + vy * by + vz * bz
+    # vx_para = vdotB * bx * ib2
+    # vy_para = vdotB * by * ib2
+    # vz_para = vdotB * bz * ib2
 
-    vx_perp = vx - vx_para
-    vy_perp = vy - vy_para
-    vz_perp = vz - vz_para
+    # vx_perp = vx - vx_para
+    # vy_perp = vy - vy_para
+    # vz_perp = vz - vz_para
 
-    # jpolar_dote = tmpx * vexb_x + tmpy * vexb_y + tmpz * vexb_z
+    jpolar_dote = tmpx * vexb_x + tmpy * vexb_y + tmpz * vexb_z
     # jpolar_dote = (tmpx * vx_para + tmpy * vy_para + tmpz * vz_para) * nrho * pmass
     jpolar_dote = (tmpx * vx_perp + tmpy * vy_perp + tmpz * vz_perp) * nrho * pmass
-    # jpolar_x = by * tmpz - bz * tmpy
-    # jpolar_y = bz * tmpx - bx * tmpz
-    # jpolar_z = bx * tmpy - by * tmpx
-    # jpolar_dote = (jpolar_x * ex + jpolar_y * ey +
-    #                jpolar_z * ez) * ib2
 
-    # udot_vexb = ux * vexb_x + uy * vexb_y + uz * vexb_z
-    # udot_vexb_pre = (ux_pre * vexb_pre_x + uy_pre * vexb_pre_y +
-    #                  uz_pre * vexb_pre_z)
-    # udot_vexb_post = (ux_post * vexb_post_x + uy_post * vexb_post_y +
-    #                   uz_post * vexb_post_z)
-    # jpolar_dote = (udot_vexb_post - udot_vexb_pre) * idt
-    # jpolar_dote += (vx * np.gradient(udot_vexb, dx, axis=1) +
-    #                 vz * np.gradient(udot_vexb, dz, axis=0))
-    # dvex_dt = ((vexb_post_x - vexb_pre_x) * idt +
-    #            vx * np.gradient(vexb_x, dx, axis=1) +
-    #            vz * np.gradient(vexb_x, dz, axis=0))
-    # dvey_dt = ((vexb_post_y - vexb_pre_y) * idt +
-    #            vx * np.gradient(vexb_y, dx, axis=1) +
-    #            vz * np.gradient(vexb_y, dz, axis=0))
-    # dvez_dt = ((vexb_post_z - vexb_pre_z) * idt +
-    #            vx * np.gradient(vexb_z, dx, axis=1) +
-    #            vz * np.gradient(vexb_z, dz, axis=0))
-    # jpolar_dote -= ux * dvex_dt + uy * dvey_dt + uz * dvez_dt
-    # # jpolar_dote = ux * dvex_dt + uy * dvey_dt + uz * dvez_dt
-    # jpolar_dote *= nrho * pmass
-
-    # ib2_pre = 1.0 / (bx_pre**2 + by_pre**2 + bz_pre**2)
-    # ib2_post = 1.0 / (bx_post**2 + by_post**2 + bz_post**2)
-    # edotb = ex * bx + ey * by + ez * bz
-    # ex_perp = ex - edotb * bx * ib2
-    # ey_perp = ey - edotb * by * ib2
-    # ez_perp = ez - edotb * bz * ib2
-    # edotb_post = ex_post * bx_post + ey_post * by_post + ez_post * bz_post
-    # ex_perp_post = ex - edotb_post * bx_post * ib2_post
-    # ey_perp_post = ey - edotb_post * by_post * ib2_post
-    # ez_perp_post = ez - edotb_post * bz_post * ib2_post
-    # edotb_pre = ex_pre * bx_pre + ey_pre * by_pre + ez_pre * bz_pre
-    # ex_perp_pre = ex - edotb_pre * bx_pre * ib2_pre
-    # ey_perp_pre = ey - edotb_pre * by_pre * ib2_pre
-    # ez_perp_pre = ez - edotb_pre * bz_pre * ib2_pre
-
-    # dex_perp_dt = (ex_perp_post - ex_perp_pre) * idt
-    # dey_perp_dt = (ey_perp_post - ey_perp_pre) * idt
-    # dez_perp_dt = (ez_perp_post - ez_perp_pre) * idt
-    # dex_perp_dt += (vx * np.gradient(ex_perp, dx, axis=1) +
-    #                 vz * np.gradient(ex_perp, dz, axis=0))
-    # dey_perp_dt += (vx * np.gradient(ey_perp, dx, axis=1) +
-    #                 vz * np.gradient(ey_perp, dz, axis=0))
-    # dez_perp_dt += (vx * np.gradient(ez_perp, dx, axis=1) +
-    #                 vz * np.gradient(ez_perp, dz, axis=0))
-    # tmp = (ke + nrho * pmass) * ib2
-    # vpx = dex_perp_dt * tmp
-    # vpy = dey_perp_dt * tmp
-    # vpz = dez_perp_dt * tmp
-
-    # jpolar_dote = vpx * ex + vpy * ey + vpz * ez
-
-#     dpx_dt = (nrho_post * ux_post - nrho_pre * ux_pre) * idt
-#     dpy_dt = (nrho_post * uy_post - nrho_pre * uy_pre) * idt
-#     dpz_dt = (nrho_post * uz_post - nrho_pre * uz_pre) * idt
-
-#     div_nvu_x = np.gradient(nrho * vx * ux, dx, axis=1) + np.gradient(nrho * vx * uz, dz, axis=0)
-#     div_nvu_y = np.gradient(nrho * vy * ux, dx, axis=1) + np.gradient(nrho * vy * uz, dz, axis=0)
-#     div_nvu_z = np.gradient(nrho * vz * ux, dx, axis=1) + np.gradient(nrho * vz * uz, dz, axis=0)
-
-#     # jpolar_dote = div_nvu_x * vexb_x + div_nvu_y * vexb_y + div_nvu_z * vexb_z
-#     # jpolar_dote += dpx_dt * vexb_x + dpy_dt * vexb_y + dpz_dt * vexb_z
-#     jpolar_dote = dpx_dt * vexb_x + dpy_dt * vexb_y + dpz_dt * vexb_z
-#     jpolar_dote *= pmass
-
-    print("Min and max: %f %f" % (np.min(jpolar_dote), np.max(jpolar_dote)))
-    jpolar_dote_tot = np.sum(jpolar_dote) * dv
-    print(jpolar_dote_tot)
-    vmin = -0.1
-    vmax = -vmin
-    # plt.imshow(jpolar_dote, cmap=plt.cm.seismic, vmin=vmin, vmax=vmax)
-    jpolar_dote_cum = np.cumsum(np.sum(jpolar_dote, axis=0))
-    plt.plot(x, jpolar_dote_cum * dv, linewidth=2)
-    plt.show()
+    # print("Min and max: %f %f" % (np.min(jpolar_dote), np.max(jpolar_dote)))
+    # jpolar_dote_tot = np.sum(jpolar_dote) * dv
+    # print(jpolar_dote_tot)
+    # vmin = -0.1
+    # vmax = -vmin
+    # # plt.imshow(jpolar_dote, cmap=plt.cm.seismic, vmin=vmin, vmax=vmax)
+    # jpolar_dote_cum = np.cumsum(np.sum(jpolar_dote, axis=0))
+    # plt.plot(x, jpolar_dote_cum * dv, linewidth=2)
+    # plt.show()
 
     return jpolar_dote_tot
 
@@ -2975,16 +2981,30 @@ def calc_comperssional_heating(pic_info, current_time, run_dir, species):
     print(ecov_comp, ecov_shear, ecov_pre1, ecov_pre2)
 
 
+def fill_boundary_values(data_pre):
+    """Fill boundary values
+    """
+    nz, nx = data_pre.shape
+    data_after = np.zeros((nz + 2, nx + 2))
+    data_after[1:-1, 1:-1] = data_pre
+    data_after[0, :] = data_after[nz, :]
+    data_after[-1, :] = data_after[1, :]
+    data_after[:, 0] = data_after[:, nx]
+    data_after[:, -1] = data_after[:, 1]
+
+    return data_after
+
+
 def calc_para_perp_heating(pic_info, current_time, run_dir, species):
     """Calculate the energy conversion due to para and perp E-field 
     """
     kwargs = {"current_time": current_time,
               "xl": 0, "xr": 200, "zb": -50, "zt": 50 }
-    fname = run_dir + "data/ex.gda"
+    fname = run_dir + "data/ex_original.gda"
     x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ey.gda"
+    fname = run_dir + "data/ey_original.gda"
     x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ez.gda"
+    fname = run_dir + "data/ez_original.gda"
     x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
 
     fname = run_dir + "data/bx.gda"
@@ -2993,8 +3013,6 @@ def calc_para_perp_heating(pic_info, current_time, run_dir, species):
     x, z, by = read_2d_fields(pic_info, fname, **kwargs)
     fname = run_dir + "data/bz.gda"
     x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/absB.gda"
-    x, z, absB = read_2d_fields(pic_info, fname, **kwargs)
 
     fname = run_dir + "data/v" + species + "x.gda"
     x, z, vx = read_2d_fields(pic_info, fname, **kwargs)
@@ -3004,44 +3022,57 @@ def calc_para_perp_heating(pic_info, current_time, run_dir, species):
     x, z, vz = read_2d_fields(pic_info, fname, **kwargs)
     fname = run_dir + "data/n" + species + ".gda"
     x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+    nx, = x.shape
+    nz, = z.shape
 
     smime = math.sqrt(pic_info.mime)
-    dx = (x[1] - x[0]) * smime
-    dz = (z[1] - z[0]) * smime
-    dxh = 0.5 * dx
-    dzh = 0.5 * dz
-    lx = pic_info.lx_di * smime
-    lz = pic_info.lz_di * smime
-    nx = pic_info.nx
-    nz = pic_info.nz
-    x1 = np.linspace(-dxh, lx + dxh, nx + 2)
-    x2 = np.linspace(-dx, lx, nx + 2)
-    z1 = np.linspace(-dzh - 0.5 * lz, 0.5 * lz + dzh, nz + 2)
-    z2 = np.linspace(-dz - 0.5 * lz, 0.5 * lz, nz + 2)
+    dx = pic_info.dx_di
+    dz = pic_info.dz_di
+    dxh = dx * 0.5
+    dzh = dz * 0.5
+    lx_pic = pic_info.lx_di
+    lz_pic = pic_info.lz_di
+    x1 = np.linspace(-dxh, lx_pic + dxh, nx + 2)
+    x2 = np.linspace(-dx, lx_pic, nx + 2)
+    z1 = np.linspace(-dzh - 0.5 * lz_pic, 0.5 * lz_pic + dzh, nz + 2)
+    z2 = np.linspace(-dz - 0.5 * lz_pic, 0.5 * lz_pic, nz + 2)
+    orders = [nx, nz]
+    points_x, points_z = np.broadcast_arrays(x2[1:-1].reshape(-1,1), z2[1:-1])
+    coord = np.vstack((points_x.flatten(), points_z.flatten()))
 
-    f_ex = RectBivariateSpline(x1[1:-1], z2[1:-1], ex.T)
-    f_ey = RectBivariateSpline(x2[1:-1], z2[1:-1], ey.T)
-    f_ez = RectBivariateSpline(x2[1:-1], z1[1:-1], ez.T)
-    f_bx = RectBivariateSpline(x2[1:-1], z1[1:-1], bx.T)
-    f_by = RectBivariateSpline(x1[1:-1], z1[1:-1], by.T)
-    f_bz = RectBivariateSpline(x1[1:-1], z2[1:-1], bz.T)
-    f_vx = RectBivariateSpline(x2[1:-1], z2[1:-1], vx.T)
-    f_vy = RectBivariateSpline(x2[1:-1], z2[1:-1], vy.T)
-    f_vz = RectBivariateSpline(x2[1:-1], z2[1:-1], vz.T)
-    f_nrho = RectBivariateSpline(x2[1:-1], z2[1:-1], nrho.T)
+    smin = [x1[1], z2[1]]
+    smax = [x1[-2], z2[-2]]
+    f = MultilinearInterpolator(smin, smax, orders)
+    f.set_values(np.atleast_2d(np.transpose(ex).flatten()))
+    ex = np.transpose(f(coord).reshape(nx, nz))
+    f.set_values(np.atleast_2d(np.transpose(bz).flatten()))
+    bz = np.transpose(f(coord).reshape(nx, nz))
 
-    xv, zv = np.meshgrid(x1[1:-1], z1[1:-1])
+    smin = [x2[1], z1[1]]
+    smax = [x2[-2], z1[-2]]
+    f = MultilinearInterpolator(smin, smax, orders)
+    f.set_values(np.atleast_2d(np.transpose(ez).flatten()))
+    ez = np.transpose(f(coord).reshape(nx, nz))
+    f.set_values(np.atleast_2d(np.transpose(bx).flatten()))
+    bx = np.transpose(f(coord).reshape(nx, nz))
 
-    ex = f_ex(xv, zv, grid=False)
-    ey = f_ey(xv, zv, grid=False)
-    ez = f_ez(xv, zv, grid=False)
-    bx = f_bx(xv, zv, grid=False)
-    by = f_by(xv, zv, grid=False)
-    bz = f_bz(xv, zv, grid=False)
-    vx = f_vx(xv, zv, grid=False)
-    vy = f_vy(xv, zv, grid=False)
-    vz = f_vz(xv, zv, grid=False)
-    nrho = f_nrho(xv, zv, grid=False)
+    smin = [x1[1], z1[1]]
+    smax = [x1[-2], z1[-2]]
+    f = MultilinearInterpolator(smin, smax, orders)
+    f.set_values(np.atleast_2d(np.transpose(by).flatten()))
+    by = np.transpose(f(coord).reshape(nx, nz))
+
+    # ex[:, 1:nx+1] = (ex[:, 0:nx] + ex[:, 1:nx+1]) * 0.5
+    # ez[1:nz+1, :] = (ez[0:nz, :] + ez[1:nz+1, :]) * 0.5
+    # bx[1:nz+1, :] = (bx[0:nz, :] + bx[1:nz+1, :]) * 0.5
+    # by[1:nz+1, 1:nx+1] = (by[0:nz, 0:nx] + by[1:nz+1, 0:nx] +
+    #                       by[0:nz, 1:nx+1] + by[1:nz+1, 1:nx+1]) * 0.25
+    # bz[:, 1:nx+1] = (bz[:, 0:nx] + bz[:, 1:nx+1]) * 0.5
+
+    sigma = 3
+    ex = gaussian_filter(ex, sigma)
+    ey = gaussian_filter(ey, sigma)
+    ez = gaussian_filter(ez, sigma)
 
     absB = np.sqrt(bx**2 + by**2 + bz**2)
 
@@ -3053,7 +3084,7 @@ def calc_para_perp_heating(pic_info, current_time, run_dir, species):
     vparay = vdotB * by * ib2
     vparaz = vdotB * bz * ib2
 
-    dv = dx * dz
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
     jdote_para = charge * nrho * (vparax * ex + vparay * ey + vparaz * ez)
     jdote_perp = charge * nrho * (vx * ex + vy * ey + vz * ez) - jdote_para
 
@@ -3067,19 +3098,18 @@ def calc_para_perp_heating(pic_info, current_time, run_dir, species):
     return jdotes
 
 
-def calc_jpolar_dote_multi(pic_info, run_dir, run_name, species):
+def calc_jdote_terms_multi(pic_info, run_dir, run_name, species='e'):
     """
     """
     ntf = pic_info.ntf
-    # jdote = np.zeros(ntf)
     jdote = np.zeros((ntf, 2))
-    calc_jpolar_dote(pic_info, 30, run_dir, species)
-    # calc_para_perp_heating(pic_info, 10, run_dir, species)
+    # calc_jpolar_dote(pic_info, 30, run_dir, species)
+    # calc_para_perp_heating(pic_info, 50, run_dir, species)
     # calc_comperssional_heating(pic_info, 30, run_dir, species)
-    # for ct in range(ntf):
-    #     print(ct)
-    #     # jdote[ct] = calc_jpolar_dote(pic_info, ct, run_dir, species)
-    #     jdote[ct] = calc_para_perp_heating(pic_info, ct, run_dir, species)
+    for ct in range(ntf):
+        print(ct)
+        jdote[ct] = calc_jpolar_dote(pic_info, ct, run_dir, species)
+        # jdote[ct] = calc_para_perp_heating(pic_info, ct, run_dir, species)
 
     # # var = 'jpolar_dote'
     # var = 'jpara_perp_dote'
@@ -4050,24 +4080,23 @@ def plot_nrho_velocity(pic_info, root_dir, run_name, current_time):
     # plt.show()
 
 
-def calc_ppara_pperp_pscalar(pic_info, root_dir, current_time,
-                             species='e'):
+def calc_ppara_pperp_pscalar(pic_info, run_dir, current_time, species='e'):
     """Calculate parallel and perpendicular pressure and scalar pressure
 
     Args:
         pic_info: namedtuple for the PIC simulation information.
-        root_dir: simulation root directory
+        run_dir: simulation root directory
         current_time: current time frame.
     """
     print("Time frame: %d" % current_time)
     kwargs = {"current_time": current_time,
               "xl": 0, "xr": 200, "zb": -50, "zt": 50
               }
-    fname = root_dir + "data/bx.gda"
+    fname = run_dir + "data/bx.gda"
     x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
-    fname = root_dir + "data/by.gda"
+    fname = run_dir + "data/by.gda"
     x, z, by = read_2d_fields(pic_info, fname, **kwargs)
-    fname = root_dir + "data/bz.gda"
+    fname = run_dir + "data/bz.gda"
     x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
     fname = run_dir + "data/p" + species + "-xx.gda"
     x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
@@ -4134,6 +4163,7 @@ def plot_compresion_of_vexb(pic_info, root_dir, run_name, current_time,
     w0, h0 = 0.70, 0.26
     xs0, ys0 = 0.14, 0.96 - h0
     vgap, hgap = 0.03, 0.04
+    xl, xr = 50.8, 68.3
 
     def plot_one_field(fdata, ax, text, text_color, label_bottom='on',
                        label_left='on', ylabel=False, vmin=0, vmax=10,
@@ -4151,6 +4181,8 @@ def plot_compresion_of_vexb(pic_info, root_dir, run_name, current_time,
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                 horizontalalignment='left', verticalalignment='center',
                 transform=ax.transAxes)
+        ax.set_xlim([xl, xr])
+        ax.set_ylim([-20, 20])
         xs1 = xs + w0 * 1.02
         w1 = w0 * 0.04
         cax = fig.add_axes([xs1, ys, w1, h0])
@@ -4188,16 +4220,27 @@ def plot_compresion_of_vexb(pic_info, root_dir, run_name, current_time,
     ax3 = fig.add_axes([xs, ys, w0, h0])
     ax3.plot(x, pdiv_vx_cumsum, linewidth=2, color='r')
     ax3.plot(x, pdiv_vz_cumsum, linewidth=2, color='b')
+    ax3.set_xlim([xl, xr])
+    ax3.set_ylim([0, 1.5])
     ax3.set_xlabel(r'$x/d_i$', fontdict=font, fontsize=20)
+    ax3.grid(True)
     ax3.tick_params(labelsize=16)
+
+    xindex1 = find_closest(x, xl)
+    xindex2 = find_closest(x, xr)
+    ex = pdiv_vx_cumsum[xindex2] - pdiv_vx_cumsum[xindex1]
+    ez = pdiv_vz_cumsum[xindex2] - pdiv_vz_cumsum[xindex1]
+    etot = ex + ez
+    print("Fraction of energization from pdiv_vx, pdiv_vy: %f, %f" %
+          (ex / etot, ez / etot))
 
     fdir = '../img/compression_of_vexb/' + run_name + '/'
     mkdir_p(fdir)
     fname = fdir + 'compression_of_vexb_' + str(current_time)
     fname += '_' + species + '.jpg'
-    fig.savefig(fname, dpi=200)
+    # fig.savefig(fname, dpi=200)
     # plt.close()
-    # plt.show()
+    plt.show()
 
 
 def calc_bbsigma(pic_info, root_dir, current_time):
@@ -4239,6 +4282,7 @@ def calc_bbsigma(pic_info, root_dir, current_time):
     vz = gaussian_filter(vz, sigma)
 
     divv = np.gradient(vx, dx, axis=1) + np.gradient(vz, dz, axis=0)
+
     bbsigmaxx = (np.gradient(vx, dx, axis=1) - divv / 3.0) * bx**2 * ib2
     bbsigmayy = (-divv / 3.0) * by**2 * ib2
     bbsigmazz = (np.gradient(vz, dz, axis=0) - divv / 3.0) * bz**2 * ib2
@@ -4246,6 +4290,20 @@ def calc_bbsigma(pic_info, root_dir, current_time):
     bbsigmaxz = ((np.gradient(vz, dx, axis=1) +
                   np.gradient(vx, dz, axis=0))) * bx * bz * ib2
     bbsigmayz = np.gradient(vy, dz, axis=0) * by * bz * ib2
+
+    # bbsigmaxx = (np.gradient(vx, dx, axis=1) - divv / 3.0) 
+    # bbsigmayy = (-divv / 3.0)
+    # bbsigmazz = (np.gradient(vz, dz, axis=0) - divv / 3.0)
+    # bbsigmaxy = np.gradient(vy, dx, axis=1)
+    # bbsigmaxz = ((np.gradient(vz, dx, axis=1) + np.gradient(vx, dz, axis=0)))
+    # bbsigmayz = np.gradient(vy, dz, axis=0)
+
+    # bbsigmaxx = bx**2 * ib2
+    # bbsigmayy = by**2 * ib2
+    # bbsigmazz = bz**2 * ib2
+    # bbsigmaxy = bx * by * ib2
+    # bbsigmaxz = bx * bz * ib2
+    # bbsigmayz = by * bz * ib2
 
     return (bbsigmaxx, bbsigmayy, bbsigmazz, bbsigmaxy, bbsigmaxz, bbsigmayz)
 
@@ -4288,11 +4346,14 @@ def plot_shear_of_vexb(pic_info, root_dir, run_name, current_time,
 
     def plot_one_field(fdata, ax, text, text_color, label_bottom='on',
                        label_left='on', ylabel=False, vmin=0, vmax=10,
-                       colormap=plt.cm.seismic, xs=xs0, ys=ys0, ay_color='k'):
+                       colormap=plt.cm.seismic, xs=xs0, ys=ys0, ay_color='k',
+                       log_scale=False):
         plt.tick_params(labelsize=16)
         p1 = ax.imshow(fdata, vmin=vmin, vmax=vmax, cmap=colormap,
                        extent=[xmin, xmax, zmin, zmax], aspect='auto',
                        origin='lower', interpolation='bicubic')
+        if log_scale:
+            p1.norm = LogNorm(vmin=vmin, vmax=vmax)
         ax.tick_params(axis='x', labelbottom=label_bottom)
         ax.tick_params(axis='y', labelleft=label_left)
         if ylabel:
@@ -4302,6 +4363,7 @@ def plot_shear_of_vexb(pic_info, root_dir, run_name, current_time,
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                 horizontalalignment='left', verticalalignment='center',
                 transform=ax.transAxes)
+        ax.set_ylim([-20, 20])
         xs1 = xs + w0 * 1.02
         w1 = w0 * 0.04
         cax = fig.add_axes([xs1, ys, w1, h0])
@@ -4317,6 +4379,12 @@ def plot_shear_of_vexb(pic_info, root_dir, run_name, current_time,
     pshear_xy = pdiff * bbsigmaxy
     pshear_xz = pdiff * bbsigmaxz
     pshear_yz = pdiff * bbsigmayz
+    # pshear_xx = bbsigmaxx
+    # pshear_yy = bbsigmayy
+    # pshear_zz = bbsigmazz
+    # pshear_xy = bbsigmaxy
+    # pshear_xz = bbsigmaxz
+    # pshear_yz = bbsigmayz
     pshear_xx_cumsum = np.cumsum(np.sum(pshear_xx, axis=0)) * dv
     pshear_yy_cumsum = np.cumsum(np.sum(pshear_yy, axis=0)) * dv
     pshear_zz_cumsum = np.cumsum(np.sum(pshear_zz, axis=0)) * dv
@@ -4328,7 +4396,7 @@ def plot_shear_of_vexb(pic_info, root_dir, run_name, current_time,
     xs, ys = xs0, ys0
     ax1 = fig.add_axes([xs, ys, w0, h0])
     text1 = r'$(p_\perp - p_\parallel)b_xb_x\sigma_{xx}$'
-    dmax = 5E-4
+    dmax = 5E-1
     nmin, nmax = -dmax, dmax
     cbar1 = plot_one_field(pshear_xx, ax1, text1, 'r', label_bottom='off',
                            label_left='on', ylabel=True, vmin=nmin, vmax=nmax,
@@ -4372,12 +4440,14 @@ def plot_shear_of_vexb(pic_info, root_dir, run_name, current_time,
     ys -= h0 + vgap
     ax7 = fig.add_axes([xs, ys, w0, h0])
     text7 = r'$p_\parallel - p_\perp$'
-    nmin, nmax = -0.5, 0.5
-    print("min and max of pdiff: %f %f" % (np.min(pdiff), np.max(pdiff)))
-    cbar7 = plot_one_field(pdiff, ax7, text7, 'k', label_bottom='off',
+    nmin, nmax = 0.1, 10
+    pratio = ppara / pperp
+    print("min and max of pratio %f %f" % (np.min(pratio), np.max(pratio)))
+    cbar7 = plot_one_field(pratio, ax7, text7, 'k', label_bottom='off',
                            label_left='on', ylabel=True, vmin=nmin, vmax=nmax,
-                           colormap=plt.cm.seismic, xs=xs, ys=ys, ay_color='k')
-    cbar7.set_ticks(np.arange(nmin, nmax + 0.5, 0.5))
+                           colormap=plt.cm.seismic, xs=xs, ys=ys, ay_color='k',
+                           log_scale=True)
+    # cbar7.set_ticks(np.arange(nmin, nmax + 1.5, 1.5))
     ys -= h0 + vgap
     ax8 = fig.add_axes([xs, ys, w0, h0])
     ax8.plot(x, pshear_xx_cumsum, linewidth=2, color='r')
@@ -4393,17 +4463,17 @@ def plot_shear_of_vexb(pic_info, root_dir, run_name, current_time,
     mkdir_p(fdir)
     fname = fdir + 'shear_of_vexb_' + str(current_time)
     fname += '_' + species + '.jpg'
-    fig.savefig(fname, dpi=200)
-    plt.close()
-    # plt.show()
+    # fig.savefig(fname, dpi=200)
+    # plt.close()
+    plt.show()
 
 
 def get_cmd_args():
     """Get command line arguments
     """
-    default_run_name = 'mime25_beta008_guide00_frequent_dump'
+    default_run_name = 'mime25_beta002_guide00_frequent_dump'
     default_run_dir = '/net/scratch3/xiaocanli/reconnection/frequent_dump/' + \
-            'mime25_beta008_guide00_frequent_dump/'
+            'mime25_beta002_guide00_frequent_dump/'
     parser = argparse.ArgumentParser(description='Compression analysis based on fluids')
     parser.add_argument('--species', action="store", default='e',
                         help='particle species')
@@ -4432,25 +4502,26 @@ if __name__ == "__main__":
     # plot_compression_time(pic_info, run_name, 'e')
     # plot_compression_time(pic_info, run_name, 'i')
     # generate_energization_terms_table()
-    calc_jpolar_dote_multi(pic_info, run_dir, run_name, 'i')
+    # calc_jdote_terms_multi(pic_info, run_dir, run_name, 'e')
     # calc_jpolar_dote_continusou_dump_multi(picinfo_fname, run_dir, run_name, 'e')
     # calc_jpolar_dote_continusou_dump_multi(picinfo_fname, run_dir, run_name, 'i')
     # jdote_calculation_test(pic_info, run_dir, 60)
-    # compression_ratio_apjl_runs()
+    compression_ratio_apjl_runs()
+    # compression_ratio(run_name)
     # plot_compression_time_both(pic_info, run_name)
     # plot_compression_shear_single(pic_info, run_dir, run_name, 'e', 25)
     # compare_fluid_particle_energization(pic_info, run_name)
-    # ncores = multiprocessing.cpu_count()
-    # ncores = 10
-    # ecov_min, ecov_max = find_min_max_energization_terms(run_name, species)
-    # cts = range(pic_info.ntp)
-    # def processInput(job_id):
-    #     print job_id
-    #     ct = job_id
-    #     tframe_fields = (ct + 1) * tratio
-    #     plot_energization_terms(pic_info, run_dir, run_name, species,
-    #                             tframe_fields, ecov_min, ecov_max)
-    #     plt.close()
+    ncores = multiprocessing.cpu_count()
+    ncores = 10
+    ecov_min, ecov_max = find_min_max_energization_terms(run_name, species)
+    cts = range(pic_info.ntp)
+    def processInput(job_id):
+        print job_id
+        ct = job_id
+        tframe_fields = (ct + 1) * tratio
+        plot_energization_terms(pic_info, run_dir, run_name, species,
+                                tframe_fields, ecov_min, ecov_max)
+        plt.close()
     # if multi_frames:
     #     Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
     # else:
@@ -4458,8 +4529,8 @@ if __name__ == "__main__":
     #                             tframe_fields, ecov_min, ecov_max)
     #     plt.show()
     # plot_nrho_velocity(pic_info, run_dir, run_name, 50)
-    # plot_compresion_of_vexb(pic_info, run_dir, run_name, 50, 'i')
-    # plot_shear_of_vexb(pic_info, run_dir, run_name, 50, 'i')
+    # plot_compresion_of_vexb(pic_info, run_dir, run_name, 30, 'e')
+    # plot_shear_of_vexb(pic_info, run_dir, run_name, 30, 'e')
     # cts = range(pic_info.ntp)
     # for ct in cts:
     #     tframe_fields = (ct + 1) * tratio
@@ -4502,4 +4573,3 @@ if __name__ == "__main__":
     # move_compression()
     # plot_compression_time_multi('i')
     # calc_compression(run_dir, pic_info)
-
