@@ -16,7 +16,7 @@ ch_htt () {
     sed -i -e "s/\(httz = \).*,\(.*\)/\1$3,\2/" $conf
 }
 
-mpi_sizes=32
+mpi_sizes=16
 
 run_dissipation () {
     cd $ana_path
@@ -30,12 +30,13 @@ run_dissipation () {
 
 run_compression () {
     cd $ana_path
-    mpirun -np $mpi_sizes ./compression.exec -rp $1
+    mpirun -np $mpi_sizes ./compression.exec -rp $1 $3
     mkdir -p data/compression/$2
     mv data/*.gda data/compression/$2
 }
 
-runs_path=/net/scratch3/xiaocanli/reconnection
+# runs_path=/net/scratch3/xiaocanli/reconnection
+runs_path=/net/scratch3/xiaocanli/reconnection/frequent_dump
 
 # run_name=mime25-sigma1-beta002-guide02
 # rootpath=$runs_path/$run_name-200-100/
@@ -55,15 +56,69 @@ runs_path=/net/scratch3/xiaocanli/reconnection
 # run_dissipation $rootpath e $run_name
 # run_dissipation $rootpath i $run_name
 
+# run_name=mime25-sigma1-beta002-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 204
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
 # run_name=mime25-sigma1-beta008-guide00
 # rootpath=$runs_path/$run_name-200-100/
 # ch_tp2 241
 # run_dissipation $rootpath e $run_name
 # run_dissipation $rootpath i $run_name
 
-run_name=mime25-sigma1-beta032-guide00
-rootpath=$runs_path/$run_name-200-100/
-ch_tp2 241
+# run_name=mime25-sigma1-beta032-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 241
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=dump_test
+# rootpath=$runs_path/$run_name/
+# ch_tp2 35
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=high_beta_test
+# rootpath=$runs_path/$run_name/
+# ch_tp2 41
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=mime25_beta002_guide00_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=mime25_beta002_guide02_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=mime25_beta002_guide05_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+# run_name=mime25_beta002_guide10_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_dissipation $rootpath e $run_name
+# run_dissipation $rootpath i $run_name
+
+run_name=mime25_beta008_guide00_frequent_dump
+rootpath=$runs_path/$run_name/
+ch_tp2 161
+run_dissipation $rootpath e $run_name
+run_dissipation $rootpath i $run_name
+
+run_name=mime25_beta032_guide00_frequent_dump
+rootpath=$runs_path/$run_name/
+ch_tp2 161
 run_dissipation $rootpath e $run_name
 run_dissipation $rootpath i $run_name
 
@@ -82,23 +137,65 @@ run_dissipation $rootpath i $run_name
 # ch_tp2 241
 # run_compression $rootpath $run_name
 
+# run_name=mime25-sigma1-beta002-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 204
+# run_compression $rootpath $run_name
+
 # run_name=mime25-sigma1-beta008-guide00
 # rootpath=$runs_path/$run_name-200-100/
 # ch_tp2 241
 # run_compression $rootpath $run_name
 
-run_name=mime25-sigma1-beta032-guide00
-rootpath=$runs_path/$run_name-200-100/
-ch_tp2 241
+# run_name=mime25-sigma1-beta032-guide00
+# rootpath=$runs_path/$run_name-200-100/
+# ch_tp2 241
+# run_compression $rootpath $run_name
+
+# run_name=dump_test
+# rootpath=$runs_path/$run_name/
+# ch_tp2 35
+# run_compression $rootpath $run_name -uexb
+# run_compression $rootpath $run_name
+
+# run_name=high_beta_test
+# rootpath=$runs_path/$run_name/
+# ch_tp2 41
+# run_compression $rootpath $run_name -uexb
+# run_compression $rootpath $run_name
+
+# run_name=mime25_beta002_guide00_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_compression $rootpath $run_name -uexb
+# run_compression $rootpath $run_name
+
+# run_name=mime25_beta002_guide02_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_compression $rootpath $run_name -uexb
+# run_compression $rootpath $run_name
+
+# run_name=mime25_beta002_guide05_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_compression $rootpath $run_name -uexb
+# run_compression $rootpath $run_name
+
+# run_name=mime25_beta002_guide10_frequent_dump
+# rootpath=$runs_path/$run_name/
+# ch_tp2 161
+# run_compression $rootpath $run_name -uexb
+# run_compression $rootpath $run_name
+
+run_name=mime25_beta008_guide00_frequent_dump
+rootpath=$runs_path/$run_name/
+ch_tp2 161
+run_compression $rootpath $run_name -uexb
 run_compression $rootpath $run_name
 
-# run_name=mime25-sigma1-beta002-guide00
-# rootpath=$runs_path/$run_name-200-100/
-# ch_tp2 204
-# run_dissipation $rootpath e $run_name
-# run_dissipation $rootpath i $run_name
-
-# run_name=mime25-sigma1-beta002-guide00
-# rootpath=$runs_path/$run_name-200-100/
-# ch_tp2 204
-# run_compression $rootpath $run_name
+run_name=mime25_beta032_guide00_frequent_dump
+rootpath=$runs_path/$run_name/
+ch_tp2 161
+run_compression $rootpath $run_name -uexb
+run_compression $rootpath $run_name
