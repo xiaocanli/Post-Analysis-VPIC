@@ -34,12 +34,18 @@ from energy_conversion import read_data_from_json
 from particle_distribution import read_particle_data
 from shell_functions import mkdir_p
 
-style.use(['seaborn-white', 'seaborn-paper'])
+style.use(['seaborn-white', 'seaborn-paper', 'seaborn-ticks'])
+# style.use(['seaborn-white', 'seaborn-paper'])
 # rc('font', **{'family': 'serif', 'serif': ["Times", "Palatino", "serif"]})
 # rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 rc("font", family="Times New Roman")
 mpl.rc('text', usetex=True)
-mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
+mpl.rcParams['text.latex.preamble'] = [
+    r"\usepackage{amsmath, bm}",
+    r"\DeclareMathAlphabet{\mathsfit}{\encodingdefault}{\sfdefault}{m}{sl}",
+    r"\SetMathAlphabet{\mathsfit}{bold}{\encodingdefault}{\sfdefault}{bx}{sl}",
+    r"\newcommand{\tensorsym}[1]{\bm{\mathsfit{#1}}}"
+    ]
 
 colors_Set1_9 = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 colors_Dark2_8 = palettable.colorbrewer.qualitative.Dark2_8.mpl_colors
@@ -1249,7 +1255,8 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     de_dudt = (duz_dt_ptl * by_ptl - duy_dt_ptl * bz_ptl) * ex_ptl + \
               (dux_dt_ptl * bz_ptl - duz_dt_ptl * bx_ptl) * ey_ptl + \
               (duy_dt_ptl * bx_ptl - dux_dt_ptl * by_ptl) * ez_ptl
-    de_dudt *= pmass * weight * ib2_ptl * gamma
+    # de_dudt *= pmass * weight * ib2_ptl * gamma
+    de_dudt *= pmass * weight * ib2_ptl
     del vdotb_ptl
 
     vex = ey_ptl * bz_ptl - ez_ptl * by_ptl
@@ -1369,11 +1376,13 @@ def interpolation_single_rank(run_dir, rank, pmass, species, tindex,
     return hists
 
 
-def interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
+def interp_particle_compression_single(run_dir, run_name, tindex,
                                        tindex_pre, tindex_post, species='e',
                                        use_shifted_eb=False):
     """Use single field files to interpolate compression effects
     """
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
     if species == 'e':
         pmass = 1.0
         charge = -1.0
@@ -1645,8 +1654,8 @@ def interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
     x, z, nrho_post  = read_2d_fields(pic_info, fname, **kwargs)
     fname = run_dir + "data/absB_post.gda"
     x, z, absB_post  = read_2d_fields(pic_info, fname, **kwargs)
-    fname = run_dir + "data/ke-" + species + ".gda"
-    x, z, ke_pic  = read_2d_fields(pic_info, fname, **kwargs)
+    # fname = run_dir + "data/ke-" + species + ".gda"
+    # x, z, ke_pic  = read_2d_fields(pic_info, fname, **kwargs)
 
     fname = run_dir + "data/ex_pre.gda"
     x, z, ex_pre = read_2d_fields(pic_info, fname, **kwargs)
@@ -1754,14 +1763,14 @@ def interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
     duz_dt += (uz_post - uz_pre) / dtf
     divv_species = (np.gradient(vx_pic, dx, axis=1) +
                     np.gradient(vz_pic, dz, axis=0))
-    upic = np.sqrt(ux_pic**2 + uy_pic**2 + uz_pic**2)
-    igamma_u = div0(1.0, np.sqrt(1.0 + upic**2))
-    du_dt = (dux_dt * ux_pic + duy_dt * uy_pic + duz_dt * uz_pic) / upic
-    dux_dt = igamma_u * dux_dt - igamma_u**3 * upic * du_dt * ux_pic
-    duy_dt = igamma_u * duy_dt - igamma_u**3 * upic * du_dt * uy_pic
-    duz_dt = igamma_u * duz_dt - igamma_u**3 * upic * du_dt * uz_pic
+    # upic = np.sqrt(ux_pic**2 + uy_pic**2 + uz_pic**2)
+    # igamma_u = div0(1.0, np.sqrt(1.0 + upic**2))
+    # du_dt = (dux_dt * ux_pic + duy_dt * uy_pic + duz_dt * uz_pic) / upic
+    # dux_dt = igamma_u * dux_dt - igamma_u**3 * upic * du_dt * ux_pic
+    # duy_dt = igamma_u * duy_dt - igamma_u**3 * upic * du_dt * uy_pic
+    # duz_dt = igamma_u * duz_dt - igamma_u**3 * upic * du_dt * uz_pic
 
-    del upic, igamma_u, du_dt
+    # del upic, igamma_u, du_dt
     del vexb_pre_x, vexb_pre_y, vexb_pre_z
     del vexb_post_x, vexb_post_y, vexb_post_z
 
@@ -1775,7 +1784,8 @@ def interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
     del ux_post, uy_post, uz_post
     del absB_pre, absB_post
     del nrho_pre, nrho_post
-    del ke_pic, nrho_pic
+    # del ke_pic
+    del nrho_pic
 
     fitting_functions['f_dux_dt'] = MultilinearInterpolator(smin_h, smax_h, orders)
     fitting_functions['f_duy_dt'] = MultilinearInterpolator(smin_h, smax_h, orders)
@@ -1810,6 +1820,290 @@ def interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
                                            fitting_functions)
     fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
     hists.tofile(fname)
+
+
+def momentum_dist_single_rank(run_dir, rank, pmass, species, tindex,
+                              fitting_functions):
+    """
+    """
+    # if rank % 50 == 0:
+    #     print("Rank: %d" % rank)
+    print("Rank: %d" % rank)
+    particle_dir = run_dir + 'particle/T.' + str(tindex) + '/'
+    eparticle_name = particle_dir + 'eparticle.' + str(tindex)
+    hparticle_name = particle_dir + 'hparticle.' + str(tindex)
+    if species == 'e':
+        charge = -1.0
+        fname = eparticle_name + '.' + str(rank)
+        pmass = 1.0
+    else:
+        charge = 1.0
+        fname = hparticle_name + '.' + str(rank)
+        pmass = pic_info.mime
+
+    # read particle data
+    (v0, pheader, ptl) = read_particle_data(fname)
+    dxp = ptl['dxyz'][:, 0]
+    dzp = ptl['dxyz'][:, 2]
+    icell = ptl['icell']
+    uxp = ptl['u'][:, 0]
+    uyp = ptl['u'][:, 1]
+    uzp = ptl['u'][:, 2]
+    q = ptl['q']
+    nx = v0.nx + 2
+    ny = v0.ny + 2
+    nz = v0.nz + 2
+    iz = icell // (nx * ny)
+    ix = icell % nx
+    x_ptl = ((ix - 1.0) + (dxp + 1.0) * 0.5) * v0.dx + v0.x0
+    z_ptl = ((iz - 1.0) + (dzp + 1.0) * 0.5) * v0.dz + v0.z0
+    gamma = np.sqrt(1 + np.sum(ptl['u']**2, axis=1))
+    igamma = 1.0 / gamma
+    vxp = uxp * igamma
+    vyp = uyp * igamma
+    vzp = uzp * igamma
+    weight = abs(q[0])
+    coord = np.vstack((x_ptl, z_ptl))
+    del ptl, icell, dxp, dzp, ix, iz, q, igamma
+
+    bx_ptl = fitting_functions['f_bx'](coord)
+    by_ptl = fitting_functions['f_by'](coord)
+    bz_ptl = fitting_functions['f_bz'](coord)
+    ib_ptl = div0(1.0, np.sqrt(bx_ptl**2 + by_ptl**2 + bz_ptl**2))
+    bx2 = bx_ptl**2
+    by2 = by_ptl**2
+    bz2 = bz_ptl**2
+    bxy = bx_ptl * by_ptl
+    bxz = bx_ptl * bz_ptl
+    byz = by_ptl * bz_ptl
+    ib2_ptl = div0(1.0, bx2 + by2 + bz2)
+    upara = np.abs((uxp * bx_ptl + uyp * by_ptl + uzp * bz_ptl) * ib_ptl)
+    uperp = np.sqrt(np.abs(uxp**2 + uyp**2 + uzp**2 - upara**2))
+    anisotropy = np.squeeze(2 * upara**2 / uperp**2)
+
+    vx_ptl = fitting_functions['f_vx'](coord)
+    vy_ptl = fitting_functions['f_vy'](coord)
+    vz_ptl = fitting_functions['f_vz'](coord)
+    ux_ptl = fitting_functions['f_ux'](coord)
+    uy_ptl = fitting_functions['f_uy'](coord)
+    uz_ptl = fitting_functions['f_uz'](coord)
+
+    pxx = (vxp - vx_ptl) * (uxp - ux_ptl) * pmass
+    pyy = (vyp - vy_ptl) * (uyp - uy_ptl) * pmass
+    pzz = (vzp - vz_ptl) * (uzp - uz_ptl) * pmass
+    pxy = (vxp - vx_ptl) * (uyp - uy_ptl) * pmass
+    pxz = (vxp - vx_ptl) * (uzp - uz_ptl) * pmass
+    pyz = (vyp - vy_ptl) * (uzp - uz_ptl) * pmass
+    pyx = (vyp - vy_ptl) * (uxp - ux_ptl) * pmass
+    pzx = (vzp - vz_ptl) * (uxp - ux_ptl) * pmass
+    pzy = (vzp - vz_ptl) * (uyp - uy_ptl) * pmass
+    pxx *= weight
+    pyy *= weight
+    pzz *= weight
+    pxy *= weight
+    pxz *= weight
+    pyz *= weight
+    pyx *= weight
+    pzx *= weight
+    pzy *= weight
+
+    del vxp, vyp, vzp, uxp, uyp, uzp
+    del vx_ptl, vy_ptl, vz_ptl
+    del ux_ptl, uy_ptl, uz_ptl
+
+    del bx_ptl, by_ptl, bz_ptl, ib_ptl
+
+    pscalar = (pxx + pyy + pzz) / 3.0
+    ppara_ptl = pxx * bx2 + pyy * by2 + pzz * bz2 + \
+                (pxy + pyx) * bxy + (pxz + pzx) * bxz + (pyz + pzy) * byz
+    ppara_ptl *= ib2_ptl
+    pperp_ptl = 0.5 * (pscalar * 3 - ppara_ptl)
+
+    del pxx, pyy, pzz, pxy, pxz, pyz, pyx, pzx, pzy
+
+    # get the distribution and save the data
+    npbins = 300
+    pbins = np.logspace(-2, 1, npbins + 1) / math.sqrt(pmass)
+    hists1D = np.zeros((2, npbins))
+    hists1D[0, :], bin_edges = np.histogram(upara, bins=pbins)
+    hists1D[1, :], bin_edges = np.histogram(uperp, bins=pbins)
+
+    nebins = 60
+    nabins = 20
+    ebins = np.logspace(-4, 2, nebins + 1) / math.sqrt(pmass)
+    abins = np.logspace(-1, 1, nabins + 1)
+    hists2D = np.zeros((nebins, nabins))
+    hists2D, ebin_edges, abin_edges = np.histogram2d(gamma-1, anisotropy,
+                                                     bins=[ebins, abins])
+
+    ppara = upara**2 / gamma
+    pperp = 0.5 * uperp**2 / gamma
+    hists1D_a = np.zeros((2, nebins))
+    hists1D_a[0, :], ebin_edges = np.histogram(gamma-1, bins=ebins,
+                                               weights=np.squeeze(ppara_ptl))
+    hists1D_a[1, :], ebin_edges = np.histogram(gamma-1, bins=ebins,
+                                               weights=np.squeeze(pperp_ptl))
+
+    del pscalar, ppara_ptl, pperp_ptl, ib2_ptl
+    del upara, uperp, anisotropy
+    del x_ptl, z_ptl, gamma, bin_edges, ebin_edges, abin_edges
+    del coord
+    del fitting_functions
+
+    return (hists1D, hists1D_a, hists2D)
+
+
+def calc_momemtum_distribution(run_dir, run_name, tindex,tindex_pre,
+                               tindex_post, species='e', use_shifted_eb=False):
+    """Use single field files to interpolate compression effects
+    """
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    if species == 'e':
+        pmass = 1.0
+        charge = -1.0
+    else:
+        pmass = pic_info.mime
+        charge = 1.0
+    mime = pic_info.mime
+    smime = math.sqrt(mime)
+    current_time = tindex / pic_info.fields_interval
+    dv = pic_info.dx_di * pic_info.dz_di * pic_info.mime
+
+    particle_dir = run_dir + 'particle/T.' + str(tindex) + '/'
+    eparticle_name = particle_dir + 'eparticle.' + str(tindex)
+    hparticle_name = particle_dir + 'hparticle.' + str(tindex)
+    if species == 'e':
+        fname = eparticle_name + '.0'
+    else:
+        fname = hparticle_name + '.0'
+    # read particle data
+    (v0, pheader, ptl) = read_particle_data(fname)
+    dx = v0.dx
+    dz = v0.dz
+    dxh = dx * 0.5
+    dzh = dz * 0.5
+    nx_pic = pic_info.nx
+    nz_pic = pic_info.nz
+    lx_pic = pic_info.lx_di * smime
+    lz_pic = pic_info.lz_di * smime
+    x1 = np.linspace(-dxh, lx_pic + dxh, nx_pic + 2)
+    x2 = np.linspace(-dx, lx_pic, nx_pic + 2)
+    z1 = np.linspace(-dzh - 0.5 * lz_pic, 0.5 * lz_pic + dzh, nz_pic + 2)
+    z2 = np.linspace(-dz - 0.5 * lz_pic, 0.5 * lz_pic, nz_pic + 2)
+    points_x, points_z = np.broadcast_arrays(x2[1:-1].reshape(-1,1), z2[1:-1])
+    coord = np.vstack((points_x.flatten(), points_z.flatten()))
+    orders = [nx_pic, nz_pic]
+    smin_h = [x2[1], z2[1]]         # for hydro, Ey
+    smax_h = [x2[-2], z2[-2]]
+    smin_ex_bz = [x1[1], z2[1]]     # for Ex, Bz
+    smax_ex_bz = [x1[-2], z2[-2]]
+    smin_ez_bx = [x2[1], z1[1]]     # for Ez, Bx
+    smax_ez_bx = [x2[-2], z1[-2]]
+    smin_by = [x1[1], z1[1]]        # for By
+    smax_by = [x1[-2], z1[-2]]
+    del points_x, points_z
+
+    ng = 3
+    kernel = np.ones((ng, ng)) / float(ng * ng)
+
+    fitting_functions = {}
+
+    kwargs = {"current_time": current_time, "xl": 0, "xr": pic_info.lx_di,
+              "zb": -0.5 * pic_info.lz_di, "zt": 0.5 * pic_info.lz_di}
+    # read electric and magnetic fields
+    nx = pic_info.nx
+    nz = pic_info.nz
+    fname = run_dir + "data/bx.gda"
+    x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/by.gda"
+    x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+
+    fname = run_dir + "data/bz.gda"
+    x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+
+    if use_shifted_eb:  # shifted electric and magnetic fields at hydro positions
+        fitting_functions['f_bx'] = MultilinearInterpolator(smin_h, smax_h, orders)
+        fitting_functions['f_by'] = MultilinearInterpolator(smin_h, smax_h, orders)
+        fitting_functions['f_bz'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    else:
+        fitting_functions['f_bx'] = MultilinearInterpolator(smin_ez_bx, smax_ez_bx, orders)
+        fitting_functions['f_by'] = MultilinearInterpolator(smin_by, smax_by, orders)
+        fitting_functions['f_bz'] = MultilinearInterpolator(smin_ex_bz, smax_ex_bz, orders)
+
+    fitting_functions['f_bx'].set_values(np.atleast_2d(np.transpose(bx).flatten()))
+    fitting_functions['f_by'].set_values(np.atleast_2d(np.transpose(by).flatten()))
+    fitting_functions['f_bz'].set_values(np.atleast_2d(np.transpose(bz).flatten()))
+
+    if not use_shifted_eb:
+        # interpolate EMF to hydro positions
+        bx = np.transpose(fitting_functions['f_bx'](coord).reshape(nx, nz))
+        by = np.transpose(fitting_functions['f_by'](coord).reshape(nx, nz))
+        bz = np.transpose(fitting_functions['f_bz'](coord).reshape(nx, nz))
+
+    del bx, by, bz
+
+    kwargs = {"current_time": current_time, "xl": 0, "xr": pic_info.lx_di,
+              "zb": -0.5 * pic_info.lz_di, "zt": 0.5 * pic_info.lz_di}
+    fname = run_dir + "data/v" + species + "x.gda"
+    x, z, vx_pic = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "y.gda"
+    x, z, vy_pic = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/v" + species + "z.gda"
+    x, z, vz_pic = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "x.gda"
+    x, z, ux_pic = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "y.gda"
+    x, z, uy_pic = read_2d_fields(pic_info, fname, **kwargs)
+    fname = run_dir + "data/u" + species + "z.gda"
+    x, z, uz_pic = read_2d_fields(pic_info, fname, **kwargs)
+
+    fitting_functions['f_vx'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    fitting_functions['f_vy'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    fitting_functions['f_vz'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    fitting_functions['f_ux'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    fitting_functions['f_uy'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    fitting_functions['f_uz'] = MultilinearInterpolator(smin_h, smax_h, orders)
+    fitting_functions['f_vx'].set_values(np.atleast_2d(np.transpose(vx_pic).flatten()))
+    fitting_functions['f_vy'].set_values(np.atleast_2d(np.transpose(vy_pic).flatten()))
+    fitting_functions['f_vz'].set_values(np.atleast_2d(np.transpose(vz_pic).flatten()))
+    fitting_functions['f_ux'].set_values(np.atleast_2d(np.transpose(ux_pic).flatten()))
+    fitting_functions['f_uy'].set_values(np.atleast_2d(np.transpose(uy_pic).flatten()))
+    fitting_functions['f_uz'].set_values(np.atleast_2d(np.transpose(uz_pic).flatten()))
+
+    del vx_pic, vy_pic, vz_pic
+    del ux_pic, uy_pic, uz_pic
+
+    # get the distribution and save the data
+    npbins = 300
+    nebins = 60
+    nabins = 20
+    pbins = np.logspace(-2, 1, npbins) / math.sqrt(pmass)
+    ebins = np.logspace(-4, 2, nebins) / math.sqrt(pmass)
+    abins = np.logspace(-1, 1, nabins)
+    hists1D = np.zeros((2, npbins))
+    hists1D_a = np.zeros((2, nebins))
+    hists2D = np.zeros((nebins, nabins))
+
+    fdir = '../data/anisotropy_distribution/' + run_name + '/'
+    mkdir_p(fdir)
+
+    nprocs = pic_info.topology_x * pic_info.topology_y * pic_info.topology_z
+    ranks = range(nprocs)
+
+    for rank in ranks:
+        hists1, hists1a, hists2 = momentum_dist_single_rank(
+                run_dir, rank, pmass, species, tindex, fitting_functions)
+        hists1D += hists1
+        hists1D_a += hists1a
+        hists2D += hists2
+    fname = fdir + 'pdists_' + species + '.' + str(tindex) + '.all'
+    hists1D.tofile(fname)
+    fname = fdir + 'edists_' + species + '.' + str(tindex) + '.all'
+    hists1D_a.tofile(fname)
+    fname = fdir + 'adists_' + species + '.' + str(tindex) + '.all'
+    hists2D.tofile(fname)
 
 
 def combine_files(nprocs, run_dir, tindex, data_dir, var_name, species='e'):
@@ -2061,6 +2355,16 @@ def plot_compression_heating(run_name, tindex, species):
     fbins = np.linspace(-2, 2, nbins*2)
     # fbins = np.linspace(-6E-2, 6E-2, nbins*2)
     df = fbins[1] - fbins[0]
+
+    # normalized with thermal energy
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    ebins /= eth
+
     fdir = '../data/particle_compression/' + run_name + '/'
     fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
     fdata = np.fromfile(fname)
@@ -2106,7 +2410,7 @@ def plot_compression_heating(run_name, tindex, species):
     label2 = charge + r'$\boldsymbol{v}_\perp\cdot\boldsymbol{E}_\perp$'
     label3 = r'$-p\nabla\cdot\boldsymbol{v}_E$'
     label4 = r'$-(p_\parallel-p_\perp)b_ib_j\sigma_{ij}$'
-    label5 = r'$-\mathbf{P}:\nabla\boldsymbol{v}_E$'
+    label5 = r'$-\tensorsym{P}:\nabla\boldsymbol{v}_E$'
     if species == 'e':
         label6 = r'$m_e(d\boldsymbol{u}_e/dt)\cdot\boldsymbol{v}_E$'
     else:
@@ -2114,18 +2418,24 @@ def plot_compression_heating(run_name, tindex, species):
     label7 = label5 + r'$+$' + label6
     data_sum = hist_ptensor_dv + hist_de_dudt
     # data_sum = hist_pdiv_vperp + hist_pshear + hist_de_dudt
-    ax1.semilogx(ebins[:-1], data_sum, color='k', linewidth=2, label=label7)
-    ax1.semilogx(ebins[:-1], hist_de_perp, color=colors[0], linewidth=2, label=label2)
-    ax1.semilogx(ebins[:-1], hist_pdiv_vperp, color=colors[1], linewidth=2, label=label3)
-    ax1.semilogx(ebins[:-1], hist_pshear, color=colors[2], linewidth=2, label=label4)
-    ax1.semilogx(ebins[:-1], hist_de_dudt, color=colors[0], linewidth=2,
-                 linestyle='--', label=label6)
-    ax1.semilogx(ebins[:-1], hist_ptensor_dv, color=colors[1], linewidth=2,
-                 linestyle='--', label=label5)
-    ax1.semilogx(ebins[:-1], hist_de_para, color=colors[2], linewidth=2,
+    # ax1.semilogx(ebins[:-1], data_sum, color='k', linewidth=2, label=label7)
+    ax1.semilogx(ebins[:-1], hist_de_perp, color='k', linewidth=2, label=label2)
+    ax1.semilogx(ebins[:-1], hist_pdiv_vperp, color=colors[0], linewidth=2,
+                 label='Compression')
+    ax1.semilogx(ebins[:-1], hist_pshear, color=colors[1], linewidth=2,
+                 label='Shear')
+    # ax1.semilogx(ebins[:-1], hist_de_dudt, color=colors[0], linewidth=2,
+    #              linestyle='--', label=label6)
+    pdata = hist_pdiv_vperp + hist_pshear
+    ax1.semilogx(ebins[:-1], pdata, color='k', linewidth=2,
+                 linestyle='--', label='Compression + Shear')
+    ax1.semilogx(ebins[:-1], hist_de_para, color=colors[1], linewidth=2,
                  linestyle='--', label=label1)
-    ax1.semilogx(ebins[:-1], hist_de_perp - data_sum, linewidth=2,
-                 color='k', linestyle='--', label='Difference')
+    # ax1.semilogx(ebins[:-1], hist_de_perp - data_sum, linewidth=2,
+    #              color='k', linestyle='--', label='Difference')
+    hist_de_dudt_exp = hist_de_perp - hist_ptensor_dv
+    # ax1.semilogx(ebins[:-1], hist_de_dudt_exp, linewidth=2,
+    #              color='k', linestyle='--', label='Expected inertial term')
     # ax1.semilogx(ebins[:-1], hist_div_ptensor_vperp, linewidth=2,
     #              label='Flux term')
     # ax1.semilogx(ebins[:-1], hist_div_pperp_vperp, linewidth=2,
@@ -2134,14 +2444,25 @@ def plot_compression_heating(run_name, tindex, species):
     #              label=r'$\mu$ conservation')
     # data_sum = hist_ptensor_dv + hist_de_dudt + hist_div_ptensor_vperp
     # ax1.loglog(ebins, hist_nptl, linewidth=2, color='k', label='Total')
+    ene_tot = hist_nptl * ebins[:-1]
+    eratio = div0(hist_de_dudt, ene_tot) * 1E5
+    # ax2 = ax1.twinx()
+    # ax2.plot(ebins[:-1], ene_tot)
+    # ax2.set_ylim([-0.1, 0.1])
     if species == 'e':
-        ax1.set_xlim([1E-3, 20])
+        # ax1.set_xlim([1E-3, 5])
+        ax1.set_xlim([1E-1, 500])
     else:
         ax1.set_xlim([1E-4, 2])
     # ax1.set_ylim([-1E-7, 1E-7])
-    ax1.set_xlabel(r'$\gamma-1$', fontdict=font, fontsize=20)
-    ax1.set_ylabel(r'$f$', fontdict=font, fontsize=20)
+    # ax1.set_xlabel(r'$\gamma-1$', fontdict=font, fontsize=20)
+    ax1.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=20)
+    ax1.set_ylabel('Energization', fontdict=font, fontsize=20)
     ax1.tick_params(labelsize=16)
+    ax1.tick_params(axis='x', which='minor', direction='in')
+    ax1.tick_params(axis='x', which='major', direction='in')
+    ax1.tick_params(axis='y', which='minor', direction='in')
+    ax1.tick_params(axis='y', which='major', direction='in')
     leg = ax1.legend(loc=2, prop={'size': 16}, ncol=1,
                      shadow=False, fancybox=False, frameon=False)
     # for color, text in zip(colors, leg.get_texts()):
@@ -2167,9 +2488,207 @@ def plot_compression_heating(run_name, tindex, species):
     # ax1.text(0.02, 0.30, label6, color=colors[5], fontsize=16,
     #          horizontalalignment='left', verticalalignment='bottom',
     #          transform = ax1.transAxes)
-    fdir = '../img/de_para_perp/' + run_name + '/'
+    # fdir = '../img/de_para_perp/' + run_name + '/'
+    fdir = '../img/img_apjl/de_para_perp/' + run_name + '/'
     mkdir_p(fdir)
     fname = fdir + 'de_para_perp_' + species + '_' + str(tindex) + '.eps'
+    fig.savefig(fname)
+    # plt.close()
+
+
+def plot_momentum_distribution(run_name, tindex, species):
+    """
+    """
+    nbins = 300
+    drange = [[1, 1.1], [0, 1]]
+    pbins = np.logspace(-2, 1, nbins + 1)
+
+    # normalized with thermal energy
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    pth = math.sqrt(gama**2 - 1)
+    pbins /= pth
+
+    fdir = '../data/momentum_distribution/' + run_name + '/'
+    fname = fdir + 'pdists_' + species + '.' + str(tindex) + '.all'
+    fdata = np.fromfile(fname)
+    sz, = fdata.shape
+    nvar = sz / nbins
+    fdata = fdata.reshape((nvar, nbins))
+    ppara_dist = fdata[0, :]
+    pperp_dist = fdata[1, :]
+    if species == 'e':
+        charge = r'$-e$'
+    else:
+        charge = r'$e$'
+    colors = colors_Set1_9[:5] + colors_Set1_9[6:] # remove yellow color
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[7, 5])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.set_prop_cycle('color', colors)
+    ax1.semilogy(pbins[:-1], ppara_dist, color=colors[0], linewidth=2,
+                 label=r'$p_\parallel$')
+    ax1.semilogy(pbins[:-1], pperp_dist, color=colors[1], linewidth=2,
+                 label=r'$p_\perp$')
+    # ax1.plot(pbins[:-1], ppara_dist/pperp_dist, color=colors[0],
+    #          linewidth=2, label=r'$p_\parallel$')
+    # ax1.set_ylim([0, 4])
+    ax1.set_xlim([0, 40])
+    ax1.set_xlabel(r'$p/p_\text{th}$', fontdict=font, fontsize=20)
+    ax1.set_ylabel('momentum distribution', fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    leg = ax1.legend(loc=1, prop={'size': 16}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False)
+    fdir = '../img/img_apjl/pdist/' + run_name + '/'
+    mkdir_p(fdir)
+    # fname = fdir + 'pdist_' + species + '_' + str(tindex) + '.eps'
+    # fig.savefig(fname)
+    # plt.close()
+
+
+def plot_anisotropy_distribution_2d(run_name, tindex, species):
+    """
+    """
+    nebins = 60
+    nabins = 20
+    ebins = np.logspace(-4, 2, nebins) / math.sqrt(pmass)
+    abins = np.logspace(-1, 1, nabins)
+
+    # normalized with thermal energy
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    ebins /= eth
+
+    fdir = '../data/momentum_distribution/' + run_name + '/'
+    fname = fdir + 'adists_' + species + '.' + str(tindex) + '.all'
+    fdata = np.fromfile(fname)
+    fdata = fdata.reshape((nebins, nabins))
+    if species == 'e':
+        charge = r'$-e$'
+    else:
+        charge = r'$e$'
+    colors = colors_Set1_9[:5] + colors_Set1_9[6:] # remove yellow color
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[7, 5])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.set_prop_cycle('color', colors)
+    xmin, xmax = ebins[0], ebins[-1]
+    ymin, ymax = abins[0], abins[-1]
+    ax1.set_xscale('log')
+    ax1.set_yscale('log')
+    for i in range(nebins):
+        fdata[i, :] = div0(fdata[i, :], np.sum(fdata[i, :]))
+    print(np.min(fdata), np.max(fdata))
+    # ax1.pcolor(ebins, abins, fdata.T, cmap=plt.cm.jet,
+    #            vmin=0, vmax=0.08)
+    ax1.imshow(fdata.T, aspect='auto', cmap=plt.cm.jet,
+               vmin=0, vmax=0.08, origin='lower',
+               extent=[xmin,xmax,ymin,ymax], interpolation='none')
+    # ax1.semilogx(abins, fdata[40, :])
+
+
+def plot_anisotropy_distribution_1d(run_name, tindex, species):
+    """
+    """
+    nebins = 60
+    nabins = 20
+    ebins = np.logspace(-4, 2, nebins) / math.sqrt(pmass)
+    abins = np.logspace(-1, 1, nabins)
+
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pint = pic_info.particle_interval
+    ntp = pic_info.ntp
+
+    # normalized with thermal energy
+    if (species == 'e'):
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    ebins /= eth
+    xmin, xmax = ebins[0], ebins[-1]
+    ymin, ymax = abins[0], abins[-1]
+
+    xs, ys = 0.13, 0.15
+    w1, h1 = 0.7, 0.8
+    fig = plt.figure(figsize=[7, 5])
+
+    ts, te = 2, 11
+    nt = te - ts
+    # Using contourf to provide my colorbar info, then clearing the figure
+    Z = [[0,0],[0,0]]
+    levels = range(ts,te+1,1)
+    CS3 = plt.contourf(Z, levels, cmap=plt.cm.Reds_r)
+    plt.clf()
+
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    colors = colors_Set1_9[:5] + colors_Set1_9[6:] # remove yellow color
+    ax1.set_prop_cycle('color', colors)
+
+    fdir = '../data/anisotropy_distribution/' + run_name + '/'
+
+    for tframe in range(4, 5):
+        tindex = pint * tframe
+        color = plt.cm.Reds_r((tframe - 2) / float(nt), 1)
+        fname = fdir + 'edists_' + species + '.' + str(tindex) + '.all'
+        fdata1 = np.fromfile(fname)
+        fdata1 = fdata1.reshape((2, nebins))
+        if tframe == 3:
+        # if tframe == 3 or tframe == 5:
+            ax1.semilogx(ebins, div0(fdata1[0, :], fdata1[1, :]), linewidth=4,
+                         color=color)
+        else:
+            ax1.semilogx(ebins, div0(fdata1[0, :], fdata1[1, :]), linewidth=2,
+                         color=color)
+    xmin, xmax = 1, 500
+    ax1.plot([xmin, xmax], [2, 2], linewidth=0.5, linestyle='--', color='k')
+    ax1.plot([xmin, xmax], [1.5, 1.5], linewidth=0.5, linestyle='--', color='k')
+    ax1.plot([xmin, xmax], [1, 1], linewidth=0.5, linestyle='--', color='k')
+    ax1.tick_params(axis='x', which='minor', direction='in')
+    ax1.tick_params(axis='x', which='major', direction='in')
+    ax1.tick_params(axis='y', which='minor', direction='in')
+    ax1.tick_params(axis='y', which='major', direction='in')
+    ax1.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=font, fontsize=20)
+    ylabel1 = r'$p_\parallel v_\parallel/(0.5p_\perp v_\perp)$'
+    ax1.set_ylabel(ylabel1, fontdict=font, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    ax1.set_xlim([xmin, xmax])
+    # ax1.set_ylim([0, 11])
+
+    xs = xs + w1 + 0.01
+    cax = fig.add_axes([xs, ys, 0.03, h1])
+    # vmin = ts * pic_info.dt_particles
+    # vmax = (te - 1) * pic_info.dt_particles
+    # sm = plt.cm.ScalarMappable(cmap=plt.cm.get_cmap(plt.cm.Reds_r, nt),
+    #                            norm=plt.Normalize(vmin=vmin, vmax=vmax))
+    # # fake up the array of the scalar mappable. Urgh...
+    # sm._A = []
+    # cbar = fig.colorbar(sm, cax=cax)
+    # cbar.set_label(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    # cbar.ax.tick_params(labelsize=16)
+
+    cbar = fig.colorbar(CS3, cax=cax)
+    cbar.set_label(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
+    cbar.set_ticks(np.arange(ts+0.5, te, 1))
+    labels = ['100', '150', '200', '250', '300', '350', '400', '450', '500']
+    cbar.ax.set_yticklabels(labels)
+    cbar.ax.tick_params(labelsize=16)
+
+    fdir = '../img/img_apjl/'
+    mkdir_p(fdir)
+    fname = fdir + 'anisotropy_' + species + '_' + run_name + '.eps'
     fig.savefig(fname)
     # plt.close()
 
@@ -2205,9 +2724,9 @@ def get_cmd_args():
     #         '/net/scratch3/xiaocanli/reconnection/mime25-sigma1-beta002-guide00-200-100/'
     # default_run_name = 'dump_test'
     # default_run_dir = '/net/scratch3/xiaocanli/reconnection/dump_test/'
-    default_run_name = 'mime25_beta008_guide00_frequent_dump'
+    default_run_name = 'mime25_beta002_guide00_frequent_dump'
     default_run_dir = '/net/scratch3/xiaocanli/reconnection/frequent_dump/' + \
-            'mime25_beta008_guide00_frequent_dump/'
+            'mime25_beta002_guide00_frequent_dump/'
     parser = argparse.ArgumentParser(description='Compression analysis based on particles')
     parser.add_argument('--combine_files', action="store_true", default=False,
                         help='whether to combine files')
@@ -2234,7 +2753,7 @@ def get_cmd_args():
     return parser.parse_args()
 
 
-def main():
+if __name__ == "__main__":
     """
     """
     args = get_cmd_args()
@@ -2268,7 +2787,7 @@ def main():
     fdir = run_dir + 'data_ene/'
     mkdir_p(fdir)
     nbins = 60
-    cts = range(1, ntp)
+    cts = range(1, ntp-1)
     def processInput(job_id):
         print job_id
         rank = job_id
@@ -2281,9 +2800,12 @@ def main():
         print("Time frame: %d of %d" % (ct, ntp))
         tindex = pint * ct
         tindex_pre, tindex_post = get_fields_tindex(tindex, pic_info)
-        interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
-                                           tindex_pre, tindex_post, species,
-                                           use_shifted_eb=True)
+        # interp_particle_compression_single(run_dir, run_name, tindex,
+        #                                    tindex_pre, tindex_post, species,
+        #                                    use_shifted_eb=True)
+        calc_momemtum_distribution(run_dir, run_name, tindex,
+                                   tindex_pre, tindex_post, species,
+                                   use_shifted_eb=True)
 
     if multi_frames:
         for ct in range(1, ntp):
@@ -2303,7 +2825,7 @@ def main():
                                        if_normalize)
             else:
                 if not args.only_plotting:
-                    interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
+                    interp_particle_compression_single(run_dir, run_name, tindex,
                                                        tindex_pre, tindex_post, species)
                     # fdata = Parallel(n_jobs=ncores, max_nbytes=1e6)\
                     #         (delayed(interpolation_single_rank)
@@ -2325,9 +2847,12 @@ def main():
                                         verbose)
         else:
             if not args.only_plotting:
-                interp_particle_compression_single(pic_info, run_dir, run_name, tindex,
-                                                   tindex_pre, tindex_post, species,
-                                                   use_shifted_eb=True)
+                # interp_particle_compression_single(run_dir, run_name, tindex,
+                #                                    tindex_pre, tindex_post, species,
+                #                                    use_shifted_eb=True)
+                # calc_momemtum_distribution(run_dir, run_name, tindex,
+                #                            tindex_pre, tindex_post, species,
+                #                            use_shifted_eb=True)
                 # hists = np.zeros((11, nbins))
                 # for rank in ranks:
                 #     print(rank)
@@ -2336,17 +2861,16 @@ def main():
                 # fname = fdir + 'hists_' + species + '.' + str(tindex) + '.all'
                 # hists.tofile(fname)
 
-                # ncores = ntp - 1
-                # Parallel(n_jobs=ncores)(delayed(processFrames)(ct) for ct in cts)
+                ncores = ntp - 1
+                Parallel(n_jobs=ncores)(delayed(processFrames)(ct) for ct in cts)
 
                 # ranks = range(36)
                 # fdata = Parallel(n_jobs=ncores)(delayed(interpolation_single_rank)(run_dir, rank,
                 #     pmass, species, tindex, fitting_functions) for rank in ranks)
                 # save_econv_data(fdata, fdir, species, tindex)
                 # del fitting_functions
-            plot_compression_heating(run_name, tindex, species)
-            plt.show()
-
-
-if __name__ == "__main__":
-    main()
+            # plot_compression_heating(run_name, tindex, species)
+            # plot_momentum_distribution(run_name, tindex, species)
+            # plot_anisotropy_distribution_2d(run_name, tindex, species)
+            # plot_anisotropy_distribution_1d(run_name, tindex, species)
+            # plt.show()
