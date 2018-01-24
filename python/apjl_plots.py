@@ -1142,8 +1142,14 @@ def plot_energy_spectrum_runs(species):
     ax.loglog(elog_norm_e, f_intial, linewidth=1, color='k',
               linestyle='--', label='initial')
 
-    ax.set_xlim([5E-2, 5E2])
-    ax.set_ylim([1E-8, 2E2])
+    if species == 'e':
+        emax = 5E2
+        ax.set_xlim([5E-2, emax])
+        ax.set_ylim([1E-8, 2E2])
+    else:
+        emax = 2E3
+        ax.set_xlim([2E-1, emax])
+        ax.set_ylim([1E-7, 4E3])
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$',
                   fontdict=font, fontsize=20)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=font, fontsize=20)
@@ -1160,12 +1166,12 @@ def plot_energy_spectrum_runs(species):
             shadow=False, fancybox=False, frameon=False)
     # for color, text in zip(colors_plot, leg.get_texts()):
     #     text.set_color(color)
-    ax.axvspan(20, 5E2, alpha=0.2, color='grey')
+    ax.axvspan(20, emax, alpha=0.2, color='grey')
     # ax.grid(True)
 
     img_path = '../img/img_apjl/'
     mkdir_p(img_path)
-    fname = img_path + 'spectra_runs.pdf'
+    fname = img_path + 'spectra_runs_' + species + '.pdf'
     fig.savefig(fname)
 
     plt.show()
@@ -1566,13 +1572,13 @@ if __name__ == "__main__":
     tratio = pic_info.particle_interval / pic_info.fields_interval
     # plot_ne_velocity(pic_info, run_dir, run_name, 30)
     # plot_current_density(pic_info, run_dir, run_name)
-    plot_compression_time_electron(pic_info)
+    # plot_compression_time_electron(pic_info)
     # plot_compression_shear_2d(pic_info, run_dir, run_name, 30)
     # plot_compression_shear_g1(pic_info, run_dir, run_name, 30)
     # compression_ratio_high_energy('e')
     # compression_ratio_high_energy_test('e')
     # compression_ratio_high_energy_test2('e')
-    # plot_energy_spectrum_runs('e')
+    plot_energy_spectrum_runs('h')
     # energetic_particle_number_energy('e')
     # plot_momentum_distribution(run_name, 'e')
     # plot_anisotropy_distribution_1d(run_name, species)
