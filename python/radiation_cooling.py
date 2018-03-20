@@ -527,7 +527,7 @@ def plot_particle_distribution_2d(run_dir, run_name, ct):
     # plt.show()
 
 
-def contour_raidation(run_dir, run_name, tframe):
+def contour_radiation(run_dir, run_name, tframe):
     """
     """
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
@@ -637,7 +637,7 @@ if __name__ == "__main__":
     # plot_magentic_field_one_frame(run_dir, run_name, 30)
     # plot_density_energy_band(run_dir, run_name, 200, species)
     # plot_particle_distribution_2d(run_dir, run_name, 30)
-    # contour_raidation(run_dir, run_name, 60)
+    # contour_radiation(run_dir, run_name, 60)
     # plot_nrho_momentum(run_dir, run_name, 50)
     def processInput(job_id):
         print job_id
@@ -645,7 +645,7 @@ if __name__ == "__main__":
         # plot_magentic_field_one_frame(run_dir, run_name, tframe)
         plot_density_energy_band(run_dir, run_name, tframe, species)
         # plot_particle_distribution_2d(run_dir, run_name, tframe)
-        # contour_raidation(run_dir, run_name, tframe)
+        # contour_radiation(run_dir, run_name, tframe)
     # cts = range(pic_info.ntf)
     cts = range(pic_info.ntf)
     tratio = pic_info.particle_interval / pic_info.fields_interval
@@ -655,4 +655,4 @@ if __name__ == "__main__":
     Parallel(n_jobs=ncores)(delayed(processInput)(ct) for ct in cts)
     # for ct in cts:
     #     print("Time frame: %d" % ct)
-    #     contour_raidation(run_dir, run_name, ct)
+    #     contour_radiation(run_dir, run_name, ct)
