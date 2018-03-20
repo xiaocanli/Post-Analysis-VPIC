@@ -163,12 +163,12 @@ def test_equivalence():
         for element in TEST_DATA:
             serialized_element = json_to_data(data_to_json(element))
             if element != serialized_element:
-                print "Mismatch: %s != %s" % (element, serialized_element)
+                print("Mismatch: %s != %s" % (element, serialized_element))
     else:
-        print "Success."
-        print data_to_json(TEST_DATA)
-        print "\nhas unserialized to\n"
-        print json_to_data(data_to_json(TEST_DATA))
+        print("Success.")
+        print(data_to_json(TEST_DATA))
+        print("\nhas unserialized to\n")
+        print(json_to_data(data_to_json(TEST_DATA)))
 
 
 if __name__ == "__main__":
