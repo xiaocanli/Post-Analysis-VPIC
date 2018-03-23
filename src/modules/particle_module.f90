@@ -16,6 +16,7 @@ module particle_module
            calc_para_perp_velocity_3d, calc_gyrofrequency, &
            calc_gradient_drift_velocity, calc_curvature_drift_velocity, &
            calc_interp_param
+    public particle
 
     type particle
         real(fp) :: dx, dy, dz    ! Particle relative position in a cell [-1,1]

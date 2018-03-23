@@ -384,7 +384,7 @@ module picinfo
         fname = trim(adjustl(rootpath))//'data/.'
         inquire(file=fname, exist=dir_e)
         if (.not. dir_e) then
-            call system('mkdir'//trim(adjustl(fname)))
+            call system('mkdir '//trim(adjustl(fname)))
         endif
         open(unit=17, file=trim(adjustl(rootpath))//'data/info', &
              access='stream', status='replace', form='unformatted', action='write')

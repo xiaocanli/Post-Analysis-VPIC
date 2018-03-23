@@ -103,13 +103,19 @@ target_link_libraries(interp_emf get_info fields file_header)
 add_library(interp_pfields interpolation_particle_fields.f90 neighbors.f90)
 target_link_libraries(interp_pfields get_info usingle)
 
+add_library(interp_comp_shear interpolation_comp_shear.f90 neighbors.f90)
+target_link_libraries(interp_comp_shear get_info fields file_header)
+
+add_library(interp_vel_mom interpolation_vel_mom.f90 neighbors.f90)
+target_link_libraries(interp_vel_mom get_info fields file_header)
+
 add_library(particle_drift particle_drift.f90 particle_frames.f90)
 target_link_libraries(particle_drift file_header magnetic_field interp_emf
     particle_module translate_module particle_file)
 
 add_library(particle_spectrum_vdist particle_spectrum_vdist.f90 global.f90)
 target_link_libraries(particle_spectrum_vdist particle_spectrum vdist
-    get_info commandline_arguments)
+    get_info commandline_arguments flap)
 
 add_library(cla cla.f90 kinds.f90)
 

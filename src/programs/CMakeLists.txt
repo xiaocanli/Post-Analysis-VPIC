@@ -47,6 +47,12 @@ add_executable(vdistribution.exec vdistribution.f90)
 target_link_libraries(vdistribution.exec ${MPI_Fortran_LIBRARIES} vdist flap)
 install (TARGETS vdistribution.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(particle_energization.exec particle_energization.f90)
+target_link_libraries(particle_energization.exec ${MPI_Fortran_LIBRARIES} flap
+    get_info translate_module particle_module interp_emf particle_file
+    interp_vel_mom interp_comp_shear)
+install (TARGETS particle_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
 # # -----------------------------------------------------------------------------
