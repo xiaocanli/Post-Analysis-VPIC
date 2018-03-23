@@ -22,3 +22,6 @@ attribute
 build_intel/
 *exec
 tags
+__pycache__
+translate.sh
+translate[0-9].sh
