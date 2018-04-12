@@ -52,10 +52,9 @@ def read_2d_fields(pic_info, fname, current_time, xl, xr, zb, zt):
         xl, xr: left and right x position in di (ion skin length).
         zb, zt: top and bottom z position in di.
     """
-    print 'Reading data from ', fname
-    print 'The spatial range (di): ', \
-            'x_left = ', xl, 'x_right = ', xr, \
-            'z_bottom = ', zb, 'z_top = ', zt
+    print("Reading data from %s" % fname)
+    print("xrange: (%f, %f)" % (xl, xr))
+    print("zrange: (%f, %f)" % (zb, zt))
     nx = pic_info.nx
     nz = pic_info.nz
     x_di = pic_info.x_di
@@ -121,7 +120,8 @@ def plot_2d_contour(x, z, field_data, ax, fig, is_cbar=1, **kwargs):
         data = field_data[0:nz:kwargs["zstep"], 0:nx:kwargs["xstep"]]
     else:
         data = field_data
-    print "Maximum and minimum of the data: ", np.max(data), np.min(data)
+    print("Maximum and minimum of the data: %f %f" %
+          (np.max(data), np.min(data)))
     if (kwargs and "vmin" in kwargs and "vmax" in kwargs):
         p1 = ax.imshow(
             data,
@@ -327,7 +327,7 @@ def plot_by_multi():
     """Plot out-of-plane magnetic field for multiple runs.
     """
     base_dirs, run_names = ApJ_long_paper_runs()
-    print run_names
+    print(run_names)
     ct1, ct2, ct3 = 20, 21, 11
     kwargs = {"current_time": ct1, "xl": 0, "xr": 200, "zb": -10, "zt": 10}
     base_dir = base_dirs[2]
@@ -1955,7 +1955,7 @@ def combine_shock_files(ntf, run_name):
     fdir = '../data/shock_pos/'
     shock_loc = np.zeros(ntf - 1)
     for ct in range(ntf - 1):
-        print ct
+        print(ct)
         fname = fdir + 'shock_pos_' + str(ct) + '.txt'
         shock_loc[ct] = np.genfromtxt(fname)
     shock_loc[0] = 0
@@ -2090,7 +2090,7 @@ def plot_pressure(pic_info, species, ct, run_name, xm, base_dir='../../'):
     ax2 = fig.add_axes([xs, ys, w2, h1])
     # ax2.plot(fdata_cut, z, linewidth=1, color='k')
     ax2.plot(fdata_cut_smooth, z, linewidth=2, color='r')
-    print np.min(fdata_cut), np.max(fdata_cut)
+    print(np.min(fdata_cut), np.max(fdata_cut))
     ax2.set_xlim([0.0, 0.12])
     ax2.set_ylim([zmin, zmax])
     ax2.xaxis.set_ticks([0.0, 0.05, 0.1])
@@ -3124,7 +3124,7 @@ if __name__ == "__main__":
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     ntf = pic_info.ntf
-    print ntf
+    print(ntf)
     ct = ntf - 2
     # ct = 270
     cts = range(ntf - 1)
@@ -3149,7 +3149,7 @@ if __name__ == "__main__":
     xm = x[shock_loc[ct]]
 
     def processInput(ct, species):
-        print ct
+        print(ct)
         xm = x[shock_loc[ct]]
         # plot_number_density(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)
         # plot_vx(pic_info, 'i', ct, run_name, shock_loc[ct], base_dir)

@@ -170,12 +170,12 @@ def plot_particle_energy_gain():
     kene_e12 = kene_e1[0] + (kene_e1 - kene_e1[0]) * 0.005 / 0.0072
     kene_i12 = kene_i1[0] + (kene_i1 - kene_i1[0]) * 0.005 / 0.0072
 
-    print 'The ratio of electron energy gain to its initial energy: '
-    print '    beta_e = 0.0072, 0.02, 0.06, 0.2: ', \
-            (kene_e12[-1]-kene_e12[0])/kene_e12[0], \
-            (kene_e2[-1]-kene_e2[0])/kene_e2[0], \
-            (kene_e3[-1]-kene_e3[0])/kene_e3[0], \
-            (kene_e4[-1]-kene_e4[0])/kene_e4[0]
+    print('The ratio of electron energy gain to its initial energy: ')
+    print(' beta_e = 0.0072, 0.02, 0.06, 0.2: %f %f %f %f',
+          ((kene_e12[-1]-kene_e12[0])/kene_e12[0],
+           (kene_e2[-1]-kene_e2[0])/kene_e2[0],
+           (kene_e3[-1]-kene_e3[0])/kene_e3[0],
+           (kene_e4[-1]-kene_e4[0])/kene_e4[0]))
     # Electrons
     fig = plt.figure(figsize=[3.5, 2.5])
     ax = fig.add_axes([0.22, 0.22, 0.75, 0.73])
@@ -466,10 +466,10 @@ def plot_jdotes_evolution(pic_info, jdote, species):
         transform=ax1.transAxes)
 
     td = -1
-    print 'The fraction of perpendicular heating (model): ', \
-            jdote_tot_drifts_int[td]/(kene[td]-kene[0])
-    print 'The fraction of perpendicular heating (simulation): ', \
-            jdote.jqnuperp_dote_int[-1]/(kene[-1]-kene[0])
+    print('The fraction of perpendicular heating (model): %f' %
+          jdote_tot_drifts_int[td]/(kene[td]-kene[0]))
+    print('The fraction of perpendicular heating (simulation): %f' %
+            jdote.jqnuperp_dote_int[-1]/(kene[-1]-kene[0]))
 
     # fname = '../img/jdrifts_dote_' + species + '.eps'
     # fig.savefig(fname)
@@ -645,9 +645,8 @@ def plot_jpara_perp_dote(jdote_e, jdote_i, pic_info, run_name):
     jpara_dote_int = jdote_i.jqnupara_dote_int
     jperp_dote_int = jdote_i.jqnuperp_dote_int
     jtot_dote_int = jpara_dote_int + jperp_dote_int
-    print(
-        "The ratio of parallel and perpendicular acceleration for ions: %5.3f"
-        % (jpara_dote_int[-1] / jtot_dote_int[-1]))
+    print("The ratio of para and perp acceleration for ions: %5.3f" %
+          (jpara_dote_int[-1] / jtot_dote_int[-1]))
 
     fdir = '../img/jpara_jperp_dote/'
     mkdir_p(fdir)

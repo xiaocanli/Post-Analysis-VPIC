@@ -40,7 +40,7 @@ def combine_energy_spectrum(run_dir, run_name, tframe, species='e'):
     fname = fname_pre + '.' + str(rank)
     fdata = np.fromfile(fname, dtype=np.float32)
     dsz, = fdata.shape
-    nzone = dsz / ndata
+    nzone = dsz // ndata
     for rank in range(1, mpi_size):
         fname = fname_pre + '.' + str(rank)
         fdata += np.fromfile(fname, dtype=np.float32)

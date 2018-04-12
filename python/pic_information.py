@@ -2,7 +2,6 @@
 Read particle-in-cell (VPIC) simulation information.
 """
 import collections
-import cPickle as pickle
 import errno
 import math
 import os.path
@@ -78,11 +77,12 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
     try:
         f = open(fname, 'r')
     except IOError:
-        print 'cannot open ', fname
+        print('cannot open %s' % fname)
         fname = base_directory + 'energies'
-        print 'switch file to ', fname
+        print('switch file to %s' % fname)
         f = open(fname, 'r')
-    content = np.genfromtxt(f, skip_header=3)
+    f.close()
+    content = np.genfromtxt(fname, skip_header=3)
     f.close()
     nte, nvar = content.shape
     tenergy = np.arange(nte) * dte_wci
@@ -194,7 +194,7 @@ def get_fields_frames(base_directory):
             fname = base_directory + '/fields/T.' + str(current_time)
             is_exist = os.path.isdir(fname)
     else:
-        print 'Cannot find the files to calculate the total frames of fields.'
+        print('Cannot find the files to calculate the total frames of fields.')
         return
     return ntf
 
@@ -253,7 +253,7 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file):
     try:
         f = open(fname, 'r')
     except IOError:
-        print 'cannot open ', fname
+        print('cannot open %s' % fname)
     else:
         content = f.readlines()
         f.close()
@@ -471,7 +471,7 @@ def get_pic_topology(base_directory, deck_file):
     try:
         f = open(fname, 'r')
     except IOError:
-        print 'cannot open ', fname
+        print('cannot open %s' % fname)
     else:
         content = f.readlines()
         f.close()
