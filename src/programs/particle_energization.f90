@@ -33,7 +33,8 @@ program particle_energization
 
     call init_analysis
 
-    call calc_particle_energization
+    call para_perp_comp_shear
+    call curv_grad_para_drifts
 
     call end_analysis
 
@@ -65,7 +66,7 @@ program particle_energization
     !< Calculate particle energization due to parallel and perpendicular
     !< electric field, compression and shear
     !<--------------------------------------------------------------------------
-    subroutine calc_particle_energization
+    subroutine para_perp_comp_shear
         use picinfo, only: domain
         use topology_translate, only: ht
         use mpi_topology, only: htg
@@ -150,12 +151,12 @@ program particle_energization
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
-                        call calc_particle_energization_single(tframe, &
+                        call para_perp_comp_shear_single(tframe, &
                             dom_x, dom_y, dom_z, dx_domain, dy_domain, dz_domain)
                     enddo ! x
                 enddo ! y
             enddo ! z
-            call save_particle_energization(tframe)
+            call save_particle_energization(tframe, "para_perp_comp_shear")
             call cpu_time(step2)
             if (myid == master) then
                 print '("Time for this step = ",f6.3," seconds.")', step2 - step1
@@ -182,13 +183,13 @@ program particle_energization
         call free_emfields
         call free_vel_mom
         call free_comp_shear_single
-    end subroutine calc_particle_energization
+    end subroutine para_perp_comp_shear
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energization due to parallel and perpendicular
     !< electric field, compression and shear for particles in a single PIC MPI rank
     !<--------------------------------------------------------------------------
-    subroutine calc_particle_energization_single(tindex, dom_x, dom_y, dom_z, &
+    subroutine para_perp_comp_shear_single(tindex, dom_x, dom_y, dom_z, &
             dx_domain, dy_domain, dz_domain)
         use picinfo, only: domain
         use topology_translate, only: ht
@@ -317,14 +318,15 @@ program particle_energization
             endif
         enddo
         deallocate(ptls)
-    end subroutine calc_particle_energization_single
+    end subroutine para_perp_comp_shear_single
 
-    !!--------------------------------------------------------------------------
-    !! Save particle energization due to parallel and perpendicular electric field.
-    !!--------------------------------------------------------------------------
-    subroutine save_particle_energization(tindex)
+    !<--------------------------------------------------------------------------
+    !< Save particle energization due to parallel and perpendicular electric field.
+    !<--------------------------------------------------------------------------
+    subroutine save_particle_energization(tindex, var_name)
         implicit none
         integer, intent(in) :: tindex
+        character(*), intent(in) :: var_name
         integer :: fh1, posf
         character(len=16) :: tindex_str
         character(len=256) :: fname
@@ -341,7 +343,7 @@ program particle_energization
             fh1 = 66
 
             write(tindex_str, "(I0)") tindex
-            fname = 'data/particle_interp/particle_energization_'//species
+            fname = 'data/particle_interp/'//trim(var_name)//'_'//species
             fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
@@ -506,4 +508,199 @@ program particle_energization
             print '(A,A)', 'Hydro data directory: ', trim(dir_hydro)
         endif
     end subroutine get_cmd_args
+
+    !<--------------------------------------------------------------------------
+    !< Calculate particle energization curvature drift, gradient drift, and
+    !< parallel drift.
+    !<--------------------------------------------------------------------------
+    subroutine curv_grad_para_drifts
+        use picinfo, only: domain
+        use topology_translate, only: ht
+        use mpi_topology, only: htg
+        use pic_fields, only: init_electric_fields, init_magnetic_fields, &
+            free_electric_fields, free_magnetic_fields, open_electric_field_files, &
+            open_magnetic_field_files, read_electric_fields, read_magnetic_fields, &
+            close_electric_field_files, close_magnetic_field_files
+        use interpolation_emf, only: init_emfields, init_emfields_derivatives, &
+            free_emfields, free_emfields_derivatives
+        use emf_derivatives, only: init_bfield_derivatives, &
+            free_bfield_derivatives, calc_bfield_derivatives
+        implicit none
+        integer :: dom_x, dom_y, dom_z
+        real(fp) :: dx_domain, dy_domain, dz_domain
+
+        call init_emfields
+        call init_emfields_derivatives
+        if (is_translated_file) then
+            call init_electric_fields(htg%nx, htg%ny, htg%nz)
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
+            call init_bfield_derivatives(htg%nx, htg%ny, htg%nz)
+        endif
+
+        allocate(ebins(nbins + 1))
+        allocate(fbins(nbins + 1, nvar))
+        allocate(fbins_sum(nbins + 1, nvar))
+
+        call init_dists
+
+        if (myid == master) then
+            print '(A)', 'Finished initializing the analysis'
+        endif
+
+        if (is_translated_file .and. output_format == 1) then
+            call set_filepath(dir_emf)
+            call open_electric_field_files
+            call open_magnetic_field_files
+        endif
+
+        call cpu_time(step1)
+        do tframe = tstart, tend, tinterval
+            if (myid == master) print*, tframe
+            tp_emf = tframe / fields_interval
+            if (is_translated_file) then
+                if (output_format /= 1) then
+                    ! Fields at each time step are saved in different files
+                    call set_filepath(dir_emf)
+                    call open_electric_field_files(tframe)
+                    call open_magnetic_field_files(tframe)
+                    call read_electric_fields(tp1)
+                    call read_magnetic_fields(tp1)
+                    call close_magnetic_field_files
+                    call close_electric_field_files
+                else
+                    ! Fields at all time steps are saved in the same file
+                    call read_electric_fields(tp_emf + 1)
+                    call read_magnetic_fields(tp_emf + 1)
+                endif
+                call calc_bfield_derivatives(htg%nx, htg%ny, htg%nz)
+            endif  ! is_translated_file
+            dx_domain = domain%lx_de / domain%pic_tx
+            dy_domain = domain%ly_de / domain%pic_ty
+            dz_domain = domain%lz_de / domain%pic_tz
+            do dom_z = ht%start_z, ht%stop_z
+                do dom_y = ht%start_y, ht%stop_y
+                    do dom_x = ht%start_x, ht%stop_x
+                        call curv_grad_para_drifts_single(tframe, &
+                            dom_x, dom_y, dom_z, dx_domain, dy_domain, dz_domain)
+                    enddo ! x
+                enddo ! y
+            enddo ! z
+            call save_particle_energization(tframe, "curv_grad_para")
+            call cpu_time(step2)
+            if (myid == master) then
+                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+            endif
+            step1 = step2
+        enddo  ! Time loop
+
+        if (is_translated_file .and. output_format == 1) then
+            call close_electric_field_files
+            call close_magnetic_field_files
+        endif
+
+        deallocate(ebins, fbins, fbins_sum)
+
+        if (is_translated_file) then
+            call free_electric_fields
+            call free_magnetic_fields
+            call free_bfield_derivatives
+        endif
+        call free_emfields
+        call free_emfields_derivatives
+    end subroutine curv_grad_para_drifts
+
+    !<--------------------------------------------------------------------------
+    !< Calculate particle energization due to parallel and perpendicular
+    !< electric field, compression and shear for particles in a single PIC MPI rank
+    !<--------------------------------------------------------------------------
+    subroutine curv_grad_para_drifts_single(tindex, dom_x, dom_y, dom_z, &
+            dx_domain, dy_domain, dz_domain)
+        use picinfo, only: domain
+        use topology_translate, only: ht
+        use rank_index_mapping, only: index_to_rank
+        use particle_module, only: ptl, calc_interp_param, calc_gyrofrequency, &
+            calc_gradient_drift_velocity, calc_curvature_drift_velocity, &
+            calc_particle_energy, calc_para_perp_velocity_3d, &
+            iex, jex, kex, iey, jey, key, iez, jez, kez, ibx, jbx, kbx, &
+            iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
+            dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
+            dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, &
+            dnx, dny, dnz, vgx, vgy, vgz, vcx, vcy, vcz, particle
+        use interpolation_emf, only: read_emfields_single, &
+            trilinear_interp_bx, trilinear_interp_by, trilinear_interp_bz, &
+            trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
+            set_emf, set_emf_derivatives, calc_b_norm, calc_gradient_B, &
+            calc_curvature, ex0, ey0, ez0
+        use file_header, only: set_v0header, pheader
+        use particle_file, only: open_particle_file, close_particle_file, fh
+        implicit none
+        integer, intent(in) :: tindex, dom_x, dom_y, dom_z
+        real(fp), intent(in) :: dx_domain, dy_domain, dz_domain
+        integer :: IOstatus, ibin, n, iptl
+        real(fp) :: x0, y0, z0, ux, uy, uz
+        real(fp) :: weight, gama, curv_ene, grad_ene
+        type(particle), allocatable, dimension(:) :: ptls
+        character(len=16) :: cid
+
+        call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
+            domain%pic_ty, domain%pic_tz, n)
+        write(cid, "(I0)") n - 1
+
+        ! Read particle data
+        if (species == 'e') then
+            call open_particle_file(tindex, species, cid)
+        else
+            call open_particle_file(tindex, 'h', cid)
+        endif
+        allocate(ptls(pheader%dim))
+        read(fh, IOSTAT=IOstatus) ptls
+        call close_particle_file
+
+        if (is_translated_file) then
+            x0 = dx_domain * dom_x
+            y0 = dy_domain * dom_y
+            z0 = dz_domain * dom_z
+            call set_v0header(domain%pic_nx, domain%pic_ny, domain%pic_nz, &
+                x0, y0, z0, real(domain%dx), real(domain%dy), real(domain%dz))
+            call set_emf(dom_x, dom_y, dom_z, domain%pic_tx, domain%pic_ty, &
+                domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
+            call set_emf_derivatives(dom_x, dom_y, dom_z, domain%pic_tx, &
+                domain%pic_ty, domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
+        else
+            call read_emfields_single(tindex, n - 1)
+        endif
+        do iptl = 1, pheader%dim, 1
+            ptl = ptls(iptl)
+            call calc_interp_param
+            call trilinear_interp_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
+            call trilinear_interp_by(iby, jby, kby, dx_by, dy_by, dz_by)
+            call trilinear_interp_bz(ibz, jbz, kbz, dx_bz, dy_bz, dz_bz)
+            call trilinear_interp_ex(iex, jex, kex, dx_ex, dy_ex, dz_ex)
+            call trilinear_interp_ey(iey, jey, key, dx_ey, dy_ey, dz_ey)
+            call trilinear_interp_ez(iez, jez, kez, dx_ez, dy_ez, dz_ez)
+            call calc_b_norm
+            call calc_gradient_B
+            call calc_curvature
+            call calc_particle_energy
+            call calc_para_perp_velocity_3d
+            call calc_gyrofrequency
+            call calc_gradient_drift_velocity
+            call calc_curvature_drift_velocity
+            weight = abs(ptl%q)
+            curv_ene = weight * ptl_charge * (ex0 * vcx + ey0 * vcy + ez0 * vcz)
+            grad_ene = weight * ptl_charge * (ex0 * vgx + ey0 * vgy + ez0 * vgz)
+            ux = ptl%vx  ! v in ptl is actually gamma*v
+            uy = ptl%vy
+            uz = ptl%vz
+            gama = sqrt(1.0 + ux**2 + uy**2 + uz**2)
+
+            ibin = floor((log10(gama - 1) - emin_log) / de_log)
+            if (ibin > 0 .and. ibin < nbins + 1) then
+                fbins(ibin+1, 1) = fbins(ibin+1, 1) + curv_ene
+                fbins(ibin+1, 2) = fbins(ibin+1, 2) + grad_ene
+            endif
+        enddo
+        deallocate(ptls)
+    end subroutine curv_grad_para_drifts_single
+
 end program particle_energization

@@ -57,7 +57,7 @@ module particle_module
     subroutine calc_particle_energy
         implicit none
 
-        gama = sqrt(1.0 + ptl%vx**2 + ptl%vy**2 + ptl%vz**2)        
+        gama = sqrt(1.0 + ptl%vx**2 + ptl%vy**2 + ptl%vz**2)
         igama = 1.0 / gama
         ke = gama - 1.0
     end subroutine calc_particle_energy
@@ -232,7 +232,7 @@ module particle_module
     subroutine calc_para_perp_velocity_3d
         use interpolation_emf, only: bxn, byn, bzn
         implicit none
-        real(fp) :: vx, vy, vz, vdotb  ! 3-velocity here
+        real(fp) :: vx, vy, vz, vdotb, tmp  ! 3-velocity here
         vx = ptl%vx * igama  ! vx in ptl is actually four-velocity
         vy = ptl%vy * igama
         vz = ptl%vz * igama
@@ -241,7 +241,12 @@ module particle_module
         vparay = vdotb * byn
         vparaz = vdotb * bzn
         vpara = vdotb
-        vperp = sqrt(vx**2 + vy**2 + vz**2 - vpara**2)
+        tmp = vx**2 + vy**2 + vz**2 - vpara**2
+        if (tmp < 0) then
+            vperp = 0.0
+        else
+            vperp = sqrt(tmp)
+        endif
         vperpx = vx - vparax
         vperpy = vy - vparay
         vperpz = vz - vparaz

@@ -53,6 +53,12 @@ target_link_libraries(particle_energization.exec ${MPI_Fortran_LIBRARIES} flap
     interp_vel_mom interp_comp_shear)
 install (TARGETS particle_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(fluid_energization.exec fluid_energization.f90)
+target_link_libraries(fluid_energization.exec ${MPI_Fortran_LIBRARIES}
+    get_info translate_module particle_info mpi_setup fluid_energization_module
+    mpi_io_fields fields flap)
+install (TARGETS fluid_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
 # # -----------------------------------------------------------------------------

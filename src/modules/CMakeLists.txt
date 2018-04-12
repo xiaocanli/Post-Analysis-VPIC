@@ -49,13 +49,19 @@ target_link_libraries(pic_fields get_info saving_flags mpi_io mpi_setup
 add_library(usingle usingle.f90 global.f90)
 target_link_libraries(usingle get_info pic_fields)
 
-add_library(fields STATIC inductive_efield.f90 para_perp_pressure.f90)
+add_library(fields STATIC inductive_efield.f90 para_perp_pressure.f90
+    emf_derivatives.f90)
 target_link_libraries(fields statistics get_info saving_flags pic_fields
     usingle)
 
+add_library(pre_post_hydro STATIC pre_post_hydro.f90)
+
 add_library(jdote STATIC current_densities.f90 jdote_module.f90
     neighbors.f90 global.f90)
-target_link_libraries(jdote compression_shear)
+target_link_libraries(jdote compression_shear pre_post_hydro)
+
+add_library(fluid_energization_module STATIC fluid_energization_module.f90 neighbors.f90)
+target_link_libraries(fluid_energization_module pre_post_hydro)
 
 add_library(file_header STATIC file_header.f90)
 

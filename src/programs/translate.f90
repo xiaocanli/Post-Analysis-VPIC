@@ -160,7 +160,7 @@ program translate
         call broadcast_pic_info
         call get_relativistic_flag
         call get_emf_flag
-        call get_energy_band_number
+        ! call get_energy_band_number
         call read_configuration
         call set_topology
         call set_start_stop_cells

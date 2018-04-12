@@ -8,7 +8,7 @@ module pic_fields
     use constants, only: fp
     use parameters, only: tp1, is_rel
     use picinfo, only: domain
-    use mpi_topology, only: htg
+    use mpi_topology, only: htg, ht
     use mpi_io_module, only: open_data_mpi_io, read_data_mpi_io
     use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
     use path_info, only: filepath
@@ -18,22 +18,24 @@ module pic_fields
     public init_pic_fields, open_pic_fields, read_pic_fields, &
            free_pic_fields, close_pic_fields_file
     public init_magnetic_fields, init_electric_fields, init_current_densities, &
-           init_pressure_tensor, init_velocity_fields, init_number_density, &
-           init_fraction_eband
+           init_pressure_tensor, init_velocity_fields, init_vfields, &
+           init_ufields, init_number_density, init_fraction_eband
     public open_magnetic_field_files, open_electric_field_files, &
            open_current_density_files, open_pressure_tensor_files, &
-           open_velocity_field_files, open_number_density_file, &
-           open_fraction_eband_file
+           open_velocity_field_files, open_vfield_files, open_ufield_files, &
+           open_number_density_file, open_fraction_eband_file
     public read_magnetic_fields, read_electric_fields, read_current_desities, &
-           read_pressure_tensor, read_velocity_fields, read_number_density, &
-           read_fraction_eband
+           read_pressure_tensor, read_velocity_fields, read_vfields, &
+           read_ufields, read_number_density, read_fraction_eband
     public close_magnetic_field_files, close_electric_field_files, &
            close_current_density_files, close_pressure_tensor_files, &
-           close_velocity_field_files, close_number_density_file, &
-           close_fraction_eband_file
+           close_velocity_field_files, close_vfield_files, close_ufield_files, &
+           close_number_density_file, close_fraction_eband_file
     public free_magnetic_fields, free_electric_fields, free_current_densities, &
-           free_pressure_tensor, free_velocity_fields, free_number_density, &
-           free_fraction_eband
+           free_pressure_tensor, free_velocity_fields, free_vfields, &
+           free_ufields, free_number_density, free_fraction_eband
+    public interp_emf_node, shift_pressure_tensor, shift_ufields, shift_vfields, &
+           shift_number_density
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
@@ -89,6 +91,16 @@ module pic_fields
         module procedure &
             open_velocity_field_files_single, open_velocity_field_files_multiple
     end interface open_velocity_field_files
+
+    interface open_vfield_files
+        module procedure &
+            open_vfield_files_single, open_vfield_files_multiple
+    end interface open_vfield_files
+
+    interface open_ufield_files
+        module procedure &
+            open_ufield_files_single, open_ufield_files_multiple
+    end interface open_ufield_files
 
     interface open_number_density_file
         module procedure &
@@ -181,6 +193,30 @@ module pic_fields
     end subroutine init_velocity_fields
 
     !---------------------------------------------------------------------------
+    ! Initialize the v fields.
+    !---------------------------------------------------------------------------
+    subroutine init_vfields(nx, ny, nz)
+        implicit none
+        integer, intent(in) :: nx, ny, nz
+        allocate(vx(nx,ny,nz))
+        allocate(vy(nx,ny,nz))
+        allocate(vz(nx,ny,nz))
+        vx = 0.0; vy = 0.0; vz = 0.0
+    end subroutine init_vfields
+
+    !---------------------------------------------------------------------------
+    ! Initialize the gamma * v fields.
+    !---------------------------------------------------------------------------
+    subroutine init_ufields(nx, ny, nz)
+        implicit none
+        integer, intent(in) :: nx, ny, nz
+        allocate(ux(nx,ny,nz))
+        allocate(uy(nx,ny,nz))
+        allocate(uz(nx,ny,nz))
+        ux = 0.0; uy = 0.0; uz = 0.0
+    end subroutine init_ufields
+
+    !---------------------------------------------------------------------------
     ! Initialize the number density.
     !---------------------------------------------------------------------------
     subroutine init_number_density(nx, ny, nz)
@@ -226,7 +262,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(bfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, bx)
         call read_data_mpi_io(bfields_fh(2), filetype_ghost, &
@@ -235,7 +271,7 @@ module pic_fields
             subsizes_ghost, disp, offset, bz)
         absB = sqrt(bx**2 + by**2 + bz**2)
     end subroutine read_magnetic_fields
-    
+
     !---------------------------------------------------------------------------
     ! Read electric field.
     !---------------------------------------------------------------------------
@@ -244,7 +280,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(efields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, ex)
         call read_data_mpi_io(efields_fh(2), filetype_ghost, &
@@ -261,7 +297,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(jfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, jx)
         call read_data_mpi_io(jfields_fh(2), filetype_ghost, &
@@ -278,7 +314,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(pre_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, pxx)
         call read_data_mpi_io(pre_fh(2), filetype_ghost, &
@@ -309,7 +345,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(vfields_fh(1), filetype_ghost, &
             subsizes_ghost, disp, offset, vx)
         call read_data_mpi_io(vfields_fh(2), filetype_ghost, &
@@ -327,6 +363,40 @@ module pic_fields
     end subroutine read_velocity_fields
 
     !---------------------------------------------------------------------------
+    ! Read v field.
+    !---------------------------------------------------------------------------
+    subroutine read_vfields(ct)
+        implicit none
+        integer, intent(in) :: ct
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+        offset = 0
+        call read_data_mpi_io(vfields_fh(1), filetype_ghost, &
+            subsizes_ghost, disp, offset, vx)
+        call read_data_mpi_io(vfields_fh(2), filetype_ghost, &
+            subsizes_ghost, disp, offset, vy)
+        call read_data_mpi_io(vfields_fh(3), filetype_ghost, &
+            subsizes_ghost, disp, offset, vz)
+    end subroutine read_vfields
+
+    !---------------------------------------------------------------------------
+    ! Read u field.
+    !---------------------------------------------------------------------------
+    subroutine read_ufields(ct)
+        implicit none
+        integer, intent(in) :: ct
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+        offset = 0
+        call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
+            subsizes_ghost, disp, offset, ux)
+        call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
+            subsizes_ghost, disp, offset, uy)
+        call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
+            subsizes_ghost, disp, offset, uz)
+    end subroutine read_ufields
+
+    !---------------------------------------------------------------------------
     ! Read number density.
     !---------------------------------------------------------------------------
     subroutine read_number_density(ct)
@@ -334,7 +404,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(nrho_fh, filetype_ghost, &
             subsizes_ghost, disp, offset, num_rho)
     end subroutine read_number_density
@@ -347,7 +417,7 @@ module pic_fields
         integer, intent(in) :: ct
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0 
+        offset = 0
         call read_data_mpi_io(eband_fh, filetype_ghost, &
             subsizes_ghost, disp, offset, eb)
     end subroutine read_fraction_eband
@@ -492,6 +562,46 @@ module pic_fields
             endif
         endif
     end subroutine open_velocity_field_files_single
+
+    !---------------------------------------------------------------------------
+    ! Open v field files when each field is saved in a single file.
+    !---------------------------------------------------------------------------
+    subroutine open_vfield_files_single(species)
+        implicit none
+        character(*), intent(in) :: species
+        character(len=256) :: fname
+
+        vfields_fh = 0
+        fname = trim(adjustl(filepath))//'v'//species//'x.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            vfields_fh(1))
+        fname = trim(adjustl(filepath))//'v'//species//'y.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            vfields_fh(2))
+        fname = trim(adjustl(filepath))//'v'//species//'z.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            vfields_fh(3))
+    end subroutine open_vfield_files_single
+
+    !---------------------------------------------------------------------------
+    ! Open u field files when each field is saved in a single file.
+    !---------------------------------------------------------------------------
+    subroutine open_ufield_files_single(species)
+        implicit none
+        character(*), intent(in) :: species
+        character(len=256) :: fname
+
+        ufields_fh = 0
+        fname = trim(adjustl(filepath))//'u'//species//'x.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            ufields_fh(1))
+        fname = trim(adjustl(filepath))//'u'//species//'y.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            ufields_fh(2))
+        fname = trim(adjustl(filepath))//'u'//species//'z.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            ufields_fh(3))
+    end subroutine open_ufield_files_single
 
     !---------------------------------------------------------------------------
     ! Open number density file when each field is saved in a single file.
@@ -677,6 +787,52 @@ module pic_fields
     end subroutine open_velocity_field_files_multiple
 
     !---------------------------------------------------------------------------
+    ! Open v field files when each time frame is saved in different files.
+    ! Inputs:
+    !   species: particle species
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_vfield_files_multiple(species, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=16) :: cfname
+
+        write(cfname, "(I0)") tindex
+        vfields_fh = 0
+        fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
+        fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
+        fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
+    end subroutine open_vfield_files_multiple
+
+    !---------------------------------------------------------------------------
+    ! Open v field files when each time frame is saved in different files.
+    ! Inputs:
+    !   species: particle species
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_ufield_files_multiple(species, tindex)
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=16) :: cfname
+
+        write(cfname, "(I0)") tindex
+        ufields_fh = 0
+        fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(1))
+        fname = trim(adjustl(filepath))//'u'//species//'y_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(2))
+        fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
+    end subroutine open_ufield_files_multiple
+
+    !---------------------------------------------------------------------------
     ! Open number density file.
     ! Inputs:
     !   species: particle species
@@ -806,6 +962,22 @@ module pic_fields
     end subroutine free_velocity_fields
 
     !---------------------------------------------------------------------------
+    ! Free v fields.
+    !---------------------------------------------------------------------------
+    subroutine free_vfields
+        implicit none
+        deallocate(vx, vy, vz)
+    end subroutine free_vfields
+
+    !---------------------------------------------------------------------------
+    ! Free gamma * v fields.
+    !---------------------------------------------------------------------------
+    subroutine free_ufields
+        implicit none
+        deallocate(ux, uy, uz)
+    end subroutine free_ufields
+
+    !---------------------------------------------------------------------------
     ! Free number density.
     !---------------------------------------------------------------------------
     subroutine free_number_density
@@ -903,6 +1075,34 @@ module pic_fields
     end subroutine close_velocity_field_files
 
     !---------------------------------------------------------------------------
+    ! Close v field files.
+    !---------------------------------------------------------------------------
+    subroutine close_vfield_files
+        implicit none
+        logical :: is_opened
+        inquire(vfields_fh(1), opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(vfields_fh(1), ierror)
+            call MPI_FILE_CLOSE(vfields_fh(2), ierror)
+            call MPI_FILE_CLOSE(vfields_fh(3), ierror)
+        endif
+    end subroutine close_vfield_files
+
+    !---------------------------------------------------------------------------
+    ! Close u field files.
+    !---------------------------------------------------------------------------
+    subroutine close_ufield_files
+        implicit none
+        logical :: is_opened
+        inquire(ufields_fh(1), opened=is_opened)
+        if (is_opened) then
+            call MPI_FILE_CLOSE(ufields_fh(1), ierror)
+            call MPI_FILE_CLOSE(ufields_fh(2), ierror)
+            call MPI_FILE_CLOSE(ufields_fh(3), ierror)
+        endif
+    end subroutine close_ufield_files
+
+    !---------------------------------------------------------------------------
     ! Close number density file.
     !---------------------------------------------------------------------------
     subroutine close_number_density_file
@@ -935,4 +1135,556 @@ module pic_fields
         call close_number_density_file
     end subroutine close_pic_fields_file
 
+    !<--------------------------------------------------------------------------
+    !< Linearly interpolate electric field and magnetic field to the node positions.
+    !< We don't calculate the fields at ghost cells.
+    !<--------------------------------------------------------------------------
+    subroutine interp_emf_node
+        implicit none
+        ! Ex
+        if (ht%ix > 0) then
+            ex(1:ht%nx, :, :) = (ex(1:ht%nx, :, :) + ex(2:ht%nx+1, :, :)) * 0.5
+        else
+            if (ht%nx > 1) then
+                ex(2:ht%nx, :, :) = (ex(1:ht%nx-1, :, :) + ex(2:ht%nx, :, :)) * 0.5
+                ex(1, :, :) = 2.0 * ex(1, :, :) - ex(2, :, :)
+            else
+                if (ht%tx > 1) then
+                    ex(1, :, :) = 1.5 * ex(1, :, :) - 0.5 * ex(2, :, :)
+                    ! else we don't need to change ex
+                endif
+            endif
+        endif
+
+        ! Ey
+        if (ht%iy > 0) then
+            ey(:, 1:ht%ny, :) = (ey(:, 1:ht%ny, :) + ey(:, 2:ht%ny+1, :)) * 0.5
+        else
+            if (ht%ny > 1) then
+                ey(:, 2:ht%ny, :) = (ey(:, 1:ht%ny-1, :) + ey(:, 2:ht%ny, :)) * 0.5
+                ey(:, 1, :) = 2.0 * ey(:, 1, :) - ey(:, 2, :)
+            else
+                if (ht%ty > 1) then
+                    ey(:, 1, :) = 1.5 * ey(:, 1, :) - 0.5 * ey(:, 2, :)
+                    ! else we don't need to change ey
+                endif
+            endif
+        endif
+
+        ! Ez
+        if (ht%iz > 0) then
+            ez(:, :, 1:ht%nz) = (ez(:, :, 1:ht%nz) + ez(:, :, 2:ht%nz+1)) * 0.5
+        else
+            if (ht%nz > 1) then
+                ez(:, :, 2:ht%nz) = (ez(:, :, 1:ht%nz-1) + ez(:, :, 2:ht%nz)) * 0.5
+                ez(:, :, 1) = 2.0 * ez(:, :, 1) - ez(:, :, 2)
+            else
+                if (ht%tz > 1) then
+                    ez(:, :, 1) = 1.5 * ez(:, :, 1) - 0.5 * ez(:, :, 2)
+                    ! else we don't need to change ez
+                endif
+            endif
+        endif
+
+        ! Bx
+        if (ht%iy > 0 .and. ht%iz > 0) then
+            bx(:, 1:ht%ny, 1:ht%nz) = (bx(:, 1:ht%ny, 1:ht%nz) + &
+                                       bx(:, 1:ht%ny, 2:ht%nz+1) + &
+                                       bx(:, 2:ht%ny+1, 1:ht%nz) + &
+                                       bx(:, 2:ht%ny+1, 2:ht%nz+1)) * 0.25
+        else if (ht%iy > 0 .and. ht%iz == 0) then
+            if (ht%nz > 1) then
+                bx(:, 1:ht%ny, 2:ht%nz) = (bx(:, 1:ht%ny, 1:ht%nz-1) + &
+                                           bx(:, 1:ht%ny, 2:ht%nz) + &
+                                           bx(:, 2:ht%ny+1, 1:ht%nz-1) + &
+                                           bx(:, 2:ht%ny+1, 2:ht%nz)) * 0.25
+                bx(:, 1:ht%ny, 1) = bx(:, 1:ht%ny, 1) + &
+                                    bx(:, 2:ht%ny+1, 1) - &
+                                    bx(:, 1:ht%ny, 2)
+            else
+                if (ht%tz > 1) then
+                    bx(:, 1:ht%ny, 2) = (bx(:, 1:ht%ny, 1) + &
+                                         bx(:, 1:ht%ny, 2) + &
+                                         bx(:, 2:ht%ny+1, 1) + &
+                                         bx(:, 2:ht%ny+1, 2)) * 0.25
+                    bx(:, 1:ht%ny, 1) = bx(:, 1:ht%ny, 1) + &
+                                        bx(:, 2:ht%ny+1, 1) - &
+                                        bx(:, 1:ht%ny, 2)
+                else
+                    bx(:, 1:ht%ny, 1) = (bx(:, 1:ht%ny, 1) + bx(:, 2:ht%ny+1, 1)) * 0.5
+                endif
+            endif
+        else if (ht%iy == 0 .and. ht%iz > 0) then
+            if (ht%ny > 1) then
+                bx(:, 2:ht%ny, 1:ht%nz) = (bx(:, 1:ht%ny-1, 1:ht%nz) + &
+                                           bx(:, 2:ht%ny, 1:ht%nz) + &
+                                           bx(:, 1:ht%ny-1, 2:ht%nz+1) + &
+                                           bx(:, 2:ht%ny, 2:ht%nz+1)) * 0.25
+                bx(:, 1, 1:ht%nz) = bx(:, 1, 1:ht%nz) + &
+                                    bx(:, 1, 2:ht%nz+1) - &
+                                    bx(:, 2, 1:ht%nz)
+            else
+                if (ht%ty > 1) then
+                    bx(:, 2, 1:ht%nz) = (bx(:, 1, 1:ht%nz) + &
+                                         bx(:, 2, 1:ht%nz) + &
+                                         bx(:, 1, 2:ht%nz+1) + &
+                                         bx(:, 2, 2:ht%nz+1)) * 0.25
+                    bx(:, 1, 1:ht%nz) = bx(:, 1, 1:ht%nz) + &
+                                        bx(:, 1, 2:ht%nz+1) - &
+                                        bx(:, 2, 1:ht%nz)
+                else
+                    bx(:, 1, 1:ht%nz) = (bx(:, 1, 1:ht%nz) + bx(:, 1, 2:ht%nz+1)) * 0.5
+                endif
+            endif
+        else
+            if (ht%ny > 1 .and. ht%nz > 1) then
+                bx(:, 2:ht%ny, 2:ht%nz) = (bx(:, 1:ht%ny-1, 1:ht%nz-1) + &
+                                           bx(:, 2:ht%ny, 1:ht%nz-1) + &
+                                           bx(:, 1:ht%ny-1, 2:ht%nz) + &
+                                           bx(:, 2:ht%ny, 2:ht%nz)) * 0.25
+                bx(:, 1, 2:ht%nz) = bx(:, 1, 1:ht%nz-1) + &
+                                    bx(:, 1, 2:ht%nz) - &
+                                    bx(:, 2, 2:ht%nz)
+                bx(:, 2:ht%ny, 1) = bx(:, 1:ht%ny-1, 1) + &
+                                    bx(:, 2:ht%ny, 1) - &
+                                    bx(:, 2:ht%ny, 2)
+                bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
+            else if (ht%ny == 1 .and. ht%nz > 1) then
+                if (ht%ty > 1) then
+                    bx(:, 2, 2:ht%nz) = (bx(:, 1, 1:ht%nz-1) + &
+                                         bx(:, 2, 1:ht%nz-1) + &
+                                         bx(:, 1, 2:ht%nz) + &
+                                         bx(:, 2, 2:ht%nz)) * 0.25
+                    bx(:, 1, 2:ht%nz) = bx(:, 1, 1:ht%nz-1) + &
+                                        bx(:, 1, 2:ht%nz) - &
+                                        bx(:, 2, 2:ht%nz)
+                    bx(:, 2, 1) = bx(:, 1, 1) + bx(:, 2, 1) - bx(:, 2, 2)
+                    bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
+                else
+                    bx(:, 1, 2:ht%nz) = (bx(:, 1, 1:ht%nz-1) + bx(:, 1, 2:ht%nz)) * 0.5
+                    bx(:, 1, 1) = 2.0 * bx(:, 1, 1) - bx(:, 1, 2)
+                endif
+            else if (ht%ny > 1 .and. ht%nz == 1) then
+                if (ht%tz > 1) then
+                    bx(:, 2:ht%ny, 2) = (bx(:, 1:ht%ny-1, 1) + &
+                                         bx(:, 1:ht%ny-1, 2) + &
+                                         bx(:, 2:ht%ny, 1) + &
+                                         bx(:, 2:ht%ny, 2)) * 0.25
+                    bx(:, 2:ht%ny, 1) = bx(:, 1:ht%ny-1, 1) + &
+                                        bx(:, 2:ht%ny, 1) - &
+                                        bx(:, 2:ht%ny, 2)
+                    bx(:, 1, 2) = bx(:, 1, 1) + bx(:, 1, 2) - bx(:, 2, 2)
+                    bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
+                else
+                    bx(:, 2:ht%ny, 1) = (bx(:, 1:ht%ny-1, 1) + bx(:, 2:ht%ny, 1)) * 0.5
+                    bx(:, 1, 1) = 2.0 * bx(:, 1, 1) - bx(:, 2, 1)
+                endif
+            else
+                if (ht%ty > 1 .and. ht%tz > 1) then
+                    bx(:, 2, 2) = (bx(:, 1, 1) + bx(:, 1, 2) + &
+                                   bx(:, 2, 1) + bx(:, 2, 2)) * 0.25
+                    bx(:, 2, 1) = bx(:, 1, 1) + bx(:, 2, 1) - bx(:, 2, 2)
+                    bx(:, 1, 2) = bx(:, 1, 1) + bx(:, 1, 2) - bx(:, 2, 2)
+                    bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
+                else if (ht%ty == 1 .and. ht%tz > 1) then
+                    bx(:, 1, 1) = 1.5 * bx(:, 1, 1) - 0.5 * bx(:, 1, 2)
+                else if (ht%ty > 1 .and. ht%tz == 1) then
+                    bx(:, 1, 1) = 1.5 * bx(:, 1, 1) - 0.5 * bx(:, 2, 1)
+                    ! else we don't need to change bx
+                endif
+            endif
+        endif
+
+        ! By
+        if (ht%ix > 0 .and. ht%iz > 0) then
+            by(1:ht%nx, :, 1:ht%nz) = (by(1:ht%nx, :, 1:ht%nz) + &
+                                       by(1:ht%nx, :, 2:ht%nz+1) + &
+                                       by(2:ht%nx+1, :, 1:ht%nz) + &
+                                       by(2:ht%nx+1, :, 2:ht%nz+1)) * 0.25
+        else if (ht%ix > 0 .and. ht%iz == 0) then
+            if (ht%nz > 1) then
+                by(1:ht%nx, :, 2:ht%nz) = (by(1:ht%nx, :, 1:ht%nz-1) + &
+                                           by(1:ht%nx, :, 2:ht%nz) + &
+                                           by(2:ht%nx+1, :, 1:ht%nz-1) + &
+                                           by(2:ht%nx+1, :, 2:ht%nz)) * 0.25
+                by(1:ht%nx, :, 1) = by(1:ht%nx, :, 1) + &
+                                    by(2:ht%nx+1, :, 1) - &
+                                    by(1:ht%nx, :, 2)
+            else
+                if (ht%tz > 1) then
+                    by(1:ht%nx, :, 2) = (by(1:ht%nx, :, 1) + &
+                                         by(1:ht%nx, :, 2) + &
+                                         by(2:ht%nx+1, :, 1) + &
+                                         by(2:ht%nx+1, :, 2)) * 0.25
+                    by(1:ht%nx, :, 1) = by(1:ht%nx, :, 1) + &
+                                        by(2:ht%nx+1, :, 1) - &
+                                        by(1:ht%nx, :, 2)
+                else
+                    by(1:ht%nx, :, 1) = (by(1:ht%nx, :, 1) + by(2:ht%nx+1, :, 1)) * 0.5
+                endif
+            endif
+        else if (ht%ix == 0 .and. ht%iz > 0) then
+            if (ht%nx > 1) then
+                by(2:ht%nx, :, 1:ht%nz) = (by(1:ht%nx-1, :, 1:ht%nz) + &
+                                           by(2:ht%nx, :, 1:ht%nz) + &
+                                           by(1:ht%nx-1, :, 2:ht%nz+1) + &
+                                           by(2:ht%nx, :, 2:ht%nz+1)) * 0.25
+                by(1, :, 1:ht%nz) = by(1, :, 1:ht%nz) + &
+                                    by(1, :, 2:ht%nz+1) - &
+                                    by(2, :, 1:ht%nz)
+            else
+                if (ht%tx > 1) then
+                    by(2, :, 1:ht%nz) = (by(1, :, 1:ht%nz) + &
+                                         by(2, :, 1:ht%nz) + &
+                                         by(1, :, 2:ht%nz+1) + &
+                                         by(2, :, 2:ht%nz+1)) * 0.25
+                    by(1, :, 1:ht%nz) = by(1, :, 1:ht%nz) + &
+                                        by(1, :, 2:ht%nz+1) - &
+                                        by(2, :, 1:ht%nz)
+                else
+                    by(1, :, 1:ht%nz) = (by(1, :, 1:ht%nz) + by(1, :, 2:ht%nz+1)) * 0.5
+                endif
+            endif
+        else
+            if (ht%nx > 1 .and. ht%nz > 1) then
+                by(2:ht%nx, :, 2:ht%nz) = (by(1:ht%nx-1, :, 1:ht%nz-1) + &
+                                           by(2:ht%nx, :, 1:ht%nz-1) + &
+                                           by(1:ht%nx-1, :, 2:ht%nz) + &
+                                           by(2:ht%nx, :, 2:ht%nz)) * 0.25
+                by(1, :, 2:ht%nz) = by(1, :, 1:ht%nz-1) + &
+                                    by(1, :, 2:ht%nz) - &
+                                    by(2, :, 2:ht%nz)
+                by(2:ht%nx, :, 1) = by(1:ht%nx-1, :, 1) + &
+                                    by(2:ht%nx, :, 1) - &
+                                    by(2:ht%nx, :, 2)
+                by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
+            else if (ht%nx == 1 .and. ht%nz > 1) then
+                if (ht%tx > 1) then
+                    by(2, :, 2:ht%nz) = (by(1, :, 1:ht%nz-1) + &
+                                         by(2, :, 1:ht%nz-1) + &
+                                         by(1, :, 2:ht%nz) + &
+                                         by(2, :, 2:ht%nz)) * 0.25
+                    by(1, :, 2:ht%nz) = by(1, :, 1:ht%nz-1) + &
+                                        by(1, :, 2:ht%nz) - &
+                                        by(2, :, 2:ht%nz)
+                    by(2, :, 1) = by(1, :, 1) + by(2, :, 1) - by(2, :, 2)
+                    by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
+                else
+                    by(1, :, 2:ht%nz) = (by(1, :, 1:ht%nz-1) + by(1, :, 2:ht%nz)) * 0.5
+                    by(1, :, 1) = 2.0 * by(1, :, 1) - by(1, :, 2)
+                endif
+            else if (ht%nx > 1 .and. ht%nz == 1) then
+                if (ht%tz > 1) then
+                    by(2:ht%nx, :, 2) = (by(1:ht%nx-1, :, 1) + &
+                                         by(1:ht%nx-1, :, 2) + &
+                                         by(2:ht%nx, :, 1) + &
+                                         by(2:ht%nx, :, 2)) * 0.25
+                    by(2:ht%nx, :, 1) = by(1:ht%nx-1, :, 1) + &
+                                        by(2:ht%nx, :, 1) - &
+                                        by(2:ht%nx, :, 2)
+                    by(1, :, 2) = by(1, :, 1) + by(1, :, 2) - by(2, :, 2)
+                    by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
+                else
+                    by(2:ht%nx, :, 1) = (by(1:ht%nx-1, :, 1) + by(2:ht%nx, :, 1)) * 0.5
+                    by(1, :, 1) = 2.0 * by(1, :, 1) - by(2, :, 1)
+                endif
+            else
+                if (ht%tx > 1 .and. ht%tz > 1) then
+                    by(2, :, 2) = (by(1, :, 1) + by(1, :, 2) + &
+                                   by(2, :, 1) + by(2, :, 2)) * 0.25
+                    by(2, :, 1) = by(1, :, 1) + by(2, :, 1) - by(2, :, 2)
+                    by(1, :, 2) = by(1, :, 1) + by(1, :, 2) - by(2, :, 2)
+                    by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
+                else if (ht%tx == 1 .and. ht%tz > 1) then
+                    by(1, :, 1) = 1.5 * by(1, :, 1) - 0.5 * by(1, :, 2)
+                else if (ht%tx > 1 .and. ht%tz == 1) then
+                    by(1, :, 1) = 1.5 * by(1, :, 1) - 0.5 * by(2, :, 1)
+                    ! else we don't need to change by
+                endif
+            endif
+        endif
+
+        ! Bz
+        if (ht%ix > 0 .and. ht%iy > 0) then
+            bz(1:ht%nx, 1:ht%ny, :) = (bz(1:ht%nx, 1:ht%ny, :) + &
+                                       bz(1:ht%nx, 2:ht%ny+1, :) + &
+                                       bz(2:ht%nx+1, 1:ht%ny, :) + &
+                                       bz(2:ht%nx+1, 2:ht%ny+1, :)) * 0.25
+        else if (ht%ix > 0 .and. ht%iy == 0) then
+            if (ht%ny > 1) then
+                bz(1:ht%nx, 2:ht%ny, :) = (bz(1:ht%nx, 1:ht%ny-1, :) + &
+                                           bz(1:ht%nx, 2:ht%ny, :) + &
+                                           bz(2:ht%nx+1, 1:ht%ny-1, :) + &
+                                           bz(2:ht%nx+1, 2:ht%ny, :)) * 0.25
+                bz(1:ht%nx, 1, :) = bz(1:ht%nx, 1, :) + &
+                                    bz(2:ht%nx+1, 1, :) - &
+                                    bz(1:ht%nx, 2, :)
+            else
+                if (ht%ty > 1) then
+                    bz(1:ht%nx, 2, :) = (bz(1:ht%nx, 1, :) + &
+                                         bz(1:ht%nx, 2, :) + &
+                                         bz(2:ht%nx+1, 1, :) + &
+                                         bz(2:ht%nx+1, 2, :)) * 0.25
+                    bz(1:ht%nx, 1, :) = bz(1:ht%nx, 1, :) + &
+                                        bz(2:ht%nx+1, 1, :) - &
+                                        bz(1:ht%nx, 2, :)
+                else
+                    bz(1:ht%nx, 1, :) = (bz(1:ht%nx, 1, :) + bz(2:ht%nx+1, 1, :)) * 0.5
+                endif
+            endif
+        else if (ht%ix == 0 .and. ht%iy > 0) then
+            if (ht%nx > 1) then
+                bz(2:ht%nx, 1:ht%ny, :) = (bz(1:ht%nx-1, 1:ht%ny, :) + &
+                                           bz(2:ht%nx, 1:ht%ny, :) + &
+                                           bz(1:ht%nx-1, 2:ht%ny+1, :) + &
+                                           bz(2:ht%nx, 2:ht%ny+1, :)) * 0.25
+                bz(1, 1:ht%ny, :) = bz(1, 1:ht%ny, :) + &
+                                    bz(1, 2:ht%ny+1, :) - &
+                                    bz(2, 1:ht%ny, :)
+            else
+                if (ht%tx > 1) then
+                    bz(2, 1:ht%ny, :) = (bz(1, 1:ht%ny, :) + &
+                                         bz(2, 1:ht%ny, :) + &
+                                         bz(1, 2:ht%ny+1, :) + &
+                                         bz(2, 2:ht%ny+1, :)) * 0.25
+                    bz(1, 1:ht%ny, :) = bz(1, 1:ht%ny, :) + &
+                                        bz(1, 2:ht%ny+1, :) - &
+                                        bz(2, 1:ht%ny, :)
+                else
+                    bz(1, 1:ht%ny, :) = (bz(1, 1:ht%ny, :) + bz(1, 2:ht%ny+1, :)) * 0.5
+                endif
+            endif
+        else
+            if (ht%nx > 1 .and. ht%ny > 1) then
+                bz(2:ht%nx, 2:ht%ny, :) = (bz(1:ht%nx-1, 1:ht%ny-1, :) + &
+                                           bz(2:ht%nx, 1:ht%ny-1, :) + &
+                                           bz(1:ht%nx-1, 2:ht%ny, :) + &
+                                           bz(2:ht%nx, 2:ht%ny, :)) * 0.25
+                bz(1, 2:ht%ny, :) = bz(1, 1:ht%ny-1, :) + &
+                                    bz(1, 2:ht%ny, :) - &
+                                    bz(2, 2:ht%ny, :)
+                bz(2:ht%nx, 1, :) = bz(1:ht%nx-1, 1, :) + &
+                                    bz(2:ht%nx, 1, :) - &
+                                    bz(2:ht%nx, 2, :)
+                bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
+            else if (ht%nx == 1 .and. ht%ny > 1) then
+                if (ht%tx > 1) then
+                    bz(2, 2:ht%ny, :) = (bz(1, 1:ht%ny-1, :) + &
+                                         bz(2, 1:ht%ny-1, :) + &
+                                         bz(1, 2:ht%ny, :) + &
+                                         bz(2, 2:ht%ny, :)) * 0.25
+                    bz(1, 2:ht%ny, :) = bz(1, 1:ht%ny-1, :) + &
+                                        bz(1, 2:ht%ny, :) - &
+                                        bz(2, 2:ht%ny, :)
+                    bz(2, 1, :) = bz(1, 1, :) + bz(2, 1, :) - bz(2, 2, :)
+                    bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
+                else
+                    bz(1, 2:ht%ny, :) = (bz(1, 1:ht%ny-1, :) + bz(1, 2:ht%ny, :)) * 0.5
+                    bz(1, 1, :) = 2.0 * bz(1, 1, :) - bz(1, 2, :)
+                endif
+            else if (ht%nx > 1 .and. ht%ny == 1) then
+                if (ht%ty > 1) then
+                    bz(2:ht%nx, 2, :) = (bz(1:ht%nx-1, 1, :) + &
+                                         bz(1:ht%nx-1, 2, :) + &
+                                         bz(2:ht%nx, 1, :) + &
+                                         bz(2:ht%nx, 2, :)) * 0.25
+                    bz(2:ht%nx, 1, :) = bz(1:ht%nx-1, 1, :) + &
+                                        bz(2:ht%nx, 1, :) - &
+                                        bz(2:ht%nx, 2, :)
+                    bz(1, 2, :) = bz(1, 1, :) + bz(1, 2, :) - bz(2, 2, :)
+                    bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
+                else
+                    bz(2:ht%nx, 1, :) = (bz(1:ht%nx-1, 1, :) + bz(2:ht%nx, 1, :)) * 0.5
+                    bz(1, 1, :) = 2.0 * bz(1, 1, :) - bz(2, 1, :)
+                endif
+            else
+                if (ht%tx > 1 .and. ht%ty > 1) then
+                    bz(2, 2, :) = (bz(1, 1, :) + bz(1, 2, :) + &
+                                   bz(2, 1, :) + bz(2, 2, :)) * 0.25
+                    bz(2, 1, :) = bz(1, 1, :) + bz(2, 1, :) - bz(2, 2, :)
+                    bz(1, 2, :) = bz(1, 1, :) + bz(1, 2, :) - bz(2, 2, :)
+                    bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
+                else if (ht%tx == 1 .and. ht%ty > 1) then
+                    bz(1, 1, :) = 1.5 * bz(1, 1, :) - 0.5 * bz(1, 2, :)
+                else if (ht%tx > 1 .and. ht%ty == 1) then
+                    bz(1, 1, :) = 1.5 * bz(1, 1, :) - 0.5 * bz(2, 1, :)
+                    ! else we don't need to change bz
+                endif
+            endif
+        endif
+        absB = sqrt(bx**2 + by**2 + bz**2)
+    end subroutine interp_emf_node
+
+    !<--------------------------------------------------------------------------
+    !< Shift pressure tensor to remove ghost cells at lower end along x-, y-,
+    !< and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_pressure_tensor
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            pxx(1:ht%nx, :, :) = pxx(2:ht%nx+1, :, :)
+            pxy(1:ht%nx, :, :) = pxy(2:ht%nx+1, :, :)
+            pxz(1:ht%nx, :, :) = pxz(2:ht%nx+1, :, :)
+            pyy(1:ht%nx, :, :) = pyy(2:ht%nx+1, :, :)
+            pyz(1:ht%nx, :, :) = pyz(2:ht%nx+1, :, :)
+            pzz(1:ht%nx, :, :) = pzz(2:ht%nx+1, :, :)
+            if (is_rel == 1) then
+                pyx(1:ht%nx, :, :) = pyx(2:ht%nx+1, :, :)
+                pzx(1:ht%nx, :, :) = pzx(2:ht%nx+1, :, :)
+                pzy(1:ht%nx, :, :) = pzy(2:ht%nx+1, :, :)
+            endif
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            pxx(:, 1:ht%ny, :) = pxx(:, 2:ht%ny+1, :)
+            pxy(:, 1:ht%ny, :) = pxy(:, 2:ht%ny+1, :)
+            pxz(:, 1:ht%ny, :) = pxz(:, 2:ht%ny+1, :)
+            pyy(:, 1:ht%ny, :) = pyy(:, 2:ht%ny+1, :)
+            pyz(:, 1:ht%ny, :) = pyz(:, 2:ht%ny+1, :)
+            pzz(:, 1:ht%ny, :) = pzz(:, 2:ht%ny+1, :)
+            if (is_rel == 1) then
+                pyx(:, 1:ht%ny, :) = pyx(:, 2:ht%ny+1, :)
+                pzx(:, 1:ht%ny, :) = pzx(:, 2:ht%ny+1, :)
+                pzy(:, 1:ht%ny, :) = pzy(:, 2:ht%ny+1, :)
+            endif
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            pxx(:, :, 1:ht%nz) = pxx(:, :, 2:ht%nz+1)
+            pxy(:, :, 1:ht%nz) = pxy(:, :, 2:ht%nz+1)
+            pxz(:, :, 1:ht%nz) = pxz(:, :, 2:ht%nz+1)
+            pyy(:, :, 1:ht%nz) = pyy(:, :, 2:ht%nz+1)
+            pyz(:, :, 1:ht%nz) = pyz(:, :, 2:ht%nz+1)
+            pzz(:, :, 1:ht%nz) = pzz(:, :, 2:ht%nz+1)
+            if (is_rel == 1) then
+                pyx(:, :, 1:ht%nz) = pyx(:, :, 2:ht%nz+1)
+                pzx(:, :, 1:ht%nz) = pzx(:, :, 2:ht%nz+1)
+                pzy(:, :, 1:ht%nz) = pzy(:, :, 2:ht%nz+1)
+            endif
+        endif
+    end subroutine shift_pressure_tensor
+
+    !<--------------------------------------------------------------------------
+    !< Shift velocity fields to remove ghost cells at lower end along x-, y-,
+    !< and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_velocity_fields
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            vx(1:ht%nx, :, :) = vx(2:ht%nx+1, :, :)
+            vy(1:ht%nx, :, :) = vy(2:ht%nx+1, :, :)
+            vz(1:ht%nx, :, :) = vz(2:ht%nx+1, :, :)
+            if (is_rel == 1) then
+                ux(1:ht%nx, :, :) = ux(2:ht%nx+1, :, :)
+                uy(1:ht%nx, :, :) = uy(2:ht%nx+1, :, :)
+                uz(1:ht%nx, :, :) = uz(2:ht%nx+1, :, :)
+            endif
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            vx(:, 1:ht%ny, :) = vx(:, 2:ht%ny+1, :)
+            vy(:, 1:ht%ny, :) = vy(:, 2:ht%ny+1, :)
+            vz(:, 1:ht%ny, :) = vz(:, 2:ht%ny+1, :)
+            if (is_rel == 1) then
+                ux(:, 1:ht%ny, :) = ux(:, 2:ht%ny+1, :)
+                uy(:, 1:ht%ny, :) = uy(:, 2:ht%ny+1, :)
+                uz(:, 1:ht%ny, :) = uz(:, 2:ht%ny+1, :)
+            endif
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            vx(:, :, 1:ht%nz) = vx(:, :, 2:ht%nz+1)
+            vy(:, :, 1:ht%nz) = vy(:, :, 2:ht%nz+1)
+            vz(:, :, 1:ht%nz) = vz(:, :, 2:ht%nz+1)
+            if (is_rel == 1) then
+                ux(:, :, 1:ht%nz) = ux(:, :, 2:ht%nz+1)
+                uy(:, :, 1:ht%nz) = uy(:, :, 2:ht%nz+1)
+                uz(:, :, 1:ht%nz) = uz(:, :, 2:ht%nz+1)
+            endif
+        endif
+    end subroutine shift_velocity_fields
+
+    !<--------------------------------------------------------------------------
+    !< Shift v field to remove ghost cells at lower end along x-, y-,
+    !< and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_vfields
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            vx(1:ht%nx, :, :) = vx(2:ht%nx+1, :, :)
+            vy(1:ht%nx, :, :) = vy(2:ht%nx+1, :, :)
+            vz(1:ht%nx, :, :) = vz(2:ht%nx+1, :, :)
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            vx(:, 1:ht%ny, :) = vx(:, 2:ht%ny+1, :)
+            vy(:, 1:ht%ny, :) = vy(:, 2:ht%ny+1, :)
+            vz(:, 1:ht%ny, :) = vz(:, 2:ht%ny+1, :)
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            vx(:, :, 1:ht%nz) = vx(:, :, 2:ht%nz+1)
+            vy(:, :, 1:ht%nz) = vy(:, :, 2:ht%nz+1)
+            vz(:, :, 1:ht%nz) = vz(:, :, 2:ht%nz+1)
+        endif
+    end subroutine shift_vfields
+
+    !<--------------------------------------------------------------------------
+    !< Shift u field to remove ghost cells at lower end along x-, y-,
+    !< and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_ufields
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            ux(1:ht%nx, :, :) = ux(2:ht%nx+1, :, :)
+            uy(1:ht%nx, :, :) = uy(2:ht%nx+1, :, :)
+            uz(1:ht%nx, :, :) = uz(2:ht%nx+1, :, :)
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            ux(:, 1:ht%ny, :) = ux(:, 2:ht%ny+1, :)
+            uy(:, 1:ht%ny, :) = uy(:, 2:ht%ny+1, :)
+            uz(:, 1:ht%ny, :) = uz(:, 2:ht%ny+1, :)
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            ux(:, :, 1:ht%nz) = ux(:, :, 2:ht%nz+1)
+            uy(:, :, 1:ht%nz) = uy(:, :, 2:ht%nz+1)
+            uz(:, :, 1:ht%nz) = uz(:, :, 2:ht%nz+1)
+        endif
+    end subroutine shift_ufields
+
+    !<--------------------------------------------------------------------------
+    !< Shift density field to remove ghost cells at lower end along x-, y-,
+    !< and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_number_density
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            num_rho(1:ht%nx, :, :) = num_rho(2:ht%nx+1, :, :)
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            num_rho(:, 1:ht%ny, :) = num_rho(:, 2:ht%ny+1, :)
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            num_rho(:, :, 1:ht%nz) = num_rho(:, :, 2:ht%nz+1)
+        endif
+    end subroutine shift_number_density
 end module pic_fields

@@ -5,13 +5,16 @@ module interpolation_emf
     use constants, only: fp
     implicit none
     private
+    save
+
     public init_emfields, free_emfields, init_emfields_derivatives, &
            free_emfields_derivatives, read_emfields_single, &
            calc_interp_weights, calc_emfields_derivatives, calc_b_norm, &
            calc_gradient_B, calc_curvature, trilinear_interp_bx,&
            trilinear_interp_by, trilinear_interp_bz, trilinear_interp_ex, &
            trilinear_interp_ey, trilinear_interp_ez, trilinear_interp_only_bx, &
-           trilinear_interp_only_by, trilinear_interp_only_bz, set_emf
+           trilinear_interp_only_by, trilinear_interp_only_bz, set_emf, &
+           set_emf_derivatives
     public bx0, by0, bz0, ex0, ey0, ez0, absB0, dbxdx0, dbxdy0, dbxdz0, &
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
@@ -67,6 +70,10 @@ module interpolation_emf
     subroutine init_emfields_derivatives
         use picinfo, only: domain
         implicit none
+
+        nx = domain%pic_nx + 2  ! Including ghost cells
+        ny = domain%pic_ny + 2
+        nz = domain%pic_nz + 2
 
         allocate(dbxdx(0:nx-1, 0:ny-1, 0:nz-1))
         allocate(dbxdy(0:nx-1, 0:ny-1, 0:nz-1))
@@ -132,8 +139,8 @@ module interpolation_emf
               tindex, "/fields.", tindex, ".", pic_mpi_id
         is_exist = .false.
         inquire(file=trim(fname), exist=is_exist)
-      
-        if (is_exist) then 
+
+        if (is_exist) then
             open(unit=fh, file=trim(fname), access='stream', status='unknown', &
                  form='unformatted', action='read')
         else
@@ -323,7 +330,6 @@ module interpolation_emf
 
     !---------------------------------------------------------------------------
     ! Trilinear interpolation for Bx, By, Bz.
-    ! 
     ! Input:
     !   ix0, iy0, iz0: the indices of the lower-left corner.
     !   dx, dy, dz: the distance to the lower-left corner, [0, 1]
@@ -387,7 +393,6 @@ module interpolation_emf
 
     !---------------------------------------------------------------------------
     ! Trilinear interpolation for Ex, Ey, Ez.
-    ! 
     ! Input:
     !   ix0, iy0, iz0: the indices of the lower-left corner.
     !   dx, dy, dz: the distance to the lower-left corner, [0, 1]
@@ -472,11 +477,16 @@ module interpolation_emf
             ixe_local = pic_nx + 1
             ixs_global = 1
             ixe_global = pic_nx + 1
-        else if (ix == tx - 1 .and. ix > 0) then
+        else if (ix == tx - 1) then
             ixs_local = 0
             ixe_local = pic_nx
-            ixs_global = pic_nx * (ix - sx) + 1
-            ixe_global = pic_nx * (ix - sx + 1) + 1
+            if (sx > 0) then
+                ixs_global = pic_nx * (ix - sx) + 1
+                ixe_global = pic_nx * (ix - sx + 1) + 1
+            else
+                ixs_global = pic_nx * (ix - sx)
+                ixe_global = pic_nx * (ix - sx + 1)
+            endif
         else
             ixs_local = 0
             ixe_local = pic_nx + 1
@@ -511,17 +521,17 @@ module interpolation_emf
         call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
         call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
         ex(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
-            ext(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+            ext(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         ey(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
-            eyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+            eyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         ez(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
-            ezt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+            ezt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         bx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
-            bxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+            bxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         by(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
-            byt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+            byt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         bz(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
-            bzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl) 
+            bzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         if (ixs_lo == 1) then
             ex(0, :, :) = ex(1, :, :)
             ey(0, :, :) = ey(1, :, :)
@@ -571,4 +581,111 @@ module interpolation_emf
             bz(:, :, pnz+1) = bz(:, :, pnz)
         endif
     end subroutine set_emf
+
+    !<--------------------------------------------------------------------------
+    !< Set the derivatives of the electromagnetic fields, which is read from
+    !< translated files rather than directly from the PIC simulations
+    !<--------------------------------------------------------------------------
+    subroutine set_emf_derivatives(i, j, k, tx, ty, tz, sx, sy, sz)
+        use emf_derivatives, only: dbxdxt => dbxdx, dbxdyt => dbxdy, dbxdzt => dbxdz, &
+            dbydxt => dbydx, dbydyt => dbydy, dbydzt => dbydz, &
+            dbzdxt => dbzdx, dbzdyt => dbzdy, dbzdzt => dbzdz
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: i, j, k, tx, ty, tz, sx, sy, sz
+        integer :: ixs_lo, ixe_lo, ixs_gl, ixe_gl
+        integer :: iys_lo, iye_lo, iys_gl, iye_gl
+        integer :: izs_lo, ize_lo, izs_gl, ize_gl
+        integer :: pnx, pny, pnz
+        pnx = domain%pic_nx
+        pny = domain%pic_ny
+        pnz = domain%pic_nz
+        call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
+        call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
+        call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        dbxdx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbxdxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbxdy(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbxdyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbxdz(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbxdzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbydx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbydxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbydy(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbydyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbydz(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbydzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbzdx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbzdxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbzdy(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbzdyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbzdz(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbzdzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        if (ixs_lo == 1) then
+            dbxdx(0, :, :) = dbxdx(1, :, :)
+            dbxdy(0, :, :) = dbxdy(1, :, :)
+            dbxdz(0, :, :) = dbxdz(1, :, :)
+            dbydx(0, :, :) = dbydx(1, :, :)
+            dbydy(0, :, :) = dbydy(1, :, :)
+            dbydz(0, :, :) = dbydz(1, :, :)
+            dbzdx(0, :, :) = dbzdx(1, :, :)
+            dbzdy(0, :, :) = dbzdy(1, :, :)
+            dbzdz(0, :, :) = dbzdz(1, :, :)
+        endif
+        if (ixe_lo == pnx) then
+            dbxdx(pnx+1, :, :) = dbxdx(pnx, :, :)
+            dbxdy(pnx+1, :, :) = dbxdy(pnx, :, :)
+            dbxdz(pnx+1, :, :) = dbxdz(pnx, :, :)
+            dbydx(pnx+1, :, :) = dbydx(pnx, :, :)
+            dbydy(pnx+1, :, :) = dbydy(pnx, :, :)
+            dbydz(pnx+1, :, :) = dbydz(pnx, :, :)
+            dbzdx(pnx+1, :, :) = dbzdx(pnx, :, :)
+            dbzdy(pnx+1, :, :) = dbzdy(pnx, :, :)
+            dbzdz(pnx+1, :, :) = dbzdz(pnx, :, :)
+        endif
+        if (iys_lo == 1) then
+            dbxdx(:, 0, :) = dbxdx(:, 1, :)
+            dbxdy(:, 0, :) = dbxdy(:, 1, :)
+            dbxdz(:, 0, :) = dbxdz(:, 1, :)
+            dbydx(:, 0, :) = dbydx(:, 1, :)
+            dbydy(:, 0, :) = dbydy(:, 1, :)
+            dbydz(:, 0, :) = dbydz(:, 1, :)
+            dbzdx(:, 0, :) = dbzdx(:, 1, :)
+            dbzdy(:, 0, :) = dbzdy(:, 1, :)
+            dbzdz(:, 0, :) = dbzdz(:, 1, :)
+        endif
+        if (iye_lo == pny) then
+            dbxdx(:, pny+1, :) = dbxdx(:, pny, :)
+            dbxdy(:, pny+1, :) = dbxdy(:, pny, :)
+            dbxdz(:, pny+1, :) = dbxdz(:, pny, :)
+            dbydx(:, pny+1, :) = dbydx(:, pny, :)
+            dbydy(:, pny+1, :) = dbydy(:, pny, :)
+            dbydz(:, pny+1, :) = dbydz(:, pny, :)
+            dbzdx(:, pny+1, :) = dbzdx(:, pny, :)
+            dbzdy(:, pny+1, :) = dbzdy(:, pny, :)
+            dbzdz(:, pny+1, :) = dbzdz(:, pny, :)
+        endif
+        if (izs_lo == 1) then
+            dbxdx(:, :, 0) = dbxdx(:, :, 1)
+            dbxdy(:, :, 0) = dbxdy(:, :, 1)
+            dbxdz(:, :, 0) = dbxdz(:, :, 1)
+            dbydx(:, :, 0) = dbydx(:, :, 1)
+            dbydy(:, :, 0) = dbydy(:, :, 1)
+            dbydz(:, :, 0) = dbydz(:, :, 1)
+            dbzdx(:, :, 0) = dbzdx(:, :, 1)
+            dbzdy(:, :, 0) = dbzdy(:, :, 1)
+            dbzdz(:, :, 0) = dbzdz(:, :, 1)
+        endif
+        if (ize_lo == pnz) then
+            dbxdx(:, :, pnz+1) = dbxdx(:, :, pnz)
+            dbxdy(:, :, pnz+1) = dbxdy(:, :, pnz)
+            dbxdz(:, :, pnz+1) = dbxdz(:, :, pnz)
+            dbydx(:, :, pnz+1) = dbydx(:, :, pnz)
+            dbydy(:, :, pnz+1) = dbydy(:, :, pnz)
+            dbydz(:, :, pnz+1) = dbydz(:, :, pnz)
+            dbzdx(:, :, pnz+1) = dbzdx(:, :, pnz)
+            dbzdy(:, :, pnz+1) = dbzdy(:, :, pnz)
+            dbzdz(:, :, pnz+1) = dbzdz(:, :, pnz)
+        endif
+    end subroutine set_emf_derivatives
 end module interpolation_emf
