@@ -17,11 +17,12 @@ from runs_name_path import *
 from serialize_json import data_to_json, json_to_data
 
 
-def get_pic_info(base_directory):
+def get_pic_info(base_directory, run_name):
     """Get particle-in-cell simulation information.
 
     Args:
         base_directory: the base directory for different runs.
+        run_name: name of the simulation
     """
     pic_initial_info = read_pic_info(base_directory)
     dtwpe = pic_initial_info.dtwpe
@@ -45,23 +46,25 @@ def get_pic_info(base_directory):
         'ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 'tparticles',
         'dt_energy', 'fields_interval', 'particle_interval', 'trace_interval'
     ])
-    pic_times_info = pic_times(
-        ntf=ntf,
-        dt_fields=dt_fields,
-        dt_particles=dt_particles,
-        tfields=tfields,
-        dt_energy=dt_energy,
-        ntp=ntp,
-        tparticles=tparticles,
-        fields_interval=fields_interval,
-        particle_interval=particle_interval,
-        trace_interval=trace_interval)
+    pic_times_info = pic_times(ntf=ntf,
+                               dt_fields=dt_fields,
+                               dt_particles=dt_particles,
+                               tfields=tfields,
+                               dt_energy=dt_energy,
+                               ntp=ntp,
+                               tparticles=tparticles,
+                               fields_interval=fields_interval,
+                               particle_interval=particle_interval,
+                               trace_interval=trace_interval)
     pic_topology = get_pic_topology(base_directory, deck_file)
+    pic_run = collections.namedtuple("pic_run", ['run_dir', 'run_name'])
+    pic_run_info = pic_run(run_dir=base_directory,
+                           run_name=run_name)
     pic_information = collections.namedtuple(
         "pic_information", pic_initial_info._fields + pic_times_info._fields +
-        pic_ene._fields + pic_topology._fields)
-    pic_info = pic_information(*(
-        pic_initial_info + pic_times_info + pic_ene + pic_topology))
+        pic_ene._fields + pic_topology._fields + pic_run_info._fields)
+    pic_info = pic_information(*(pic_initial_info + pic_times_info +
+                                 pic_ene + pic_topology + pic_run_info))
     return pic_info
 
 
@@ -560,7 +563,7 @@ if __name__ == "__main__":
     # run_name = 'sigma1-mime25-beta0002-fan'
     # base_directory = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
     # run_name = 'sigma100-lx300'
-    pic_info = get_pic_info(base_directory)
+    pic_info = get_pic_info(base_directory, run_name)
     pic_info_json = data_to_json(pic_info)
     fname = '../data/pic_info/pic_info_' + run_name + '.json'
     with open(fname, 'w') as f:
