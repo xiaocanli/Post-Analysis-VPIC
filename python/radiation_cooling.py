@@ -250,24 +250,24 @@ def radiation_map(plot_config, show_plot=True):
     fname = plot_config["run_dir"] + "data/absB.gda"
     xgrid, zgrid, absB = read_2d_fields(pic_info, fname, **kwargs)
 
-    # fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB02.gda"
-    # xgrid, zgrid, eb02 = read_2d_fields(pic_info, fname, **kwargs)
-    # fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB03.gda"
-    # xgrid, zgrid, eb03 = read_2d_fields(pic_info, fname, **kwargs)
-    # fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB04.gda"
-    # xgrid, zgrid, eb04 = read_2d_fields(pic_info, fname, **kwargs)
-    # prho = eb02 + eb03 + eb04
-    # text2 = r"$5000<\gamma<20000$"
+    fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB02.gda"
+    xgrid, zgrid, eb02 = read_2d_fields(pic_info, fname, **kwargs)
+    fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB03.gda"
+    xgrid, zgrid, eb03 = read_2d_fields(pic_info, fname, **kwargs)
+    fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB04.gda"
+    xgrid, zgrid, eb04 = read_2d_fields(pic_info, fname, **kwargs)
+    prho = eb02 + eb03 + eb04
+    text2 = r"$5000<\gamma<20000$"
 
     # fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB06.gda"
     # xgrid, zgrid, eb06 = read_2d_fields(pic_info, fname, **kwargs)
     # prho = eb06
     # text2 = r"$2500<\gamma<3000$"
 
-    fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB04.gda"
-    xgrid, zgrid, eb04 = read_2d_fields(pic_info, fname, **kwargs)
-    prho = eb04
-    text2 = r"$8000<\gamma<16000$"
+    # fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB04.gda"
+    # xgrid, zgrid, eb04 = read_2d_fields(pic_info, fname, **kwargs)
+    # prho = eb04
+    # text2 = r"$8000<\gamma<16000$"
 
     fname = plot_config["run_dir"] + "data/Ay.gda"
     xgrid, zgrid, Ay = read_2d_fields(pic_info, fname, **kwargs)
@@ -279,9 +279,10 @@ def radiation_map(plot_config, show_plot=True):
     fig = plt.figure(figsize=[12, 14])
     rect = [0.10, 0.66, 0.8, 0.28]
     ax1 = fig.add_axes(rect)
-    img = ax1.imshow(absB, extent=sizes, aspect='auto',
-                     cmap=plt.cm.inferno,
-                     origin='lower', vmin=10, vmax=300)
+    img = ax1.imshow(absB/2000, extent=sizes, aspect='auto',
+                     # vmin=0, vmax=500,
+                     norm = LogNorm(vmin=0.005, vmax=0.25),
+                     cmap=plt.cm.inferno, origin='lower')
     Ay_min = np.min(Ay)
     Ay_max = np.max(Ay)
     levels = np.linspace(Ay_min, Ay_max, 20)
@@ -296,6 +297,7 @@ def radiation_map(plot_config, show_plot=True):
     cax1 = fig.add_axes(rect1)
     cbar1 = fig.colorbar(img, cax=cax1)
     cbar1.ax.tick_params(labelsize=16)
+    cbar1.ax.set_title(r"$G$", fontsize=32)
     ax1.text(0.02, 0.9, r"$|B|$", color='k', fontsize=32,
              bbox=dict(facecolor='none', alpha=1.0,
                        edgecolor='none', pad=10.0),
@@ -336,6 +338,11 @@ def radiation_map(plot_config, show_plot=True):
     cax3 = fig.add_axes(rect)
     cbar3 = fig.colorbar(im_pol, cax=cax3)
     cbar3.ax.tick_params(labelsize=16)
+    ax3.text(0.02, 0.9, 'Optical', color='k', fontsize=32,
+             bbox=dict(facecolor='none', alpha=1.0,
+                       edgecolor='none', pad=10.0),
+             horizontalalignment='left', verticalalignment='center',
+             transform=ax3.transAxes)
 
     title = "Observation angle: " + str(plot_config["obs_ang"]) + "$^\circ$"
     title += ' (frame: %d)' % plot_config["tframe"]
@@ -681,8 +688,15 @@ def contour_radiation(plot_config, pic_info, ax):
     smime = math.sqrt(pic_info.mime)
     lx_de = pic_info.lx_di * smime
     lz_de = pic_info.lz_di * smime
-    xmin, xmax = 0, lx_de
-    zmin, zmax = -0.5 * lz_de, 0.5 * lz_de
+    xmin = lx_de * plot_config["xrange"][0]
+    xmax = lx_de * plot_config["xrange"][1]
+    zmin = lz_de * (plot_config["zrange"][0] - 0.5)
+    zmax = lz_de * (plot_config["zrange"][1] - 0.5)
+    nx_rad, nz_rad = tot_flux.shape
+    ixl = int(nx_rad * plot_config["xrange"][0])
+    ixr = int(nx_rad * plot_config["xrange"][1])
+    izb = int(nz_rad * plot_config["zrange"][0])
+    izt = int(nz_rad * plot_config["zrange"][1])
     vmin = np.min(tot_flux)
     vmax = np.max(tot_flux)
     print("Min and max of total flux: %e %e" % (vmin, vmax))
@@ -691,7 +705,8 @@ def contour_radiation(plot_config, pic_info, ax):
     print("Min and max of polarization flux %e %e" %
           (np.min(pol_flux), np.max(pol_flux)))
     vmin, vmax = plot_config["flux_range"][0]
-    p1 = ax.imshow(tot_flux.T, cmap=plt.cm.Oranges,
+    p1 = ax.imshow(tot_flux[ixl:ixr, izb:izt].T,
+                   cmap=plt.cm.Oranges,
                    extent=[xmin, xmax, zmin, zmax],
                    norm=LogNorm(vmin=vmin, vmax=vmax),
                    aspect='auto', origin='lower',
@@ -709,17 +724,192 @@ def contour_radiation(plot_config, pic_info, ax):
                       scale=plot_config["pflux_scale"],
                       linewidth=.5, units='width', headwidth=1,
                       headaxislength=0)
-    nx_rad, nz_rad = tot_flux.shape
     x_rad = np.linspace(0, lx_de, nx_rad)
     z_rad = np.linspace(-0.5 * lz_de, 0.5 * lz_de, nz_rad)
     X, Z = np.meshgrid(x_rad, z_rad)
     U = np.transpose(pol_flux*np.sin(pol_angl*math.pi/180))
     V = np.transpose(pol_flux*np.cos(pol_angl*math.pi/180))
     s = 1
-    Q = ax.quiver(X[::s, ::s], Z[::s, ::s], U[::s, ::s], V[::s, ::s],
+    print(U.shape)
+    Q = ax.quiver(X[izb:izt:s, ixl:ixr:s],
+                  Z[izb:izt:s, ixl:ixr:s],
+                  U[izb:izt:s, ixl:ixr:s],
+                  V[izb:izt:s, ixl:ixr:s],
                   **quiveropts)
 
     return p1
+
+
+def radiation_map_tri(plot_config, show_plot=True):
+    """
+    Plot magnetic field, high-energy particle distribution, and radiation map
+    for three time steps
+
+    Args:
+        plot_config: dictionary holding PIC simulation directory, run name,
+                   time frame, and particle species to plot
+    """
+    picinfo_fname = ('../data/pic_info/pic_info_' +
+                     plot_config["run_name"] + '.json')
+    pic_info = read_data_from_json(picinfo_fname)
+
+    fig = plt.figure(figsize=[15, 8])
+    rect0 = [0.09, 0.68, 0.27, 0.26]
+    hgap, vgap = 0.01, 0.03
+
+    for iframe, tframe in enumerate(plot_config["tframes"]):
+        rect = np.copy(rect0)
+        rect[0] += (rect0[2] + hgap) * iframe
+        kwargs = {"current_time": tframe,
+                  "xl": pic_info.lx_di * plot_config["xrange"][0],
+                  "xr": pic_info.lx_di * plot_config["xrange"][1],
+                  "zb": pic_info.lz_di * (plot_config["zrange"][0] - 0.5),
+                  "zt": pic_info.lz_di * (plot_config["zrange"][1] - 0.5)}
+        size_one_frame = pic_info.nx * pic_info.nz * 4
+        fname = plot_config["run_dir"] + "data/absB.gda"
+        xgrid, zgrid, absB = read_2d_fields(pic_info, fname, **kwargs)
+
+        fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB02.gda"
+        xgrid, zgrid, eb02 = read_2d_fields(pic_info, fname, **kwargs)
+        fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB03.gda"
+        xgrid, zgrid, eb03 = read_2d_fields(pic_info, fname, **kwargs)
+        fname = plot_config["run_dir"] + "data/" + plot_config["species"] + "EB04.gda"
+        xgrid, zgrid, eb04 = read_2d_fields(pic_info, fname, **kwargs)
+        prho = eb02 + eb03 + eb04
+        text2 = r"$5000<\gamma<20000$"
+
+        fname = plot_config["run_dir"] + "data/Ay.gda"
+        xgrid, zgrid, Ay = read_2d_fields(pic_info, fname, **kwargs)
+        smime = math.sqrt(pic_info.mime)
+        xgrid *= smime
+        zgrid *= smime
+        xlim = np.asarray([kwargs["xl"], kwargs["xr"]]) * smime
+        ylim = np.asarray([kwargs["zb"], kwargs["zt"]]) * smime
+        sizes = [xgrid[0], xgrid[-1], zgrid[0], zgrid[-1]]
+
+        ax1 = fig.add_axes(rect)
+        img = ax1.imshow(absB/2000, extent=sizes, aspect='auto',
+                         # vmin=0, vmax=500,
+                         norm = LogNorm(vmin=0.005, vmax=0.25),
+                         cmap=plt.cm.inferno, origin='lower')
+        Ay_min = np.min(Ay)
+        Ay_max = np.max(Ay)
+        levels = np.linspace(Ay_min, Ay_max, 20)
+        ax1.contour(xgrid, zgrid, Ay, colors='k',
+                    levels=levels, linewidths=0.5)
+        ax1.set_xlim(xlim)
+        ax1.set_ylim(ylim)
+        # ax1.set_yticks(np.linspace(-3000, 3000, num=5))
+        ax1.set_yticks(np.linspace(-1400, 1400, num=5))
+        # ax1.set_yticks(np.linspace(-2000, 2000, num=5))
+        ax1.tick_params(labelsize=16)
+        if iframe == 0:
+            ax1.set_ylabel(r'$z/d_e$', fontsize=20)
+        else:
+            ax1.tick_params(axis='y', labelleft='off')
+        ax1.tick_params(axis='x', labelbottom='off')
+
+        twpi = pic_info.dtwpe * pic_info.fields_interval * tframe / smime
+        tlc = "{%0.2f}" % (twpi / pic_info.lx_di)
+        title = r"$" + tlc + r"\tau_\text{lc}$"
+        plt.title(title, fontsize=24)
+
+        rect1 = np.copy(rect)
+        rect1[0] += rect1[2] + 0.01
+        rect1[2] = 0.02
+        if iframe == 2:
+            cax1 = fig.add_axes(rect1)
+            cbar1 = fig.colorbar(img, cax=cax1)
+            cbar1.ax.tick_params(labelsize=16)
+            cbar1.ax.set_title(r"$G$", fontsize=24)
+        if iframe == 0:
+            ax1.text(0.02, 0.88, r"$|B|$", color='k', fontsize=24,
+                     bbox=dict(facecolor='none', alpha=1.0,
+                               edgecolor='none', pad=10.0),
+                     horizontalalignment='left', verticalalignment='center',
+                     transform=ax1.transAxes)
+
+
+        rect[1] -= rect[3] + vgap
+        ax2 = fig.add_axes(rect)
+        img = ax2.imshow(prho, extent=sizes, aspect='auto',
+                         cmap=plt.cm.viridis, origin='lower',
+                         norm = LogNorm(vmin=1, vmax=100))
+        ax2.contour(xgrid, zgrid, Ay, colors='k',
+                    levels=levels, linewidths=0.5)
+        ax2.set_xlim(xlim)
+        ax2.set_ylim(ylim)
+        # ax2.set_yticks(np.linspace(-3000, 3000, num=5))
+        ax2.set_yticks(np.linspace(-1400, 1400, num=5))
+        # ax2.set_yticks(np.linspace(-2000, 2000, num=5))
+        ax2.tick_params(labelsize=16)
+        if iframe == 0:
+            ax2.set_ylabel(r'$z/d_e$', fontsize=20)
+        else:
+            ax2.tick_params(axis='y', labelleft='off')
+        ax2.tick_params(axis='x', labelbottom='off')
+        rect2 = np.copy(rect)
+        rect2[0] += rect2[2] + 0.01
+        rect2[2] = 0.02
+        if iframe == 2:
+            cax2 = fig.add_axes(rect2)
+            cbar2 = fig.colorbar(img, cax=cax2)
+            cbar2.ax.tick_params(labelsize=16)
+        if iframe == 0:
+            ax2.text(0.02, 0.88, text2, color='k', fontsize=24,
+                     bbox=dict(facecolor='none', alpha=1.0,
+                               edgecolor='none', pad=10.0),
+                     horizontalalignment='left', verticalalignment='center',
+                     transform=ax2.transAxes)
+
+        rect[1] -= rect[3] + vgap
+        ax3 = fig.add_axes(rect)
+        plot_config["tframe"] = tframe
+        im_pol = contour_radiation(plot_config, pic_info, ax3)
+        ax3.contour(xgrid, zgrid, Ay, colors='k',
+                    levels=levels, linewidths=0.5)
+        ax3.set_xlim(xlim)
+        ax3.set_ylim(ylim)
+        # ax3.set_xticks(np.linspace(0, 15000, num=4))
+        # ax3.set_yticks(np.linspace(-3000, 3000, num=5))
+        ax3.set_xticks(np.linspace(12500, 15500, num=4))
+        ax3.set_yticks(np.linspace(-1400, 1400, num=5))
+        # ax3.set_xticks(np.linspace(0, 8000, num=4))
+        # ax3.set_yticks(np.linspace(-2000, 2000, num=5))
+        ax3.set_xlabel(r'$x/d_e$', fontsize=20)
+        if iframe == 0:
+            ax3.set_ylabel(r'$z/d_e$', fontsize=20)
+        else:
+            ax3.set_ylabel('', fontsize=20)
+            ax3.tick_params(axis='y', labelleft='off')
+        rect[0] += rect[2] + 0.01
+        rect[2] = 0.02
+        if iframe == 2:
+            cax3 = fig.add_axes(rect)
+            cbar3 = fig.colorbar(im_pol, cax=cax3)
+            cbar3.ax.tick_params(labelsize=16)
+            cbar3.ax.set_yticklabels([r'$10^{-3}$', r'$10^{-2}$', r'$10^{-1}$',
+                                      r'$10^0$'], fontsize=16)
+        if iframe == 0:
+            ax3.text(0.02, 0.88, 'Optical', color='k', fontsize=24,
+                     bbox=dict(facecolor='none', alpha=1.0,
+                               edgecolor='none', pad=10.0),
+                     horizontalalignment='left', verticalalignment='center',
+                     transform=ax3.transAxes)
+
+    fdir = ('../img/radiation_cooling/absb_rad_map/' +
+            plot_config["run_name"] + '/tri_times' + '/')
+    mkdir_p(fdir)
+    tfs = ""
+    for tframe in plot_config["tframes"]:
+        tfs += str(tframe) + "_"
+    fname = (fdir + 'rad_map' + tfs + str(plot_config["obs_ang"]) + ".jpg")
+    fig.savefig(fname, dpi=200)
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
 
 
 def get_cmd_args():
@@ -727,7 +917,7 @@ def get_cmd_args():
     """
     default_run_name = 'sigma4E4_bg00_rad_vthe100_cool100_b'
     default_run_dir = ('/net/scratch2/xiaocanli/vpic_radiation/reconnection/' +
-                       'grizzly/cooling_scaling_16000_8000/' + 
+                       'grizzly/cooling_scaling_16000_8000/' +
                        default_run_name + '/')
     default_map_dir = default_run_dir + 'map/'
     parser = argparse.ArgumentParser(description='Radiation cooling analysis')
@@ -755,6 +945,9 @@ def get_cmd_args():
                         help='plot 2D contour particle distributions')
     parser.add_argument('--radiation_map', action="store_true", default=False,
                         help='plot 2D contour of magnetic field and radiation')
+    parser.add_argument('--radiation_map_tri', action="store_true", default=False,
+                        help=('plot 2D contour of magnetic field and ' +
+                              'radiation for three time frames'))
     parser.add_argument('--map_dir', action="store", default=default_map_dir,
                         help='radiation map directory')
     parser.add_argument("--energy_band", action="store", default='1', type=int,
@@ -778,6 +971,13 @@ def analysis_single_frame(args, plot_config):
     run_dir = plot_config["run_dir"]
     run_name = plot_config["run_name"]
     species = plot_config["species"]
+    plot_config["tframe"] = args.tframe
+    plot_config["energy_band"] = args.energy_band
+    plot_config["old_rad"] = args.old_rad
+    plot_config["flux_range"] = [args.flux_min, args.flux_max],
+    plot_config["pflux_scale"] = args.pflux_scale
+    plot_config["obs_ang"] = args.obs_ang
+    plot_config["map_dir"] = args.map_dir
     if args.bfield_single:
         plot_bfield_single(run_dir, run_name, args.tframe, show_plot=True)
     if args.density_eband:
@@ -787,14 +987,18 @@ def analysis_single_frame(args, plot_config):
     if args.momentum_flux:
         plot_momentum_flux(run_dir, run_name, args.tframe)
     if args.radiation_map:
-        plot_config["tframe"] = args.tframe
-        plot_config["energy_band"] = args.energy_band
-        plot_config["old_rad"] = args.old_rad
-        plot_config["flux_range"] = [args.flux_min, args.flux_max],
-        plot_config["pflux_scale"] = args.pflux_scale
-        plot_config["obs_ang"] = args.obs_ang
-        plot_config["map_dir"] = args.map_dir
         radiation_map(plot_config, show_plot=True)
+    if args.radiation_map_tri:
+        # plot_config["xrange"] = [0.0, 1.0]
+        # plot_config["zrange"] = [0.0, 1.0]
+        # plot_config["tframes"] = [2, 30, 130]
+        plot_config["xrange"] = [0.75, 1.0]
+        plot_config["zrange"] = [0.325, 0.675]
+        plot_config["tframes"] = [40, 47, 51]
+        # plot_config["xrange"] = [0, 0.5]
+        # plot_config["zrange"] = [0.25, 0.75]
+        # plot_config["tframes"] = [55, 69, 75]
+        radiation_map_tri(plot_config, show_plot=True)
 
 
 def process_input(args, plot_config, tframe):
