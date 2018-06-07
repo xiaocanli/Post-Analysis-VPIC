@@ -1,36 +1,26 @@
 """
-Analysis procedures for particle energy spectrum.
+Analysis procedures to calculate and plot reconnection rate
 """
-import collections
 import math
 import os.path
-import struct
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib import rc
-from matplotlib.colors import LogNorm
-from matplotlib.ticker import MaxNLocator
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from mpl_toolkits.mplot3d import Axes3D
+import palettable
 from scipy import signal
 
-import palettable
 import pic_information
 from contour_plots import plot_2d_contour, read_2d_fields
 
-rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
 
-font = {
-    'family': 'serif',
-    #'color'  : 'darkred',
-    'color': 'black',
-    'weight': 'normal',
-    'size': 24,
-}
+FONT = {'family': 'serif',
+        'color': 'black',
+        'weight': 'normal',
+        'size': 24}
 
 
 def calc_reconnection_rate(base_dir):
@@ -92,8 +82,8 @@ def plot_reconnection_rate(base_dir):
     fig = plt.figure(figsize=[7, 5])
     ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
     ax.plot(tfields, reconnection_rate, color='black', linewidth=2)
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
-    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=24)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=24)
     ax.tick_params(labelsize=20)
     ax.set_ylim([0, 0.12])
     if not os.path.isdir('../img/'):
@@ -167,14 +157,14 @@ def plot_multi_reconnection_rate():
         os.makedirs(dir)
     # Compare different density
     fig = plt.figure(figsize=[7, 5])
-    ax = fig.add_axes([0.18, 0.15, 0.78, 0.8])
+    ax = fig.add_axes([0.16, 0.15, 0.8, 0.8])
     colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
     ax.set_color_cycle(colors)
     ax.plot(tf6, rate6, linewidth=2, label='R6')
     ax.plot(tf8, rate8, linewidth=2, label='R8')
     # ax.plot(tf7, rate7, linewidth=2, label='R7')
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
-    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=24)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=24)
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
@@ -197,8 +187,8 @@ def plot_multi_reconnection_rate():
     ax.plot(tf3, rate3, linewidth=2, label='R3')
     # ax.plot(tf4, rate4, linewidth=2, label='R4')
     # ax.plot(tf5, rate5, linewidth=2, label='R5')
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
-    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=24)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=24)
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
@@ -218,8 +208,8 @@ def plot_multi_reconnection_rate():
     ax.set_color_cycle(colors)
     ax.plot(tf1, rate1, linewidth=2, label='R1')
     ax.plot(tf5, rate5, linewidth=2, label='R5')
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
-    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=24)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=24)
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
@@ -239,8 +229,8 @@ def plot_multi_reconnection_rate():
     ax.set_color_cycle(colors)
     ax.plot(tf1, rate1, linewidth=2, label='R1')
     ax.plot(tf4, rate4, linewidth=2, label='R4')
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=24)
-    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=24)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=24)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=24)
     ax.tick_params(labelsize=20)
     ax.set_xlim([0, 1200])
     ax.set_ylim([0, 0.12])
@@ -294,7 +284,7 @@ def plot_reconnection_rate():
     ax.plot(tf1, rate1, linewidth=2, label='R1')
     ax.plot(tf3, rate3, linewidth=2, label='R3')
     ax.plot(tf5, rate5, linewidth=2, label='R5')
-    ax.set_ylabel(r'$E_R$', fontdict=font, fontsize=20)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=20)
     ax.tick_params(axis='x', labelbottom='off')
     ax.tick_params(labelsize=16)
     ax.set_xlim([0, 1200])
@@ -314,8 +304,8 @@ def plot_reconnection_rate():
     ax1.set_color_cycle(colors)
     ax1.plot(tf6, rate6, linewidth=2, label='R6', color=colors[3])
     ax1.plot(tf8, rate8, linewidth=2, label='R8', color=colors[4])
-    ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=font, fontsize=20)
-    ax1.set_ylabel(r'$E_R$', fontdict=font, fontsize=20)
+    ax1.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=20)
+    ax1.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=20)
     ax1.tick_params(labelsize=16)
     ax1.set_xlim([0, 1200])
     ax1.set_ylim([0, 0.12])
