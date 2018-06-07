@@ -57,8 +57,8 @@ def read_2d_fields(pic_info, fname, current_time, xl, xr, zb, zt):
     print("zrange: (%f, %f)" % (zb, zt))
     nx = pic_info.nx
     nz = pic_info.nz
-    x_di = pic_info.x_di
-    z_di = pic_info.z_di
+    x_di = np.copy(pic_info.x_di)
+    z_di = np.copy(pic_info.z_di)
     dx_di = pic_info.dx_di
     dz_di = pic_info.dz_di
     xmin = np.min(x_di)
@@ -86,13 +86,9 @@ def read_2d_fields(pic_info, fname, current_time, xl, xr, zb, zt):
     fp = np.zeros((nz1, nx1), dtype=np.float32)
     offset = nx * nz * current_time * 4 + zb_index * nx * 4 + xl_index * 4
     for k in range(nz1):
-        fp[k, :] = np.memmap(
-            fname,
-            dtype='float32',
-            mode='r',
-            offset=offset,
-            shape=(nx1),
-            order='F')
+        fp[k, :] = np.memmap(fname, dtype='float32',
+                             mode='r', offset=offset,
+                             shape=(nx1), order='F')
         offset += nx * 4
     return (x_di[xl_index:xr_index + 1], z_di[zb_index:zt_index + 1], fp)
 
