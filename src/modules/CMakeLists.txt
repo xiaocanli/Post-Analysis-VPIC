@@ -50,7 +50,7 @@ add_library(usingle usingle.f90 global.f90)
 target_link_libraries(usingle get_info pic_fields)
 
 add_library(fields STATIC inductive_efield.f90 para_perp_pressure.f90
-    emf_derivatives.f90)
+    emf_derivatives.f90 neighbors.f90)
 target_link_libraries(fields statistics get_info saving_flags pic_fields
     usingle)
 

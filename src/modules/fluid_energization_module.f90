@@ -383,7 +383,9 @@ module fluid_energization_module
     end function fluid_accel_energization
 
     !<--------------------------------------------------------------------------
-    !< Calculate energization due to compression and shear
+    !< Calculate energization due to compression and shear, full pressure
+    !< tensor, and gyrotropic pressure tensor. The last part is very dangerous,
+    !< because it modifies pressure tensor data.
     !<--------------------------------------------------------------------------
     function compression_shear_energization result(econv)
         use para_perp_pressure, only: ppara, pperp
@@ -391,7 +393,7 @@ module fluid_energization_module
         use pic_fields, only: pxx, pyy, pzz, pxy, pxz, pyz, pyx, pzy, pzx
         implicit none
         integer :: ix, iy, iz
-        real(fp), dimension(3) :: econv
+        real(fp), dimension(4) :: econv
 
         ! ExB drift velocity
         tmpx = (ey(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) - &
@@ -420,12 +422,13 @@ module fluid_energization_module
         econv = 0.0
 
         ! Compression energization
-        econv(1) = sum(-(ppara + 2*pperp) * stmp / 3) * domain%dx * domain%dy * domain%dz
+        econv(1) = sum(-(ppara(1:nx, 1:ny, 1:nz) + 2*pperp(1:nx, 1:ny, 1:nz)) * stmp / 3)
+        econv(1) = econv(1) * domain%dx * domain%dy * domain%dz
 
-        ! Shear energization and energization due to full pressure tensor
+        ! Shear energization
         do iz = 1, nz
             do iy = 1, ny
-                econv(2) = sum((bx(1:nx, iy, iz)**2 * &
+                econv(2) = econv(2) + sum((bx(1:nx, iy, iz)**2 * &
                     ((tmpx(ixh, iy, iz) - tmpx(ixl, iy, iz)) * idx - stmp(:, iy, iz)/3) + &
                     bx(1:nx, iy, iz) * by(1:nx, iy, iz) * (tmpy(ixh, iy, iz) - tmpy(ixl, iy, iz)) * idx + &
                     bx(1:nx, iy, iz) * bz(1:nx, iy, iz) * (tmpz(ixh, iy, iz) - tmpz(ixl, iy, iz)) * idx) * &
@@ -453,6 +456,7 @@ module fluid_energization_module
             enddo
         enddo
 
+        ! Energization due to full pressure tensor
         do iz = 1, nz
             do iy = 1, ny
                 tmpx(:, iy, iz) = (pxx(ixh, iy, iz) - pxx(ixl, iy, iz)) * idx
@@ -494,7 +498,54 @@ module fluid_energization_module
                                                 by(1:nx, 1:ny, 1:nz) * tmpx)) / &
                         absB(1:nx, 1:ny, 1:nz)**2)
 
-        econv(2:3) = econv(2:3) * domain%dx * domain%dy * domain%dz
+        ! Energization due to gyrotropic pressure tensor
+        ! This is very dangerous, because it modifies pressure tensor data.
+        stmp = ppara(1:nx, 1:ny, 1:nz) - pperp(1:nx, 1:ny, 1:nz)
+        pxx(1:nx, 1:ny, 1:nz) = &
+            pperp(1:nx, 1:ny, 1:nz) + stmp * bx(1:nx, 1:ny, 1:nz)**2 / absB(1:nx, 1:ny, 1:nz)
+        pyy(1:nx, 1:ny, 1:nz) = &
+            pperp(1:nx, 1:ny, 1:nz) + stmp * by(1:nx, 1:ny, 1:nz)**2 / absB(1:nx, 1:ny, 1:nz)
+        pzz(1:nx, 1:ny, 1:nz) = &
+            pperp(1:nx, 1:ny, 1:nz) + stmp * bz(1:nx, 1:ny, 1:nz)**2 / absB(1:nx, 1:ny, 1:nz)
+        pxy(1:nx, 1:ny, 1:nz) = &
+            stmp * bx(1:nx, 1:ny, 1:nz) * by(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)
+        pxz(1:nx, 1:ny, 1:nz) = &
+            stmp * bx(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)
+        pyz(1:nx, 1:ny, 1:nz) = &
+            stmp * by(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)
+        do iz = 1, nz
+            do iy = 1, ny
+                tmpx(:, iy, iz) = (pxx(ixh, iy, iz) - pxx(ixl, iy, iz)) * idx
+                tmpy(:, iy, iz) = (pxy(ixh, iy, iz) - pxy(ixl, iy, iz)) * idx
+                tmpz(:, iy, iz) = (pxz(ixh, iy, iz) - pxz(ixl, iy, iz)) * idx
+            enddo
+        enddo
+
+        do iz = 1, nz
+            do ix = 1, nx
+                tmpx(ix, :, iz) = tmpx(ix, :, iz) + (pxy(ix, iyh, iz) - pxy(ix, iyl, iz)) * idy
+                tmpy(ix, :, iz) = tmpy(ix, :, iz) + (pyy(ix, iyh, iz) - pyy(ix, iyl, iz)) * idy
+                tmpz(ix, :, iz) = tmpz(ix, :, iz) + (pyz(ix, iyh, iz) - pyz(ix, iyl, iz)) * idy
+            enddo
+        enddo
+
+        do iy = 1, ny
+            do ix = 1, nx
+                tmpx(ix, iy, :) = tmpx(ix, iy, :) + (pxz(ix, iy, izh) - pxz(ix, iy, izl)) * idz
+                tmpy(ix, iy, :) = tmpy(ix, iy, :) + (pyz(ix, iy, izh) - pyz(ix, iy, izl)) * idz
+                tmpz(ix, iy, :) = tmpz(ix, iy, :) + (pzz(ix, iy, izh) - pzz(ix, iy, izl)) * idz
+            enddo
+        enddo
+
+        econv(4) = sum((ex(1:nx, 1:ny, 1:nz) * (by(1:nx, 1:ny, 1:nz) * tmpz - &
+                                                bz(1:nx, 1:ny, 1:nz) * tmpy) + &
+                        ey(1:nx, 1:ny, 1:nz) * (bz(1:nx, 1:ny, 1:nz) * tmpx - &
+                                                bx(1:nx, 1:ny, 1:nz) * tmpz) + &
+                        ez(1:nx, 1:ny, 1:nz) * (bx(1:nx, 1:ny, 1:nz) * tmpy - &
+                                                by(1:nx, 1:ny, 1:nz) * tmpx)) / &
+                        absB(1:nx, 1:ny, 1:nz)**2)
+
+        econv(2:4) = econv(2:4) * domain%dx * domain%dy * domain%dz
     end function compression_shear_energization
 
 end module fluid_energization_module

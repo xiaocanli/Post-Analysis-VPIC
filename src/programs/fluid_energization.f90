@@ -13,8 +13,8 @@ program fluid_energization
     ct = 1
 
     call init_analysis
-    ! nvar = 6
-    ! call energization_emf_ptensor
+    nvar = 7
+    call energization_emf_ptensor
     nvar = 3
     call energization_para_perp_acc
     call end_analysis
@@ -219,7 +219,9 @@ program fluid_energization
             jdote(tframe - tp1 + 1, 1) = curv_drift_energization()
             jdote(tframe - tp1 + 1, 2) = grad_drift_energization()
             jdote(tframe - tp1 + 1, 3) = magnetization_energization()
-            jdote(tframe - tp1 + 1, 4:6) = compression_shear_energization()
+            ! This part is very dangerous, because it modifies the pressure
+            ! data. So be careful if you are going to use pressure data again.
+            jdote(tframe - tp1 + 1, 4:7) = compression_shear_energization()
         enddo
 
         call MPI_REDUCE(jdote, jdote_tot, nframes * nvar, &

@@ -11,7 +11,7 @@ module para_perp_pressure
     public calc_para_perp_pressure, calc_real_para_perp_pressure
     public save_para_perp_pressure, save_averaged_para_perp_pressure
     public init_avg_para_perp_pressure, free_avg_para_perp_pressure
-    public calc_ppara_pperp_single
+    public calc_ppara_pperp_single, shift_para_perp_pressure
     real(fp), allocatable, dimension(:,:,:) :: pperp, ppara
     real(fp), allocatable, dimension(:) :: pperp_avg, ppara_avg
     logical :: is_subtract_bulkflow
@@ -149,8 +149,8 @@ module para_perp_pressure
     subroutine calc_real_para_perp_pressure(ct)
         use constants, only: fp
         use parameters, only: tp1
-        use pic_fields, only: bx, by, bz, absB, num_rho, &
-                pxx, pxy, pxz, pyy, pyz, pzz, pyx, pzx, pzy
+        use pic_fields, only: bx, by, bz, absB, &
+            pxx, pxy, pxz, pyy, pyz, pzz, pyx, pzx, pzy
         use statistics, only: get_average_and_total
         use mpi_topology, only: htg
         use saving_flags, only: save_pre
@@ -323,4 +323,29 @@ module para_perp_pressure
         close(51)
     end subroutine save_averaged_para_perp_pressure
 
+    !<--------------------------------------------------------------------------
+    !< Shift parallel and perpendicular pressure to remove ghost cells at lower
+    !< end along x-, y-, and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_para_perp_pressure
+        use mpi_topology, only: ht
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            ppara(1:ht%nx, :, :) = ppara(2:ht%nx+1, :, :)
+            pperp(1:ht%nx, :, :) = pperp(2:ht%nx+1, :, :)
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            ppara(:, 1:ht%ny, :) = ppara(:, 2:ht%ny+1, :)
+            pperp(:, 1:ht%ny, :) = pperp(:, 2:ht%ny+1, :)
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            ppara(:, :, 1:ht%nz) = ppara(:, :, 2:ht%nz+1)
+            pperp(:, :, 1:ht%nz) = pperp(:, :, 2:ht%nz+1)
+        endif
+    end subroutine shift_para_perp_pressure
 end module para_perp_pressure

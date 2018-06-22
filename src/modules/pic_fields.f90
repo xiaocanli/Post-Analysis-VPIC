@@ -1137,13 +1137,16 @@ module pic_fields
 
     !<--------------------------------------------------------------------------
     !< Linearly interpolate electric field and magnetic field to the node positions.
-    !< We don't calculate the fields at ghost cells.
+    !< We don't calculate the fields at ghost cells. And we need to shift some
+    !< of the fields because they include ghost cell when they are read in.
     !<--------------------------------------------------------------------------
     subroutine interp_emf_node
         implicit none
         ! Ex
         if (ht%ix > 0) then
             ex(1:ht%nx, :, :) = (ex(1:ht%nx, :, :) + ex(2:ht%nx+1, :, :)) * 0.5
+            ey(1:ht%nx, :, :) = ey(2:ht%nx+1, :, :)
+            ez(1:ht%nx, :, :) = ez(2:ht%nx+1, :, :)
         else
             if (ht%nx > 1) then
                 ex(2:ht%nx, :, :) = (ex(1:ht%nx-1, :, :) + ex(2:ht%nx, :, :)) * 0.5
@@ -1159,6 +1162,8 @@ module pic_fields
         ! Ey
         if (ht%iy > 0) then
             ey(:, 1:ht%ny, :) = (ey(:, 1:ht%ny, :) + ey(:, 2:ht%ny+1, :)) * 0.5
+            ex(:, 1:ht%ny, :) = ex(:, 2:ht%ny+1, :)
+            ez(:, 1:ht%ny, :) = ez(:, 2:ht%ny+1, :)
         else
             if (ht%ny > 1) then
                 ey(:, 2:ht%ny, :) = (ey(:, 1:ht%ny-1, :) + ey(:, 2:ht%ny, :)) * 0.5
@@ -1174,6 +1179,8 @@ module pic_fields
         ! Ez
         if (ht%iz > 0) then
             ez(:, :, 1:ht%nz) = (ez(:, :, 1:ht%nz) + ez(:, :, 2:ht%nz+1)) * 0.5
+            ex(:, :, 1:ht%nz) = ex(:, :, 2:ht%nz+1)
+            ey(:, :, 1:ht%nz) = ey(:, :, 2:ht%nz+1)
         else
             if (ht%nz > 1) then
                 ez(:, :, 2:ht%nz) = (ez(:, :, 1:ht%nz-1) + ez(:, :, 2:ht%nz)) * 0.5
@@ -1512,6 +1519,18 @@ module pic_fields
                 endif
             endif
         endif
+
+        ! Shift if necessary
+        if (ht%ix > 0) then
+            bx(1:ht%nx, :, :) = bx(2:ht%nx+1, :, :)
+        endif
+        if (ht%iy > 0) then
+            by(:, 1:ht%ny, :) = by(:, 2:ht%ny+1, :)
+        endif
+        if (ht%iz > 0) then
+            bz(:, :, 1:ht%nz) = bz(:, :, 2:ht%nz+1)
+        endif
+
         absB = sqrt(bx**2 + by**2 + bz**2)
     end subroutine interp_emf_node
 
