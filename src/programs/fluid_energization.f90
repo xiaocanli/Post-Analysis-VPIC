@@ -354,7 +354,7 @@ program fluid_energization
                 call read_ufields(tp1)
                 call read_vfields(tp1)
                 call read_number_density(tp1)
-                call read_pre_post_u(tframe, output_format, separated_pre_post)
+                call read_pre_post_u(tp1, output_format, separated_pre_post)
             else
                 call read_magnetic_fields(tframe)
                 call read_electric_fields(tframe)

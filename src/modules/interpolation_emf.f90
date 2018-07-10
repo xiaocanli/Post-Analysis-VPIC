@@ -3,6 +3,7 @@
 !*******************************************************************************
 module interpolation_emf
     use constants, only: fp
+    use interpolation_funs, only: bounding_indcies
     implicit none
     private
     save
@@ -460,49 +461,13 @@ module interpolation_emf
     end subroutine calc_curvature
 
     !<--------------------------------------------------------------------------
-    !< Decide the starting and ending indices
-    !<--------------------------------------------------------------------------
-    subroutine bounding_indcies(ix, pic_nx, tx, sx, ixs_local, ixe_local, &
-            ixs_global, ixe_global)
-        implicit none
-        integer, intent(in) :: ix, pic_nx, tx, sx
-        integer, intent(out) :: ixs_local, ixe_local, ixs_global, ixe_global
-        if (tx == 1) then
-            ixs_local = 1
-            ixe_local = pic_nx
-            ixs_global = 1
-            ixe_global = pic_nx
-        else if (ix == 0 .and. ix < tx - 1) then
-            ixs_local = 1
-            ixe_local = pic_nx + 1
-            ixs_global = 1
-            ixe_global = pic_nx + 1
-        else if (ix == tx - 1) then
-            ixs_local = 0
-            ixe_local = pic_nx
-            if (sx > 0) then
-                ixs_global = pic_nx * (ix - sx) + 1
-                ixe_global = pic_nx * (ix - sx + 1) + 1
-            else
-                ixs_global = pic_nx * (ix - sx)
-                ixe_global = pic_nx * (ix - sx + 1)
-            endif
-        else
-            ixs_local = 0
-            ixe_local = pic_nx + 1
-            if (sx /= 0) then
-                ixs_global = pic_nx * (ix - sx) + 1
-                ixe_global = pic_nx * (ix - sx + 1) + 2
-            else
-                ixs_global = pic_nx * (ix - sx)
-                ixe_global = pic_nx * (ix - sx + 1) + 1
-            endif
-        endif
-    end subroutine bounding_indcies
-
-    !<--------------------------------------------------------------------------
     !< Set electromagnetic fields, which is read from translated files rather
     !< than directly from the PIC simulations
+    !< Input:
+    !<  i, j, k: MPI rank along each direction for the PIC simulation
+    !<  tx, ty, tz: MPI sizes along each direction in the PIC simulation
+    !<  sx, sy, sz: starting MPI rank along each direction in the PIC simulation
+    !               for the MPI rank of current analysis
     !<--------------------------------------------------------------------------
     subroutine set_emf(i, j, k, tx, ty, tz, sx, sy, sz)
         use pic_fields, only: ext => ex, eyt => ey, ezt => ez, &
@@ -520,6 +485,8 @@ module interpolation_emf
         call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
         call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
         call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        ex = 0.0; ey = 0.0; ez = 0.0
+        bx = 0.0; by = 0.0; bz = 0.0
         ex(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
             ext(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         ey(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
@@ -603,6 +570,9 @@ module interpolation_emf
         call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
         call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
         call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        dbxdx = 0.0; dbxdy = 0.0; dbxdz = 0.0
+        dbydx = 0.0; dbydy = 0.0; dbydz = 0.0
+        dbzdx = 0.0; dbzdy = 0.0; dbzdz = 0.0
         dbxdx(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
             dbxdxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
         dbxdy(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &

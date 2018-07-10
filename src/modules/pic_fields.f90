@@ -34,8 +34,8 @@ module pic_fields
     public free_magnetic_fields, free_electric_fields, free_current_densities, &
            free_pressure_tensor, free_velocity_fields, free_vfields, &
            free_ufields, free_number_density, free_fraction_eband
-    public interp_emf_node, shift_pressure_tensor, shift_ufields, shift_vfields, &
-           shift_number_density
+    public interp_emf_node, interp_emf_node_ghost, shift_pressure_tensor, &
+           shift_ufields, shift_vfields, shift_number_density
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
@@ -1142,396 +1142,34 @@ module pic_fields
     !<--------------------------------------------------------------------------
     subroutine interp_emf_node
         implicit none
-        ! Ex
+        call interp_emf_node_ghost
         if (ht%ix > 0) then
-            ex(1:ht%nx, :, :) = (ex(1:ht%nx, :, :) + ex(2:ht%nx+1, :, :)) * 0.5
+            ex(1:ht%nx, :, :) = ex(2:ht%nx+1, :, :)
             ey(1:ht%nx, :, :) = ey(2:ht%nx+1, :, :)
             ez(1:ht%nx, :, :) = ez(2:ht%nx+1, :, :)
-        else
-            if (ht%nx > 1) then
-                ex(2:ht%nx, :, :) = (ex(1:ht%nx-1, :, :) + ex(2:ht%nx, :, :)) * 0.5
-                ex(1, :, :) = 2.0 * ex(1, :, :) - ex(2, :, :)
-            else
-                if (ht%tx > 1) then
-                    ex(1, :, :) = 1.5 * ex(1, :, :) - 0.5 * ex(2, :, :)
-                    ! else we don't need to change ex
-                endif
-            endif
+            bx(1:ht%nx, :, :) = bx(2:ht%nx+1, :, :)
+            by(1:ht%nx, :, :) = by(2:ht%nx+1, :, :)
+            bz(1:ht%nx, :, :) = bz(2:ht%nx+1, :, :)
+            absB(1:ht%nx, :, :) = absB(2:ht%nx+1, :, :)
         endif
-
-        ! Ey
         if (ht%iy > 0) then
-            ey(:, 1:ht%ny, :) = (ey(:, 1:ht%ny, :) + ey(:, 2:ht%ny+1, :)) * 0.5
             ex(:, 1:ht%ny, :) = ex(:, 2:ht%ny+1, :)
+            ey(:, 1:ht%ny, :) = ey(:, 2:ht%ny+1, :)
             ez(:, 1:ht%ny, :) = ez(:, 2:ht%ny+1, :)
-        else
-            if (ht%ny > 1) then
-                ey(:, 2:ht%ny, :) = (ey(:, 1:ht%ny-1, :) + ey(:, 2:ht%ny, :)) * 0.5
-                ey(:, 1, :) = 2.0 * ey(:, 1, :) - ey(:, 2, :)
-            else
-                if (ht%ty > 1) then
-                    ey(:, 1, :) = 1.5 * ey(:, 1, :) - 0.5 * ey(:, 2, :)
-                    ! else we don't need to change ey
-                endif
-            endif
+            bx(:, 1:ht%ny, :) = bx(:, 2:ht%ny+1, :)
+            by(:, 1:ht%ny, :) = by(:, 2:ht%ny+1, :)
+            bz(:, 1:ht%ny, :) = bz(:, 2:ht%ny+1, :)
+            absB(:, 1:ht%ny, :) = absB(:, 2:ht%ny+1, :)
         endif
-
-        ! Ez
         if (ht%iz > 0) then
-            ez(:, :, 1:ht%nz) = (ez(:, :, 1:ht%nz) + ez(:, :, 2:ht%nz+1)) * 0.5
             ex(:, :, 1:ht%nz) = ex(:, :, 2:ht%nz+1)
             ey(:, :, 1:ht%nz) = ey(:, :, 2:ht%nz+1)
-        else
-            if (ht%nz > 1) then
-                ez(:, :, 2:ht%nz) = (ez(:, :, 1:ht%nz-1) + ez(:, :, 2:ht%nz)) * 0.5
-                ez(:, :, 1) = 2.0 * ez(:, :, 1) - ez(:, :, 2)
-            else
-                if (ht%tz > 1) then
-                    ez(:, :, 1) = 1.5 * ez(:, :, 1) - 0.5 * ez(:, :, 2)
-                    ! else we don't need to change ez
-                endif
-            endif
-        endif
-
-        ! Bx
-        if (ht%iy > 0 .and. ht%iz > 0) then
-            bx(:, 1:ht%ny, 1:ht%nz) = (bx(:, 1:ht%ny, 1:ht%nz) + &
-                                       bx(:, 1:ht%ny, 2:ht%nz+1) + &
-                                       bx(:, 2:ht%ny+1, 1:ht%nz) + &
-                                       bx(:, 2:ht%ny+1, 2:ht%nz+1)) * 0.25
-        else if (ht%iy > 0 .and. ht%iz == 0) then
-            if (ht%nz > 1) then
-                bx(:, 1:ht%ny, 2:ht%nz) = (bx(:, 1:ht%ny, 1:ht%nz-1) + &
-                                           bx(:, 1:ht%ny, 2:ht%nz) + &
-                                           bx(:, 2:ht%ny+1, 1:ht%nz-1) + &
-                                           bx(:, 2:ht%ny+1, 2:ht%nz)) * 0.25
-                bx(:, 1:ht%ny, 1) = bx(:, 1:ht%ny, 1) + &
-                                    bx(:, 2:ht%ny+1, 1) - &
-                                    bx(:, 1:ht%ny, 2)
-            else
-                if (ht%tz > 1) then
-                    bx(:, 1:ht%ny, 2) = (bx(:, 1:ht%ny, 1) + &
-                                         bx(:, 1:ht%ny, 2) + &
-                                         bx(:, 2:ht%ny+1, 1) + &
-                                         bx(:, 2:ht%ny+1, 2)) * 0.25
-                    bx(:, 1:ht%ny, 1) = bx(:, 1:ht%ny, 1) + &
-                                        bx(:, 2:ht%ny+1, 1) - &
-                                        bx(:, 1:ht%ny, 2)
-                else
-                    bx(:, 1:ht%ny, 1) = (bx(:, 1:ht%ny, 1) + bx(:, 2:ht%ny+1, 1)) * 0.5
-                endif
-            endif
-        else if (ht%iy == 0 .and. ht%iz > 0) then
-            if (ht%ny > 1) then
-                bx(:, 2:ht%ny, 1:ht%nz) = (bx(:, 1:ht%ny-1, 1:ht%nz) + &
-                                           bx(:, 2:ht%ny, 1:ht%nz) + &
-                                           bx(:, 1:ht%ny-1, 2:ht%nz+1) + &
-                                           bx(:, 2:ht%ny, 2:ht%nz+1)) * 0.25
-                bx(:, 1, 1:ht%nz) = bx(:, 1, 1:ht%nz) + &
-                                    bx(:, 1, 2:ht%nz+1) - &
-                                    bx(:, 2, 1:ht%nz)
-            else
-                if (ht%ty > 1) then
-                    bx(:, 2, 1:ht%nz) = (bx(:, 1, 1:ht%nz) + &
-                                         bx(:, 2, 1:ht%nz) + &
-                                         bx(:, 1, 2:ht%nz+1) + &
-                                         bx(:, 2, 2:ht%nz+1)) * 0.25
-                    bx(:, 1, 1:ht%nz) = bx(:, 1, 1:ht%nz) + &
-                                        bx(:, 1, 2:ht%nz+1) - &
-                                        bx(:, 2, 1:ht%nz)
-                else
-                    bx(:, 1, 1:ht%nz) = (bx(:, 1, 1:ht%nz) + bx(:, 1, 2:ht%nz+1)) * 0.5
-                endif
-            endif
-        else
-            if (ht%ny > 1 .and. ht%nz > 1) then
-                bx(:, 2:ht%ny, 2:ht%nz) = (bx(:, 1:ht%ny-1, 1:ht%nz-1) + &
-                                           bx(:, 2:ht%ny, 1:ht%nz-1) + &
-                                           bx(:, 1:ht%ny-1, 2:ht%nz) + &
-                                           bx(:, 2:ht%ny, 2:ht%nz)) * 0.25
-                bx(:, 1, 2:ht%nz) = bx(:, 1, 1:ht%nz-1) + &
-                                    bx(:, 1, 2:ht%nz) - &
-                                    bx(:, 2, 2:ht%nz)
-                bx(:, 2:ht%ny, 1) = bx(:, 1:ht%ny-1, 1) + &
-                                    bx(:, 2:ht%ny, 1) - &
-                                    bx(:, 2:ht%ny, 2)
-                bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
-            else if (ht%ny == 1 .and. ht%nz > 1) then
-                if (ht%ty > 1) then
-                    bx(:, 2, 2:ht%nz) = (bx(:, 1, 1:ht%nz-1) + &
-                                         bx(:, 2, 1:ht%nz-1) + &
-                                         bx(:, 1, 2:ht%nz) + &
-                                         bx(:, 2, 2:ht%nz)) * 0.25
-                    bx(:, 1, 2:ht%nz) = bx(:, 1, 1:ht%nz-1) + &
-                                        bx(:, 1, 2:ht%nz) - &
-                                        bx(:, 2, 2:ht%nz)
-                    bx(:, 2, 1) = bx(:, 1, 1) + bx(:, 2, 1) - bx(:, 2, 2)
-                    bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
-                else
-                    bx(:, 1, 2:ht%nz) = (bx(:, 1, 1:ht%nz-1) + bx(:, 1, 2:ht%nz)) * 0.5
-                    bx(:, 1, 1) = 2.0 * bx(:, 1, 1) - bx(:, 1, 2)
-                endif
-            else if (ht%ny > 1 .and. ht%nz == 1) then
-                if (ht%tz > 1) then
-                    bx(:, 2:ht%ny, 2) = (bx(:, 1:ht%ny-1, 1) + &
-                                         bx(:, 1:ht%ny-1, 2) + &
-                                         bx(:, 2:ht%ny, 1) + &
-                                         bx(:, 2:ht%ny, 2)) * 0.25
-                    bx(:, 2:ht%ny, 1) = bx(:, 1:ht%ny-1, 1) + &
-                                        bx(:, 2:ht%ny, 1) - &
-                                        bx(:, 2:ht%ny, 2)
-                    bx(:, 1, 2) = bx(:, 1, 1) + bx(:, 1, 2) - bx(:, 2, 2)
-                    bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
-                else
-                    bx(:, 2:ht%ny, 1) = (bx(:, 1:ht%ny-1, 1) + bx(:, 2:ht%ny, 1)) * 0.5
-                    bx(:, 1, 1) = 2.0 * bx(:, 1, 1) - bx(:, 2, 1)
-                endif
-            else
-                if (ht%ty > 1 .and. ht%tz > 1) then
-                    bx(:, 2, 2) = (bx(:, 1, 1) + bx(:, 1, 2) + &
-                                   bx(:, 2, 1) + bx(:, 2, 2)) * 0.25
-                    bx(:, 2, 1) = bx(:, 1, 1) + bx(:, 2, 1) - bx(:, 2, 2)
-                    bx(:, 1, 2) = bx(:, 1, 1) + bx(:, 1, 2) - bx(:, 2, 2)
-                    bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
-                else if (ht%ty == 1 .and. ht%tz > 1) then
-                    bx(:, 1, 1) = 1.5 * bx(:, 1, 1) - 0.5 * bx(:, 1, 2)
-                else if (ht%ty > 1 .and. ht%tz == 1) then
-                    bx(:, 1, 1) = 1.5 * bx(:, 1, 1) - 0.5 * bx(:, 2, 1)
-                    ! else we don't need to change bx
-                endif
-            endif
-        endif
-
-        ! By
-        if (ht%ix > 0 .and. ht%iz > 0) then
-            by(1:ht%nx, :, 1:ht%nz) = (by(1:ht%nx, :, 1:ht%nz) + &
-                                       by(1:ht%nx, :, 2:ht%nz+1) + &
-                                       by(2:ht%nx+1, :, 1:ht%nz) + &
-                                       by(2:ht%nx+1, :, 2:ht%nz+1)) * 0.25
-        else if (ht%ix > 0 .and. ht%iz == 0) then
-            if (ht%nz > 1) then
-                by(1:ht%nx, :, 2:ht%nz) = (by(1:ht%nx, :, 1:ht%nz-1) + &
-                                           by(1:ht%nx, :, 2:ht%nz) + &
-                                           by(2:ht%nx+1, :, 1:ht%nz-1) + &
-                                           by(2:ht%nx+1, :, 2:ht%nz)) * 0.25
-                by(1:ht%nx, :, 1) = by(1:ht%nx, :, 1) + &
-                                    by(2:ht%nx+1, :, 1) - &
-                                    by(1:ht%nx, :, 2)
-            else
-                if (ht%tz > 1) then
-                    by(1:ht%nx, :, 2) = (by(1:ht%nx, :, 1) + &
-                                         by(1:ht%nx, :, 2) + &
-                                         by(2:ht%nx+1, :, 1) + &
-                                         by(2:ht%nx+1, :, 2)) * 0.25
-                    by(1:ht%nx, :, 1) = by(1:ht%nx, :, 1) + &
-                                        by(2:ht%nx+1, :, 1) - &
-                                        by(1:ht%nx, :, 2)
-                else
-                    by(1:ht%nx, :, 1) = (by(1:ht%nx, :, 1) + by(2:ht%nx+1, :, 1)) * 0.5
-                endif
-            endif
-        else if (ht%ix == 0 .and. ht%iz > 0) then
-            if (ht%nx > 1) then
-                by(2:ht%nx, :, 1:ht%nz) = (by(1:ht%nx-1, :, 1:ht%nz) + &
-                                           by(2:ht%nx, :, 1:ht%nz) + &
-                                           by(1:ht%nx-1, :, 2:ht%nz+1) + &
-                                           by(2:ht%nx, :, 2:ht%nz+1)) * 0.25
-                by(1, :, 1:ht%nz) = by(1, :, 1:ht%nz) + &
-                                    by(1, :, 2:ht%nz+1) - &
-                                    by(2, :, 1:ht%nz)
-            else
-                if (ht%tx > 1) then
-                    by(2, :, 1:ht%nz) = (by(1, :, 1:ht%nz) + &
-                                         by(2, :, 1:ht%nz) + &
-                                         by(1, :, 2:ht%nz+1) + &
-                                         by(2, :, 2:ht%nz+1)) * 0.25
-                    by(1, :, 1:ht%nz) = by(1, :, 1:ht%nz) + &
-                                        by(1, :, 2:ht%nz+1) - &
-                                        by(2, :, 1:ht%nz)
-                else
-                    by(1, :, 1:ht%nz) = (by(1, :, 1:ht%nz) + by(1, :, 2:ht%nz+1)) * 0.5
-                endif
-            endif
-        else
-            if (ht%nx > 1 .and. ht%nz > 1) then
-                by(2:ht%nx, :, 2:ht%nz) = (by(1:ht%nx-1, :, 1:ht%nz-1) + &
-                                           by(2:ht%nx, :, 1:ht%nz-1) + &
-                                           by(1:ht%nx-1, :, 2:ht%nz) + &
-                                           by(2:ht%nx, :, 2:ht%nz)) * 0.25
-                by(1, :, 2:ht%nz) = by(1, :, 1:ht%nz-1) + &
-                                    by(1, :, 2:ht%nz) - &
-                                    by(2, :, 2:ht%nz)
-                by(2:ht%nx, :, 1) = by(1:ht%nx-1, :, 1) + &
-                                    by(2:ht%nx, :, 1) - &
-                                    by(2:ht%nx, :, 2)
-                by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
-            else if (ht%nx == 1 .and. ht%nz > 1) then
-                if (ht%tx > 1) then
-                    by(2, :, 2:ht%nz) = (by(1, :, 1:ht%nz-1) + &
-                                         by(2, :, 1:ht%nz-1) + &
-                                         by(1, :, 2:ht%nz) + &
-                                         by(2, :, 2:ht%nz)) * 0.25
-                    by(1, :, 2:ht%nz) = by(1, :, 1:ht%nz-1) + &
-                                        by(1, :, 2:ht%nz) - &
-                                        by(2, :, 2:ht%nz)
-                    by(2, :, 1) = by(1, :, 1) + by(2, :, 1) - by(2, :, 2)
-                    by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
-                else
-                    by(1, :, 2:ht%nz) = (by(1, :, 1:ht%nz-1) + by(1, :, 2:ht%nz)) * 0.5
-                    by(1, :, 1) = 2.0 * by(1, :, 1) - by(1, :, 2)
-                endif
-            else if (ht%nx > 1 .and. ht%nz == 1) then
-                if (ht%tz > 1) then
-                    by(2:ht%nx, :, 2) = (by(1:ht%nx-1, :, 1) + &
-                                         by(1:ht%nx-1, :, 2) + &
-                                         by(2:ht%nx, :, 1) + &
-                                         by(2:ht%nx, :, 2)) * 0.25
-                    by(2:ht%nx, :, 1) = by(1:ht%nx-1, :, 1) + &
-                                        by(2:ht%nx, :, 1) - &
-                                        by(2:ht%nx, :, 2)
-                    by(1, :, 2) = by(1, :, 1) + by(1, :, 2) - by(2, :, 2)
-                    by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
-                else
-                    by(2:ht%nx, :, 1) = (by(1:ht%nx-1, :, 1) + by(2:ht%nx, :, 1)) * 0.5
-                    by(1, :, 1) = 2.0 * by(1, :, 1) - by(2, :, 1)
-                endif
-            else
-                if (ht%tx > 1 .and. ht%tz > 1) then
-                    by(2, :, 2) = (by(1, :, 1) + by(1, :, 2) + &
-                                   by(2, :, 1) + by(2, :, 2)) * 0.25
-                    by(2, :, 1) = by(1, :, 1) + by(2, :, 1) - by(2, :, 2)
-                    by(1, :, 2) = by(1, :, 1) + by(1, :, 2) - by(2, :, 2)
-                    by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
-                else if (ht%tx == 1 .and. ht%tz > 1) then
-                    by(1, :, 1) = 1.5 * by(1, :, 1) - 0.5 * by(1, :, 2)
-                else if (ht%tx > 1 .and. ht%tz == 1) then
-                    by(1, :, 1) = 1.5 * by(1, :, 1) - 0.5 * by(2, :, 1)
-                    ! else we don't need to change by
-                endif
-            endif
-        endif
-
-        ! Bz
-        if (ht%ix > 0 .and. ht%iy > 0) then
-            bz(1:ht%nx, 1:ht%ny, :) = (bz(1:ht%nx, 1:ht%ny, :) + &
-                                       bz(1:ht%nx, 2:ht%ny+1, :) + &
-                                       bz(2:ht%nx+1, 1:ht%ny, :) + &
-                                       bz(2:ht%nx+1, 2:ht%ny+1, :)) * 0.25
-        else if (ht%ix > 0 .and. ht%iy == 0) then
-            if (ht%ny > 1) then
-                bz(1:ht%nx, 2:ht%ny, :) = (bz(1:ht%nx, 1:ht%ny-1, :) + &
-                                           bz(1:ht%nx, 2:ht%ny, :) + &
-                                           bz(2:ht%nx+1, 1:ht%ny-1, :) + &
-                                           bz(2:ht%nx+1, 2:ht%ny, :)) * 0.25
-                bz(1:ht%nx, 1, :) = bz(1:ht%nx, 1, :) + &
-                                    bz(2:ht%nx+1, 1, :) - &
-                                    bz(1:ht%nx, 2, :)
-            else
-                if (ht%ty > 1) then
-                    bz(1:ht%nx, 2, :) = (bz(1:ht%nx, 1, :) + &
-                                         bz(1:ht%nx, 2, :) + &
-                                         bz(2:ht%nx+1, 1, :) + &
-                                         bz(2:ht%nx+1, 2, :)) * 0.25
-                    bz(1:ht%nx, 1, :) = bz(1:ht%nx, 1, :) + &
-                                        bz(2:ht%nx+1, 1, :) - &
-                                        bz(1:ht%nx, 2, :)
-                else
-                    bz(1:ht%nx, 1, :) = (bz(1:ht%nx, 1, :) + bz(2:ht%nx+1, 1, :)) * 0.5
-                endif
-            endif
-        else if (ht%ix == 0 .and. ht%iy > 0) then
-            if (ht%nx > 1) then
-                bz(2:ht%nx, 1:ht%ny, :) = (bz(1:ht%nx-1, 1:ht%ny, :) + &
-                                           bz(2:ht%nx, 1:ht%ny, :) + &
-                                           bz(1:ht%nx-1, 2:ht%ny+1, :) + &
-                                           bz(2:ht%nx, 2:ht%ny+1, :)) * 0.25
-                bz(1, 1:ht%ny, :) = bz(1, 1:ht%ny, :) + &
-                                    bz(1, 2:ht%ny+1, :) - &
-                                    bz(2, 1:ht%ny, :)
-            else
-                if (ht%tx > 1) then
-                    bz(2, 1:ht%ny, :) = (bz(1, 1:ht%ny, :) + &
-                                         bz(2, 1:ht%ny, :) + &
-                                         bz(1, 2:ht%ny+1, :) + &
-                                         bz(2, 2:ht%ny+1, :)) * 0.25
-                    bz(1, 1:ht%ny, :) = bz(1, 1:ht%ny, :) + &
-                                        bz(1, 2:ht%ny+1, :) - &
-                                        bz(2, 1:ht%ny, :)
-                else
-                    bz(1, 1:ht%ny, :) = (bz(1, 1:ht%ny, :) + bz(1, 2:ht%ny+1, :)) * 0.5
-                endif
-            endif
-        else
-            if (ht%nx > 1 .and. ht%ny > 1) then
-                bz(2:ht%nx, 2:ht%ny, :) = (bz(1:ht%nx-1, 1:ht%ny-1, :) + &
-                                           bz(2:ht%nx, 1:ht%ny-1, :) + &
-                                           bz(1:ht%nx-1, 2:ht%ny, :) + &
-                                           bz(2:ht%nx, 2:ht%ny, :)) * 0.25
-                bz(1, 2:ht%ny, :) = bz(1, 1:ht%ny-1, :) + &
-                                    bz(1, 2:ht%ny, :) - &
-                                    bz(2, 2:ht%ny, :)
-                bz(2:ht%nx, 1, :) = bz(1:ht%nx-1, 1, :) + &
-                                    bz(2:ht%nx, 1, :) - &
-                                    bz(2:ht%nx, 2, :)
-                bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
-            else if (ht%nx == 1 .and. ht%ny > 1) then
-                if (ht%tx > 1) then
-                    bz(2, 2:ht%ny, :) = (bz(1, 1:ht%ny-1, :) + &
-                                         bz(2, 1:ht%ny-1, :) + &
-                                         bz(1, 2:ht%ny, :) + &
-                                         bz(2, 2:ht%ny, :)) * 0.25
-                    bz(1, 2:ht%ny, :) = bz(1, 1:ht%ny-1, :) + &
-                                        bz(1, 2:ht%ny, :) - &
-                                        bz(2, 2:ht%ny, :)
-                    bz(2, 1, :) = bz(1, 1, :) + bz(2, 1, :) - bz(2, 2, :)
-                    bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
-                else
-                    bz(1, 2:ht%ny, :) = (bz(1, 1:ht%ny-1, :) + bz(1, 2:ht%ny, :)) * 0.5
-                    bz(1, 1, :) = 2.0 * bz(1, 1, :) - bz(1, 2, :)
-                endif
-            else if (ht%nx > 1 .and. ht%ny == 1) then
-                if (ht%ty > 1) then
-                    bz(2:ht%nx, 2, :) = (bz(1:ht%nx-1, 1, :) + &
-                                         bz(1:ht%nx-1, 2, :) + &
-                                         bz(2:ht%nx, 1, :) + &
-                                         bz(2:ht%nx, 2, :)) * 0.25
-                    bz(2:ht%nx, 1, :) = bz(1:ht%nx-1, 1, :) + &
-                                        bz(2:ht%nx, 1, :) - &
-                                        bz(2:ht%nx, 2, :)
-                    bz(1, 2, :) = bz(1, 1, :) + bz(1, 2, :) - bz(2, 2, :)
-                    bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
-                else
-                    bz(2:ht%nx, 1, :) = (bz(1:ht%nx-1, 1, :) + bz(2:ht%nx, 1, :)) * 0.5
-                    bz(1, 1, :) = 2.0 * bz(1, 1, :) - bz(2, 1, :)
-                endif
-            else
-                if (ht%tx > 1 .and. ht%ty > 1) then
-                    bz(2, 2, :) = (bz(1, 1, :) + bz(1, 2, :) + &
-                                   bz(2, 1, :) + bz(2, 2, :)) * 0.25
-                    bz(2, 1, :) = bz(1, 1, :) + bz(2, 1, :) - bz(2, 2, :)
-                    bz(1, 2, :) = bz(1, 1, :) + bz(1, 2, :) - bz(2, 2, :)
-                    bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
-                else if (ht%tx == 1 .and. ht%ty > 1) then
-                    bz(1, 1, :) = 1.5 * bz(1, 1, :) - 0.5 * bz(1, 2, :)
-                else if (ht%tx > 1 .and. ht%ty == 1) then
-                    bz(1, 1, :) = 1.5 * bz(1, 1, :) - 0.5 * bz(2, 1, :)
-                    ! else we don't need to change bz
-                endif
-            endif
-        endif
-
-        ! Shift if necessary
-        if (ht%ix > 0) then
-            bx(1:ht%nx, :, :) = bx(2:ht%nx+1, :, :)
-        endif
-        if (ht%iy > 0) then
-            by(:, 1:ht%ny, :) = by(:, 2:ht%ny+1, :)
-        endif
-        if (ht%iz > 0) then
+            ez(:, :, 1:ht%nz) = ez(:, :, 2:ht%nz+1)
+            bx(:, :, 1:ht%nz) = bx(:, :, 2:ht%nz+1)
+            by(:, :, 1:ht%nz) = by(:, :, 2:ht%nz+1)
             bz(:, :, 1:ht%nz) = bz(:, :, 2:ht%nz+1)
+            absB(:, :, 1:ht%nz) = absB(:, :, 2:ht%nz+1)
         endif
-
-        absB = sqrt(bx**2 + by**2 + bz**2)
     end subroutine interp_emf_node
 
     !<--------------------------------------------------------------------------
@@ -1706,4 +1344,88 @@ module pic_fields
             num_rho(:, :, 1:ht%nz) = num_rho(:, :, 2:ht%nz+1)
         endif
     end subroutine shift_number_density
+
+    !<--------------------------------------------------------------------------
+    !< Linearly interpolate electric field and magnetic field to the node positions.
+    !< We need to calculate fields at ghost cells too.
+    !<--------------------------------------------------------------------------
+    subroutine interp_emf_node_ghost
+        implicit none
+        integer :: nx, ny, nz, nxg, nyg, nzg
+        nx = ht%nx
+        ny = ht%ny
+        nz = ht%nz
+        nxg = htg%nx
+        nyg = htg%ny
+        nzg = htg%nz
+        ! Ex
+        if (nxg > 1) then
+            ex(2:nxg, :, :) = (ex(1:nxg-1, :, :) + ex(2:nxg, :, :)) * 0.5
+            ex(1, :, :) = 2 * ex(1, :, :) - ex(2, :, :)
+        endif
+        ! Ey
+        if (nyg > 1) then
+            ey(:, 2:nyg, :) = (ey(:, 1:nyg-1, :) + ey(:, 2:nyg, :)) * 0.5
+            ey(:, 1, :) = 2 * ey(:, 1, :) - ey(:, 2, :)
+        endif
+        ! Ez
+        if (nzg > 1) then
+            ez(:, :, 2:nzg) = (ez(:, :, 1:nzg-1) + ez(:, :, 2:nzg)) * 0.5
+            ez(:, :, 1) = 2 * ez(:, :, 1) - ez(:, :, 2)
+        endif
+
+        ! Bx
+        if (nyg > 1 .and. nzg > 1) then
+            bx(:, 2:nyg, 2:nzg) = (bx(:, 1:nyg-1, 1:nzg-1) + &
+                                   bx(:, 1:nyg-1, 2:nzg) + &
+                                   bx(:, 2:nyg, 1:nzg-1) + &
+                                   bx(:, 2:nyg, 2:nzg)) * 0.25
+            bx(:, 2:nyg, 1) = bx(:, 1:nyg-1, 1) + bx(:, 2:nyg, 1) - bx(:, 2:nyg, 2)
+            bx(:, 1, 2:nzg) = bx(:, 1, 1:nzg-1) + bx(:, 1, 2:nzg) - bx(:, 2, 2:nzg)
+            bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
+        else if (nyg == 1 .and. nzg > 1) then
+            bx(:, 1, 2:nzg) = (bx(:, 1, 1:nzg-1) + bx(:, 1, 2:nzg)) * 0.5
+            bx(:, 1, 1) = 2 * bx(:, 1, 1) - bx(:, 1, 2)
+        else if (nyg > 1 .and. nzg == 1) then
+            bx(:, 2:nyg, 1) = (bx(:, 1:nyg-1, 1) + bx(:, 2:nyg, 1)) * 0.5
+            bx(:, 1, 1) = 2 * bx(:, 1, 1) - bx(:, 2, 1)
+        endif
+
+        ! By
+        if (nxg > 1 .and. nzg > 1) then
+            by(2:nxg, :, 2:nzg) = (by(1:nxg-1, :, 1:nzg-1) + &
+                                   by(1:nxg-1, :, 2:nzg) + &
+                                   by(2:nxg, :, 1:nzg-1) + &
+                                   by(2:nxg, :, 2:nzg)) * 0.25
+            by(2:nxg, :, 1) = by(1:nxg-1, :, 1) + by(2:nxg, :, 1) - by(2:nxg, :, 2)
+            by(1, :, 2:nzg) = by(1, :, 1:nzg-1) + by(1, :, 2:nzg) - by(2, :, 2:nzg)
+            by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
+        else if (nxg == 1 .and. nzg > 1) then
+            by(1, :, 2:nzg) = (by(1, :, 1:nzg-1) + by(1, :, 2:nzg)) * 0.5
+            by(1, :, 1) = 2 * by(1, :, 1) - by(1, :, 2)
+        else if (nxg > 1 .and. nzg == 1) then
+            by(2:nxg, :, 1) = (by(1:nxg-1, :, 1) + by(2:nxg, :, 1)) * 0.5
+            by(1, :, 1) = 2 * by(1, :, 1) - by(2, :, 1)
+        endif
+
+        ! Bz
+        if (nxg > 1 .and. nyg > 1) then
+            bz(2:nxg, 2:nyg, :) = (bz(1:nxg-1, 1:nyg-1, :) + &
+                                   bz(1:nxg-1, 2:nyg, :) + &
+                                   bz(2:nxg, 1:nyg-1, :) + &
+                                   bz(2:nxg, 2:nyg, :)) * 0.25
+            bz(2:nxg, 1, :) = bz(1:nxg-1, 1, :) + bz(2:nxg, 1, :) - bz(2:nxg, 2, :)
+            bz(1, 2:nyg, :) = bz(1, 1:nyg-1, :) + bz(1, 2:nyg, :) - bz(2, 2:nyg, :)
+            bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
+        else if (nxg == 1 .and. nyg > 1) then
+            bz(1, 2:nyg, :) = (bz(1, 1:nyg-1, :) + bz(1, 2:nyg, :)) * 0.5
+            bz(1, 1, :) = 2 * bz(1, 1, :) - bz(1, 2, :)
+        else if (nxg > 1 .and. nyg == 1) then
+            bz(2:nxg, 1, :) = (bz(1:nxg-1, 1, :) + bz(2:nxg, 1, :)) * 0.5
+            bz(1, 1, :) = 2 * bz(1, 1, :) - bz(2, 1, :)
+        endif
+
+        absB = sqrt(bx**2 + by**2 + bz**2)
+    end subroutine interp_emf_node_ghost
+
 end module pic_fields

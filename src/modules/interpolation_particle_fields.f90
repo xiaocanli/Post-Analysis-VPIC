@@ -4,6 +4,7 @@
 module interpolation_particle_fields
     use mpi_module
     use constants, only: fp
+    use interpolation_funs, only: bounding_indcies
     implicit none
     private
     public init_velocity_fields, free_velocity_fields, calc_vsingle, &
@@ -279,42 +280,6 @@ module interpolation_particle_fields
         vsy0 = sum(vsy(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
         vsz0 = sum(vsz(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_vel
-
-    !<--------------------------------------------------------------------------
-    !< Decide the starting and ending indices
-    !<--------------------------------------------------------------------------
-    subroutine bounding_indcies(ix, pic_nx, tx, sx, ixs_local, ixe_local, &
-            ixs_global, ixe_global)
-        implicit none
-        integer, intent(in) :: ix, pic_nx, tx, sx
-        integer, intent(out) :: ixs_local, ixe_local, ixs_global, ixe_global
-        if (tx == 1) then
-            ixs_local = 1
-            ixe_local = pic_nx
-            ixs_global = 1
-            ixe_global = pic_nx
-        else if (ix == 0 .and. ix < tx - 1) then
-            ixs_local = 1
-            ixe_local = pic_nx + 1
-            ixs_global = 1
-            ixe_global = pic_nx + 1
-        else if (ix == tx - 1 .and. ix > 0) then
-            ixs_local = 0
-            ixe_local = pic_nx
-            ixs_global = pic_nx * (ix - sx) + 1
-            ixe_global = pic_nx * (ix - sx + 1) + 1
-        else
-            ixs_local = 0
-            ixe_local = pic_nx + 1
-            if (sx /= 0) then
-                ixs_global = pic_nx * (ix - sx) + 1
-                ixe_global = pic_nx * (ix - sx + 1) + 2
-            else
-                ixs_global = pic_nx * (ix - sx)
-                ixe_global = pic_nx * (ix - sx + 1) + 1
-            endif
-        endif
-    end subroutine bounding_indcies
 
     !<--------------------------------------------------------------------------
     !< Set single fluid velocity, which is read from translated files rather

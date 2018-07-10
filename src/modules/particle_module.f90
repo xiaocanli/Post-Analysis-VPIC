@@ -5,6 +5,7 @@ module particle_module
     use constants, only: fp
     implicit none
     private
+    save
     public ptl, ke, px, py, pz, vpara, vperp, gama, igama, vparax, vparay, &
            vparaz, vperpx, vperpy, vperpz, gyrof, vgx, vgy, vgz, vcx, vcy, &
            vcz, ci, cj, ck, iex, jex, kex, iey, jey, key, iez, jez, kez, &

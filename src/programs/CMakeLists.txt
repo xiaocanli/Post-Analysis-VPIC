@@ -13,6 +13,14 @@ add_executable(translate.exec translate.f90)
 target_link_libraries(translate.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
 install (TARGETS translate.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(translate_pre.exec translate_pre.f90)
+target_link_libraries(translate_pre.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
+install (TARGETS translate_pre.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+add_executable(translate_post.exec translate_post.f90)
+target_link_libraries(translate_post.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
+install (TARGETS translate_post.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 add_executable(dissipation.exec dissipation.f90)
 target_link_libraries(dissipation.exec ${MPI_Fortran_LIBRARIES} get_info
     analysis_config fields jdote statistics saving_flags compression_shear flap)
@@ -50,7 +58,8 @@ install (TARGETS vdistribution.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 add_executable(particle_energization.exec particle_energization.f90)
 target_link_libraries(particle_energization.exec ${MPI_Fortran_LIBRARIES} flap
     get_info translate_module particle_module interp_emf particle_file
-    interp_vel_mom interp_comp_shear)
+    interp_vel_mom interp_comp_shear pre_post_emf interp_pre_post_b
+    interp_pre_post_e interp_vexb)
 install (TARGETS particle_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(fluid_energization.exec fluid_energization.f90)
