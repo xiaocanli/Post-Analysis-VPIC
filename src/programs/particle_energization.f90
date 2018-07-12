@@ -8,6 +8,8 @@ program particle_energization
     use particle_info, only: species, ptl_mass, ptl_charge
     use parameters, only: tp1, tp2
     use configuration_translate, only: output_format
+    use particle_module, only: particle
+    use hdf5
     implicit none
     character(len=256) :: rootpath
     character(len=16) :: dir_emf, dir_hydro
@@ -22,10 +24,20 @@ program particle_energization
     real(fp) :: de_log, emin_log
     integer :: i, tp_emf, tp_hydro
     logical :: is_translated_file
+    type(particle), allocatable, dimension(:) :: ptls
     integer :: ptl_rm_local, ptl_rm_global  ! Number of particles got removed
                                             ! when local electric field is too large
     logical :: calc_para_perp, calc_comp_shear, calc_curv_grad_para_drifts
     logical :: calc_magnetic_moment, calc_polar_initial_time, calc_polar_initial_spatial
+
+    ! Particles in HDF5 format
+    integer, allocatable, dimension(:) :: np_local, offset_local
+    logical :: particle_hdf5
+    integer, parameter :: num_dset = 8
+    integer(hid_t), dimension(num_dset) :: dset_ids
+    integer(hid_t) :: file_id, group_id
+    integer(hid_t) :: filespace
+    integer(hsize_t), dimension(1) :: dset_dims, dset_dims_max
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -38,32 +50,26 @@ program particle_energization
     call init_analysis
 
     if (calc_para_perp) then
-        print '(A)', 'Calculate energization due to parallel and perpendicular electric field'
         nvar = 3
         call para_perp
     endif
     if (calc_comp_shear) then
-        print '(A)', 'Calculate energization due to compression and shear'
         nvar = 3
         call comp_shear
     endif
     if (calc_curv_grad_para_drifts) then
-        print '(A)', 'Calculate energization due to curvature, gradient, and parallel drifts'
         nvar = 4
         call curv_grad_para_drifts
     endif
     if (calc_magnetic_moment) then
-        print '(A)', 'Calculate energization due to conservation of magnetic moment'
         nvar = 2
         call magnetic_moment
     endif
     if (calc_polar_initial_time) then
-        print '(A)', 'Calculate energization due to polarization and inital drifts (time)'
         nvar = 3
         call polarization_initial_time
     endif
     if (calc_polar_initial_spatial) then
-        print '(A)', 'Calculate energization due to polarization and inital drifts (spatial)'
         nvar = 3
         call polarization_initial_spatial
     endif
@@ -166,6 +172,13 @@ program particle_energization
             dx_domain = domain%lx_de / domain%pic_tx
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call get_np_local_vpic(tframe, species)
+                call open_particle_file_h5(tframe, species)
+            endif
+
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
@@ -174,6 +187,13 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call free_np_offset_local
+                call close_particle_file_h5
+            endif
+
             call save_particle_energization(tframe, "para_perp")
             call cpu_time(step2)
             if (myid == master) then
@@ -210,37 +230,33 @@ program particle_energization
             iex, jex, kex, iey, jey, key, iez, jez, kez, ibx, jbx, kbx, &
             iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
             dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
-            dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, particle
+            dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz
         use interpolation_emf, only: trilinear_interp_only_bx, &
             trilinear_interp_only_by, trilinear_interp_only_bz, &
             trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
             set_emf, bx0, by0, bz0, ex0, ey0, ez0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0
         real(fp) :: ex_para, ey_para, ez_para, edotb, ib2
         real(fp) :: gama, igama, dke_para, dke_perp, weight
         real(fp) :: ux, uy, uz
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
+        if (particle_hdf5) then
+            call read_particle_h5(n - 1)
+            nptl = np_local(n)
         else
-            call open_particle_file(tindex, 'h', cid)
+            call read_particle_binary(tindex, species, cid)
+            nptl = pheader%dim
         endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -253,7 +269,7 @@ program particle_energization
         else
             call read_emfields_single(tindex, n - 1)
         endif
-        do iptl = 1, pheader%dim, 1
+        do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
             call trilinear_interp_only_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
@@ -272,9 +288,11 @@ program particle_energization
             ex_para = edotb * bx0 * ib2
             ey_para = edotb * by0 * ib2
             ez_para = edotb * bz0 * ib2
-            dke_para = (ex_para * ux + ey_para * uy + ez_para * uz) * ptl%q * igama
-            dke_perp = (ex0 * ux + ey0 * uy + ez0 * uz) * ptl%q * igama - dke_para
             weight = abs(ptl%q)
+            dke_para = (ex_para * ux + ey_para * uy + ez_para * uz) * &
+                weight * igama * ptl_charge
+            dke_perp = (ex0 * ux + ey0 * uy + ez0 * uz) * &
+                weight * igama * ptl_charge - dke_para
 
             ibin = floor((log10(gama - 1) - emin_log) / de_log)
             if (ibin > 0 .and. ibin < nbins + 1) then
@@ -368,6 +386,13 @@ program particle_energization
             dx_domain = domain%lx_de / domain%pic_tx
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call get_np_local_vpic(tframe, species)
+                call open_particle_file_h5(tframe, species)
+            endif
+
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
@@ -376,6 +401,13 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call free_np_offset_local
+                call close_particle_file_h5
+            endif
+
             call save_particle_energization(tframe, "comp_shear")
             call cpu_time(step2)
             if (myid == master) then
@@ -415,7 +447,7 @@ program particle_energization
         use rank_index_mapping, only: index_to_rank
         use interpolation_emf, only: read_emfields_single
         use particle_module, only: ptl, calc_interp_param, &
-            ino, jno, kno, dnx, dny, dnz, particle
+            ino, jno, kno, dnx, dny, dnz
         use interpolation_emf, only: trilinear_interp_only_bx, &
             trilinear_interp_only_by, trilinear_interp_only_bz, &
             trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
@@ -426,11 +458,10 @@ program particle_energization
             set_comp_shear_single, divv0, sigmaxx0, sigmaxy0, sigmaxz0, &
             sigmayy0, sigmayz0, sigmazz0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0, ib2
         real(fp) :: gama, igama, dke_para, dke_perp
         real(fp) :: vx, vy, vz, ux, uy, uz
@@ -438,22 +469,19 @@ program particle_energization
         real(fp) :: bxx, byy, bzz, bxy, bxz, byz
         real(fp) :: weight, pscalar, ppara, pperp, bbsigma
         real(fp) :: pdivv, pshear, ptensor_divv
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
+        if (particle_hdf5) then
+            call read_particle_h5(n - 1)
+            nptl = np_local(n)
         else
-            call open_particle_file(tindex, 'h', cid)
+            call read_particle_binary(tindex, species, cid)
+            nptl = pheader%dim
         endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -470,7 +498,7 @@ program particle_energization
         else
             call read_emfields_single(tindex, n - 1)
         endif
-        do iptl = 1, pheader%dim, 1
+        do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
             call trilinear_interp_only_bx(ino, jno, kno, dnx, dny, dnz)
@@ -666,7 +694,7 @@ program particle_energization
             iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
             dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
             dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, &
-            dnx, dny, dnz, particle
+            dnx, dny, dnz
         use interpolation_emf, only: trilinear_interp_only_bx, &
             trilinear_interp_only_by, trilinear_interp_only_bz, &
             trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
@@ -677,11 +705,10 @@ program particle_energization
             set_comp_shear_single, divv0, sigmaxx0, sigmaxy0, sigmaxz0, &
             sigmayy0, sigmayz0, sigmazz0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0
         real(fp) :: ex_para, ey_para, ez_para, edotb, ib2
         real(fp) :: gama, igama, dke_para, dke_perp
@@ -690,22 +717,13 @@ program particle_energization
         real(fp) :: bxx, byy, bzz, bxy, bxz, byz
         real(fp) :: weight, pscalar, ppara, pperp, bbsigma
         real(fp) :: pdivv, pshear, ptensor_divv
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
-        else
-            call open_particle_file(tindex, 'h', cid)
-        endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
+        call read_particle_binary(tindex, species, cid)
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -855,7 +873,7 @@ program particle_energization
         call get_ptl_mass_charge(species)
         call get_start_end_time_points
         call get_relativistic_flag
-        call get_energy_band_number
+        ! call get_energy_band_number
         call read_thermal_params
         if (nbands > 0) then
             call calc_energy_interval
@@ -892,134 +910,6 @@ program particle_energization
         call MPI_TYPE_FREE(filetype_ghost, ierror)
         call MPI_TYPE_FREE(filetype_nghost, ierror)
     end subroutine end_analysis
-
-    !<--------------------------------------------------------------------------
-    !< Get commandline arguments
-    !<--------------------------------------------------------------------------
-    subroutine get_cmd_args
-        use flap                                !< FLAP package
-        use penf
-        implicit none
-        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
-        integer(I4P)                 :: error   !< Error trapping flag.
-        call cli%init(progname = 'interpolation', &
-            authors     = 'Xiaocan Li', &
-            help        = 'Usage: ', &
-            description = 'Interpolate fields at particle positions', &
-            examples    = ['interpolation -rp rootpath'])
-        call cli%add(switch='--rootpath', switch_ab='-rp', &
-            help='simulation root path', required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--translated_file', switch_ab='-tf', &
-            help='whether using translated fields file', required=.false., &
-            act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--tstart', switch_ab='-ts', &
-            help='Starting time frame', required=.false., act='store', &
-            def='0', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--tend', switch_ab='-te', help='Last time frame', &
-            required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--tinterval', switch_ab='-ti', help='Time interval', &
-            required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--fields_interval', switch_ab='-fi', &
-            help='Time interval for PIC fields', &
-            required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--species', switch_ab='-sp', &
-            help="Particle species: 'e' or 'h'", required=.false., &
-            act='store', def='e', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--dir_emf', switch_ab='-de', &
-            help='EMF data directory', required=.false., &
-            act='store', def='data', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--dir_hydro', switch_ab='-dh', &
-            help='Hydro data directory', required=.false., &
-            act='store', def='data', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--separated_pre_post', switch_ab='-pp', &
-            help='separated pre and post fields', required=.false., act='store', &
-            def='1', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--para_perp', switch_ab='-pa', &
-            help='Calculate energization due to parallel and perpendicular electric field', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--comp_shear', switch_ab='-cs', &
-            help='Calculate energization due to compression and shear', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--curv_grad_para_drifts', switch_ab='-cg', &
-            help='Calculate energization due to curvature, gradient and parallel drifts', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--magnetic_moment', switch_ab='-mm', &
-            help='Calculate energization due to conservation of magnetic moment', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--polarization_initial_time', switch_ab='-pt', &
-            help='Calculate energization due to polarization and initial drifts (time)', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--polarization_initial_spatial', switch_ab='-ps', &
-            help='Calculate energization due to polarization and initial drifts (spatial)', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%get(switch='-rp', val=rootpath, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-tf', val=is_translated_file, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ts', val=tstart, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-te', val=tend, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ti', val=tinterval, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-fi', val=fields_interval, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-sp', val=species, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-de', val=dir_emf, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-dh', val=dir_hydro, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-pp', val=separated_pre_post, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-pa', val=calc_para_perp, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-cs', val=calc_comp_shear, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-cg', val=calc_curv_grad_para_drifts, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-mm', val=calc_magnetic_moment, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-pt', val=calc_polar_initial_time, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ps', val=calc_polar_initial_spatial, error=error)
-        if (error/=0) stop
-
-        if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,L1)', 'Whether using translated fields file: ', is_translated_file
-            print '(A,I0,A,I0,A,I0)', 'Min, max and interval: ', &
-                tstart, ' ', tend, ' ', tinterval
-            print '(A,I0)', 'Time interval for electric and magnetic fields: ', &
-                fields_interval
-            if (species == 'e') then
-                print '(A,A)', 'Particle: electron'
-            else if (species == 'h' .or. species == 'i') then
-                print '(A,A)', 'Particle: ion'
-            endif
-            print '(A,A)', 'EMF data directory: ', trim(dir_emf)
-            print '(A,A)', 'Hydro data directory: ', trim(dir_hydro)
-            if (separated_pre_post) then
-                print '(A)', 'Fields at previous and next time steps are saved separately'
-            endif
-        endif
-    end subroutine get_cmd_args
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energization curvature drift, gradient drift, and
@@ -1091,6 +981,13 @@ program particle_energization
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
             ptl_rm_local = 0
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call get_np_local_vpic(tframe, species)
+                call open_particle_file_h5(tframe, species)
+            endif
+
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
@@ -1099,6 +996,12 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call free_np_offset_local
+                call close_particle_file_h5
+            endif
 
             ! Check how many particles are removed
             call MPI_REDUCE(ptl_rm_local, ptl_rm_global, 1, MPI_INTEGER, &
@@ -1148,7 +1051,7 @@ program particle_energization
             iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
             dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
             dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, &
-            dnx, dny, dnz, particle, gyrof, vperpx, vperpy, vperpz, vpara, vperp
+            dnx, dny, dnz, gyrof, vperpx, vperpy, vperpz, vpara, vperp
         use interpolation_emf, only: read_emfields_single, &
             trilinear_interp_bx, trilinear_interp_by, trilinear_interp_bz, &
             trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
@@ -1157,32 +1060,28 @@ program particle_energization
             dbxdy0, dbxdz0, dbydx0, dbydz0, dbzdx0, dbzdy0, &
             dBdx, dBdy, dBdz, kappax, kappay, kappaz, absB0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0, ux, uy, uz
         real(fp) :: weight, gama, curv_ene, grad_ene, parad_ene, ib2
         real(fp) :: param, vcx, vcy, vcz, vgx, vgy, vgz
         real(fp) :: vexb_x, vexb_y, vexb_z
         real(fp) :: vpara_dx, vpara_dy, vpara_dz, vpara_d  ! Parallel drift
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
+        if (particle_hdf5) then
+            call read_particle_h5(n - 1)
+            nptl = np_local(n)
         else
-            call open_particle_file(tindex, 'h', cid)
+            call read_particle_binary(tindex, species, cid)
+            nptl = pheader%dim
         endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -1197,7 +1096,7 @@ program particle_energization
         else
             call read_emfields_single(tindex, n - 1)
         endif
-        do iptl = 1, pheader%dim, 1
+        do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
             call trilinear_interp_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
@@ -1359,6 +1258,13 @@ program particle_energization
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
             ptl_rm_local = 0
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call get_np_local_vpic(tframe, species)
+                call open_particle_file_h5(tframe, species)
+            endif
+
             ! Time interval
             if (separated_pre_post) then
                 if (tframe == tp1 .or. tframe == tp2) then
@@ -1381,6 +1287,12 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call free_np_offset_local
+                call close_particle_file_h5
+            endif
 
             ! Check how many particles are removed
             call MPI_REDUCE(ptl_rm_local, ptl_rm_global, 1, MPI_INTEGER, &
@@ -1431,7 +1343,7 @@ program particle_energization
             iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
             dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
             dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, &
-            dnx, dny, dnz, particle, gyrof, vperpx, vperpy, vperpz, vpara, vperp
+            dnx, dny, dnz, gyrof, vperpx, vperpy, vperpz, vpara, vperp
         use interpolation_emf, only: read_emfields_single, &
             trilinear_interp_only_bx, trilinear_interp_only_by, trilinear_interp_only_bz, &
             trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
@@ -1440,30 +1352,26 @@ program particle_energization
         use interpolation_pre_post_bfield, only: set_bfield_magnitude, &
             trilinear_interp_bfield_magnitude, absB1_0, absB2_0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain, dt_fields
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0, ux, uy, uz
         real(fp) :: weight, gama, ib2, mag_moment, idt, dene_m
         real(fp) :: vexb_x, vexb_y, vexb_z
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
+        if (particle_hdf5) then
+            call read_particle_h5(n - 1)
+            nptl = np_local(n)
         else
-            call open_particle_file(tindex, 'h', cid)
+            call read_particle_binary(tindex, species, cid)
+            nptl = pheader%dim
         endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -1480,7 +1388,7 @@ program particle_energization
         endif
 
         idt = 1.0 / dt_fields
-        do iptl = 1, pheader%dim, 1
+        do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
             call trilinear_interp_only_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
@@ -1621,6 +1529,13 @@ program particle_energization
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
             ptl_rm_local = 0
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call get_np_local_vpic(tframe, species)
+                call open_particle_file_h5(tframe, species)
+            endif
+
             ! Time interval
             if (separated_pre_post) then
                 if (tframe == tp1 .or. tframe == tp2) then
@@ -1644,6 +1559,12 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call free_np_offset_local
+                call close_particle_file_h5
+            endif
 
             ! Check how many particles are removed
             call MPI_REDUCE(ptl_rm_local, ptl_rm_global, 1, MPI_INTEGER, &
@@ -1698,7 +1619,7 @@ program particle_energization
             iby, jby, kby, ibz, jbz, kbz, dx_ex, dy_ex, dz_ex, &
             dx_ey, dy_ey, dz_ey, dx_ez, dy_ez, dz_ez, dx_bx, dx_by, dx_bz, &
             dy_bx, dy_by, dy_bz, dz_bx, dz_by, dz_bz, ino, jno, kno, &
-            dnx, dny, dnz, particle, gyrof, vpara
+            dnx, dny, dnz, gyrof, vpara
         use interpolation_emf, only: read_emfields_single, &
             trilinear_interp_only_bx, trilinear_interp_only_by, trilinear_interp_only_bz, &
             trilinear_interp_ex, trilinear_interp_ey, trilinear_interp_ez, &
@@ -1711,11 +1632,10 @@ program particle_energization
             trilinear_interp_efield_components, ex1_0, ey1_0, ez1_0, &
             ex2_0, ey2_0, ez2_0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain, dt_fields
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0, ux, uy, uz
         real(fp) :: weight, gama, ib2, idt, param
         real(fp) :: vexbx1, vexby1, vexbz1
@@ -1724,22 +1644,19 @@ program particle_energization
         real(fp) :: dvxdt, dvydt, dvzdt, ib2_1, ib2_2, ib_1, ib_2
         real(fp) :: dbxdt, dbydt, dbzdt, init_ene
         real(fp) :: vexbx, vexby, vexbz
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
+        if (particle_hdf5) then
+            call read_particle_h5(n - 1)
+            nptl = np_local(n)
         else
-            call open_particle_file(tindex, 'h', cid)
+            call read_particle_binary(tindex, species, cid)
+            nptl = pheader%dim
         endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -1760,7 +1677,7 @@ program particle_energization
         endif
 
         idt = 1.0 / dt_fields
-        do iptl = 1, pheader%dim, 1
+        do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
             call trilinear_interp_only_bx(ibx, jbx, kbx, dx_bx, dy_bx, dz_bx)
@@ -1916,6 +1833,13 @@ program particle_energization
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
             ptl_rm_local = 0
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call get_np_local_vpic(tframe, species)
+                call open_particle_file_h5(tframe, species)
+            endif
+
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
@@ -1925,6 +1849,12 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+
+            ! Particles are saved in HDF5
+            if (particle_hdf5) then
+                call free_np_offset_local
+                call close_particle_file_h5
+            endif
 
             ! Check how many particles are removed
             call MPI_REDUCE(ptl_rm_local, ptl_rm_global, 1, MPI_INTEGER, &
@@ -1971,7 +1901,7 @@ program particle_energization
         use rank_index_mapping, only: index_to_rank
         use particle_module, only: ptl, calc_interp_param, calc_gyrofrequency, &
             calc_particle_energy, calc_para_perp_velocity_3d, ino, jno, kno, &
-            dnx, dny, dnz, particle, gyrof, vparax, vparay, vparaz, vpara
+            dnx, dny, dnz, gyrof, vparax, vparay, vparaz, vpara
         use interpolation_emf, only: read_emfields_single, &
             trilinear_interp_only_bx, trilinear_interp_only_by, &
             trilinear_interp_only_bz, trilinear_interp_ex, trilinear_interp_ey, &
@@ -1981,32 +1911,28 @@ program particle_energization
         use interpolation_vexb, only: dvxdx0, dvxdy0, dvxdz0, &
             dvydx0, dvydy0, dvydz0, dvzdx0, dvzdy0, dvzdz0
         use file_header, only: set_v0header, pheader
-        use particle_file, only: open_particle_file, close_particle_file, fh
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
         real(fp), intent(in) :: dx_domain, dy_domain, dz_domain
-        integer :: IOstatus, ibin, n, iptl
+        integer :: ibin, n, iptl, nptl
         real(fp) :: x0, y0, z0, ux, uy, uz
         real(fp) :: weight, gama, ib2, param
         real(fp) :: vx0, vy0, vz0
         real(fp) :: vpx, vpy, vpz, polar_ene, init_ene
         real(fp) :: dvxdt, dvydt, dvzdt
-        type(particle), allocatable, dimension(:) :: ptls
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
             domain%pic_ty, domain%pic_tz, n)
         write(cid, "(I0)") n - 1
 
-        ! Read particle data
-        if (species == 'e') then
-            call open_particle_file(tindex, species, cid)
+        if (particle_hdf5) then
+            call read_particle_h5(n - 1)
+            nptl = np_local(n)
         else
-            call open_particle_file(tindex, 'h', cid)
+            call read_particle_binary(tindex, species, cid)
+            nptl = pheader%dim
         endif
-        allocate(ptls(pheader%dim))
-        read(fh, IOSTAT=IOstatus) ptls
-        call close_particle_file
 
         if (is_translated_file) then
             x0 = dx_domain * dom_x
@@ -2022,7 +1948,7 @@ program particle_energization
             call read_emfields_single(tindex, n - 1)
         endif
 
-        do iptl = 1, pheader%dim, 1
+        do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
             call trilinear_interp_only_bx(ino, jno, kno, dnx, dny, dnz)
@@ -2076,5 +2002,447 @@ program particle_energization
         enddo
         deallocate(ptls)
     end subroutine polarization_initial_spatial_single
+
+    !<--------------------------------------------------------------------------
+    !< Read particle data in binary format
+    !<--------------------------------------------------------------------------
+    subroutine read_particle_binary(tindex, species, cid)
+        use particle_file, only: open_particle_file, close_particle_file, fh
+        use file_header, only: pheader
+        implicit none
+        integer, intent(in) :: tindex
+        character(*), intent(in) :: species
+        character(*), intent(in) :: cid
+        integer :: IOstatus
+        ! Read particle data
+        if (species == 'e') then
+            call open_particle_file(tindex, species, cid)
+        else
+            call open_particle_file(tindex, 'h', cid)
+        endif
+        allocate(ptls(pheader%dim))
+        read(fh, IOSTAT=IOstatus) ptls
+        call close_particle_file
+    end subroutine read_particle_binary
+
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'interpolation', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Interpolate fields at particle positions', &
+            examples    = ['interpolation -rp rootpath'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--translated_file', switch_ab='-tf', &
+            help='whether using translated fields file', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--tstart', switch_ab='-ts', &
+            help='Starting time frame', required=.false., act='store', &
+            def='0', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--tend', switch_ab='-te', help='Last time frame', &
+            required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--tinterval', switch_ab='-ti', help='Time interval', &
+            required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--fields_interval', switch_ab='-fi', &
+            help='Time interval for PIC fields', &
+            required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--species', switch_ab='-sp', &
+            help="Particle species: 'e' or 'h'", required=.false., &
+            act='store', def='e', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--dir_emf', switch_ab='-de', &
+            help='EMF data directory', required=.false., &
+            act='store', def='data', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--dir_hydro', switch_ab='-dh', &
+            help='Hydro data directory', required=.false., &
+            act='store', def='data', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--separated_pre_post', switch_ab='-pp', &
+            help='separated pre and post fields', required=.false., act='store', &
+            def='1', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--particle_hdf5', switch_ab='-ph', &
+            help='Whether particles are saved in HDF5', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--para_perp', switch_ab='-pa', &
+            help='Calculate energization due to parallel and perpendicular electric field', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--comp_shear', switch_ab='-cs', &
+            help='Calculate energization due to compression and shear', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--curv_grad_para_drifts', switch_ab='-cg', &
+            help='Calculate energization due to curvature, gradient and parallel drifts', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--magnetic_moment', switch_ab='-mm', &
+            help='Calculate energization due to conservation of magnetic moment', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--polarization_initial_time', switch_ab='-pt', &
+            help='Calculate energization due to polarization and initial drifts (time)', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--polarization_initial_spatial', switch_ab='-ps', &
+            help='Calculate energization due to polarization and initial drifts (spatial)', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-tf', val=is_translated_file, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ts', val=tstart, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-te', val=tend, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ti', val=tinterval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-fi', val=fields_interval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-sp', val=species, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-de', val=dir_emf, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-dh', val=dir_hydro, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-pp', val=separated_pre_post, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ph', val=particle_hdf5, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-pa', val=calc_para_perp, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-cs', val=calc_comp_shear, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-cg', val=calc_curv_grad_para_drifts, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-mm', val=calc_magnetic_moment, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-pt', val=calc_polar_initial_time, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ps', val=calc_polar_initial_spatial, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,L1)', 'Whether using translated fields file: ', is_translated_file
+            print '(A,I0,A,I0,A,I0)', 'Min, max and interval: ', &
+                tstart, ' ', tend, ' ', tinterval
+            print '(A,I0)', 'Time interval for electric and magnetic fields: ', &
+                fields_interval
+            if (species == 'e') then
+                print '(A,A)', 'Particle: electron'
+            else if (species == 'h' .or. species == 'i') then
+                print '(A,A)', 'Particle: ion'
+            endif
+            print '(A,A)', 'EMF data directory: ', trim(dir_emf)
+            print '(A,A)', 'Hydro data directory: ', trim(dir_hydro)
+            if (separated_pre_post) then
+                print '(A)', 'Fields at previous and next time steps are saved separately'
+            endif
+            if (particle_hdf5) then
+                print '(A)', 'Particles are saved in HDF5 format'
+            endif
+            if (calc_para_perp) then
+                print '(A)', 'Calculate energization due to parallel and perpendicular electric field'
+            endif
+            if (calc_comp_shear) then
+                print '(A)', 'Calculate energization due to compression and shear'
+            endif
+            if (calc_curv_grad_para_drifts) then
+                print '(A)', 'Calculate energization due to curvature, gradient, and parallel drifts'
+            endif
+            if (calc_magnetic_moment) then
+                print '(A)', 'Calculate energization due to conservation of magnetic moment'
+            endif
+            if (calc_polar_initial_time) then
+                print '(A)', 'Calculate energization due to polarization and inital drifts (time)'
+            endif
+            if (calc_polar_initial_spatial) then
+                print '(A)', 'Calculate energization due to polarization and inital drifts (spatial)'
+            endif
+        endif
+    end subroutine get_cmd_args
+
+    !<--------------------------------------------------------------------------
+    !< Initialize the np_local and offset_local array
+    !<--------------------------------------------------------------------------
+    subroutine init_np_offset_local(dset_dims)
+        implicit none
+        integer(hsize_t), dimension(1), intent(in) :: dset_dims
+        allocate(np_local(dset_dims(1)))
+        allocate(offset_local(dset_dims(1)))
+        np_local = 0
+        offset_local = 0
+    end subroutine init_np_offset_local
+
+    !<--------------------------------------------------------------------------
+    !< Free the np_local and offset_local array
+    !<--------------------------------------------------------------------------
+    subroutine free_np_offset_local
+        implicit none
+        deallocate(np_local)
+        deallocate(offset_local)
+    end subroutine free_np_offset_local
+
+    !<--------------------------------------------------------------------------
+    !< Open metadata file and dataset of "np_local"
+    !<--------------------------------------------------------------------------
+    subroutine open_metadata_dset(fname_metadata, groupname, file_id, &
+            group_id, dataset_id, dset_dims, dset_dims_max, filespace)
+        implicit none
+        character(*), intent(in) :: fname_metadata, groupname
+        integer(hid_t), intent(out) :: file_id, group_id, dataset_id
+        integer(hsize_t), dimension(1), intent(out) :: dset_dims, dset_dims_max
+        integer(hid_t), intent(out) :: filespace
+        call open_hdf5_serial(fname_metadata, groupname, file_id, group_id)
+        call open_hdf5_dataset("np_local", group_id, dataset_id, &
+            dset_dims, dset_dims_max, filespace)
+    end subroutine open_metadata_dset
+
+    !<--------------------------------------------------------------------------
+    !< Close dataset, filespace, group and file of metadata
+    !<--------------------------------------------------------------------------
+    subroutine close_metadata_dset(file_id, group_id, dataset_id, filespace)
+        implicit none
+        integer(hid_t), intent(in) :: file_id, group_id, dataset_id, filespace
+        integer :: error
+        call h5sclose_f(filespace, error)
+        call h5dclose_f(dataset_id, error)
+        call h5gclose_f(group_id, error)
+        call h5fclose_f(file_id, error)
+    end subroutine close_metadata_dset
+
+    !<--------------------------------------------------------------------------
+    !< Get the number of particles for each MPI process of PIC simulations
+    !<--------------------------------------------------------------------------
+    subroutine get_np_local_vpic(tframe, species)
+        implicit none
+        integer, intent(in) :: tframe
+        character(*), intent(in) :: species
+        character(len=256) :: fname_meta
+        character(len=16) :: groupname
+        integer(hid_t) :: file_id, group_id, dataset_id
+        integer(hsize_t), dimension(1) :: dset_dims, dset_dims_max
+        integer(hid_t) :: filespace
+        integer :: i, error
+        character(len=8) :: tframe_char
+        write(tframe_char, "(I0)") tframe
+        fname_meta = trim(adjustl(rootpath))//"/particle/T."//trim(tframe_char)
+        if (species == 'e') then
+            fname_meta = trim(fname_meta)//"/grid_metadata_electron_"
+        else if (species == 'H' .or. species == 'h' .or. species == 'i') then
+            fname_meta = trim(fname_meta)//"/grid_metadata_ion_"
+        endif
+        fname_meta = trim(fname_meta)//trim(tframe_char)//".h5part"
+        groupname = "Step#"//trim(tframe_char)
+        if (myid == master) then
+            call open_metadata_dset(fname_meta, groupname, file_id, &
+                group_id, dataset_id, dset_dims, dset_dims_max, filespace)
+        endif
+        call MPI_BCAST(dset_dims, 1, MPI_INTEGER, master, MPI_COMM_WORLD, &
+            ierror)
+
+        call init_np_offset_local(dset_dims)
+
+        if (myid == master) then
+            call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, np_local, &
+                dset_dims, error)
+        endif
+        call MPI_BCAST(np_local, dset_dims(1), MPI_INTEGER, master, &
+            MPI_COMM_WORLD, ierror)
+        offset_local = 0
+        do i = 2, dset_dims(1)
+            offset_local(i) = offset_local(i-1) + np_local(i-1)
+        enddo
+        if (myid == master) then
+            call h5sclose_f(filespace, error)
+            call h5dclose_f(dataset_id, error)
+            call h5gclose_f(group_id, error)
+            call h5fclose_f(file_id, error)
+        endif
+    end subroutine get_np_local_vpic
+
+    !<--------------------------------------------------------------------------
+    !< Open hdf5 file using one process
+    !<--------------------------------------------------------------------------
+    subroutine open_hdf5_serial(filename, groupname, file_id, group_id)
+        implicit none
+        character(*), intent(in) :: filename, groupname
+        integer(hid_t), intent(out) :: file_id, group_id
+        integer(size_t) :: obj_count_g, obj_count_d
+        integer :: error
+        call h5open_f(error)
+        call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error, &
+            access_prp=h5p_default_f)
+        call h5gopen_f(file_id, groupname, group_id, error)
+    end subroutine open_hdf5_serial
+
+    !<--------------------------------------------------------------------------
+    !< Open hdf5 dataset and get the dataset dimensions
+    !<--------------------------------------------------------------------------
+    subroutine open_hdf5_dataset(dataset_name, group_id, dataset_id, &
+            dset_dims, dset_dims_max, filespace)
+        implicit none
+        character(*), intent(in) :: dataset_name
+        integer(hid_t), intent(in) :: group_id
+        integer(hid_t), intent(out) :: dataset_id, filespace
+        integer(hsize_t), dimension(1), intent(out) :: dset_dims, &
+            dset_dims_max
+        integer :: datatype_id, error
+        call h5dopen_f(group_id, dataset_name, dataset_id, error)
+        call h5dget_type_f(dataset_id, datatype_id, error)
+        call h5dget_space_f(dataset_id, filespace, error)
+        call h5Sget_simple_extent_dims_f(filespace, dset_dims, &
+            dset_dims_max, error)
+    end subroutine open_hdf5_dataset
+
+    !<--------------------------------------------------------------------------
+    !< Open particle file, group, and datasets in HDF5 format
+    !<--------------------------------------------------------------------------
+    subroutine open_particle_file_h5(tframe, species)
+        implicit none
+        integer, intent(in) :: tframe
+        character(*), intent(in) :: species
+        character(len=256) :: fname
+        character(len=16) :: groupname
+        character(len=8) :: tframe_char
+        write(tframe_char, "(I0)") tframe
+        fname = trim(adjustl(rootpath))//"/particle/T."//trim(tframe_char)
+        if (species == 'e') then
+            fname = trim(fname)//"/electron_"
+        else if (species == 'H' .or. species == 'h' .or. species == 'i') then
+            fname = trim(fname)//"/ion_"
+        endif
+        fname = trim(fname)//trim(tframe_char)//".h5part"
+        groupname = "Step#"//trim(tframe_char)
+
+        call open_hdf5_serial(fname, groupname, file_id, group_id)
+        call open_hdf5_dataset("Ux", group_id, dset_ids(1), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("Uy", group_id, dset_ids(2), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("Uz", group_id, dset_ids(3), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("dX", group_id, dset_ids(4), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("dY", group_id, dset_ids(5), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("dZ", group_id, dset_ids(6), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("i", group_id, dset_ids(7), &
+            dset_dims, dset_dims_max, filespace)
+        call open_hdf5_dataset("q", group_id, dset_ids(8), &
+            dset_dims, dset_dims_max, filespace)
+    end subroutine open_particle_file_h5
+
+    !<--------------------------------------------------------------------------
+    !< Close particle file, group, and datasets in HDF5 format
+    !<--------------------------------------------------------------------------
+    subroutine close_particle_file_h5
+        implicit none
+        integer :: i, error
+        call h5sclose_f(filespace, error)
+        do i = 1, num_dset
+            call h5dclose_f(dset_ids(i), error)
+        enddo
+        call h5gclose_f(group_id, error)
+        call h5fclose_f(file_id, error)
+    end subroutine close_particle_file_h5
+
+    !<--------------------------------------------------------------------------
+    !< Initial setup for reading hdf5 file
+    !<--------------------------------------------------------------------------
+    subroutine init_read_hdf5(dset_id, dcount, doffset, dset_dims, &
+            filespace, memspace)
+        implicit none
+        integer(hid_t), intent(in) :: dset_id
+        integer(hsize_t), dimension(1), intent(in) :: dcount, doffset, dset_dims
+        integer(hid_t), intent(out) :: filespace, memspace
+        integer :: error
+        call h5screate_simple_f(1, dcount, memspace, error)
+        call h5dget_space_f(dset_id, filespace, error)
+        call h5sselect_hyperslab_f(filespace, H5S_SELECT_SET_F, doffset, &
+            dcount, error)
+    end subroutine init_read_hdf5
+
+    !<--------------------------------------------------------------------------
+    !< Finalize reading hdf5 file
+    !<--------------------------------------------------------------------------
+    subroutine final_read_hdf5(filespace, memspace)
+        implicit none
+        integer(hid_t), intent(in) :: filespace, memspace
+        integer :: error
+        call h5sclose_f(filespace, error)
+        call h5sclose_f(memspace, error)
+    end subroutine final_read_hdf5
+
+    !---------------------------------------------------------------------------
+    ! Read hdf5 dataset for integer data
+    !---------------------------------------------------------------------------
+    subroutine read_hdf5_integer(dset_id, dcount, doffset, dset_dims, fdata)
+        implicit none
+        integer(hid_t), intent(in) :: dset_id
+        integer(hsize_t), dimension(1), intent(in) :: dcount, doffset, dset_dims
+        integer, dimension(*), intent(out) :: fdata
+        integer(hid_t) :: filespace, memspace
+        integer :: error
+        call init_read_hdf5(dset_id, dcount, doffset, dset_dims, filespace, memspace)
+        call h5dread_f(dset_id, H5T_NATIVE_INTEGER, fdata, dset_dims, error, &
+            file_space_id=filespace, mem_space_id=memspace)
+        call final_read_hdf5(filespace, memspace)
+    end subroutine read_hdf5_integer
+
+    !---------------------------------------------------------------------------
+    ! Read hdf5 dataset for real data
+    !---------------------------------------------------------------------------
+    subroutine read_hdf5_real(dset_id, dcount, doffset, dset_dims, fdata)
+        implicit none
+        integer(hid_t), intent(in) :: dset_id
+        integer(hsize_t), dimension(1), intent(in) :: dcount, doffset, dset_dims
+        real(fp), dimension(*), intent(out) :: fdata
+        integer(hid_t) :: filespace, memspace
+        integer :: error
+        call init_read_hdf5(dset_id, dcount, doffset, dset_dims, filespace, memspace)
+        call h5dread_f(dset_id, H5T_NATIVE_REAL, fdata, dset_dims, error, &
+            file_space_id=filespace, mem_space_id=memspace)
+        call final_read_hdf5(filespace, memspace)
+    end subroutine read_hdf5_real
+
+    !<--------------------------------------------------------------------------
+    !< Read particle data in HDF5 format
+    !<--------------------------------------------------------------------------
+    subroutine read_particle_h5(pic_mpi_rank)
+        implicit none
+        integer, intent(in) :: pic_mpi_rank
+        integer(hsize_t), dimension(1) :: dcount, doffset
+        allocate(ptls(np_local(pic_mpi_rank + 1)))
+        dcount(1) = np_local(pic_mpi_rank + 1)
+        doffset(1) = offset_local(pic_mpi_rank + 1)
+        call read_hdf5_real(dset_ids(1), dcount, doffset, dset_dims, ptls%vx)
+        call read_hdf5_real(dset_ids(2), dcount, doffset, dset_dims, ptls%vy)
+        call read_hdf5_real(dset_ids(3), dcount, doffset, dset_dims, ptls%vz)
+        call read_hdf5_real(dset_ids(4), dcount, doffset, dset_dims, ptls%dx)
+        call read_hdf5_real(dset_ids(5), dcount, doffset, dset_dims, ptls%dy)
+        call read_hdf5_real(dset_ids(6), dcount, doffset, dset_dims, ptls%dz)
+        call read_hdf5_integer(dset_ids(7), dcount, doffset, dset_dims, ptls%icell)
+        call read_hdf5_real(dset_ids(8), dcount, doffset, dset_dims, ptls%q)
+    end subroutine read_particle_h5
 
 end program particle_energization
