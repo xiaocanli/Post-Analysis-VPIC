@@ -271,7 +271,7 @@ module picinfo
         domain%dtwce = get_variable(fh, 'dt*wce', '=')
         domain%dtwci = get_variable(fh, 'dt*wci', '=')
         domain%dtwpi = domain%dtwpe / mime
-        temp = get_variable(fh, 'energies_interval', ':')
+        temp = get_variable(fh, 'energies_interval', '=')
         domain%energies_interval = int(temp)
         domain%dx = get_variable(fh, 'dx/de', '=')
         domain%dy = get_variable(fh, 'dy/de', '=')

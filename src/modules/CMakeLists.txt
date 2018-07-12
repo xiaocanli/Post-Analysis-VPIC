@@ -55,6 +55,7 @@ target_link_libraries(fields statistics get_info saving_flags pic_fields
     usingle)
 
 add_library(pre_post_hydro STATIC pre_post_hydro.f90)
+target_link_libraries(pre_post_hydro pic_fields)
 
 add_library(pre_post_emf STATIC pre_post_emf.f90)
 

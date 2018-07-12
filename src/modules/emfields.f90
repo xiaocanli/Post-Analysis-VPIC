@@ -42,20 +42,28 @@ module emfields
     ! Read electromagnetic fields from file.
     ! Inputs:
     !   tindex0: the time step index.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_emfields(tindex0)
+    subroutine read_emfields(tindex0, numfold)
         use rank_index_mapping, only: index_to_rank
         use picinfo, only: domain
         use topology_translate, only: ht
         implicit none
         integer, intent(in) :: tindex0
+        integer, intent(in), optional :: numfold
         integer :: dom_x, dom_y, dom_z, n
+        integer :: numfold_local
+        if (.not. present(numfold)) then
+            numfold_local = 1
+        else
+            numfold_local = numfold
+        endif
         do dom_x = ht%start_x, ht%stop_x
             do dom_y = ht%start_y, ht%stop_y
                 do dom_z = ht%start_z, ht%stop_z
                     call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
                                        domain%pic_ty, domain%pic_tz, n)
-                    call read_emfields_single(tindex0, n-1)
+                    call read_emfields_single(tindex0, n-1, numfold)
                 enddo ! x
             enddo ! y
         enddo ! z
@@ -67,44 +75,64 @@ module emfields
     ! Inputs:
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_emfields_single(tindex0, pic_mpi_id)
+    subroutine read_emfields_single(tindex0, pic_mpi_id, numfold)
         use path_info, only: rootpath
         use constants, only: fp
         use file_header, only: read_boilerplate, read_fields_header, fheader
         use topology_translate, only: idxstart, idxstop
         use parameters, only: is_only_emf
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
         real(fp), allocatable, dimension(:,:,:) :: buffer
-        character(len=256) :: fname
-        logical :: is_exist
+        character(len=256) :: fname1, fname2
+        logical :: is_exist1, is_exist2, is_exist
         integer :: fh   ! File handler
         integer :: n, ixl, iyl, izl, ixh, iyh, izh
         integer :: nc1, nc2, nc3
-        integer :: tindex
+        integer :: tindex, folded_id
 
         fh = 10
 
         tindex = tindex0
+        folded_id = pic_mpi_id / numfold
         ! Index 0 does not have proper current, so use index 1 if it exists
         if (tindex == 0) then
-            write(fname, "(A,I0,A8,I0,A1,I0)") trim(adjustl(rootpath))//"fields/T.", &
-                  1, "/fields.", 1, ".", pic_mpi_id
+            write(fname1, "(A,I0,A8,I0,A1,I0)") &
+                trim(adjustl(rootpath))//"fields/T.", &
+                1, "/fields.", 1, ".", pic_mpi_id
+            write(fname2, "(A,I0,A,I0,A8,I0,A1,I0)") &
+                trim(adjustl(rootpath))//"fields/", folded_id, "/T.", &
+                1, "/fields.", 1, ".", pic_mpi_id
             is_exist = .false.
-            inquire(file=trim(fname), exist=is_exist)
+            inquire(file=trim(fname1), exist=is_exist1)
+            inquire(file=trim(fname2), exist=is_exist2)
+            is_exist = is_exist1 .or. is_exist2
             if (is_exist) tindex = 1
         endif
-        write(fname, "(A,I0,A8,I0,A1,I0)") trim(adjustl(rootpath))//"fields/T.", &
-              tindex, "/fields.", tindex, ".", pic_mpi_id
+        write(fname1, "(A,I0,A8,I0,A1,I0)") &
+            trim(adjustl(rootpath))//"fields/T.", &
+            tindex, "/fields.", tindex, ".", pic_mpi_id
+        write(fname2, "(A,I0,A,I0,A8,I0,A1,I0)") &
+            trim(adjustl(rootpath))//"fields/", folded_id, "/T.", &
+            tindex, "/fields.", tindex, ".", pic_mpi_id
         is_exist = .false.
-        inquire(file=trim(fname), exist=is_exist)
+        inquire(file=trim(fname1), exist=is_exist1)
+        inquire(file=trim(fname2), exist=is_exist2)
+        is_exist = is_exist1 .or. is_exist2
       
         if (is_exist) then 
-            open(unit=10, file=trim(fname), access='stream', status='unknown', &
-                 form='unformatted', action='read')
+            if (is_exist1) then
+                open(unit=10, file=trim(fname1), access='stream', status='unknown', &
+                     form='unformatted', action='read')
+            endif
+            if (is_exist2) then
+                open(unit=10, file=trim(fname2), access='stream', status='unknown', &
+                     form='unformatted', action='read')
+            endif
         else
-            print *, "Can't find file:", fname
+            print *, "Can't find file: '", fname1, "' or '", fname2, "'"
             print *
             print *, " ***  Terminating ***"
             stop
@@ -126,34 +154,19 @@ module emfields
         nc3 = fheader%nc(3) - 1
 
         read(fh) buffer
-        ! ex(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(2:nc1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(2:nc1, 3:nc2+1, 3:nc3+1)) * 0.25
         ex(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! ey(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1)) * 0.25
         ey(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! ez(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3)) * 0.25
         ez(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         if (is_only_emf == 0) then
             read(fh) buffer  ! Skip div_e_err
         endif
         read(fh) buffer
-        ! bx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3)) * 0.5
         bx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! by(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(2:nc1, 3:nc2+1, 2:nc3)) * 0.5
         by(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! bz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(2:nc1, 2:nc2, 3:nc3+1)) * 0.5
         bz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         deallocate(buffer)
         close(fh)

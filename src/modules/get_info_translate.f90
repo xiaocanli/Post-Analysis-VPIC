@@ -20,33 +20,47 @@ module time_info
     !---------------------------------------------------------------------------
     subroutine get_nout(frequent_dump)
         implicit none
-        logical :: dfile
+        logical :: dfile, dfile1, dfile2
         logical, intent(in) :: frequent_dump
-        character(len=150) :: fname
+        character(len=256) :: fname1, fname2
 
         if (myid == master) then
             dfile = .false.
-            tindex = 1
-            do while(.not.dfile)
-                tindex = tindex + 1
-                write(fname, "(A, I0, A, I0, A)") &
+            tindex = 0
+            do while(.not.dfile .and. tindex < 1000000)
+                write(fname1, "(A, I0, A, I0, A)") &
                     trim(adjustl(rootpath))//"fields/T.", tindex, &
                     "/fields.", tindex, ".0"
-                if (tindex .ne. 1) inquire(file=trim(fname), exist=dfile)
+                write(fname2, "(A, I0, A, I0, A)") &
+                    trim(adjustl(rootpath))//"fields/0/T.", tindex, &
+                    "/fields.", tindex, ".0"
+                if (tindex .ne. 1) then
+                    inquire(file=trim(fname1), exist=dfile1)
+                    inquire(file=trim(fname2), exist=dfile2)
+                    dfile = dfile1 .or. dfile2
+                endif
+                tindex = tindex + 1
             enddo
-            tindex_first = tindex
+            tindex_first = tindex - 1
             dfile = .false.
 
             if (frequent_dump) then
-                tindex = tindex + 2 ! Skip two steps
+                tindex = tindex_first + 2 ! Skip two steps
             endif
 
             do while(.not.dfile)
-                tindex = tindex + 1
-                write(fname, "(A, I0, A, I0, A)") &
+                write(fname1, "(A, I0, A, I0, A)") &
                     trim(adjustl(rootpath))//"fields/T.", tindex, &
                     "/fields.", tindex, ".0"
-                if (tindex .ne. 1) inquire(file=trim(fname), exist=dfile)
+                write(fname2, "(A, I0, A, I0, A)") &
+                    trim(adjustl(rootpath))//"fields/0/T.", tindex, &
+                    "/fields.", tindex, ".0"
+                if (tindex .ne. 1) then
+                    inquire(file=trim(fname1), exist=dfile1)
+                    inquire(file=trim(fname2), exist=dfile2)
+                    dfile = dfile1 .or. dfile2
+                endif
+                tindex = tindex + 1
             enddo
             tindex_next = tindex
             nout = tindex_next - tindex_first

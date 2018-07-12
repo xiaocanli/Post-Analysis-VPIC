@@ -59,7 +59,7 @@ add_executable(particle_energization.exec particle_energization.f90)
 target_link_libraries(particle_energization.exec ${MPI_Fortran_LIBRARIES} flap
     get_info translate_module particle_module interp_emf particle_file
     interp_vel_mom interp_comp_shear pre_post_emf interp_pre_post_b
-    interp_pre_post_e interp_vexb)
+    interp_pre_post_e interp_vexb ${HDF5_Fortran_LIBRARIES})
 install (TARGETS particle_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(fluid_energization.exec fluid_energization.f90)

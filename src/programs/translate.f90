@@ -17,8 +17,8 @@ program translate
     integer :: tindex, tindex_new
     character(len=256) :: rootpath, fname
     real(dp) :: mp_elapsed
-    logical :: dfile, frequent_dump
-    integer :: out_record
+    logical :: dfile, frequent_dump, sub_directory
+    integer :: out_record, numfold
     character(len=8) :: suffix
 
     call init_analysis
@@ -88,12 +88,19 @@ program translate
     !<---------------------------------------------------------------------------
     subroutine check_file_existence
         implicit none
+        character(len=256) :: fname1, fname2
+        logical :: dfile1, dfile2
         dfile = .false.
         if (tindex_new <= tindex_stop) then
-            write(fname, "(A,I0,A,I0,A)") &
+            write(fname1, "(A,I0,A,I0,A)") &
                 trim(adjustl(rootpath))//"fields/T.", tindex_new, &
                 "/fields.", tindex_new, ".0"
-            inquire(file=trim(fname), exist=dfile)
+            write(fname2, "(A,I0,A,I0,A)") &
+                trim(adjustl(rootpath))//"fields/0/T.", tindex_new, &
+                "/fields.", tindex_new, ".0"
+            inquire(file=trim(fname1), exist=dfile1)
+            inquire(file=trim(fname2), exist=dfile2)
+            dfile = dfile1 .or. dfile2
         endif
         tindex = tindex_new     
         if (dfile) out_record = out_record + 1
@@ -106,16 +113,28 @@ program translate
         implicit none
         logical, intent(in) :: with_suffix
         ! EMF
-        call read_emfields(tindex)
+        if (sub_directory) then
+            call read_emfields(tindex, numfold)
+        else
+            call read_emfields(tindex)
+        endif
         call write_emfields(tindex, out_record, with_suffix, trim(adjustl(suffix)))
 
         ! Particle fields
-        call read_particle_fields(tindex, 'e')
+        if (sub_directory) then
+            call read_particle_fields(tindex, 'e', numfold)
+        else
+            call read_particle_fields(tindex, 'e')
+        endif
         call calc_current_density
         call adjust_particle_fields('e')
         call write_particle_fields(tindex, out_record, 'e', &
             with_suffix, trim(adjustl(suffix)))
-        call read_particle_fields(tindex, 'H')
+        if (sub_directory) then
+            call read_particle_fields(tindex, 'H', numfold)
+        else
+            call read_particle_fields(tindex, 'H')
+        endif
         call calc_current_density
         call adjust_particle_fields('H')
         call write_particle_fields(tindex, out_record, 'i', &
@@ -213,15 +232,30 @@ program translate
             help='whether VPIC dumps fields frequently', required=.false., &
             act='store_true', def='.false.', error=error)
         if (error/=0) stop
+        call cli%add(switch='--sub_dir', switch_ab='-sd', &
+            help='whether VPIC fields are saved in sub-directory', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--numfold', switch_ab='-nf', &
+            help='Every numfold domains are saved in one sub-directory', &
+            required=.false., def='32', act='store', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-fd', val=frequent_dump, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-sd', val=sub_directory, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nf', val=numfold, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
             print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
             if (frequent_dump) then
                 print '(A)', 'VPIC saves fieds from both previous and next time step'
+            endif
+            if (sub_directory) then
+                print '(A,I0,A)', 'Every ', numfold, " domains are saved in one sub-directory"
             endif
         endif
     end subroutine get_cmd_args

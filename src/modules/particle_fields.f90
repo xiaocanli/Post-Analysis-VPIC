@@ -197,21 +197,29 @@ module particle_fields
     ! Inputs:
     !   tindex0: the time step index.
     !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_particle_fields(tindex0, species)
+    subroutine read_particle_fields(tindex0, species, numfold)
         use rank_index_mapping, only: index_to_rank
         use picinfo, only: domain
         use topology_translate, only: ht
         implicit none
         integer, intent(in) :: tindex0
         character(len=1), intent(in) :: species
+        integer, intent(in), optional :: numfold
         integer :: dom_x, dom_y, dom_z, n
+        integer :: numfold_local
+        if (.not. present(numfold)) then
+            numfold_local = 1
+        else
+            numfold_local = numfold
+        endif
         do dom_x = ht%start_x, ht%stop_x
             do dom_y = ht%start_y, ht%stop_y
                 do dom_z = ht%start_z, ht%stop_z
                     call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
                                        domain%pic_ty, domain%pic_tz, n)
-                    call read_particle_fields_single(tindex0, n-1, species)
+                    call read_particle_fields_single(tindex0, n-1, species, numfold_local)
                 enddo ! x
             enddo ! y
         enddo ! z
@@ -224,37 +232,55 @@ module particle_fields
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine open_particle_file(fh, tindex0, pic_mpi_id, species)
+    subroutine open_particle_file(fh, tindex0, pic_mpi_id, species, numfold)
         use file_header, only: read_boilerplate, read_fields_header
         implicit none
         integer, intent(in) :: fh   ! File handler
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
         character(len=1), intent(in) :: species
-        character(len=256) :: fname
-        integer :: tindex
-        logical :: is_exist
+        character(len=256) :: fname1, fname2
+        integer :: tindex, folded_id
+        logical :: is_exist1, is_exist2, is_exist
         tindex = tindex0
+        folded_id = pic_mpi_id / numfold
         !! Index 0 does not have proper current, so use index 1 if it exists
         if (tindex == 0) then
-            write(fname, "(A,I0,A1,A1,A6,I0,A1,I0)") &
+            write(fname1, "(A,I0,A1,A1,A6,I0,A1,I0)") &
                 trim(adjustl(rootpath))//"hydro/T.", 1, "/", species, &
                 "hydro.", 1, ".", pic_mpi_id
+            write(fname2, "(A,I0,A,I0,A1,A1,A6,I0,A1,I0)") &
+                trim(adjustl(rootpath))//"hydro/", folded_id, "/T.", 1, "/", &
+                species, "hydro.", 1, ".", pic_mpi_id
             is_exist = .false.
-            inquire(file=trim(fname), exist=is_exist)
+            inquire(file=trim(fname1), exist=is_exist1)
+            inquire(file=trim(fname2), exist=is_exist2)
+            is_exist = is_exist1 .or. is_exist2
             if (is_exist) tindex = 1
         endif
-        write(fname, "(A,I0,A1,A1,A6,I0,A1,I0)") &
+        write(fname1, "(A,I0,A1,A1,A6,I0,A1,I0)") &
             trim(adjustl(rootpath))//"hydro/T.", tindex, "/", species, &
             "hydro.", tindex, ".", pic_mpi_id
+        write(fname2, "(A,I0,A,I0,A1,A1,A6,I0,A1,I0)") &
+            trim(adjustl(rootpath))//"hydro/", folded_id ,"/T.", tindex, "/", &
+            species, "hydro.", tindex, ".", pic_mpi_id
         is_exist = .false.
-        inquire(file=trim(fname), exist=is_exist)
+        inquire(file=trim(fname1), exist=is_exist1)
+        inquire(file=trim(fname2), exist=is_exist2)
+        is_exist = is_exist1 .or. is_exist2
       
         if (is_exist) then 
-            open(unit=fh, file=trim(fname), access='stream', status='unknown', &
-                 form='unformatted', action='read')
+            if (is_exist1) then
+                open(unit=fh, file=trim(fname1), access='stream', status='unknown', &
+                     form='unformatted', action='read')
+            endif
+            if (is_exist2) then
+                open(unit=fh, file=trim(fname2), access='stream', status='unknown', &
+                     form='unformatted', action='read')
+            endif
         else
-            print *, "Can't find file:", fname
+            print *, "Can't find file: '", fname1, "' or '", fname2, "'"
             print *
             print *, " ***  Terminating ***"
             stop
@@ -295,13 +321,14 @@ module particle_fields
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_particle_fields_single(tindex0, pic_mpi_id, species)
+    subroutine read_particle_fields_single(tindex0, pic_mpi_id, species, numfold)
         use constants, only: fp
         use file_header, only: fheader
         use topology_translate, only: idxstart, idxstop
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
         character(len=1), intent(in) :: species
         real(fp), allocatable, dimension(:,:,:) :: buffer
         integer :: ixl, iyl, izl, ixh, iyh, izh
@@ -310,39 +337,19 @@ module particle_fields
 
         fh = 10
 
-        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+        call open_particle_file(fh, tindex0, pic_mpi_id, species, numfold)
 
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
         call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
                 izl, izh, nc1, nc2, nc3)
         
         read(fh) buffer
-        ! vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! nrho(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         nrho(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
 
         if (is_rel == 1) then
@@ -357,46 +364,16 @@ module particle_fields
         endif
 
         read(fh) buffer
-        ! pxx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! pyy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! pzz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! pyz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! pxz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! pxy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         
         ! Particle fraction in each energy band.
@@ -417,13 +394,14 @@ module particle_fields
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_velocity_fields_single(tindex0, pic_mpi_id, species)
+    subroutine read_velocity_fields_single(tindex0, pic_mpi_id, species, numfold)
         use constants, only: fp
         use file_header, only: fheader
         use topology_translate, only: idxstart, idxstop
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
         character(len=1), intent(in) :: species
         real(fp), allocatable, dimension(:,:,:) :: buffer
         integer :: ixl, iyl, izl, ixh, iyh, izh
@@ -432,32 +410,17 @@ module particle_fields
 
         fh = 10
 
-        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+        call open_particle_file(fh, tindex0, pic_mpi_id, species, numfold)
 
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
         call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
                 izl, izh, nc1, nc2, nc3)
         
         read(fh) buffer
-        ! vx(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! vy(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         vy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
-        ! vz(ixl:ixh, iyl:iyh, izl:izh) = (buffer(2:nc1, 2:nc2, 2:nc3) + &
-        !     buffer(3:nc1+1, 2:nc2, 2:nc3) + buffer(2:nc1, 3:nc2+1, 2:nc3) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 2:nc3) + buffer(2:nc1, 2:nc2, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 2:nc2, 3:nc3+1) + buffer(2:nc1, 3:nc2+1, 3:nc3+1) + &
-        !     buffer(3:nc1+1, 3:nc2+1, 3:nc3+1)) * 0.125
         vz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
 
@@ -481,13 +444,14 @@ module particle_fields
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_pressure_tensor_single(tindex0, pic_mpi_id, species)
+    subroutine read_pressure_tensor_single(tindex0, pic_mpi_id, species, numfold)
         use constants, only: fp
         use file_header, only: fheader, v0
         use topology_translate, only: idxstart, idxstop
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
         character(len=1), intent(in) :: species
         real(fp), allocatable, dimension(:,:,:) :: buffer
         integer :: ixl, iyl, izl, ixh, iyh, izh
@@ -497,7 +461,7 @@ module particle_fields
 
         fh = 10
 
-        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+        call open_particle_file(fh, tindex0, pic_mpi_id, species, numfold)
         offset = 23 + sizeof(fheader) + sizeof(v0)  ! 23 is the size of boilerplate
 
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
@@ -534,13 +498,14 @@ module particle_fields
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
     !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
-    subroutine read_density_fields_single(tindex0, pic_mpi_id, species)
+    subroutine read_density_fields_single(tindex0, pic_mpi_id, species, numfold)
         use constants, only: fp
         use file_header, only: fheader, v0
         use topology_translate, only: idxstart, idxstop
         implicit none
-        integer, intent(in) :: tindex0, pic_mpi_id
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
         character(len=1), intent(in) :: species
         real(fp), allocatable, dimension(:,:,:) :: buffer
         integer :: ixl, iyl, izl, ixh, iyh, izh
@@ -550,7 +515,7 @@ module particle_fields
 
         fh = 10
 
-        call open_particle_file(fh, tindex0, pic_mpi_id, species)
+        call open_particle_file(fh, tindex0, pic_mpi_id, species, numfold)
         offset = 23 + sizeof(fheader) + sizeof(v0)  ! 23 is the size of boilerplate
 
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
