@@ -63,7 +63,7 @@ module emfields
                 do dom_z = ht%start_z, ht%stop_z
                     call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
                                        domain%pic_ty, domain%pic_tz, n)
-                    call read_emfields_single(tindex0, n-1, numfold)
+                    call read_emfields_single(tindex0, n-1, numfold_local)
                 enddo ! x
             enddo ! y
         enddo ! z
