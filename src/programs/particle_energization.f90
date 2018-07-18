@@ -13,7 +13,7 @@ program particle_energization
     implicit none
     character(len=256) :: rootpath
     character(len=16) :: dir_emf, dir_hydro
-    real :: start, finish, step1, step2
+    real(dp) :: start, finish, step1, step2, time1, time2
     integer :: tstart, tend, tinterval, tframe, fields_interval
     integer, parameter :: nbins = 60
     real(fp), parameter :: emin = 1E-4
@@ -32,7 +32,7 @@ program particle_energization
 
     ! Particles in HDF5 format
     integer, allocatable, dimension(:) :: np_local, offset_local
-    logical :: particle_hdf5
+    logical :: particle_hdf5, parallel_read, collective_io
     integer, parameter :: num_dset = 8
     integer(hid_t), dimension(num_dset) :: dset_ids
     integer(hid_t) :: file_id, group_id
@@ -110,7 +110,8 @@ program particle_energization
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energization due to parallel and perpendicular
-    !< electric field
+    !< electric field. It requires 7 field components: electric fields and
+    !< magnetic fields
     !<--------------------------------------------------------------------------
     subroutine para_perp
         use picinfo, only: domain
@@ -128,8 +129,8 @@ program particle_energization
 
         call init_emfields
         if (is_translated_file) then
-            call init_electric_fields(htg%nx, htg%ny, htg%nz)
-            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
+            call init_electric_fields(htg%nx, htg%ny, htg%nz) ! 3 components
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz) ! 3 components + magnetitude
         endif
 
         allocate(ebins(nbins + 1))
@@ -153,6 +154,7 @@ program particle_energization
             if (myid == master) print*, tframe
             tp_emf = tframe / fields_interval
             call set_dists_zero
+            call cpu_time(time1)
             if (is_translated_file) then
                 if (output_format /= 1) then
                     ! Fields at each time step are saved in different files
@@ -169,16 +171,29 @@ program particle_energization
                     call read_magnetic_fields(tp_emf + 1)
                 endif
             endif  ! is_translated_file
+            call cpu_time(time2)
+            if (myid == master) then
+                print '("Time for reading fields = ",f8.3," seconds.")', &
+                    time2 - time1
+            endif
+
             dx_domain = domain%lx_de / domain%pic_tx
             dy_domain = domain%ly_de / domain%pic_ty
             dz_domain = domain%lz_de / domain%pic_tz
 
             ! Particles are saved in HDF5
+            call cpu_time(time1)
             if (particle_hdf5) then
                 call get_np_local_vpic(tframe, species)
                 call open_particle_file_h5(tframe, species)
             endif
+            call cpu_time(time2)
+            if (myid == master) then
+                print '("Time for openning HDF5 = ",f8.3," seconds.")', &
+                    time2 - time1
+            endif
 
+            call cpu_time(time1)
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
@@ -187,17 +202,34 @@ program particle_energization
                     enddo ! x
                 enddo ! y
             enddo ! z
+            call cpu_time(time2)
+            if (myid == master) then
+                print '("Time for computing = ",f8.3," seconds.")', &
+                    time2 - time1
+            endif
 
             ! Particles are saved in HDF5
+            call cpu_time(time1)
             if (particle_hdf5) then
                 call free_np_offset_local
                 call close_particle_file_h5
             endif
+            call cpu_time(time2)
+            if (myid == master) then
+                print '("Time for closing HDF5 = ",f8.3," seconds.")', &
+                    time2 - time1
+            endif
 
+            call cpu_time(time1)
             call save_particle_energization(tframe, "para_perp")
+            call cpu_time(time2)
+            if (myid == master) then
+                print '("Time saveing data = ",f8.3," seconds.")', &
+                    time2 - time1
+            endif
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -251,7 +283,11 @@ program particle_energization
         write(cid, "(I0)") n - 1
 
         if (particle_hdf5) then
-            call read_particle_h5(n - 1)
+            if (parallel_read) then
+                call read_particle_h5_parallel(n - 1)
+            else
+                call read_particle_h5(n - 1)
+            endif
             nptl = np_local(n)
         else
             call read_particle_binary(tindex, species, cid)
@@ -269,6 +305,7 @@ program particle_energization
         else
             call read_emfields_single(tindex, n - 1)
         endif
+
         do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             call calc_interp_param
@@ -305,7 +342,8 @@ program particle_energization
     end subroutine para_perp_single
 
     !<--------------------------------------------------------------------------
-    !< Calculate particle energization due to compression and shear
+    !< Calculate particle energization due to compression and shear.
+    !< It requires 23 field components.
     !<--------------------------------------------------------------------------
     subroutine comp_shear
         use picinfo, only: domain
@@ -331,11 +369,11 @@ program particle_energization
         call init_vel_mom
         call init_comp_shear_single
         if (is_translated_file) then
-            call init_electric_fields(htg%nx, htg%ny, htg%nz)
-            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
-            call init_velocity_fields(htg%nx, htg%ny, htg%nz)
-            call init_exb_drift(htg%nx, htg%ny, htg%nz)
-            call init_comp_shear(htg%nx, htg%ny, htg%nz)
+            call init_electric_fields(htg%nx, htg%ny, htg%nz) ! 3 components
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz) ! 3 components + magnetitude
+            call init_velocity_fields(htg%nx, htg%ny, htg%nz) ! 3 v + 3 u
+            call init_exb_drift(htg%nx, htg%ny, htg%nz)       ! 3 components
+            call init_comp_shear(htg%nx, htg%ny, htg%nz)      ! 7 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -411,7 +449,7 @@ program particle_energization
             call save_particle_energization(tframe, "comp_shear")
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -476,7 +514,11 @@ program particle_energization
         write(cid, "(I0)") n - 1
 
         if (particle_hdf5) then
-            call read_particle_h5(n - 1)
+            if (parallel_read) then
+                call read_particle_h5_parallel(n - 1)
+            else
+                call read_particle_h5(n - 1)
+            endif
             nptl = np_local(n)
         else
             call read_particle_binary(tindex, species, cid)
@@ -653,7 +695,7 @@ program particle_energization
             call save_particle_energization(tframe, "para_perp_comp_shear")
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -913,7 +955,7 @@ program particle_energization
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energization curvature drift, gradient drift, and
-    !< parallel drift.
+    !< parallel drift. It requires 16 field components.
     !<--------------------------------------------------------------------------
     subroutine curv_grad_para_drifts
         use picinfo, only: domain
@@ -934,9 +976,9 @@ program particle_energization
         call init_emfields
         call init_emfields_derivatives
         if (is_translated_file) then
-            call init_electric_fields(htg%nx, htg%ny, htg%nz)
-            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
-            call init_bfield_derivatives(htg%nx, htg%ny, htg%nz)
+            call init_electric_fields(htg%nx, htg%ny, htg%nz) ! 3 components
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz) ! 3 components + magnetitude
+            call init_bfield_derivatives(htg%nx, htg%ny, htg%nz) ! 9 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -1015,7 +1057,7 @@ program particle_energization
             call save_particle_energization(tframe, "curv_grad_para")
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -1076,7 +1118,11 @@ program particle_energization
         write(cid, "(I0)") n - 1
 
         if (particle_hdf5) then
-            call read_particle_h5(n - 1)
+            if (parallel_read) then
+                call read_particle_h5_parallel(n - 1)
+            else
+                call read_particle_h5(n - 1)
+            endif
             nptl = np_local(n)
         else
             call read_particle_binary(tindex, species, cid)
@@ -1149,7 +1195,7 @@ program particle_energization
             ! Parallel drift
             param = ((vperpx - vexb_x)**2 + &
                      (vperpy - vexb_y)**2 + &
-                     (vperpz - vexb_z)**2) / gyrof
+                     (vperpz - vexb_z)**2) / (2.0 * gyrof)
             ! param = vperp**2 / gyrof
             vpara_d = ((dbzdy0 - dbydz0) * bxn + &
                        (dbxdz0 - dbzdx0) * byn + &
@@ -1170,7 +1216,7 @@ program particle_energization
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energy change due to the conservation of magnetic
-    !< moment.
+    !< moment. It requires 15 field components.
     !<--------------------------------------------------------------------------
     subroutine magnetic_moment
         use picinfo, only: domain
@@ -1195,9 +1241,9 @@ program particle_energization
         call init_emfields
         call init_bfield_magnitude
         if (is_translated_file) then
-            call init_electric_fields(htg%nx, htg%ny, htg%nz)
-            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
-            call init_pre_post_bfield(htg%nx, htg%ny, htg%nz)
+            call init_electric_fields(htg%nx, htg%ny, htg%nz) ! 3 components
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz) ! 3 components + magnitude
+            call init_pre_post_bfield(htg%nx, htg%ny, htg%nz) ! 8 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -1306,7 +1352,7 @@ program particle_energization
             call save_particle_energization(tframe, "magnetic_moment")
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -1366,7 +1412,11 @@ program particle_energization
         write(cid, "(I0)") n - 1
 
         if (particle_hdf5) then
-            call read_particle_h5(n - 1)
+            if (parallel_read) then
+                call read_particle_h5_parallel(n - 1)
+            else
+                call read_particle_h5(n - 1)
+            endif
             nptl = np_local(n)
         else
             call read_particle_binary(tindex, species, cid)
@@ -1427,7 +1477,7 @@ program particle_energization
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energy change due to the time-dependent part of
-    !< polarization drift and initial drift
+    !< polarization drift and initial drift. It requires 23 field components.
     !<--------------------------------------------------------------------------
     subroutine polarization_initial_time
         use picinfo, only: domain
@@ -1458,10 +1508,10 @@ program particle_energization
         call init_bfield_components
         call init_efield_components
         if (is_translated_file) then
-            call init_electric_fields(htg%nx, htg%ny, htg%nz)
-            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
-            call init_pre_post_bfield(htg%nx, htg%ny, htg%nz)
-            call init_pre_post_efield(htg%nx, htg%ny, htg%nz)
+            call init_electric_fields(htg%nx, htg%ny, htg%nz) ! 3 components
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz) ! 3 components + magnitude
+            call init_pre_post_bfield(htg%nx, htg%ny, htg%nz) ! 8 components
+            call init_pre_post_efield(htg%nx, htg%ny, htg%nz) ! 8 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -1578,7 +1628,7 @@ program particle_energization
             call save_particle_energization(tframe, "polarization_initial_time")
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -1651,7 +1701,11 @@ program particle_energization
         write(cid, "(I0)") n - 1
 
         if (particle_hdf5) then
-            call read_particle_h5(n - 1)
+            if (parallel_read) then
+                call read_particle_h5_parallel(n - 1)
+            else
+                call read_particle_h5(n - 1)
+            endif
             nptl = np_local(n)
         else
             call read_particle_binary(tindex, species, cid)
@@ -1749,7 +1803,7 @@ program particle_energization
 
     !<--------------------------------------------------------------------------
     !< Calculate particle energy change due to the spatial part of
-    !< polarization drift and initial drift
+    !< polarization drift and initial drift. It requires 19 field components.
     !<--------------------------------------------------------------------------
     subroutine polarization_initial_spatial
         use picinfo, only: domain
@@ -1773,10 +1827,10 @@ program particle_energization
         call init_emfields
         call init_exb_derivatives_single
         if (is_translated_file) then
-            call init_electric_fields(htg%nx, htg%ny, htg%nz)
-            call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
-            call init_exb_drift(htg%nx, htg%ny, htg%nz)
-            call init_exb_derivatives(htg%nx, htg%ny, htg%nz)
+            call init_electric_fields(htg%nx, htg%ny, htg%nz) ! 3 components
+            call init_magnetic_fields(htg%nx, htg%ny, htg%nz) ! 3 components + magnitude
+            call init_exb_drift(htg%nx, htg%ny, htg%nz)       ! 3 components
+            call init_exb_derivatives(htg%nx, htg%ny, htg%nz) ! 9 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -1868,7 +1922,7 @@ program particle_energization
             call save_particle_energization(tframe, "polarization_initial_spatial")
             call cpu_time(step2)
             if (myid == master) then
-                print '("Time for this step = ",f6.3," seconds.")', step2 - step1
+                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
             endif
             step1 = step2
         enddo  ! Time loop
@@ -1927,7 +1981,11 @@ program particle_energization
         write(cid, "(I0)") n - 1
 
         if (particle_hdf5) then
-            call read_particle_h5(n - 1)
+            if (parallel_read) then
+                call read_particle_h5_parallel(n - 1)
+            else
+                call read_particle_h5(n - 1)
+            endif
             nptl = np_local(n)
         else
             call read_particle_binary(tindex, species, cid)
@@ -1990,7 +2048,7 @@ program particle_energization
             dvxdt = vx0 * dvxdx0 + vy0 * dvxdy0 + vz0 * dvxdz0
             dvydt = vx0 * dvydx0 + vy0 * dvydy0 + vz0 * dvydz0
             dvzdt = vx0 * dvzdx0 + vy0 * dvzdy0 + vz0 * dvzdz0
-            init_ene = -ptl_mass * vpara * weight * &
+            init_ene = -gama * ptl_mass * vpara * weight * &
                 (bxn * dvxdt + byn * dvydt + bzn * dvzdt)
 
             ibin = floor((log10(gama - 1) - emin_log) / de_log)
@@ -2080,6 +2138,14 @@ program particle_energization
             help='Whether particles are saved in HDF5', &
             required=.false., act='store_true', def='.false.', error=error)
         if (error/=0) stop
+        call cli%add(switch='--parallel_read', switch_ab='-pr', &
+            help='Whether to read HDF5 partile file in parallel', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--collective_io', switch_ab='-ci', &
+            help='Whether to use collective IO to read HDF5 partile file', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%add(switch='--para_perp', switch_ab='-pa', &
             help='Calculate energization due to parallel and perpendicular electric field', &
             required=.false., act='store_true', def='.false.', error=error)
@@ -2126,6 +2192,10 @@ program particle_energization
         if (error/=0) stop
         call cli%get(switch='-ph', val=particle_hdf5, error=error)
         if (error/=0) stop
+        call cli%get(switch='-pr', val=parallel_read, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ci', val=collective_io, error=error)
+        if (error/=0) stop
         call cli%get(switch='-pa', val=calc_para_perp, error=error)
         if (error/=0) stop
         call cli%get(switch='-cs', val=calc_comp_shear, error=error)
@@ -2140,42 +2210,48 @@ program particle_energization
         if (error/=0) stop
 
         if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,L1)', 'Whether using translated fields file: ', is_translated_file
-            print '(A,I0,A,I0,A,I0)', 'Min, max and interval: ', &
+            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,L1)', ' Whether using translated fields file: ', is_translated_file
+            print '(A,I0,A,I0,A,I0)', ' Min, max and interval: ', &
                 tstart, ' ', tend, ' ', tinterval
-            print '(A,I0)', 'Time interval for electric and magnetic fields: ', &
+            print '(A,I0)', ' Time interval for electric and magnetic fields: ', &
                 fields_interval
             if (species == 'e') then
-                print '(A,A)', 'Particle: electron'
+                print '(A,A)', ' Particle: electron'
             else if (species == 'h' .or. species == 'i') then
-                print '(A,A)', 'Particle: ion'
+                print '(A,A)', ' Particle: ion'
             endif
-            print '(A,A)', 'EMF data directory: ', trim(dir_emf)
-            print '(A,A)', 'Hydro data directory: ', trim(dir_hydro)
+            print '(A,A)', ' EMF data directory: ', trim(dir_emf)
+            print '(A,A)', ' Hydro data directory: ', trim(dir_hydro)
             if (separated_pre_post) then
-                print '(A)', 'Fields at previous and next time steps are saved separately'
+                print '(A)', ' Fields at previous and next time steps are saved separately'
             endif
             if (particle_hdf5) then
-                print '(A)', 'Particles are saved in HDF5 format'
+                print '(A)', ' Particles are saved in HDF5 format'
+                if (parallel_read) then
+                    print '(A)', ' Read HDF5 particle file in parallel'
+                    if (collective_io) then
+                        print '(A)', ' Using colletive IO to read HDF5 particle file'
+                    endif
+                endif
             endif
             if (calc_para_perp) then
-                print '(A)', 'Calculate energization due to parallel and perpendicular electric field'
+                print '(A)', ' Calculate energization due to parallel and perpendicular electric field'
             endif
             if (calc_comp_shear) then
-                print '(A)', 'Calculate energization due to compression and shear'
+                print '(A)', ' Calculate energization due to compression and shear'
             endif
             if (calc_curv_grad_para_drifts) then
-                print '(A)', 'Calculate energization due to curvature, gradient, and parallel drifts'
+                print '(A)', ' Calculate energization due to curvature, gradient, and parallel drifts'
             endif
             if (calc_magnetic_moment) then
-                print '(A)', 'Calculate energization due to conservation of magnetic moment'
+                print '(A)', ' Calculate energization due to conservation of magnetic moment'
             endif
             if (calc_polar_initial_time) then
-                print '(A)', 'Calculate energization due to polarization and inital drifts (time)'
+                print '(A)', ' Calculate energization due to polarization and inital drifts (time)'
             endif
             if (calc_polar_initial_spatial) then
-                print '(A)', 'Calculate energization due to polarization and inital drifts (spatial)'
+                print '(A)', ' Calculate energization due to polarization and inital drifts (spatial)'
             endif
         endif
     end subroutine get_cmd_args
@@ -2295,6 +2371,38 @@ program particle_energization
     end subroutine open_hdf5_serial
 
     !<--------------------------------------------------------------------------
+    !< Open hdf5 file in parallel
+    !<--------------------------------------------------------------------------
+    subroutine open_hdf5_parallel(filename, groupname, file_id, group_id)
+        implicit none
+        character(*), intent(in) :: filename, groupname
+        integer(hid_t), intent(out) :: file_id, group_id
+        integer(hid_t) :: plist_id
+        integer :: storage_type, max_corder
+        integer(size_t) :: obj_count_g, obj_count_d
+        integer :: fileinfo, error
+        call MPI_INFO_CREATE(fileinfo, ierror)
+        call h5open_f(error)
+        call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, error)
+        if (collective_io) then
+            ! call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
+            ! call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
+            call MPI_INFO_SET(fileinfo, "striping_factor", "4", ierror)
+            call MPI_INFO_SET(fileinfo, "striping_unit", "1048576", ierror)
+            ! call MPI_INFO_SET(fileinfo, "cb_buffer_size", "8388608", ierror)
+            call MPI_INFO_SET(fileinfo, "cb_nodes", "4", ierror)
+        else
+            call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
+        endif
+        call h5pset_fapl_mpio_f(plist_id, MPI_COMM_WORLD, fileinfo, error)
+        call MPI_INFO_FREE(fileinfo, ierror)
+        call h5fopen_f(filename, H5F_ACC_RDWR_F, file_id, error, &
+            access_prp=plist_id)
+        call h5pclose_f(plist_id, error)
+        call h5gopen_f(file_id, groupname, group_id, error)
+    end subroutine open_hdf5_parallel
+
+    !<--------------------------------------------------------------------------
     !< Open hdf5 dataset and get the dataset dimensions
     !<--------------------------------------------------------------------------
     subroutine open_hdf5_dataset(dataset_name, group_id, dataset_id, &
@@ -2333,7 +2441,11 @@ program particle_energization
         fname = trim(fname)//trim(tframe_char)//".h5part"
         groupname = "Step#"//trim(tframe_char)
 
-        call open_hdf5_serial(fname, groupname, file_id, group_id)
+        if (parallel_read) then
+            call open_hdf5_parallel(fname, groupname, file_id, group_id)
+        else
+            call open_hdf5_serial(fname, groupname, file_id, group_id)
+        endif
         call open_hdf5_dataset("Ux", group_id, dset_ids(1), &
             dset_dims, dset_dims_max, filespace)
         call open_hdf5_dataset("Uy", group_id, dset_ids(2), &
@@ -2444,5 +2556,95 @@ program particle_energization
         call read_hdf5_integer(dset_ids(7), dcount, doffset, dset_dims, ptls%icell)
         call read_hdf5_real(dset_ids(8), dcount, doffset, dset_dims, ptls%q)
     end subroutine read_particle_h5
+
+    !<--------------------------------------------------------------------------
+    !< Initial setup for reading hdf5 file in parallel
+    !<--------------------------------------------------------------------------
+    subroutine init_read_hdf5_parallel(dset_id, dcount, doffset, dset_dims, &
+            filespace, memspace, plist_id)
+        implicit none
+        integer(hid_t), intent(in) :: dset_id
+        integer(hsize_t), dimension(1), intent(in) :: dcount, doffset, dset_dims
+        integer(hid_t), intent(out) :: filespace, memspace, plist_id
+        integer :: error
+        ! Create property list for collective dataset write
+        call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, error)
+        if (collective_io) then
+            call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, error)
+        else
+            call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_INDEPENDENT_F, error)
+        endif
+
+        call h5screate_simple_f(1, dcount, memspace, error)
+        call h5dget_space_f(dset_id, filespace, error)
+        call h5sselect_hyperslab_f(filespace, H5S_SELECT_SET_F, doffset, &
+            dcount, error)
+    end subroutine init_read_hdf5_parallel
+
+    !<--------------------------------------------------------------------------
+    !< Finalize reading hdf5 file in parallel
+    !<--------------------------------------------------------------------------
+    subroutine final_read_hdf5_parallel(filespace, memspace, plist_id)
+        implicit none
+        integer(hid_t), intent(in) :: filespace, memspace, plist_id
+        integer :: error
+        call h5sclose_f(filespace, error)
+        call h5sclose_f(memspace, error)
+        call h5pclose_f(plist_id, error)
+    end subroutine final_read_hdf5_parallel
+
+    !---------------------------------------------------------------------------
+    ! Read hdf5 dataset for integer data in parallel
+    !---------------------------------------------------------------------------
+    subroutine read_hdf5_integer_parallel(dset_id, dcount, doffset, dset_dims, fdata)
+        implicit none
+        integer(hid_t), intent(in) :: dset_id
+        integer(hsize_t), dimension(1), intent(in) :: dcount, doffset, dset_dims
+        integer, dimension(*), intent(out) :: fdata
+        integer(hid_t) :: filespace, memspace, plist_id
+        integer :: error, actual_io_mode
+        call init_read_hdf5_parallel(dset_id, dcount, doffset, dset_dims, &
+            filespace, memspace, plist_id)
+        call h5dread_f(dset_id, H5T_NATIVE_INTEGER, fdata, dset_dims, error, &
+            file_space_id=filespace, mem_space_id=memspace, xfer_prp=plist_id)
+        call final_read_hdf5_parallel(filespace, memspace, plist_id)
+    end subroutine read_hdf5_integer_parallel
+
+    !---------------------------------------------------------------------------
+    ! Read hdf5 dataset for real data in parallel
+    !---------------------------------------------------------------------------
+    subroutine read_hdf5_real_parallel(dset_id, dcount, doffset, dset_dims, fdata)
+        implicit none
+        integer(hid_t), intent(in) :: dset_id
+        integer(hsize_t), dimension(1), intent(in) :: dcount, doffset, dset_dims
+        real(fp), dimension(*), intent(out) :: fdata
+        integer(hid_t) :: filespace, memspace, plist_id
+        integer :: error
+        call init_read_hdf5_parallel(dset_id, dcount, doffset, dset_dims, &
+            filespace, memspace, plist_id)
+        call h5dread_f(dset_id, H5T_NATIVE_REAL, fdata, dset_dims, error, &
+            file_space_id=filespace, mem_space_id=memspace, xfer_prp=plist_id)
+        call final_read_hdf5_parallel(filespace, memspace, plist_id)
+    end subroutine read_hdf5_real_parallel
+
+    !<--------------------------------------------------------------------------
+    !< Read particle data in HDF5 format in parallel
+    !<--------------------------------------------------------------------------
+    subroutine read_particle_h5_parallel(pic_mpi_rank)
+        implicit none
+        integer, intent(in) :: pic_mpi_rank
+        integer(hsize_t), dimension(1) :: dcount, doffset
+        allocate(ptls(np_local(pic_mpi_rank + 1)))
+        dcount(1) = np_local(pic_mpi_rank + 1)
+        doffset(1) = offset_local(pic_mpi_rank + 1)
+        call read_hdf5_real_parallel(dset_ids(1), dcount, doffset, dset_dims, ptls%vx)
+        call read_hdf5_real_parallel(dset_ids(2), dcount, doffset, dset_dims, ptls%vy)
+        call read_hdf5_real_parallel(dset_ids(3), dcount, doffset, dset_dims, ptls%vz)
+        call read_hdf5_real_parallel(dset_ids(4), dcount, doffset, dset_dims, ptls%dx)
+        call read_hdf5_real_parallel(dset_ids(5), dcount, doffset, dset_dims, ptls%dy)
+        call read_hdf5_real_parallel(dset_ids(6), dcount, doffset, dset_dims, ptls%dz)
+        call read_hdf5_integer_parallel(dset_ids(7), dcount, doffset, dset_dims, ptls%icell)
+        call read_hdf5_real_parallel(dset_ids(8), dcount, doffset, dset_dims, ptls%q)
+    end subroutine read_particle_h5_parallel
 
 end program particle_energization
