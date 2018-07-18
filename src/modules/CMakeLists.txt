@@ -50,7 +50,7 @@ add_library(usingle usingle.f90 global.f90)
 target_link_libraries(usingle get_info pic_fields)
 
 add_library(fields STATIC inductive_efield.f90 para_perp_pressure.f90
-    emf_derivatives.f90 neighbors.f90)
+    emf_derivatives.f90 hydro_derivatives.f90 neighbors.f90)
 target_link_libraries(fields statistics get_info saving_flags pic_fields
     usingle)
 
@@ -111,6 +111,9 @@ add_library(interp_funs interpolation_funs.f90 global.f90)
 add_library(interp_emf interpolation_emf.f90 neighbors.f90)
 target_link_libraries(interp_emf interp_funs get_info fields file_header)
 
+add_library(interp_gradu interpolation_gradu.f90 neighbors.f90)
+target_link_libraries(interp_gradu interp_funs get_info fields file_header)
+
 add_library(interp_pfields interpolation_particle_fields.f90 neighbors.f90)
 target_link_libraries(interp_pfields interp_funs get_info usingle)
 
@@ -123,12 +126,19 @@ target_link_libraries(interp_vexb interp_funs get_info fields file_header)
 add_library(interp_vel_mom interpolation_vel_mom.f90 neighbors.f90)
 target_link_libraries(interp_vel_mom interp_funs get_info fields file_header)
 
+add_library(interp_j interpolation_current_density.f90 neighbors.f90)
+target_link_libraries(interp_j interp_funs get_info fields file_header)
+
 add_library(interp_pre_post_b interpolation_pre_post_bfield.f90 neighbors.f90)
 target_link_libraries(interp_pre_post_b interp_funs get_info pre_post_emf
     file_header)
 
 add_library(interp_pre_post_e interpolation_pre_post_efield.f90 neighbors.f90)
 target_link_libraries(interp_pre_post_e interp_funs get_info pre_post_emf
+    file_header)
+
+add_library(interp_pre_post_u interpolation_pre_post_ufield.f90 neighbors.f90)
+target_link_libraries(interp_pre_post_u interp_funs get_info pre_post_hydro
     file_header)
 
 add_library(particle_drift particle_drift.f90 particle_frames.f90)
