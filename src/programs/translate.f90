@@ -1,14 +1,14 @@
 !<*******************************************************************************
 !< Parallel conversion; Using Bill's data type at LANL
-!< 
+!<
 !< This code convert VPIC output into gda files, which are "bricks" of data
-!< 
+!<
 !<*******************************************************************************
 program translate
     use mpi_module
     use constants, only: dp
     use configuration_translate, only: tindex_start, tindex_stop
-    use time_info, only: nout, output_record_initial => output_record
+    use time_info, only: nout, nout_fd, output_record_initial => output_record
     use emfields, only: read_emfields, write_emfields
     use particle_fields, only: read_particle_fields, set_current_density_zero, &
             calc_current_density, calc_absJ, write_current_densities, &
@@ -45,14 +45,14 @@ program translate
         if (myid==master) print *, " Translate prevous time step"
         dfile= .true.
         if (tindex > 0) then
-            tindex = tindex_start - 1
+            tindex = tindex_start - nout_fd
         endif
         do while(dfile)
             if (myid==master) print *, " Time slice: ", tindex
             call translate_fields(frequent_dump)
             ! Check if there is another time slice to read
             if (tindex == 0) then
-                tindex_new = nout - 1 ! Previous time step
+                tindex_new = nout - nout_fd ! Previous time step
             else
                 tindex_new = tindex + nout
             endif
@@ -61,14 +61,22 @@ program translate
 
         out_record = output_record_initial
         suffix = '_post'
-        tindex = tindex_start + 1
+        if (tindex_start == 0) then
+            tindex = 1
+        else
+            tindex = tindex_start + nout_fd
+        endif
         if (myid==master) print *, " Translate latter time step"
         dfile= .true.
         do while(dfile)
             if (myid==master) print *, " Time slice: ", tindex
             call translate_fields(frequent_dump)
             ! Check if there is another time slice to read
-            tindex_new = tindex + nout
+            if (tindex == 1) then
+                tindex_new = nout + nout_fd
+            else
+                tindex_new = tindex + nout
+            endif
             call check_file_existence
         enddo
     endif
@@ -102,7 +110,7 @@ program translate
             inquire(file=trim(fname2), exist=dfile2)
             dfile = dfile1 .or. dfile2
         endif
-        tindex = tindex_new     
+        tindex = tindex_new
         if (dfile) out_record = out_record + 1
     end subroutine check_file_existence
 
