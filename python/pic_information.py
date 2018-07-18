@@ -378,7 +378,10 @@ def read_pic_info(base_directory):
     while not 'energies_interval' in content[current_line]:
         current_line += 1
     single_line = content[current_line]
-    line_splits = single_line.split(":")
+    if '=' in single_line:
+        line_splits = single_line.split("=")
+    else:
+        line_splits = single_line.split(":")
     energy_interval = float(line_splits[1])
     dxde, current_line = get_variable_value('dx/de', current_line, content)
     dyde, current_line = get_variable_value('dy/de', current_line, content)
