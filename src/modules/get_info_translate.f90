@@ -8,7 +8,9 @@ module time_info
     implicit none
     private
     public nout, output_record, get_nout, adjust_tindex_start, set_output_record
+    public nout_fd
     integer :: nout, tindex, tindex_first, tindex_next, output_record
+    integer :: nout_fd  ! Time frame interval between frequent dump
 
     contains
 
@@ -45,7 +47,7 @@ module time_info
             dfile = .false.
 
             if (frequent_dump) then
-                tindex = tindex_first + 2 ! Skip two steps
+                tindex = tindex_first + 3 ! Skip three steps
             endif
 
             do while(.not.dfile)
@@ -62,19 +64,43 @@ module time_info
                 endif
                 tindex = tindex + 1
             enddo
-            tindex_next = tindex
+
+            dfile = .false.
+            nout_fd = 0
+            if (frequent_dump) then
+                do while(.not.dfile)
+                    write(fname1, "(A, I0, A, I0, A)") &
+                        trim(adjustl(rootpath))//"fields/T.", tindex, &
+                        "/fields.", tindex, ".0"
+                    write(fname2, "(A, I0, A, I0, A)") &
+                        trim(adjustl(rootpath))//"fields/0/T.", tindex, &
+                        "/fields.", tindex, ".0"
+                    if (tindex .ne. 1) then
+                        inquire(file=trim(fname1), exist=dfile1)
+                        inquire(file=trim(fname2), exist=dfile2)
+                        dfile = dfile1 .or. dfile2
+                    endif
+                    tindex = tindex + 1
+                    nout_fd = nout_fd + 1
+                enddo
+            endif
+            tindex_next = tindex - 1
             nout = tindex_next - tindex_first
 
             ! Total size of domain
             print *,"---------------------------------------------------"
             print *,"Iterations between output = ", nout
+            if (nout_fd > 0) then
+                print *,"Iterations between frequent dump = ", nout_fd
+            endif
             print *,"---------------------------------------------------"
         endif
 
         call MPI_BCAST(nout, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(nout_fd, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
         call MPI_BCAST(tindex_first, 1, MPI_INTEGER, master, MPI_COMM_WORLD, ierr)
     end subroutine get_nout
-  
+
     !---------------------------------------------------------------------------
     ! Adjust tindex_start in case it is smaller than the minimal time step
     ! output that is available. This occurs when some of the earlier outputs
@@ -85,12 +111,16 @@ module time_info
         use configuration_translate, only: tindex_start
         implicit none
         character(len=150) :: fname
-        logical :: dfile
+        logical :: dfile, dfile1, dfile2
         if (tindex_start < tindex_first) then
             dfile = .false.
             write(fname, "(A,I0,A,I0,A)") &
                 trim(adjustl(rootpath))//"fields/T.0/fields.0.0"  ! 1st frame
-            inquire(file=trim(fname), exist=dfile)
+            inquire(file=trim(fname), exist=dfile1)
+            write(fname, "(A,I0,A,I0,A)") &
+                trim(adjustl(rootpath))//"fields/0/T.0/fields.0.0"
+            inquire(file=trim(fname), exist=dfile2)
+            dfile = dfile1 .or. dfile2
             if (.not. dfile) then
                 tindex_start = tindex_first
                 if (myid == master) then
