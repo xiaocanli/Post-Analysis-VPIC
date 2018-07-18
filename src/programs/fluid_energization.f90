@@ -6,7 +6,7 @@ program fluid_energization
     use constants, only: fp, dp
     use particle_info, only: species, get_ptl_mass_charge
     implicit none
-    integer :: nvar, separated_pre_post
+    integer :: nvar, separated_pre_post, fd_tinterval
     character(len=256) :: rootpath
     integer :: ct
 
@@ -120,11 +120,17 @@ program fluid_energization
             help='separated pre and post fields', required=.false., act='store', &
             def='1', error=error)
         if (error/=0) stop
+        call cli%add(switch='--fd_tinterval', switch_ab='-ft', &
+            help='Frame interval when dumping 3 continuous frames', &
+            required=.false., def='1', act='store', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
         if (error/=0) stop
         call cli%get(switch='-pp', val=separated_pre_post, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ft', val=fd_tinterval, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
@@ -132,6 +138,8 @@ program fluid_energization
             print '(A,A)', 'Partical species: ', species
             if (separated_pre_post) then
                 print '(A)', 'Fields at previous and next time steps are saved separately'
+                print '(A, I0)', 'Frame interval between previous and current step is: ', &
+                    fd_tinterval
             endif
         endif
     end subroutine get_cmd_args
@@ -377,10 +385,12 @@ program fluid_energization
             call shift_number_density
             call shift_ufield_pre_post
             if (separated_pre_post) then
-                if (tframe == tp1 .or. tframe == tp2) then
+                if (tframe == tp1) then
                     dt_fields = domain%dtwpe
+                else if (tframe == tp2) then
+                    dt_fields = domain%dtwpe * fd_tinterval
                 else
-                    dt_fields = domain%dtwpe * 2.0
+                    dt_fields = domain%dtwpe * fd_tinterval * 2.0
                 endif
             else
                 if (tframe == tp1 .or. tframe == tp2) then
