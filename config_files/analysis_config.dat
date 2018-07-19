@@ -1,7 +1,7 @@
 ***** Configuration file for general analysis *****
 ! Starting and ending time points.
 tp1 = 1
-tp2 = 185
+tp2 = 161
 
 ! Whether to use motional electric field.
 inductive = 0
@@ -13,4 +13,4 @@ is_rel = 1
 eratio = 3.0
 
 ! Whether simulation dumps only emf
-is_only_emf = 0
+is_only_emf = 1
