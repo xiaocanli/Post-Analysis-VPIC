@@ -48,7 +48,7 @@ program particle_energization_io
 
     call init_analysis
 
-    nvar = 15
+    nvar = 17
     call calc_particle_energization
 
     call end_analysis
@@ -89,24 +89,27 @@ program particle_energization_io
     !< Calculate particle energization due to parallel and perpendicular
     !< electric field, compression and shear, curvature drift, gradient drift,
     !< initial drift, polarization drift, and the conservation magnetic moment.
-    !< It requires 65 field components:
+    !< It requires 80 field components:
     !<  * electric field components (3)
     !<  * magnetic fields components and magnitude (4)
     !<  * velocity field (3)
     !<  * momentum field (3)
     !<  * electric and magnetic fields at previous and latter time steps (16)
     !<  * momentum field at previous and latter time steps (6)
+    !<  * velocity field at previous and latter time steps (6)
     !<  * ExB drift velocity (3)
     !<  * gradient of magnetic field (9)
     !<  * gradient of momentum field (9)
+    !<  * gradient of velocity field (9)
     !<  * gradients of ExB drift (9)
-    !< We need to read 30 field components:
+    !< We need to read 36 field components:
     !<  * electric field components (3)
     !<  * magnetic fields components (3)
     !<  * velocity field (3)
     !<  * momentum field (3)
     !<  * electric and magnetic fields at previous and latter time steps (12)
     !<  * momentum field at previous and latter time steps (6)
+    !<  * velocity field at previous and latter time steps (6)
     !<--------------------------------------------------------------------------
     subroutine calc_particle_energization
         use picinfo, only: domain
@@ -124,13 +127,17 @@ program particle_energization_io
             open_efield_pre_post, close_bfield_pre_post, close_efield_pre_post, &
             read_pre_post_bfield, read_pre_post_efield, interp_bfield_node_ghost, &
             interp_efield_node_ghost
-        use pre_post_hydro, only: init_pre_post_u, free_pre_post_u, &
-            open_ufield_pre_post, close_ufield_pre_post, read_pre_post_u, &
-            shift_ufield_pre_post
+        use pre_post_hydro, only: init_pre_post_u, init_pre_post_v, &
+            free_pre_post_u, free_pre_post_v, open_ufield_pre_post, &
+            open_vfield_pre_post, close_ufield_pre_post, close_vfield_pre_post, &
+            read_pre_post_u, read_pre_post_v
         use emf_derivatives, only: init_bfield_derivatives, &
             free_bfield_derivatives, calc_bfield_derivatives
         use hydro_derivatives, only: init_ufield_derivatives, &
             free_ufield_derivatives, calc_ufield_derivatives
+        use vperp_derivatives, only: init_vperp_derivatives, &
+            init_vperp_components, free_vperp_derivatives, free_vperp_components, &
+            calc_vperp_derivatives, calc_vperp_components
         use interpolation_emf, only: init_emfields, init_emfields_derivatives, &
             free_emfields, free_emfields_derivatives
         use interpolation_vel_mom, only: init_vel_mom, free_vel_mom
@@ -140,14 +147,19 @@ program particle_energization_io
             free_efield_components
         use interpolation_pre_post_ufield, only: init_ufield_components, &
             free_ufield_components
+        use interpolation_pre_post_vfield, only: init_vfield_components, &
+            free_vfield_components
         use interpolation_vexb, only: init_exb_drift, free_exb_drift, &
             calc_exb_drift, init_exb_derivatives, free_exb_derivatives, &
             calc_exb_derivatives, init_exb_derivatives_single, &
             free_exb_derivatives_single
         use interpolation_ufield_derivatives, only: init_ufields_derivatives_single, &
             free_ufields_derivatives_single
+        use interpolation_vperp_derivatives, only: init_vperp_derivatives_single, &
+            free_vperp_derivatives_single
         implicit none
         integer :: dom_x, dom_y, dom_z
+        integer :: tindex, tindex_pre, tindex_pos
         real(fp) :: dx_domain, dy_domain, dz_domain
         real(fp) :: dt_fields
 
@@ -160,6 +172,8 @@ program particle_energization_io
         call init_ufield_components
         call init_ufields_derivatives_single
         call init_exb_derivatives_single
+        call init_vfield_components
+        call init_vperp_derivatives_single
         if (is_translated_file) then
             call init_electric_fields(htg%nx, htg%ny, htg%nz)    ! 3 components
             call init_magnetic_fields(htg%nx, htg%ny, htg%nz)    ! 3 components + magnitude
@@ -167,10 +181,13 @@ program particle_energization_io
             call init_pre_post_bfield(htg%nx, htg%ny, htg%nz)    ! 6 components + 2 magnitude
             call init_pre_post_efield(htg%nx, htg%ny, htg%nz)    ! 6 components + 2 magnitude
             call init_pre_post_u(htg%nx, htg%ny, htg%nz)         ! 6 components
+            call init_pre_post_v(htg%nx, htg%ny, htg%nz)         ! 6 components
             call init_exb_drift(htg%nx, htg%ny, htg%nz)          ! 3 components
             call init_bfield_derivatives(htg%nx, htg%ny, htg%nz) ! 9 components
             call init_exb_derivatives(htg%nx, htg%ny, htg%nz)    ! 9 components
             call init_ufield_derivatives(htg%nx, htg%ny, htg%nz) ! 9 components
+            call init_vperp_components(htg%nx, htg%ny, htg%nz)   ! 3 components
+            call init_vperp_derivatives(htg%nx, htg%ny, htg%nz)  ! 9 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -191,22 +208,76 @@ program particle_energization_io
             call open_bfield_pre_post(separated_pre_post)
             call open_efield_pre_post(separated_pre_post)
             call open_ufield_pre_post(species, separated_pre_post)
+            call open_vfield_pre_post(species, separated_pre_post)
         endif
 
         call cpu_time(step1)
         do tframe = tstart, tend, tinterval
             if (myid == master) print*, tframe
-            tp_emf = tframe / fields_interval
+            tp_emf = tframe / fields_interval + 1
             call set_dists_zero
             call cpu_time(time1)
+
+            ! Time frame and interval
+            tindex = domain%fields_interval * (tp_emf - tp1)
+            if (separated_pre_post) then
+                if (tp_emf == tp1) then
+                    tindex_pre = tindex
+                    tindex_pos = 1
+                else if (tp_emf == tp2) then
+                    tindex_pre = tindex - fd_tinterval
+                    tindex_pos = tindex
+                else
+                    tindex_pre = tindex - fd_tinterval
+                    tindex_pos = tindex + fd_tinterval
+                endif
+            else
+                ! Not well tested now
+                ! if (tp_emf == tp1 .or. tp_emf == tp2) then
+                !     dt_fields = domain%dt
+                ! else
+                !     dt_fields = domain%dt * 2.0
+                ! endif
+            endif
+            dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
+
             if (is_translated_file) then
-                ! Fields at all time steps are saved in the same file
-                call read_electric_fields(tp_emf + 1)
-                call read_magnetic_fields(tp_emf + 1)
-                call read_velocity_fields(tp_emf + 1)
-                call read_pre_post_bfield(tp_emf + 1, output_format, separated_pre_post)
-                call read_pre_post_efield(tp_emf + 1, output_format, separated_pre_post)
-                call read_pre_post_u(tp_emf + 1, output_format, separated_pre_post)
+                if (output_format /= 1) then
+                    call open_electric_field_files(tindex)
+                    call read_electric_fields(tp1)
+                    call close_electric_field_files
+                    call open_magnetic_field_files(tindex)
+                    call read_magnetic_fields(tp1)
+                    call close_magnetic_field_files
+                    call open_velocity_field_files(species, tindex)
+                    call read_velocity_fields(tp1)
+                    call close_velocity_field_files
+                    call open_bfield_pre_post(separated_pre_post, tindex, &
+                                              tindex_pre, tindex_pos)
+                    call read_pre_post_bfield(tp1, output_format, separated_pre_post)
+                    call close_bfield_pre_post
+                    call open_efield_pre_post(separated_pre_post, tindex, &
+                                              tindex_pre, tindex_pos)
+                    call read_pre_post_efield(tp1, output_format, separated_pre_post)
+                    call close_efield_pre_post
+                    call open_ufield_pre_post(species, separated_pre_post, &
+                                              tindex, tindex_pre, tindex_pos)
+                    call read_pre_post_u(tp1, output_format, separated_pre_post)
+                    call close_ufield_pre_post
+                    call open_vfield_pre_post(species, separated_pre_post, &
+                                              tindex, tindex_pre, tindex_pos)
+                    call read_pre_post_v(tp1, output_format, separated_pre_post)
+                    call close_vfield_pre_post
+                else
+                    ! Fields at all time steps are saved in the same file
+                    call read_electric_fields(tp_emf)
+                    call read_magnetic_fields(tp_emf)
+                    call read_velocity_fields(tp_emf)
+                    call read_pre_post_bfield(tp_emf, output_format, separated_pre_post)
+                    call read_pre_post_efield(tp_emf, output_format, separated_pre_post)
+                    call read_pre_post_u(tp_emf, output_format, separated_pre_post)
+                    call read_pre_post_v(tp_emf, output_format, separated_pre_post)
+                endif
             endif
             call cpu_time(time2)
             if (myid == master) then
@@ -222,6 +293,8 @@ program particle_energization_io
             call calc_exb_derivatives(htg%nx, htg%ny, htg%nz)
             call calc_bfield_derivatives(htg%nx, htg%ny, htg%nz)
             call calc_ufield_derivatives(htg%nx, htg%ny, htg%nz)
+            call calc_vperp_components
+            call calc_vperp_derivatives(htg%nx, htg%ny, htg%nz)
 
             dx_domain = domain%lx_de / domain%pic_tx
             dy_domain = domain%ly_de / domain%pic_ty
@@ -237,21 +310,6 @@ program particle_energization_io
             if (myid == master) then
                 print '("Time for openning HDF5 = ",f8.3," seconds.")', &
                     time2 - time1
-            endif
-
-            ! Time interval
-            if (separated_pre_post) then
-                if (tframe == tp1 .or. tframe == tp2) then
-                    dt_fields = domain%dtwpe
-                else
-                    dt_fields = domain%dtwpe * fd_tinterval * 2.0
-                endif
-            else
-                if (tframe == tp1 .or. tframe == tp2) then
-                    dt_fields = domain%dt
-                else
-                    dt_fields = domain%dt * 2.0
-                endif
             endif
 
             call cpu_time(time1)
@@ -303,6 +361,7 @@ program particle_energization_io
             call close_bfield_pre_post
             call close_efield_pre_post
             call close_ufield_pre_post
+            call close_vfield_pre_post
         endif
 
         deallocate(ebins, fbins, fbins_sum)
@@ -314,10 +373,13 @@ program particle_energization_io
             call free_pre_post_bfield
             call free_pre_post_efield
             call free_pre_post_u
+            call free_pre_post_v
             call free_exb_drift
             call free_bfield_derivatives
             call free_exb_derivatives
             call free_ufield_derivatives
+            call free_vperp_components
+            call free_vperp_derivatives
         endif
         call free_emfields
         call free_emfields_derivatives
@@ -328,6 +390,8 @@ program particle_energization_io
         call free_ufield_components
         call free_ufields_derivatives_single
         call free_exb_derivatives_single
+        call free_vfield_components
+        call free_vperp_derivatives_single
     end subroutine calc_particle_energization
 
     !<--------------------------------------------------------------------------
@@ -360,6 +424,13 @@ program particle_energization_io
         use interpolation_ufield_derivatives, only: set_ufield_derivatives, &
             trilinear_interp_ufield_derivatives, duxdx0, duxdy0, duxdz0, &
             duydx0, duydy0, duydz0, duzdx0, duzdy0, duzdz0
+        use interpolation_pre_post_vfield, only: set_vfield_components, &
+            trilinear_interp_vfield_components, vx1_0, vy1_0, vz1_0, &
+            vx2_0, vy2_0, vz2_0
+        use interpolation_vperp_derivatives, only: set_vperp_derivatives, &
+            trilinear_interp_vperp_derivatives, dvperpx_dx0, dvperpx_dy0, &
+            dvperpx_dz0, dvperpy_dx0, dvperpy_dy0, dvperpy_dz0, &
+            dvperpz_dx0, dvperpz_dy0, dvperpz_dz0
         use file_header, only: pheader
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
@@ -369,7 +440,7 @@ program particle_energization_io
         real(fp) :: dnx, dny, dnz
         integer :: nxg, nyg, nzg, icell
         integer :: ibin, n, iptl, nptl
-        real(fp) :: gama, igama, ux, uy, uz, vx, vy, vz
+        real(fp) :: gama, igama, iene, ux, uy, uz, vx, vy, vz
         real(fp) :: vpara, vperp, vparax, vparay, vparaz
         real(fp) :: vperpx, vperpy, vperpz, tmp
         real(fp) :: bxn, byn, bzn, absB0, ib2, ib, edotb
@@ -394,7 +465,9 @@ program particle_energization_io
         real(fp) :: vpx0, vpy0, vpz0
         real(fp) :: polar_ene_spatial, init_ene_spatial
         real(fp) :: polar_fluid_time, polar_fluid_spatial
-        real(fp) :: dexdt, deydt, dezdt
+        real(fp) :: vperpx1, vperpy1, vperpz1
+        real(fp) :: vperpx2, vperpy2, vperpz2
+        real(fp) :: polar_ene_time_v, polar_ene_spatial_v
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
@@ -438,6 +511,12 @@ program particle_energization_io
             call set_ufield_derivatives(dom_x, dom_y, dom_z, &
                 domain%pic_tx, domain%pic_ty, &
                 domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
+            call set_vfield_components(dom_x, dom_y, dom_z, &
+                domain%pic_tx, domain%pic_ty, &
+                domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
+            call set_vperp_derivatives(dom_x, dom_y, dom_z, &
+                domain%pic_tx, domain%pic_ty, &
+                domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
         endif
 
         nxg = domain%pic_nx + 2  ! Including ghost cells
@@ -466,11 +545,14 @@ program particle_energization_io
             call trilinear_interp_ufield_components(ino, jno, kno, dnx, dny, dnz)
             call trilinear_interp_exb_derivatives(ino, jno, kno, dnx, dny, dnz)
             call trilinear_interp_ufield_derivatives(ino, jno, kno, dnx, dny, dnz)
+            call trilinear_interp_vfield_components(ino, jno, kno, dnx, dny, dnz)
+            call trilinear_interp_vperp_derivatives(ino, jno, kno, dnx, dny, dnz)
             ux = ptl%vx  ! v in ptl is actually gamma*v
             uy = ptl%vy
             uz = ptl%vz
             gama = sqrt(1.0 + ux**2 + uy**2 + uz**2)
             igama = 1.0 / gama
+            iene = 1.0 / (gama - 1.0)
             vx = ux * igama
             vy = uy * igama
             vz = uz * igama
@@ -651,23 +733,52 @@ program particle_energization_io
             polar_fluid_spatial = weight * ptl_mass * &
                 (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
 
+            ! Energization due to polarization drift, using vperp instead of vexb
+            vdotB = (vx1_0 * bx1_0 + vy1_0 * by1_0 + vz1_0 * bz1_0) * ib2_1
+            vperpx1 = vx1_0 - vdotB * bx1_0
+            vperpy1 = vy1_0 - vdotB * by1_0
+            vperpz1 = vz1_0 - vdotB * bz1_0
+            vdotB = (vx2_0 * bx2_0 + vy2_0 * by2_0 + vz2_0 * bz2_0) * ib2_2
+            vperpx2 = vx2_0 - vdotB * bx2_0
+            vperpy2 = vy2_0 - vdotB * by2_0
+            vperpz2 = vz2_0 - vdotB * bz2_0
+
+            dvxdt = (vperpx2 - vperpx1) * idt
+            dvydt = (vperpy2 - vperpy1) * idt
+            dvzdt = (vperpz2 - vperpz1) * idt
+            polar_ene_time_v = weight * gama * ptl_mass * &
+                (dvxdt * vexb_x + dvydt * vexb_y + dvzdt * vexb_z)
+
+            vpx0 = vparax + vexb_x
+            vpy0 = vparay + vexb_y
+            vpz0 = vparaz + vexb_z
+
+            dvxdt = vpx0 * dvperpx_dx0 + vpy0 * dvperpx_dy0 + vpz0 * dvperpx_dz0
+            dvydt = vpx0 * dvperpy_dx0 + vpy0 * dvperpy_dy0 + vpz0 * dvperpy_dz0
+            dvzdt = vpx0 * dvperpz_dx0 + vpy0 * dvperpz_dy0 + vpz0 * dvperpz_dz0
+
+            polar_ene_spatial_v = weight * gama * ptl_mass * &
+                (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
+
             ibin = floor((log10(gama - 1) - emin_log) / de_log)
             if (ibin > 0 .and. ibin < nbins + 1) then
                 fbins(ibin+1, 1) = fbins(ibin+1, 1) + weight
-                fbins(ibin+1, 2) = fbins(ibin+1, 2) + dke_para
-                fbins(ibin+1, 3) = fbins(ibin+1, 3) + dke_perp
-                fbins(ibin+1, 4) = fbins(ibin+1, 4) + pdivv
-                fbins(ibin+1, 5) = fbins(ibin+1, 5) + pshear
-                fbins(ibin+1, 6) = fbins(ibin+1, 6) + curv_ene
-                fbins(ibin+1, 7) = fbins(ibin+1, 7) + grad_ene
-                fbins(ibin+1, 8) = fbins(ibin+1, 8) + parad_ene
-                fbins(ibin+1, 9) = fbins(ibin+1, 9) + dene_m
-                fbins(ibin+1, 10) = fbins(ibin+1, 10) + polar_ene_time
-                fbins(ibin+1, 11) = fbins(ibin+1, 11) + polar_ene_spatial
-                fbins(ibin+1, 12) = fbins(ibin+1, 12) + init_ene_time
-                fbins(ibin+1, 13) = fbins(ibin+1, 13) + init_ene_spatial
-                fbins(ibin+1, 14) = fbins(ibin+1, 14) + polar_fluid_time
-                fbins(ibin+1, 15) = fbins(ibin+1, 15) + polar_fluid_spatial
+                fbins(ibin+1, 2) = fbins(ibin+1, 2) + dke_para * iene
+                fbins(ibin+1, 3) = fbins(ibin+1, 3) + dke_perp * iene
+                fbins(ibin+1, 4) = fbins(ibin+1, 4) + pdivv * iene
+                fbins(ibin+1, 5) = fbins(ibin+1, 5) + pshear * iene
+                fbins(ibin+1, 6) = fbins(ibin+1, 6) + curv_ene * iene
+                fbins(ibin+1, 7) = fbins(ibin+1, 7) + grad_ene * iene
+                fbins(ibin+1, 8) = fbins(ibin+1, 8) + parad_ene * iene
+                fbins(ibin+1, 9) = fbins(ibin+1, 9) + dene_m * iene
+                fbins(ibin+1, 10) = fbins(ibin+1, 10) + polar_ene_time * iene
+                fbins(ibin+1, 11) = fbins(ibin+1, 11) + polar_ene_spatial * iene
+                fbins(ibin+1, 12) = fbins(ibin+1, 12) + init_ene_time * iene
+                fbins(ibin+1, 13) = fbins(ibin+1, 13) + init_ene_spatial * iene
+                fbins(ibin+1, 14) = fbins(ibin+1, 14) + polar_fluid_time * iene
+                fbins(ibin+1, 15) = fbins(ibin+1, 15) + polar_fluid_spatial * iene
+                fbins(ibin+1, 16) = fbins(ibin+1, 16) + polar_ene_time_v * iene
+                fbins(ibin+1, 17) = fbins(ibin+1, 17) + polar_ene_spatial_v * iene
             endif
         enddo
         deallocate(ptls)

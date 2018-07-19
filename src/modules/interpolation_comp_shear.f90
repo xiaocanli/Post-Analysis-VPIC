@@ -105,13 +105,9 @@ module interpolation_comp_shear
     !---------------------------------------------------------------------------
     subroutine close_exb_drift_files
         implicit none
-        logical :: is_opened
-        inquire(vexb_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(vexb_fh(1), ierror)
-            call MPI_FILE_CLOSE(vexb_fh(2), ierror)
-            call MPI_FILE_CLOSE(vexb_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(vexb_fh(1), ierror)
+        call MPI_FILE_CLOSE(vexb_fh(2), ierror)
+        call MPI_FILE_CLOSE(vexb_fh(3), ierror)
     end subroutine close_exb_drift_files
 
     !---------------------------------------------------------------------------

@@ -181,30 +181,23 @@ module pre_post_emf
                 call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(3))
             endif
         else
-            if (tindex_pre == tindex) then
-                efields_pre_fh = efields_fh
-            else
-                efields_pre_fh = 0
-                write(cfname, "(I0)") tindex_pre
-                fname = trim(adjustl(filepath))//'ex_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_pre_fh(1))
-                fname = trim(adjustl(filepath))//'ey_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_pre_fh(2))
-                fname = trim(adjustl(filepath))//'ez_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_pre_fh(3))
-            endif
-            if (tindex_post == tindex) then
-                efields_post_fh = efields_fh
-            else
-                efields_post_fh = 0
-                write(cfname, "(I0)") tindex_post
-                fname = trim(adjustl(filepath))//'ex_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(1))
-                fname = trim(adjustl(filepath))//'ey_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(2))
-                fname = trim(adjustl(filepath))//'ez_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(3))
-            endif
+            efields_pre_fh = 0
+            write(cfname, "(I0)") tindex_pre
+            fname = trim(adjustl(filepath))//'ex_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_pre_fh(1))
+            fname = trim(adjustl(filepath))//'ey_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_pre_fh(2))
+            fname = trim(adjustl(filepath))//'ez_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_pre_fh(3))
+
+            efields_post_fh = 0
+            write(cfname, "(I0)") tindex_post
+            fname = trim(adjustl(filepath))//'ex_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(1))
+            fname = trim(adjustl(filepath))//'ey_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(2))
+            fname = trim(adjustl(filepath))//'ez_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_post_fh(3))
         endif
     end subroutine open_efield_pre_post_multi
 
@@ -214,21 +207,14 @@ module pre_post_emf
     !<--------------------------------------------------------------------------
     subroutine close_efield_pre_post
         implicit none
-        logical :: is_opened
 
-        inquire(efields_pre_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(efields_pre_fh(1), ierror)
-            call MPI_FILE_CLOSE(efields_pre_fh(2), ierror)
-            call MPI_FILE_CLOSE(efields_pre_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(efields_pre_fh(1), ierror)
+        call MPI_FILE_CLOSE(efields_pre_fh(2), ierror)
+        call MPI_FILE_CLOSE(efields_pre_fh(3), ierror)
 
-        inquire(efields_post_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(efields_post_fh(1), ierror)
-            call MPI_FILE_CLOSE(efields_post_fh(2), ierror)
-            call MPI_FILE_CLOSE(efields_post_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(efields_post_fh(1), ierror)
+        call MPI_FILE_CLOSE(efields_post_fh(2), ierror)
+        call MPI_FILE_CLOSE(efields_post_fh(3), ierror)
     end subroutine close_efield_pre_post
 
     !<--------------------------------------------------------------------------
@@ -382,30 +368,23 @@ module pre_post_emf
                 call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(3))
             endif
         else
-            if (tindex_pre == tindex) then
-                bfields_pre_fh = bfields_fh(1:3)
-            else
-                bfields_pre_fh = 0
-                write(cfname, "(I0)") tindex_pre
-                fname = trim(adjustl(filepath))//'bx_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_pre_fh(1))
-                fname = trim(adjustl(filepath))//'by_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_pre_fh(2))
-                fname = trim(adjustl(filepath))//'bz_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_pre_fh(3))
-            endif
-            if (tindex_post == tindex) then
-                bfields_post_fh = bfields_fh(1:3)
-            else
-                bfields_post_fh = 0
-                write(cfname, "(I0)") tindex_post
-                fname = trim(adjustl(filepath))//'bx_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(1))
-                fname = trim(adjustl(filepath))//'by_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(2))
-                fname = trim(adjustl(filepath))//'bz_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(3))
-            endif
+            bfields_pre_fh = 0
+            write(cfname, "(I0)") tindex_pre
+            fname = trim(adjustl(filepath))//'bx_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_pre_fh(1))
+            fname = trim(adjustl(filepath))//'by_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_pre_fh(2))
+            fname = trim(adjustl(filepath))//'bz_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_pre_fh(3))
+
+            bfields_post_fh = 0
+            write(cfname, "(I0)") tindex_post
+            fname = trim(adjustl(filepath))//'bx_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(1))
+            fname = trim(adjustl(filepath))//'by_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(2))
+            fname = trim(adjustl(filepath))//'bz_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_post_fh(3))
         endif
     end subroutine open_bfield_pre_post_multi
 
@@ -415,21 +394,14 @@ module pre_post_emf
     !<--------------------------------------------------------------------------
     subroutine close_bfield_pre_post
         implicit none
-        logical :: is_opened
 
-        inquire(bfields_pre_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(bfields_pre_fh(1), ierror)
-            call MPI_FILE_CLOSE(bfields_pre_fh(2), ierror)
-            call MPI_FILE_CLOSE(bfields_pre_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(bfields_pre_fh(1), ierror)
+        call MPI_FILE_CLOSE(bfields_pre_fh(2), ierror)
+        call MPI_FILE_CLOSE(bfields_pre_fh(3), ierror)
 
-        inquire(bfields_post_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(bfields_post_fh(1), ierror)
-            call MPI_FILE_CLOSE(bfields_post_fh(2), ierror)
-            call MPI_FILE_CLOSE(bfields_post_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(bfields_post_fh(1), ierror)
+        call MPI_FILE_CLOSE(bfields_post_fh(2), ierror)
+        call MPI_FILE_CLOSE(bfields_post_fh(3), ierror)
     end subroutine close_bfield_pre_post
 
     !<--------------------------------------------------------------------------

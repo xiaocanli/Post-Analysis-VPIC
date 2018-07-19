@@ -206,20 +206,18 @@ program fluid_energization
             if (output_format /= 1) then
                 tindex = domain%fields_interval * (tframe - tp1)
                 call open_magnetic_field_files(tindex)
-                call open_electric_field_files(tindex)
-                call open_pressure_tensor_files(species, tindex)
                 call read_magnetic_fields(tp1)
+                call close_magnetic_field_files
+                call open_electric_field_files(tindex)
                 call read_electric_fields(tp1)
+                call close_electric_field_files
+                call open_pressure_tensor_files(species, tindex)
                 call read_pressure_tensor(tp1)
+                call close_pressure_tensor_files
             else
                 call read_magnetic_fields(tframe)
                 call read_electric_fields(tframe)
                 call read_pressure_tensor(tframe)
-            endif
-            if (output_format /= 1) then
-                call close_magnetic_field_files
-                call close_electric_field_files
-                call close_pressure_tensor_files
             endif
             call interp_emf_node
             call shift_pressure_tensor
@@ -301,7 +299,7 @@ program fluid_energization
         use parameters, only: tp1, tp2
         implicit none
         integer :: tframe, nframes, posf, fh1
-        integer :: tindex, tindex_pre, tindex_post
+        integer :: tindex, tindex_pre, tindex_pos
         real(fp), allocatable, dimension(:, :) :: jdote, jdote_tot
         real(fp) :: dt_fields
         character(len=256) :: fname
@@ -338,31 +336,49 @@ program fluid_energization
 
         do tframe = tp1, tp2
             if (myid==master) print*, tframe
-            if (output_format /= 1) then
-                tindex = domain%fields_interval * (tframe - tp1)
+            ! Time frame and interval
+            tindex = domain%fields_interval * (tframe - tp1)
+            if (separated_pre_post) then
                 if (tframe == tp1) then
                     tindex_pre = tindex
+                    tindex_pos = 1
+                else if (tframe == tp2) then
+                    tindex_pre = tindex - fd_tinterval
+                    tindex_pos = tindex
                 else
-                    tindex_pre = tindex - 1
+                    tindex_pre = tindex - fd_tinterval
+                    tindex_pos = tindex + fd_tinterval
                 endif
-                if (tframe == tp2) then
-                    tindex_post = tindex
-                else
-                    tindex_post = tindex + 1
-                endif
+            else
+                ! Not well tested now
+                ! if (tframe == tp1 .or. tframe == tp2) then
+                !     dt_fields = domain%dt
+                ! else
+                !     dt_fields = domain%dt * 2.0
+                ! endif
+            endif
+            dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
+
+            if (output_format /= 1) then
                 call open_magnetic_field_files(tindex)
-                call open_electric_field_files(tindex)
-                call open_ufield_files(species, tindex)
-                call open_vfield_files(species, tindex)
-                call open_number_density_file(species, tindex)
-                call open_ufield_pre_post(species, separated_pre_post, &
-                    tindex, tindex_pre, tindex_post)
                 call read_magnetic_fields(tp1)
+                call close_magnetic_field_files
+                call open_electric_field_files(tindex)
                 call read_electric_fields(tp1)
+                call close_electric_field_files
+                call open_ufield_files(species, tindex)
                 call read_ufields(tp1)
+                call close_ufield_files
+                call open_vfield_files(species, tindex)
                 call read_vfields(tp1)
+                call close_vfield_files
+                call open_number_density_file(species, tindex)
                 call read_number_density(tp1)
+                call close_number_density_file
+                call open_ufield_pre_post(species, separated_pre_post, &
+                    tindex, tindex_pre, tindex_pos)
                 call read_pre_post_u(tp1, output_format, separated_pre_post)
+                call close_ufield_pre_post
             else
                 call read_magnetic_fields(tframe)
                 call read_electric_fields(tframe)
@@ -371,34 +387,11 @@ program fluid_energization
                 call read_number_density(tframe)
                 call read_pre_post_u(tframe, output_format, separated_pre_post)
             endif
-            if (output_format /= 1) then
-                call close_magnetic_field_files
-                call close_electric_field_files
-                call close_ufield_files
-                call close_vfield_files
-                call close_number_density_file
-                call close_ufield_pre_post
-            endif
             call interp_emf_node
             call shift_ufields
             call shift_vfields
             call shift_number_density
             call shift_ufield_pre_post
-            if (separated_pre_post) then
-                if (tframe == tp1) then
-                    dt_fields = domain%dtwpe
-                else if (tframe == tp2) then
-                    dt_fields = domain%dtwpe * fd_tinterval
-                else
-                    dt_fields = domain%dtwpe * fd_tinterval * 2.0
-                endif
-            else
-                if (tframe == tp1 .or. tframe == tp2) then
-                    dt_fields = domain%dt
-                else
-                    dt_fields = domain%dt * 2.0
-                endif
-            endif
             jdote(tframe - tp1 + 1, 1) = fluid_accel_energization(dt_fields)
             jdote(tframe - tp1 + 1, 2:3) = para_perp_energization()
         enddo

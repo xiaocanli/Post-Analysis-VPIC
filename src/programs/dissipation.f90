@@ -122,6 +122,7 @@ program dissipation
     !---------------------------------------------------------------------------
     subroutine energy_conversion_from_current
         use mpi_module
+        use mpi_topology, only: htg
         use picinfo, only: domain
         use parameters, only: tp1, tp2, inductive, is_rel
         use particle_info, only: ibtag, species
@@ -130,8 +131,8 @@ program dissipation
         use pic_fields, only: vfields_fh, ufields_fh, nrho_fh
         use inductive_electric_field, only: calc_inductive_e, &
             init_inductive, free_inductive
-        use pre_post_hydro, only: init_pre_post_velocities, &
-            read_pre_post_velocities, free_pre_post_velocities, &
+        use pre_post_hydro, only: init_pre_post_v, &
+            read_pre_post_v, free_pre_post_v, &
             init_pre_post_density, read_pre_post_density, free_pre_post_density
         use current_densities, only: init_current_densities, &
             free_current_densities, set_current_densities_to_zero, &
@@ -155,7 +156,7 @@ program dissipation
         ! And calculate energy conversion due to j.E.
         call init_current_densities
         call init_ava_current_densities
-        call init_pre_post_velocities
+        call init_pre_post_v(htg%nx, htg%ny, htg%nz)
         call init_pre_post_density
         call init_jdote
         call init_jdote_total
@@ -173,11 +174,11 @@ program dissipation
             if (inductive == 1) then
                 call calc_inductive_e(input_record, species)
             endif
-            if (is_rel == 1) then
-                call read_pre_post_velocities(input_record, ufields_fh)
-            else
-                call read_pre_post_velocities(input_record, vfields_fh)
-            endif
+            ! if (is_rel == 1) then
+            !     call read_pre_post_v(input_record, ufields_fh)
+            ! else
+            !     call read_pre_post_v(input_record, vfields_fh)
+            ! endif
             call read_pre_post_density(input_record, nrho_fh)
             call calc_energy_conversion(input_record)
             call set_current_densities_to_zero
@@ -194,7 +195,7 @@ program dissipation
 
         call free_jdote_total
         call free_jdote
-        call free_pre_post_velocities
+        call free_pre_post_v
         call free_pre_post_density
         call free_avg_current_densities
         call free_current_densities

@@ -13,8 +13,8 @@ module pre_post_hydro
     public udx1, udy1, udz1, udx2, udy2, udz2
     public nrho1, nrho2
 
-    public init_pre_post_velocities, free_pre_post_velocities, &
-           read_pre_post_velocities
+    public init_pre_post_v, free_pre_post_v, open_vfield_pre_post, &
+           close_vfield_pre_post, read_pre_post_v, shift_vfield_pre_post
     public init_pre_post_u, free_pre_post_u, open_ufield_pre_post, &
            close_ufield_pre_post, read_pre_post_u, shift_ufield_pre_post
     public init_pre_post_density, free_pre_post_density, read_pre_post_density
@@ -25,11 +25,17 @@ module pre_post_hydro
     real(fp), allocatable, dimension(:, :, :) :: udx2, udy2, udz2
     real(fp), allocatable, dimension(:, :, :) :: nrho1, nrho2
     integer, dimension(3) :: ufields_pre_fh, ufields_post_fh
+    integer, dimension(3) :: vfields_pre_fh, vfields_post_fh
 
     interface open_ufield_pre_post
         module procedure &
             open_ufield_pre_post_single, open_ufield_pre_post_multi
     end interface open_ufield_pre_post
+
+    interface open_vfield_pre_post
+        module procedure &
+            open_vfield_pre_post_single, open_vfield_pre_post_multi
+    end interface open_vfield_pre_post
 
     contains
 
@@ -37,14 +43,10 @@ module pre_post_hydro
     !< Initialize velocities of the previous time frame and post time frame.
     !< They are going be be used to calculate polarization drift current.
     !<--------------------------------------------------------------------------
-    subroutine init_pre_post_velocities
+    subroutine init_pre_post_v(nx, ny, nz)
         use mpi_topology, only: htg
         implicit none
-        integer :: nx, ny, nz
-
-        nx = htg%nx
-        ny = htg%ny
-        nz = htg%nz
+        integer, intent(in) :: nx, ny, nz
 
         allocate(vdx1(nx,ny,nz))
         allocate(vdy1(nx,ny,nz))
@@ -55,7 +57,7 @@ module pre_post_hydro
 
         vdx1 = 0.0; vdy1 = 0.0; vdz1 = 0.0
         vdx2 = 0.0; vdy2 = 0.0; vdz2 = 0.0
-    end subroutine init_pre_post_velocities
+    end subroutine init_pre_post_v
 
     !<--------------------------------------------------------------------------
     !< Initialize gamma * V of the previous time frame and post time frame.
@@ -98,10 +100,10 @@ module pre_post_hydro
     !<--------------------------------------------------------------------------
     !< Free the velocities of the previous time frame and post time frame.
     !<--------------------------------------------------------------------------
-    subroutine free_pre_post_velocities
+    subroutine free_pre_post_v
         implicit none
         deallocate(vdx1, vdy1, vdz1, vdx2, vdy2, vdz2)
-    end subroutine free_pre_post_velocities
+    end subroutine free_pre_post_v
 
     !<--------------------------------------------------------------------------
     !< Free the velocities of the previous time frame and post time frame.
@@ -118,56 +120,6 @@ module pre_post_hydro
         implicit none
         deallocate(nrho1, nrho2)
     end subroutine free_pre_post_density
-
-    !<--------------------------------------------------------------------------
-    !< Read previous and post velocities. Only one of them is read in the
-    !< first and last time frame.
-    !< Input:
-    !<   ct: current time frame.
-    !<   fh: the file handlers for the velocities.
-    !<--------------------------------------------------------------------------
-    subroutine read_pre_post_velocities(ct, fh)
-        use constants, only: fp
-        use parameters, only: tp1
-        use picinfo, only: domain, nt   ! Total number of output time frames.
-        use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
-        use mpi_io_module, only: read_data_mpi_io
-        use pic_fields, only: vx, vy, vz
-        implicit none
-        integer, intent(in) :: ct
-        integer, dimension(3), intent(in) :: fh
-        integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        offset = 0
-        if ((ct >= tp1) .and. (ct < nt)) then
-            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1+1)
-            call read_data_mpi_io(fh(1), filetype_ghost, subsizes_ghost, &
-                disp, offset, vdx2)
-            call read_data_mpi_io(fh(2), filetype_ghost, subsizes_ghost, &
-                disp, offset, vdy2)
-            call read_data_mpi_io(fh(3), filetype_ghost, subsizes_ghost, &
-                disp, offset, vdz2)
-        else
-            ! ct = nt, last time frame.
-            vdx2 = vx
-            vdy2 = vy
-            vdz2 = vz
-        endif
-
-        if ((ct <= nt) .and. (ct > tp1)) then
-            disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (ct-tp1-1)
-            call read_data_mpi_io(fh(1), filetype_ghost, subsizes_ghost, &
-                disp, offset, vdx1)
-            call read_data_mpi_io(fh(2), filetype_ghost, subsizes_ghost, &
-                disp, offset, vdy1)
-            call read_data_mpi_io(fh(3), filetype_ghost, subsizes_ghost, &
-                disp, offset, vdz1)
-        else
-            ! ct = tp1, The first time frame.
-            vdx1 = vx
-            vdy1 = vy
-            vdz1 = vz
-        endif
-    end subroutine read_pre_post_velocities
 
     !<--------------------------------------------------------------------------
     !< Read previous and post densities. Only one of them is read in the
@@ -206,6 +158,47 @@ module pre_post_hydro
             nrho1 = num_rho
         endif
     end subroutine read_pre_post_density
+
+    !<--------------------------------------------------------------------------
+    !< Open v field files if all time frames are saved in the same file
+    !< Input:
+    !<   species: particle species
+    !<   separated_pre_post: 1 for separated pre and post files, 0 for not
+    !<--------------------------------------------------------------------------
+    subroutine open_vfield_pre_post_single(species, separated_pre_post)
+        use pic_fields, only: vfields_fh
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: separated_pre_post
+        character(len=256) :: fname
+        character(len=16) :: cfname
+
+        if (separated_pre_post == 0) then
+            vfields_pre_fh = vfields_fh
+            vfields_post_fh = vfields_fh
+        else
+            vfields_pre_fh = 0
+            vfields_post_fh = 0
+            fname = trim(adjustl(filepath))//'v'//species//'x_pre.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_pre_fh(1))
+            fname = trim(adjustl(filepath))//'v'//species//'y_pre.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_pre_fh(2))
+            fname = trim(adjustl(filepath))//'v'//species//'z_pre.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_pre_fh(3))
+            fname = trim(adjustl(filepath))//'v'//species//'x_post.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_post_fh(1))
+            fname = trim(adjustl(filepath))//'v'//species//'y_post.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_post_fh(2))
+            fname = trim(adjustl(filepath))//'v'//species//'z_post.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+                vfields_post_fh(3))
+        endif
+    end subroutine open_vfield_pre_post_single
 
     !<--------------------------------------------------------------------------
     !< Open u field files if all time frames are saved in the same file
@@ -249,6 +242,78 @@ module pre_post_hydro
     end subroutine open_ufield_pre_post_single
 
     !<--------------------------------------------------------------------------
+    !< Open v field files if different time frames are saved in different files
+    !< Input:
+    !<   species: particle species
+    !<   tindex: time index for current time step
+    !<   tindex_pre: time index for previous time step
+    !<   tindex_post: time index for next time step
+    !<   separated_pre_post: 1 for separated pre and post files, 0 for not
+    !<--------------------------------------------------------------------------
+    subroutine open_vfield_pre_post_multi(species, separated_pre_post, tindex, &
+            tindex_pre, tindex_post)
+        use pic_fields, only: vfields_fh
+        implicit none
+        character(*), intent(in) :: species
+        integer, intent(in) :: tindex, tindex_pre, tindex_post, separated_pre_post
+        character(len=256) :: fname
+        character(len=16) :: cfname
+
+        if (separated_pre_post == 0) then
+            if (tindex_pre == tindex) then
+                vfields_pre_fh = vfields_fh
+            else
+                vfields_pre_fh = 0
+                write(cfname, "(I0)") tindex_pre
+                fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_pre_fh(1))
+                fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_pre_fh(2))
+                fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_pre_fh(3))
+            endif
+
+            if (tindex_post == tindex) then
+                vfields_post_fh = vfields_fh
+            else
+                vfields_post_fh = 0
+                write(cfname, "(I0)") tindex_post
+                fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_post_fh(1))
+                fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_post_fh(2))
+                fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_post_fh(3))
+            endif
+        else
+            if (tindex_pre == tindex) then
+                vfields_pre_fh = vfields_fh
+            else
+                vfields_pre_fh = 0
+                write(cfname, "(I0)") tindex_pre
+                fname = trim(adjustl(filepath))//'v'//species//'x_pre_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_pre_fh(1))
+                fname = trim(adjustl(filepath))//'v'//species//'y_pre_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_pre_fh(2))
+                fname = trim(adjustl(filepath))//'v'//species//'z_pre_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_pre_fh(3))
+            endif
+            if (tindex_post == tindex) then
+                vfields_post_fh = vfields_fh
+            else
+                vfields_post_fh = 0
+                write(cfname, "(I0)") tindex_post
+                fname = trim(adjustl(filepath))//'v'//species//'x_post_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_post_fh(1))
+                fname = trim(adjustl(filepath))//'v'//species//'y_post_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_post_fh(2))
+                fname = trim(adjustl(filepath))//'v'//species//'z_post_'//trim(cfname)//'.gda'
+                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_post_fh(3))
+            endif
+        endif
+    end subroutine open_vfield_pre_post_multi
+
+    !<--------------------------------------------------------------------------
     !< Open u field files if different time frames are saved in different files
     !< Input:
     !<   species: particle species
@@ -279,7 +344,7 @@ module pre_post_hydro
                 fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'.gda'
                 call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(3))
             endif
-            
+
             if (tindex_post == tindex) then
                 ufields_post_fh = ufields_fh
             else
@@ -293,30 +358,23 @@ module pre_post_hydro
                 call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(3))
             endif
         else
-            if (tindex_pre == tindex) then
-                ufields_pre_fh = ufields_fh
-            else
-                ufields_pre_fh = 0
-                write(cfname, "(I0)") tindex_pre
-                fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(1))
-                fname = trim(adjustl(filepath))//'u'//species//'y_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(2))
-                fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'_pre.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(3))
-            endif
-            if (tindex_post == tindex) then
-                ufields_post_fh = ufields_fh
-            else
-                ufields_post_fh = 0
-                write(cfname, "(I0)") tindex_post
-                fname = trim(adjustl(filepath))//'u'//species//'x_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(1))
-                fname = trim(adjustl(filepath))//'u'//species//'y_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(2))
-                fname = trim(adjustl(filepath))//'u'//species//'z_'//trim(cfname)//'_post.gda'
-                call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(3))
-            endif
+            ufields_pre_fh = 0
+            write(cfname, "(I0)") tindex_pre
+            fname = trim(adjustl(filepath))//'u'//species//'x_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(1))
+            fname = trim(adjustl(filepath))//'u'//species//'y_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(2))
+            fname = trim(adjustl(filepath))//'u'//species//'z_pre_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_pre_fh(3))
+
+            ufields_post_fh = 0
+            write(cfname, "(I0)") tindex_post
+            fname = trim(adjustl(filepath))//'u'//species//'x_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(1))
+            fname = trim(adjustl(filepath))//'u'//species//'y_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(2))
+            fname = trim(adjustl(filepath))//'u'//species//'z_post_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_post_fh(3))
         endif
     end subroutine open_ufield_pre_post_multi
 
@@ -325,22 +383,30 @@ module pre_post_hydro
     !<--------------------------------------------------------------------------
     subroutine close_ufield_pre_post
         implicit none
-        logical :: is_opened
 
-        inquire(ufields_pre_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(ufields_pre_fh(1), ierror)
-            call MPI_FILE_CLOSE(ufields_pre_fh(2), ierror)
-            call MPI_FILE_CLOSE(ufields_pre_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(ufields_pre_fh(1), ierror)
+        call MPI_FILE_CLOSE(ufields_pre_fh(2), ierror)
+        call MPI_FILE_CLOSE(ufields_pre_fh(3), ierror)
 
-        inquire(ufields_post_fh(1), opened=is_opened)
-        if (is_opened) then
-            call MPI_FILE_CLOSE(ufields_post_fh(1), ierror)
-            call MPI_FILE_CLOSE(ufields_post_fh(2), ierror)
-            call MPI_FILE_CLOSE(ufields_post_fh(3), ierror)
-        endif
+        call MPI_FILE_CLOSE(ufields_post_fh(1), ierror)
+        call MPI_FILE_CLOSE(ufields_post_fh(2), ierror)
+        call MPI_FILE_CLOSE(ufields_post_fh(3), ierror)
     end subroutine close_ufield_pre_post
+
+    !<--------------------------------------------------------------------------
+    !< Close v field files if different time frames are saved in different files
+    !<--------------------------------------------------------------------------
+    subroutine close_vfield_pre_post
+        implicit none
+
+        call MPI_FILE_CLOSE(vfields_pre_fh(1), ierror)
+        call MPI_FILE_CLOSE(vfields_pre_fh(2), ierror)
+        call MPI_FILE_CLOSE(vfields_pre_fh(3), ierror)
+
+        call MPI_FILE_CLOSE(vfields_post_fh(1), ierror)
+        call MPI_FILE_CLOSE(vfields_post_fh(2), ierror)
+        call MPI_FILE_CLOSE(vfields_post_fh(3), ierror)
+    end subroutine close_vfield_pre_post
 
     !<--------------------------------------------------------------------------
     !< Read previous and post u field.
@@ -409,6 +475,72 @@ module pre_post_hydro
     end subroutine read_pre_post_u
 
     !<--------------------------------------------------------------------------
+    !< Read previous and post v field.
+    !< Input:
+    !<   tframe: time frame. It can be adjusted to make "disp"  0.
+    !<   output_format: 2=file per slice, 1=all slices in one file
+    !<   separated_pre_post: 1 for separated pre and post files, 0 for not
+    !<--------------------------------------------------------------------------
+    subroutine read_pre_post_v(tframe, output_format, separated_pre_post)
+        use constants, only: fp
+        use picinfo, only: domain
+        use parameters, only: tp1, tp2
+        use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
+        use mpi_io_module, only: read_data_mpi_io
+        use pic_fields, only: vx, vy, vz
+        implicit none
+        integer, intent(in) :: tframe, output_format, separated_pre_post
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        offset = 0
+
+        if ((tframe >= tp1) .and. (tframe < tp2)) then
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (tframe-tp1)
+                else
+                    disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (tframe-tp1+1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(vfields_post_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdx2)
+            call read_data_mpi_io(vfields_post_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdy2)
+            call read_data_mpi_io(vfields_post_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdz2)
+        else
+            ! tframe = tp2, last time frame.
+            vdx2 = vx
+            vdy2 = vy
+            vdz2 = vz
+        endif
+
+        if ((tframe <= tp2) .and. (tframe > tp1)) then
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (tframe-tp1)
+                else
+                    disp = domain%nx * domain%ny * domain%nz * sizeof(fp) * (tframe-tp1-1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(vfields_pre_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdx1)
+            call read_data_mpi_io(vfields_pre_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdy1)
+            call read_data_mpi_io(vfields_pre_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdz1)
+        else
+            ! tframe = tp1, The first time frame.
+            vdx1 = vx
+            vdy1 = vy
+            vdz1 = vz
+        endif
+    end subroutine read_pre_post_v
+
+    !<--------------------------------------------------------------------------
     !< Shift u field to remove ghost cells at lower end along x-, y-,
     !< and z-directions.
     !<--------------------------------------------------------------------------
@@ -445,5 +577,43 @@ module pre_post_hydro
             udz2(:, :, 1:ht%nz) = udz2(:, :, 2:ht%nz+1)
         endif
     end subroutine shift_ufield_pre_post
+
+    !<--------------------------------------------------------------------------
+    !< Shift v field to remove ghost cells at lower end along x-, y-,
+    !< and z-directions.
+    !<--------------------------------------------------------------------------
+    subroutine shift_vfield_pre_post
+        use mpi_topology, only: ht
+        implicit none
+        ! x-direction
+        if (ht%ix > 0) then
+            vdx1(1:ht%nx, :, :) = vdx1(2:ht%nx+1, :, :)
+            vdy1(1:ht%nx, :, :) = vdy1(2:ht%nx+1, :, :)
+            vdz1(1:ht%nx, :, :) = vdz1(2:ht%nx+1, :, :)
+            vdx2(1:ht%nx, :, :) = vdx2(2:ht%nx+1, :, :)
+            vdy2(1:ht%nx, :, :) = vdy2(2:ht%nx+1, :, :)
+            vdz2(1:ht%nx, :, :) = vdz2(2:ht%nx+1, :, :)
+        endif
+
+        ! y-direction
+        if (ht%iy > 0) then
+            vdx1(:, 1:ht%ny, :) = vdx1(:, 2:ht%ny+1, :)
+            vdy1(:, 1:ht%ny, :) = vdy1(:, 2:ht%ny+1, :)
+            vdz1(:, 1:ht%ny, :) = vdz1(:, 2:ht%ny+1, :)
+            vdx2(:, 1:ht%ny, :) = vdx2(:, 2:ht%ny+1, :)
+            vdy2(:, 1:ht%ny, :) = vdy2(:, 2:ht%ny+1, :)
+            vdz2(:, 1:ht%ny, :) = vdz2(:, 2:ht%ny+1, :)
+        endif
+
+        ! z-direction
+        if (ht%iz > 0) then
+            vdx1(:, :, 1:ht%nz) = vdx1(:, :, 2:ht%nz+1)
+            vdy1(:, :, 1:ht%nz) = vdy1(:, :, 2:ht%nz+1)
+            vdz1(:, :, 1:ht%nz) = vdz1(:, :, 2:ht%nz+1)
+            vdx2(:, :, 1:ht%nz) = vdx2(:, :, 2:ht%nz+1)
+            vdy2(:, :, 1:ht%nz) = vdy2(:, :, 2:ht%nz+1)
+            vdz2(:, :, 1:ht%nz) = vdz2(:, :, 2:ht%nz+1)
+        endif
+    end subroutine shift_vfield_pre_post
 
 end module pre_post_hydro
