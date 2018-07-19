@@ -301,7 +301,10 @@ def fluid_energization(mime, bg, species, show_plot=True):
         species: particle species
     """
     bg_str = str(int(bg * 10)).zfill(2)
-    run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+    # run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+    # run_name = "test_2d_1"
+    run_name = "test_2d_avg"
+    # run_name = "test_2d_avg_b"
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     tfields = pic_info.tfields
@@ -382,8 +385,8 @@ def fluid_energization(mime, bg, species, show_plot=True):
     label2 = (r'$\boldsymbol{j}_{' + species + '\perp}' +
               r'\cdot\boldsymbol{E}_\perp$')
     ax.plot(tfields, eperp_ene, linewidth=2, label=label2)
-    # jdote_sum = (curv_drift_dote + grad_drift_dote +
-    #              magnetization_dote + jagy_dote + acc_drift_dote)
+    jdote_sum = (curv_drift_dote + grad_drift_dote +
+                 magnetization_dote + jagy_dote + acc_drift_dote)
     # ax.plot(tfields, jdote_sum, linewidth=2)
     ax.legend(loc='upper center', prop={'size': 16}, ncol=3,
               bbox_to_anchor=(0.5, 1.28),
@@ -644,6 +647,170 @@ def particle_energization(run_name, species, tframe):
     plt.show()
 
 
+def particle_energization2(run_name, species, tframe):
+    """Particle-based energization
+
+    Args:
+        run_name: PIC simulation run name
+        species: particle species
+        tframe: time frame
+    """
+    fpath = "../data/particle_interp/" + run_name + "/"
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    tstep = tframe * pic_info.particle_interval
+    tframe_fluid = tstep // pic_info.fields_interval
+    print(tstep, tframe, tframe_fluid)
+    fname = fpath + "particle_energization_" + species + "_" + str(tstep) + ".gda"
+    fdata = np.fromfile(fname, dtype=np.float32)
+    nbins = int(fdata[0])
+    nvar = int(fdata[1])
+    ebins = fdata[2:nbins+2]
+    fbins = fdata[nbins+2:].reshape((nvar, nbins))
+
+    fname = "../data/fluid_energization/" + run_name + "/"
+    fname += "emf_ptensor_" + species + '.gda'
+    fluid_ene = np.fromfile(fname, dtype=np.float32)
+    nvar = int(fluid_ene[0])
+    nframes = int(fluid_ene[1])
+    jcurv_dote = fluid_ene[2:nframes+2]
+    jgrad_dote = fluid_ene[nframes+2:2*nframes+2]
+    jmag_dote = fluid_ene[2*nframes+2:3*nframes+2]
+    comp_ene = fluid_ene[3*nframes+2:4*nframes+2]
+    shear_ene = fluid_ene[4*nframes+2:5*nframes+2]
+    ptensor_ene = fluid_ene[5*nframes+2:6*nframes+2]
+
+    fname = "../data/fluid_energization/" + run_name + "/"
+    fname += "para_perp_acc_" + species + '.gda'
+    fluid_ene = np.fromfile(fname, dtype=np.float32)
+    nvar = int(fluid_ene[0])
+    nframes = int(fluid_ene[1])
+    acc_drift_dote = fluid_ene[2:nframes+2]
+    epara_ene = fluid_ene[nframes+2:2*nframes+2]
+    eperp_ene = fluid_ene[2*nframes+2:3*nframes+2]
+    acc_drift_dote[-1] = acc_drift_dote[-2]
+
+    print('{:>38} {:>10.7f}'.format("Parallel electric field:",
+                                    np.sum(fbins[1, :])))
+    print('{:>38} {:>10.7f}'.format("Perpendicular electric field:",
+                                    np.sum(fbins[2, :])))
+    print('{:>38} {:>10.7f}'.format("Compression:", np.sum(fbins[3, :])))
+    print('{:>38} {:>10.7f}'.format("Shear:", np.sum(fbins[4, :])))
+    print('{:>38} {:>10.7f}'.format("Parallel drift:", np.sum(fbins[7, :])))
+    print('{:>38} {:>10.7f}'.format("Conservation of mu:", np.sum(fbins[8, :])))
+    print('{:>38} {:>10.7f}'.format("Polarization drift (time):",
+                                    np.sum(fbins[9, :])))
+    print('{:>38} {:>10.7f}'.format("Polarization drift (spatial):",
+                                    np.sum(fbins[10, :])))
+    print('{:>38} {:>10.7f}'.format("Initial drift (time):",
+                                    np.sum(fbins[11, :])))
+    print('{:>38} {:>10.7f}'.format("Initial drift (spatial):",
+                                    np.sum(fbins[12, :])))
+    print('{:>38} {:>10.7f}'.format("Curvature drift:", np.sum(fbins[5, :])))
+    print('{:>38} {:>10.7f}'.format("Gradient drift:", np.sum(fbins[6, :])))
+    print('{:>38} {:>10.7f}'.format("Fluid polar:",
+                                    np.sum(fbins[13, :] + fbins[14, :])))
+    print('{:>38} {:>10.7f}'.format("Total drifts:",
+                                    np.sum(fbins[5, :] + fbins[6, :] +
+                                           fbins[7, :] + fbins[8, :] +
+                                           fbins[11, :] + fbins[12, :])))
+    print('')
+    print('{:>38} {:>10.7f}'.format("Curvature drift (fluid):",
+                                    jcurv_dote[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Gradient drift (fluid):",
+                                    jgrad_dote[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Parallel electric field (fluid):",
+                                    epara_ene[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Perpendicular electric field (fluid):",
+                                    eperp_ene[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Fluid acceleration (fluid):",
+                                    acc_drift_dote[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Magnetization (fluid):",
+                                    jmag_dote[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Compression (fluid):",
+                                    comp_ene[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("Shear (fluid):", shear_ene[tframe_fluid]))
+    print('{:>38} {:>10.7f}'.format("ptensor (fluid):",
+                                    ptensor_ene[tframe_fluid]))
+
+    if species == 'i':
+        ebins *= pic_info.mime  # ebins are actually gamma
+    # fbins[1:, :] = div0(fbins[1:, :], fbins[0, :] * ebins)
+    if species == 'e':
+        fbins[1:, :] = div0(fbins[1:, :], fbins[0, :])
+    else:
+        fbins[1:, :] = div0(fbins[1:, :], fbins[0, :] * pic_info.mime)
+
+    # normalized with thermal energy
+    if species == 'e':
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    if species == 'i':
+        eth *= pic_info.mime
+
+    ebins /= eth
+
+    colors_Set1_9 = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+    colors = colors_Set1_9[:5] + colors_Set1_9[6:] # remove yellow color
+    xs, ys = 0.17, 0.15
+    w1, h1 = 0.8, 0.8
+    fig = plt.figure(figsize=[7, 5])
+    ax1 = fig.add_axes([xs, ys, w1, h1])
+    ax1.set_prop_cycle('color', colors)
+    ax1.semilogx(ebins, fbins[1, :], linewidth=2, label="para")
+    ax1.semilogx(ebins, fbins[2, :], linewidth=2, label="perp")
+    # ax1.semilogx(ebins, fbins[3, :], linewidth=2, label="comp")
+    # ax1.semilogx(ebins, fbins[4, :], linewidth=2, label="shear")
+    comp_shear_polar = (fbins[3, :] + fbins[4, :] +
+                        fbins[13, :] + fbins[14, :])
+    ax1.semilogx(ebins, comp_shear_polar, color='k',
+                 linewidth=2, label="comp + shear + polar")
+    drifts_ene = (fbins[5, :] + fbins[6, :] +
+                  fbins[7, :] + fbins[8, :] +
+                  # fbins[9, :] +
+                  # fbins[10, :] +
+                  # fbins[13, :] +
+                  # fbins[14, :] +
+                  fbins[15, :] +
+                  fbins[16, :] +
+                  fbins[11, :] + fbins[12, :])
+    ax1.semilogx(ebins, drifts_ene, linewidth=2, label="All drifts + mu")
+    # ax1.semilogx(ebins, fbins[2, :] - drifts_ene,
+    #              linewidth=2, label="Polar target")
+    # ax1.semilogx(ebins, fbins[5, :], linewidth=2, label="Curvature")
+    # ax1.semilogx(ebins, fbins[6, :], linewidth=2, label="Gradient")
+    # ax1.semilogx(ebins, fbins[7, :], linewidth=2, label="Parallel Drift")
+    # ax1.semilogx(ebins, fbins[8, :], linewidth=2, label=r"$\mu$")
+    initial_drift = (fbins[5, :] + fbins[11, :] + fbins[12, :])
+    ax1.semilogx(ebins, initial_drift, linewidth=2, label="Inertial")
+    polar_drift = fbins[9, :] + fbins[10, :]
+    # ax1.semilogx(ebins, polar_drift, linewidth=2, label="Polar")
+    # ax1.semilogx(ebins, fbins[9, :], linewidth=2, label="Polar T")
+    # ax1.semilogx(ebins, fbins[10, :], linewidth=2, label="Polar S")
+    # ax1.semilogx(ebins, fbins[13, :], linewidth=2, label="Fluid polar T")
+    # ax1.semilogx(ebins, fbins[14, :], linewidth=2, label="Fluid polar S")
+    # ax1.semilogx(ebins, fbins[11, :], linewidth=2, label="Initial T")
+    # ax1.semilogx(ebins, fbins[12, :], linewidth=2, label="Initial S")
+    # ax1.semilogx(ebins, fbins[15, :], linewidth=2, label="Polar-V T")
+    # ax1.semilogx(ebins, fbins[16, :], linewidth=2, label="Polar-V S")
+    ax1.plot(ax1.get_xlim(), [0, 0], linestyle='--', color='k')
+    leg = ax1.legend(loc=2, prop={'size': 20}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False)
+    if species == 'e':
+        ax1.set_xlim([1E0, 200])
+        # ax1.set_ylim([-0.002, 0.002])
+    else:
+        ax1.set_xlim([1E0, 200])
+        # ax1.set_ylim([-0.003, 0.003])
+    ax1.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontdict=FONT, fontsize=20)
+    ax1.set_ylabel('Acceleration Rate', fontdict=FONT, fontsize=20)
+    ax1.tick_params(labelsize=16)
+    plt.show()
+
+
 def fluid_energization_multi(species):
     """Plot fluid energization for multiple runs
     """
@@ -719,7 +886,7 @@ def analysis_single_frame(args):
             fluid_energization(args.mime, args.bg,
                                args.species, show_plot=True)
         if args.particle_energization:
-            particle_energization(args.run_name, args.species, args.tframe)
+            particle_energization2(args.run_name, args.species, args.tframe)
 
 
 def process_input(args, tframe):
