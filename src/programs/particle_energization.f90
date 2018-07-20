@@ -2413,7 +2413,8 @@ program particle_energization
         integer(hid_t), intent(out) :: dataset_id, filespace
         integer(hsize_t), dimension(1), intent(out) :: dset_dims, &
             dset_dims_max
-        integer :: datatype_id, error
+        integer(hid_t) :: datatype_id
+        integer :: error
         call h5dopen_f(group_id, dataset_name, dataset_id, error)
         call h5dget_type_f(dataset_id, datatype_id, error)
         call h5dget_space_f(dataset_id, filespace, error)

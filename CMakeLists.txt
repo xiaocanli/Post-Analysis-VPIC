@@ -28,7 +28,7 @@ elseif(DEFINED ENV{TACC_HDF5_INC})
     include_directories($ENV{TACC_HDF5_INC})
 endif()
 link_directories(${HDF5_Fortran_LIBRARIES})
-MESSAGE(${HDF5_Fortran_LIBRARIES})
+MESSAGE(STATUS ${HDF5_Fortran_LIBRARIES})
 
 # FLAP to deal with command line arguments
 set(FLAP_DIR ${PROJECT_SOURCE_DIR}/${GIT_SUBMODULES_DIRECTORY}/FLAP)

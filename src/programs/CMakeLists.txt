@@ -13,13 +13,13 @@ add_executable(translate.exec translate.f90)
 target_link_libraries(translate.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
 install (TARGETS translate.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
-add_executable(translate_pre.exec translate_pre.f90)
-target_link_libraries(translate_pre.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
-install (TARGETS translate_pre.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-
-add_executable(translate_post.exec translate_post.f90)
-target_link_libraries(translate_post.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
-install (TARGETS translate_post.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+#add_executable(translate_pre.exec translate_pre.f90)
+#target_link_libraries(translate_pre.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
+#install (TARGETS translate_pre.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+#
+#add_executable(translate_post.exec translate_post.f90)
+#target_link_libraries(translate_post.exec ${MPI_Fortran_LIBRARIES} translate_module flap)
+#install (TARGETS translate_post.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(dissipation.exec dissipation.f90)
 target_link_libraries(dissipation.exec ${MPI_Fortran_LIBRARIES} get_info
