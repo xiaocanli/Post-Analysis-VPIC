@@ -1,5 +1,5 @@
 !<******************************************************************************
-!< Module of doing interpolation of the momentum field at previous and next time
+!< Module of doing interpolation of the velocity field at previous and next time
 !< steps
 !*<*****************************************************************************
 module interpolation_pre_post_vfield
@@ -20,7 +20,7 @@ module interpolation_pre_post_vfield
     contains
 
     !<--------------------------------------------------------------------------
-    !< Initialize momentum field components at previous and next time steps
+    !< Initialize velocity field components at previous and next time steps
     !<--------------------------------------------------------------------------
     subroutine init_vfield_components
         use picinfo, only: domain
@@ -40,7 +40,7 @@ module interpolation_pre_post_vfield
     end subroutine init_vfield_components
 
     !<--------------------------------------------------------------------------
-    !< Free momentum field components at previous and next time steps
+    !< Free velocity field components at previous and next time steps
     !<--------------------------------------------------------------------------
     subroutine free_vfield_components
         implicit none
@@ -49,7 +49,7 @@ module interpolation_pre_post_vfield
     end subroutine free_vfield_components
 
     !<--------------------------------------------------------------------------
-    !< Set momentum field components, which are read from translated files rather
+    !< Set velocity field components, which are read from translated files rather
     !< than directly from the PIC simulations
     !<--------------------------------------------------------------------------
     subroutine set_vfield_components(i, j, k, tx, ty, tz, sx, sy, sz)
@@ -151,7 +151,7 @@ module interpolation_pre_post_vfield
     end subroutine calc_interp_weights
 
     !<--------------------------------------------------------------------------
-    !< Trilinear interpolation for momentum field components
+    !< Trilinear interpolation for velocity field components
     !< 
     !< Input:
     !<   ix0, iy0, iz0: the indices of the lower-left corner.
