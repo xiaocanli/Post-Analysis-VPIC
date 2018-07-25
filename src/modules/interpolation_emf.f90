@@ -16,18 +16,23 @@ module interpolation_emf
            trilinear_interp_ey, trilinear_interp_ez, trilinear_interp_only_bx, &
            trilinear_interp_only_by, trilinear_interp_only_bz, set_emf, &
            set_emf_derivatives
+    public init_absb_derivatives_single, free_absb_derivatives_single, &
+        set_absb_derivatives, trilinear_interp_absb_derivatives
     public bx0, by0, bz0, ex0, ey0, ez0, absB0, dbxdx0, dbxdy0, dbxdz0, &
            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, bxn, byn, bzn, &
            dBdx, dBdy, dBdz, kappax, kappay, kappaz
+    public dbdx0, dbdy0, dbdz0
     real(fp), allocatable, dimension(:,:,:) :: ex, ey, ez, bx, by, bz
     real(fp), allocatable, dimension(:,:,:) :: ex1, ey1, ez1, bx1, by1, bz1
     real(fp), allocatable, dimension(:,:,:) :: dbxdx, dbxdy, dbxdz
     real(fp), allocatable, dimension(:,:,:) :: dbydx, dbydy, dbydz
     real(fp), allocatable, dimension(:,:,:) :: dbzdx, dbzdy, dbzdz
+    real(fp), allocatable, dimension(:,:,:) :: dbdx_s, dbdy_s, dbdz_s
     real(fp) :: bx0, by0, bz0, ex0, ey0, ez0, absB0
     real(fp) :: dbxdx0, dbxdy0, dbxdz0
     real(fp) :: dbydx0, dbydy0, dbydz0
     real(fp) :: dbzdx0, dbzdy0, dbzdz0
+    real(fp) :: dbdx0, dbdy0, dbdz0
     real(fp) :: bxn, byn, bzn     ! Norm of the magnetic field
     real(fp) :: dBdx, dBdy, dBdz  ! The gradient of B
     real(fp) :: kappax, kappay, kappaz  ! The curvature of the magnetic field
@@ -66,6 +71,23 @@ module interpolation_emf
     end subroutine init_emfields
 
     !---------------------------------------------------------------------------
+    ! Initialize the derivatives of the magnitude of the magnetic field
+    !---------------------------------------------------------------------------
+    subroutine init_absb_derivatives_single
+        use picinfo, only: domain
+        implicit none
+        nx = domain%pic_nx + 2  ! Including ghost cells
+        ny = domain%pic_ny + 2
+        nz = domain%pic_nz + 2
+
+        allocate(dbdx_s(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbdy_s(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(dbdz_s(0:nx-1, 0:ny-1, 0:nz-1))
+
+        dbdx_s = 0.0; dbdy_s = 0.0; dbdz_s = 0.0
+    end subroutine init_absb_derivatives_single
+
+    !---------------------------------------------------------------------------
     ! Initialize the derivatives of the electromagnetic fields
     !---------------------------------------------------------------------------
     subroutine init_emfields_derivatives
@@ -101,6 +123,14 @@ module interpolation_emf
         deallocate(ex1, ey1, ez1)
         deallocate(bx1, by1, bz1)
     end subroutine free_emfields
+
+    !---------------------------------------------------------------------------
+    ! Free the derivatives of the magnitude of the magnetic field
+    !---------------------------------------------------------------------------
+    subroutine free_absb_derivatives_single
+        implicit none
+        deallocate(dbdx_s, dbdy_s, dbdz_s)
+    end subroutine free_absb_derivatives_single
 
     !---------------------------------------------------------------------------
     ! Free the derivatives of the electromagnetic fields
@@ -423,6 +453,22 @@ module interpolation_emf
     end subroutine trilinear_interp_ez
 
     !---------------------------------------------------------------------------
+    ! Trilinear interpolation for the derivatives of the magnitude of absB
+    ! Input:
+    !   ix0, iy0, iz0: the indices of the lower-left corner.
+    !   dx, dy, dz: the distance to the lower-left corner, [0, 1]
+    !---------------------------------------------------------------------------
+    subroutine trilinear_interp_absb_derivatives(ix0, iy0, iz0, dx, dy, dz)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
+        dbdx0 = sum(dbdx_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbdy0 = sum(dbdy_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        dbdz0 = sum(dbdz_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+    end subroutine trilinear_interp_absb_derivatives
+
+    !---------------------------------------------------------------------------
     ! Calculate the norm of the magnetic field.
     !---------------------------------------------------------------------------
     subroutine calc_b_norm
@@ -658,4 +704,61 @@ module interpolation_emf
             dbzdz(:, :, pnz+1) = dbzdz(:, :, pnz)
         endif
     end subroutine set_emf_derivatives
+
+    !<--------------------------------------------------------------------------
+    !< Set the derivatives of the magnitude of the magnetic field
+    !<--------------------------------------------------------------------------
+    subroutine set_absb_derivatives(i, j, k, tx, ty, tz, sx, sy, sz)
+        use emf_derivatives, only: dbdxt => dbdx, dbdyt => dbdy, dbdzt => dbdz
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: i, j, k, tx, ty, tz, sx, sy, sz
+        integer :: ixs_lo, ixe_lo, ixs_gl, ixe_gl
+        integer :: iys_lo, iye_lo, iys_gl, iye_gl
+        integer :: izs_lo, ize_lo, izs_gl, ize_gl
+        integer :: pnx, pny, pnz
+        pnx = domain%pic_nx
+        pny = domain%pic_ny
+        pnz = domain%pic_nz
+        call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
+        call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
+        call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        dbdx_s = 0.0; dbdy_s = 0.0; dbdz_s = 0.0
+        dbdx_s(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbdxt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbdy_s(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbdyt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        dbdz_s(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            dbdzt(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        if (ixs_lo == 1) then
+            dbdx_s(0, :, :) = dbdx_s(1, :, :)
+            dbdy_s(0, :, :) = dbdy_s(1, :, :)
+            dbdz_s(0, :, :) = dbdz_s(1, :, :)
+        endif
+        if (ixe_lo == pnx) then
+            dbdx_s(pnx+1, :, :) = dbdx_s(pnx, :, :)
+            dbdy_s(pnx+1, :, :) = dbdy_s(pnx, :, :)
+            dbdz_s(pnx+1, :, :) = dbdz_s(pnx, :, :)
+        endif
+        if (iys_lo == 1) then
+            dbdx_s(:, 0, :) = dbdx_s(:, 1, :)
+            dbdy_s(:, 0, :) = dbdy_s(:, 1, :)
+            dbdz_s(:, 0, :) = dbdz_s(:, 1, :)
+        endif
+        if (iye_lo == pny) then
+            dbdx_s(:, pny+1, :) = dbdx_s(:, pny, :)
+            dbdy_s(:, pny+1, :) = dbdy_s(:, pny, :)
+            dbdz_s(:, pny+1, :) = dbdz_s(:, pny, :)
+        endif
+        if (izs_lo == 1) then
+            dbdx_s(:, :, 0) = dbdx_s(:, :, 1)
+            dbdy_s(:, :, 0) = dbdy_s(:, :, 1)
+            dbdz_s(:, :, 0) = dbdz_s(:, :, 1)
+        endif
+        if (ize_lo == pnz) then
+            dbdx_s(:, :, pnz+1) = dbdx_s(:, :, pnz)
+            dbdy_s(:, :, pnz+1) = dbdy_s(:, :, pnz)
+            dbdz_s(:, :, pnz+1) = dbdz_s(:, :, pnz)
+        endif
+    end subroutine set_absb_derivatives
 end module interpolation_emf
