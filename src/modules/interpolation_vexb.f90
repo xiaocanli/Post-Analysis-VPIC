@@ -4,32 +4,24 @@
 module interpolation_vexb
     use mpi_module
     use constants, only: fp
-    use parameters, only: tp1, is_rel
     use picinfo, only: domain
-    use mpi_topology, only: htg
-    use mpi_io_module, only: open_data_mpi_io, read_data_mpi_io
-    use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
-    use path_info, only: filepath
-    use mpi_info_module, only: fileinfo
+    use path_info, only: outputpath
     use interpolation_funs, only: bounding_indcies
     implicit none
     private
-    public init_exb_drift, free_exb_drift, calc_exb_drift
-    public init_exb_derivatives, free_exb_derivatives, calc_exb_derivatives
     public init_exb_derivatives_single, free_exb_derivatives_single, &
         set_exb_derivatives, trilinear_interp_exb_derivatives
+    public init_exb_single, free_exb_single, set_exb, trilinear_interp_exb
     public dvxdx0, dvxdy0, dvxdz0, dvydx0, dvydy0, dvydz0, dvzdx0, dvzdy0, dvzdz0
+    public vexbx0, vexby0, vexbz0
 
-    ! Fields for the whole local domain
-    real(fp), allocatable, dimension(:,:,:) :: vexbx, vexby, vexbz
-    real(fp), allocatable, dimension(:,:,:) :: dvxdx, dvxdy, dvxdz
-    real(fp), allocatable, dimension(:,:,:) :: dvydx, dvydy, dvydz
-    real(fp), allocatable, dimension(:,:,:) :: dvzdx, dvzdy, dvzdz
     ! Fields for the one MPI rank
+    real(fp), allocatable, dimension(:,:,:) :: vexbx_s, vexby_s, vexbz_s
     real(fp), allocatable, dimension(:,:,:) :: dvxdx_s, dvxdy_s, dvxdz_s
     real(fp), allocatable, dimension(:,:,:) :: dvydx_s, dvydy_s, dvydz_s
     real(fp), allocatable, dimension(:,:,:) :: dvzdx_s, dvzdy_s, dvzdz_s
     ! Fields at particle positions
+    real(fp) :: vexbx0, vexby0, vexbz0
     real(fp) :: dvxdx0, dvxdy0, dvxdz0
     real(fp) :: dvydx0, dvydy0, dvydz0
     real(fp) :: dvzdx0, dvzdy0, dvzdz0
@@ -37,94 +29,6 @@ module interpolation_vexb
     integer :: nx, ny, nz
 
     contains
-
-    !<--------------------------------------------------------------------------
-    !< Initialize the exb drift velocity
-    !<--------------------------------------------------------------------------
-    subroutine init_exb_drift(nx, ny, nz)
-        implicit none
-        integer, intent(in) :: nx, ny, nz
-        allocate(vexbx(nx,ny,nz))
-        allocate(vexby(nx,ny,nz))
-        allocate(vexbz(nx,ny,nz))
-        vexbx = 0.0; vexby = 0.0; vexbz = 0.0
-    end subroutine init_exb_drift
-
-    !<--------------------------------------------------------------------------
-    !< Initialize the derivatives of exb drift velocity
-    !<--------------------------------------------------------------------------
-    subroutine init_exb_derivatives(nx, ny, nz)
-        implicit none
-        integer, intent(in) :: nx, ny, nz
-        allocate(dvxdx(nx,ny,nz))
-        allocate(dvxdy(nx,ny,nz))
-        allocate(dvxdz(nx,ny,nz))
-        allocate(dvydx(nx,ny,nz))
-        allocate(dvydy(nx,ny,nz))
-        allocate(dvydz(nx,ny,nz))
-        allocate(dvzdx(nx,ny,nz))
-        allocate(dvzdy(nx,ny,nz))
-        allocate(dvzdz(nx,ny,nz))
-        dvxdx = 0.0; dvxdy = 0.0; dvxdz = 0.0
-        dvydx = 0.0; dvydy = 0.0; dvydz = 0.0
-        dvzdx = 0.0; dvzdy = 0.0; dvzdz = 0.0
-    end subroutine init_exb_derivatives
-
-    !<--------------------------------------------------------------------------
-    !< Free the exb drift velocity
-    !<--------------------------------------------------------------------------
-    subroutine free_exb_drift
-        implicit none
-        deallocate(vexbx, vexby, vexbz)
-    end subroutine free_exb_drift
-
-    !<--------------------------------------------------------------------------
-    !< Free the derivatives of exb drift velocity
-    !<--------------------------------------------------------------------------
-    subroutine free_exb_derivatives
-        implicit none
-        deallocate(dvxdx, dvxdy, dvxdz)
-        deallocate(dvydx, dvydy, dvydz)
-        deallocate(dvzdx, dvzdy, dvzdz)
-    end subroutine free_exb_derivatives
-
-    !<--------------------------------------------------------------------------
-    !< Calculate ExB drift velocity
-    !<--------------------------------------------------------------------------
-    subroutine calc_exb_drift
-        use pic_fields, only: ex, ey, ez, bx, by, bz, absB
-        implicit none
-        vexbx = (ey * bz - ez * by) / absB**2
-        vexby = (ez * bx - ex * bz) / absB**2
-        vexbz = (ex * by - ey * bx) / absB**2
-    end subroutine calc_exb_drift
-
-    !<--------------------------------------------------------------------------
-    !< Calculate the derivatives of exb drift velocity
-    !<--------------------------------------------------------------------------
-    subroutine calc_exb_derivatives(nx, ny, nz)
-        use neighbors_module, only: ixl, iyl, izl, ixh, iyh, izh, idx, idy, idz
-        implicit none
-        integer, intent(in) :: nx, ny, nz
-        integer :: ix, iy, iz
-        do ix = 1, nx
-            dvxdx(ix, :, :) = (vexbx(ixh(ix), :, :) - vexbx(ixl(ix), :, :)) * idx(ix)
-            dvydx(ix, :, :) = (vexby(ixh(ix), :, :) - vexby(ixl(ix), :, :)) * idx(ix)
-            dvzdx(ix, :, :) = (vexbz(ixh(ix), :, :) - vexbz(ixl(ix), :, :)) * idx(ix)
-        enddo
-
-        do iy = 1, ny
-            dvxdy(:, iy, :) = (vexbx(:, iyh(iy), :) - vexbx(:, iyl(iy), :)) * idy(iy)
-            dvydy(:, iy, :) = (vexby(:, iyh(iy), :) - vexby(:, iyl(iy), :)) * idy(iy)
-            dvzdy(:, iy, :) = (vexbz(:, iyh(iy), :) - vexbz(:, iyl(iy), :)) * idy(iy)
-        enddo
-
-        do iz = 1, nz
-            dvxdz(:, :, iz) = (vexbx(:, :, izh(iz)) - vexbx(:, :, izl(iz))) * idz(iz)
-            dvydz(:, :, iz) = (vexby(:, :, izh(iz)) - vexby(:, :, izl(iz))) * idz(iz)
-            dvzdz(:, :, iz) = (vexbz(:, :, izh(iz)) - vexbz(:, :, izl(iz))) * idz(iz)
-        enddo
-    end subroutine calc_exb_derivatives
 
     !<--------------------------------------------------------------------------
     !< Initialize the derivatives of exb drift velocity for a single PIC MPI rank
@@ -161,11 +65,36 @@ module interpolation_vexb
     end subroutine free_exb_derivatives_single
 
     !<--------------------------------------------------------------------------
-    !< Set electromagnetic fields, which is read from translated files rather
-    !< than directly from the PIC simulations
+    !< Initialize the exb drift velocity for a single PIC MPI rank
+    !<--------------------------------------------------------------------------
+    subroutine init_exb_single
+        use picinfo, only: domain
+        implicit none
+        nx = domain%pic_nx + 2  ! Including ghost cells
+        ny = domain%pic_ny + 2
+        nz = domain%pic_nz + 2
+
+        allocate(vexbx_s(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(vexby_s(0:nx-1, 0:ny-1, 0:nz-1))
+        allocate(vexbz_s(0:nx-1, 0:ny-1, 0:nz-1))
+        vexbx_s = 0.0; vexby_s = 0.0; vexbz_s = 0.0
+    end subroutine init_exb_single
+
+    !<--------------------------------------------------------------------------
+    !< Free the exb drift velocity for a single PIC MPI rank
+    !<--------------------------------------------------------------------------
+    subroutine free_exb_single
+        implicit none
+        deallocate(vexbx_s, vexby_s, vexbz_s)
+    end subroutine free_exb_single
+
+    !<--------------------------------------------------------------------------
+    !< Set the derivatives of the exb drift velocity for a single MPI rank
     !<--------------------------------------------------------------------------
     subroutine set_exb_derivatives(i, j, k, tx, ty, tz, sx, sy, sz)
         use picinfo, only: domain
+        use exb_drift, only: dvxdx, dvxdy, dvxdz, dvydx, dvydy, dvydz, &
+            dvzdx, dvzdy, dvzdz
         implicit none
         integer, intent(in) :: i, j, k, tx, ty, tz, sx, sy, sz
         integer :: ixs_lo, ixe_lo, ixs_gl, ixe_gl
@@ -265,6 +194,62 @@ module interpolation_vexb
     end subroutine set_exb_derivatives
 
     !<--------------------------------------------------------------------------
+    !< Set the exb drift velocity for a single MPI rank
+    !<--------------------------------------------------------------------------
+    subroutine set_exb(i, j, k, tx, ty, tz, sx, sy, sz)
+        use picinfo, only: domain
+        use exb_drift, only: vexbx, vexby, vexbz
+        implicit none
+        integer, intent(in) :: i, j, k, tx, ty, tz, sx, sy, sz
+        integer :: ixs_lo, ixe_lo, ixs_gl, ixe_gl
+        integer :: iys_lo, iye_lo, iys_gl, iye_gl
+        integer :: izs_lo, ize_lo, izs_gl, ize_gl
+        integer :: pnx, pny, pnz
+        pnx = domain%pic_nx
+        pny = domain%pic_ny
+        pnz = domain%pic_nz
+        call bounding_indcies(i, pnx, tx, sx, ixs_lo, ixe_lo, ixs_gl, ixe_gl)
+        call bounding_indcies(j, pny, ty, sy, iys_lo, iye_lo, iys_gl, iye_gl)
+        call bounding_indcies(k, pnz, tz, sz, izs_lo, ize_lo, izs_gl, ize_gl)
+        vexbx_s(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            vexbx(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        vexby_s(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            vexby(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        vexbz_s(ixs_lo:ixe_lo, iys_lo:iye_lo, izs_lo:ize_lo) = &
+            vexbz(ixs_gl:ixe_gl, iys_gl:iye_gl, izs_gl:ize_gl)
+        if (ixs_lo == 1) then
+            vexbx_s(0, :, :) = vexbx_s(1, :, :)
+            vexby_s(0, :, :) = vexby_s(1, :, :)
+            vexbz_s(0, :, :) = vexbz_s(1, :, :)
+        endif
+        if (ixe_lo == pnx) then
+            vexbx_s(pnx+1, :, :) = vexbx_s(pnx, :, :)
+            vexby_s(pnx+1, :, :) = vexby_s(pnx, :, :)
+            vexbz_s(pnx+1, :, :) = vexbz_s(pnx, :, :)
+        endif
+        if (iys_lo == 1) then
+            vexbx_s(:, 0, :) = vexbx_s(:, 1, :)
+            vexby_s(:, 0, :) = vexby_s(:, 1, :)
+            vexbz_s(:, 0, :) = vexbz_s(:, 1, :)
+        endif
+        if (iye_lo == pny) then
+            vexbx_s(:, pny+1, :) = vexbx_s(:, pny, :)
+            vexby_s(:, pny+1, :) = vexby_s(:, pny, :)
+            vexbz_s(:, pny+1, :) = vexbz_s(:, pny, :)
+        endif
+        if (izs_lo == 1) then
+            vexbx_s(:, :, 0) = vexbx_s(:, :, 1)
+            vexby_s(:, :, 0) = vexby_s(:, :, 1)
+            vexbz_s(:, :, 0) = vexbz_s(:, :, 1)
+        endif
+        if (ize_lo == pnz) then
+            vexbx_s(:, :, pnz+1) = vexbx_s(:, :, pnz)
+            vexby_s(:, :, pnz+1) = vexby_s(:, :, pnz)
+            vexbz_s(:, :, pnz+1) = vexbz_s(:, :, pnz)
+        endif
+    end subroutine set_exb
+
+    !<--------------------------------------------------------------------------
     !< Calculate the weights for trilinear interpolation.
     !<
     !< Input:
@@ -284,7 +269,7 @@ module interpolation_vexb
     end subroutine calc_interp_weights
 
     !<--------------------------------------------------------------------------
-    !< Trilinear interpolation for compression and shear tensor
+    !< Trilinear interpolation for the derivatives of exb drift velocity
     !<
     !< Input:
     !<   ix0, iy0, iz0: the indices of the lower-left corner.
@@ -306,4 +291,20 @@ module interpolation_vexb
         dvzdz0 = sum(dvzdz_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
     end subroutine trilinear_interp_exb_derivatives
 
+    !<--------------------------------------------------------------------------
+    !< Trilinear interpolation for exb drift velocity
+    !<
+    !< Input:
+    !<   ix0, iy0, iz0: the indices of the lower-left corner.
+    !<   dx, dy, dz: the distance to the lower-left corner, [0, 1]
+    !<--------------------------------------------------------------------------
+    subroutine trilinear_interp_exb(ix0, iy0, iz0, dx, dy, dz)
+        implicit none
+        integer, intent(in) :: ix0, iy0, iz0
+        real(fp), intent(in) :: dx, dy, dz
+        call calc_interp_weights(dx, dy, dz)
+        vexbx0 = sum(vexbx_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        vexby0 = sum(vexby_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+        vexbz0 = sum(vexbz_s(ix0:ix0+1, iy0:iy0+1, iz0:iz0+1) * weights)
+    end subroutine trilinear_interp_exb
 end module interpolation_vexb
