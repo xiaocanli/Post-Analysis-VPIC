@@ -13,9 +13,9 @@ program fluid_energization
     ct = 1
 
     call init_analysis
-    nvar = 7
+    nvar = 8
     call energization_emf_ptensor
-    nvar = 3
+    nvar = 4
     call energization_para_perp_acc
     call end_analysis
 
@@ -104,11 +104,11 @@ program fluid_energization
         implicit none
         type(command_line_interface) :: cli     !< Command Line Interface (CLI).
         integer(I4P)                 :: error   !< Error trapping flag.
-        call cli%init(progname    = 'fluid_drift_energization', &
+        call cli%init(progname    = 'fluid_energization', &
                       authors     = 'Xiaocan Li', &
                       help        = 'Usage: ', &
                       description = 'Calculate energy conversion due to fluid drifts', &
-                      examples    = ['fluid_drift_energization -rp simulation_root_path'])
+                      examples    = ['fluid_energization -rp simulation_root_path'])
         call cli%add(switch='--rootpath', switch_ab='-rp', &
             help='simulation root path', required=.true., act='store', error=error)
         if (error/=0) stop
@@ -157,13 +157,19 @@ program fluid_energization
         use para_perp_pressure, only: init_para_perp_pressure, &
             free_para_perp_pressure, calc_real_para_perp_pressure
         use pic_fields, only: init_electric_fields, init_magnetic_fields, &
-            init_pressure_tensor, free_magnetic_fields, free_electric_fields, &
-            free_pressure_tensor, open_magnetic_field_files, &
+            init_pressure_tensor, init_vfields, init_ufields, &
+            init_number_density, free_magnetic_fields, free_electric_fields, &
+            free_pressure_tensor, free_vfields, free_ufields, &
+            free_number_density, open_magnetic_field_files, &
             open_electric_field_files, open_pressure_tensor_files, &
+            open_vfield_files, open_ufield_files, open_number_density_file, &
             close_magnetic_field_files, close_electric_field_files, &
-            close_pressure_tensor_files, read_magnetic_fields, &
-            read_electric_fields, read_pressure_tensor, &
-            interp_emf_node, shift_pressure_tensor
+            close_pressure_tensor_files, close_vfield_files, close_ufield_files, &
+            close_number_density_file, read_magnetic_fields, &
+            read_electric_fields, read_pressure_tensor, read_vfields, &
+            read_ufields, read_number_density, interp_emf_node, &
+            shift_pressure_tensor, shift_vfields, shift_ufields, &
+            shift_number_density
         use fluid_energization_module, only: init_tmp_data, init_neighbors, &
             free_tmp_data, free_neighbors, get_neighbors, &
             curv_drift_energization, grad_drift_energization, &
@@ -182,12 +188,18 @@ program fluid_energization
         call init_electric_fields(htg%nx, htg%ny, htg%nz)
         call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
         call init_pressure_tensor(htg%nx, htg%ny, htg%nz)
+        call init_vfields(htg%nx, htg%ny, htg%nz)
+        call init_ufields(htg%nx, htg%ny, htg%nz)
+        call init_number_density(htg%nx, htg%ny, htg%nz)
         call init_para_perp_pressure
 
         if (output_format == 1) then
             call open_magnetic_field_files
             call open_electric_field_files
             call open_pressure_tensor_files(species)
+            call open_vfield_files(species)
+            call open_ufield_files(species)
+            call open_number_density_file(species)
         endif
 
         call init_tmp_data
@@ -214,20 +226,35 @@ program fluid_energization
                 call open_pressure_tensor_files(species, tindex)
                 call read_pressure_tensor(tp1)
                 call close_pressure_tensor_files
+                call open_vfield_files(species, tindex)
+                call read_vfields(tp1)
+                call close_vfield_files
+                call open_ufield_files(species, tindex)
+                call read_ufields(tp1)
+                call close_ufield_files
+                call open_number_density_file(species, tindex)
+                call read_number_density(tp1)
+                call close_number_density_file
             else
                 call read_magnetic_fields(tframe)
                 call read_electric_fields(tframe)
                 call read_pressure_tensor(tframe)
+                call read_vfields(tframe)
+                call read_ufields(tframe)
+                call read_number_density(tframe)
             endif
             call interp_emf_node
             call shift_pressure_tensor
+            call shift_vfields
+            call shift_ufields
+            call shift_number_density
             call calc_real_para_perp_pressure(tframe)
-            jdote(tframe - tp1 + 1, 1) = curv_drift_energization()
-            jdote(tframe - tp1 + 1, 2) = grad_drift_energization()
-            jdote(tframe - tp1 + 1, 3) = magnetization_energization()
+            jdote(tframe - tp1 + 1, 1:2) = curv_drift_energization()
+            jdote(tframe - tp1 + 1, 3) = grad_drift_energization()
+            jdote(tframe - tp1 + 1, 4) = magnetization_energization()
             ! This part is very dangerous, because it modifies the pressure
             ! data. So be careful if you are going to use pressure data again.
-            jdote(tframe - tp1 + 1, 4:7) = compression_shear_energization()
+            jdote(tframe - tp1 + 1, 5:8) = compression_shear_energization()
         enddo
 
         call MPI_REDUCE(jdote, jdote_tot, nframes * nvar, &
@@ -262,12 +289,18 @@ program fluid_energization
             call close_magnetic_field_files
             call close_electric_field_files
             call close_pressure_tensor_files
+            call close_vfield_files
+            call close_ufield_files
+            call close_number_density_file
         endif
 
         call free_para_perp_pressure
         call free_magnetic_fields
         call free_electric_fields
         call free_pressure_tensor
+        call free_vfields
+        call free_ufields
+        call free_number_density
     end subroutine energization_emf_ptensor
 
     !<--------------------------------------------------------------------------
@@ -392,8 +425,8 @@ program fluid_energization
             call shift_vfields
             call shift_number_density
             call shift_ufield_pre_post
-            jdote(tframe - tp1 + 1, 1) = fluid_accel_energization(dt_fields)
-            jdote(tframe - tp1 + 1, 2:3) = para_perp_energization()
+            jdote(tframe - tp1 + 1, 1:2) = fluid_accel_energization(dt_fields)
+            jdote(tframe - tp1 + 1, 3:4) = para_perp_energization()
         enddo
 
         call MPI_REDUCE(jdote, jdote_tot, nframes * nvar, &
