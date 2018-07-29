@@ -1815,9 +1815,11 @@ program particle_energization
             close_electric_field_files, close_magnetic_field_files, &
             interp_emf_node_ghost
         use interpolation_emf, only: init_emfields, free_emfields
-        use interpolation_vexb, only: init_exb_drift, free_exb_drift, &
+        use interpolation_vexb, only: init_exb_derivatives_single, &
+            free_exb_derivatives_single
+        use exb_drift, only: init_exb_drift, free_exb_drift, &
             calc_exb_drift, init_exb_derivatives, free_exb_derivatives, &
-            calc_exb_derivatives, init_exb_derivatives_single, free_exb_derivatives_single
+            calc_exb_derivatives
         implicit none
         integer :: dom_x, dom_y, dom_z
         integer :: tframe_pre, tframe_post
