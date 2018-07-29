@@ -36,6 +36,7 @@ module pic_fields
            free_ufields, free_number_density, free_fraction_eband
     public interp_emf_node, interp_emf_node_ghost, shift_pressure_tensor, &
            shift_ufields, shift_vfields, shift_number_density
+    public interp_bfield_node_ghost
 
     public bx, by, bz, ex, ey, ez, absB  ! Electromagnetic fields
     public pxx, pxy, pxz, pyy, pyz, pzz  ! Pressure tensor
@@ -69,12 +70,18 @@ module pic_fields
 
     interface open_magnetic_field_files
         module procedure &
-            open_magnetic_field_files_single, open_magnetic_field_files_multiple
+            open_magnetic_field_files_single, &
+            open_magnetic_field_files_multiple, &
+            open_magnetic_field_files_single_suffix, &
+            open_magnetic_field_files_multiple_suffix
     end interface open_magnetic_field_files
 
     interface open_electric_field_files
         module procedure &
-            open_electric_field_files_single, open_electric_field_files_multiple
+            open_electric_field_files_single, &
+            open_electric_field_files_multiple, &
+            open_electric_field_files_single_suffix, &
+            open_electric_field_files_multiple_suffix
     end interface open_electric_field_files
 
     interface open_current_density_files
@@ -84,7 +91,10 @@ module pic_fields
 
     interface open_pressure_tensor_files
         module procedure &
-            open_pressure_tensor_files_single, open_pressure_tensor_files_multiple
+            open_pressure_tensor_files_single, &
+            open_pressure_tensor_files_multiple, &
+            open_pressure_tensor_files_single_suffix, &
+            open_pressure_tensor_files_multiple_suffix
     end interface open_pressure_tensor_files
 
     interface open_velocity_field_files
@@ -94,7 +104,8 @@ module pic_fields
 
     interface open_vfield_files
         module procedure &
-            open_vfield_files_single, open_vfield_files_multiple
+            open_vfield_files_single, open_vfield_files_multiple, &
+            open_vfield_files_single_suffix, open_vfield_files_multiple_suffix
     end interface open_vfield_files
 
     interface open_ufield_files
@@ -104,7 +115,10 @@ module pic_fields
 
     interface open_number_density_file
         module procedure &
-            open_number_density_file_single, open_number_density_file_multiple
+            open_number_density_file_single, &
+            open_number_density_file_multiple, &
+            open_number_density_file_single_suffix, &
+            open_number_density_file_multiple_suffix
     end interface open_number_density_file
 
     interface open_fraction_eband_file
@@ -438,9 +452,9 @@ module pic_fields
         call read_number_density(ct)
     end subroutine read_pic_fields
 
-    !---------------------------------------------------------------------------
-    ! Open magnetic field files when each field is saved in a single file.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open magnetic field files when each field is saved in a single file.
+    !<--------------------------------------------------------------------------
     subroutine open_magnetic_field_files_single
         implicit none
         character(len=256) :: fname
@@ -458,9 +472,31 @@ module pic_fields
         endif
     end subroutine open_magnetic_field_files_single
 
-    !---------------------------------------------------------------------------
-    ! Open electric field files when each field is saved in a single file.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open magnetic field files when each field is saved in a single file.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !<--------------------------------------------------------------------------
+    subroutine open_magnetic_field_files_single_suffix(suffix)
+        implicit none
+        character(*), intent(in) :: suffix
+        character(len=256) :: fname
+        bfields_fh = 0
+        fname = trim(adjustl(filepath))//'bx_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(1))
+        fname = trim(adjustl(filepath))//'by_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(2))
+        fname = trim(adjustl(filepath))//'bz_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
+        fname = trim(adjustl(filepath))//'absB_'//trim(suffix)//'.gda'
+        inquire(file=fname, exist=absB_file_exist)
+        if (absB_file_exist) then
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+        endif
+    end subroutine open_magnetic_field_files_single_suffix
+
+    !<--------------------------------------------------------------------------
+    !< Open electric field files when each field is saved in a single file.
+    !<--------------------------------------------------------------------------
     subroutine open_electric_field_files_single
         implicit none
         character(len=256) :: fname
@@ -472,6 +508,23 @@ module pic_fields
         fname = trim(adjustl(filepath))//'ez.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
     end subroutine open_electric_field_files_single
+
+    !<--------------------------------------------------------------------------
+    !< Open electric field files when each field is saved in a single file.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !<--------------------------------------------------------------------------
+    subroutine open_electric_field_files_single_suffix(suffix)
+        implicit none
+        character(*), intent(in) :: suffix
+        character(len=256) :: fname
+        efields_fh = 0
+        fname = trim(adjustl(filepath))//'ex_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(1))
+        fname = trim(adjustl(filepath))//'ey_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(2))
+        fname = trim(adjustl(filepath))//'ez_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
+    end subroutine open_electric_field_files_single_suffix
 
     !---------------------------------------------------------------------------
     ! Open current density files when each field is saved in a single file.
@@ -488,9 +541,9 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(3))
     end subroutine open_current_density_files_single
 
-    !---------------------------------------------------------------------------
-    ! Open press tensor files files when each field is saved in a single file.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open press tensor files files when each field is saved in a single file.
+    !<--------------------------------------------------------------------------
     subroutine open_pressure_tensor_files_single(species)
         implicit none
         character(*), intent(in) :: species
@@ -517,6 +570,37 @@ module pic_fields
             call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
         endif
     end subroutine open_pressure_tensor_files_single
+
+    !<--------------------------------------------------------------------------
+    !< Open press tensor files files when each field is saved in a single file.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !<--------------------------------------------------------------------------
+    subroutine open_pressure_tensor_files_single_suffix(species, suffix)
+        implicit none
+        character(*), intent(in) :: species, suffix
+        character(len=256) :: fname
+        pre_fh = 0
+        fname = trim(adjustl(filepath))//'p'//species//'-xx_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(1))
+        fname = trim(adjustl(filepath))//'p'//species//'-xy_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(2))
+        fname = trim(adjustl(filepath))//'p'//species//'-xz_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(3))
+        fname = trim(adjustl(filepath))//'p'//species//'-yy_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(4))
+        fname = trim(adjustl(filepath))//'p'//species//'-yz_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(5))
+        fname = trim(adjustl(filepath))//'p'//species//'-zz_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(6))
+        if (is_rel == 1) then
+            fname = trim(adjustl(filepath))//'p'//species//'-yx_'//trim(suffix)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(1))
+            fname = trim(adjustl(filepath))//'p'//species//'-zx_'//trim(suffix)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(2))
+            fname = trim(adjustl(filepath))//'p'//species//'-zy_'//trim(suffix)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
+        endif
+    end subroutine open_pressure_tensor_files_single_suffix
 
     !---------------------------------------------------------------------------
     ! Open velocity field files when each field is saved in a single file.
@@ -561,9 +645,9 @@ module pic_fields
         endif
     end subroutine open_velocity_field_files_single
 
-    !---------------------------------------------------------------------------
-    ! Open v field files when each field is saved in a single file.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open v field files when each field is saved in a single file.
+    !<--------------------------------------------------------------------------
     subroutine open_vfield_files_single(species)
         implicit none
         character(*), intent(in) :: species
@@ -580,6 +664,27 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
             vfields_fh(3))
     end subroutine open_vfield_files_single
+
+    !<--------------------------------------------------------------------------
+    !< Open v field files when each field is saved in a single file.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !<--------------------------------------------------------------------------
+    subroutine open_vfield_files_single_suffix(species, suffix)
+        implicit none
+        character(*), intent(in) :: species, suffix
+        character(len=256) :: fname
+
+        vfields_fh = 0
+        fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            vfields_fh(1))
+        fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            vfields_fh(2))
+        fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, &
+            vfields_fh(3))
+    end subroutine open_vfield_files_single_suffix
 
     !---------------------------------------------------------------------------
     ! Open u field files when each field is saved in a single file.
@@ -601,9 +706,9 @@ module pic_fields
             ufields_fh(3))
     end subroutine open_ufield_files_single
 
-    !---------------------------------------------------------------------------
-    ! Open number density file when each field is saved in a single file.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open number density file when each field is saved in a single file.
+    !<--------------------------------------------------------------------------
     subroutine open_number_density_file_single(species)
         implicit none
         character(*), intent(in) :: species
@@ -612,6 +717,19 @@ module pic_fields
         fname = trim(adjustl(filepath))//'n'//species//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
     end subroutine open_number_density_file_single
+
+    !<--------------------------------------------------------------------------
+    !< Open number density file when each field is saved in a single file.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !<--------------------------------------------------------------------------
+    subroutine open_number_density_file_single_suffix(species, suffix)
+        implicit none
+        character(*), intent(in) :: species, suffix
+        character(len=256) :: fname
+        nrho_fh = 0
+        fname = trim(adjustl(filepath))//'n'//species//'_'//trim(suffix)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+    end subroutine open_number_density_file_single_suffix
 
     !---------------------------------------------------------------------------
     ! Open the file of the fraction of particle in one energy band when each
@@ -632,11 +750,11 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, eband_fh)
     end subroutine open_fraction_eband_file_single
 
-    !---------------------------------------------------------------------------
-    ! Open magnetic field files.
-    ! Inputs:
-    !   tindex: the time index.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open magnetic field files.
+    !< Inputs:
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
     subroutine open_magnetic_field_files_multiple(tindex)
         implicit none
         integer, intent(in) :: tindex
@@ -657,11 +775,38 @@ module pic_fields
         endif
     end subroutine open_magnetic_field_files_multiple
 
-    !---------------------------------------------------------------------------
-    ! Open electric field files.
-    ! Inputs:
-    !   tindex: the time index.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open magnetic field files.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !< Inputs:
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
+    subroutine open_magnetic_field_files_multiple_suffix(tindex, suffix)
+        implicit none
+        integer, intent(in) :: tindex
+        character(*), intent(in) :: suffix
+        character(len=256) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        bfields_fh = 0
+        fname = trim(adjustl(filepath))//'bx_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(1))
+        fname = trim(adjustl(filepath))//'by_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(2))
+        fname = trim(adjustl(filepath))//'bz_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(3))
+        fname = trim(adjustl(filepath))//'absB_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        inquire(file=fname, exist=absB_file_exist)
+        if (absB_file_exist) then
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, bfields_fh(4))
+        endif
+    end subroutine open_magnetic_field_files_multiple_suffix
+
+    !<--------------------------------------------------------------------------
+    !< Open electric field files.
+    !< Inputs:
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
     subroutine open_electric_field_files_multiple(tindex)
         implicit none
         integer, intent(in) :: tindex
@@ -676,6 +821,29 @@ module pic_fields
         fname = trim(adjustl(filepath))//'ez_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
     end subroutine open_electric_field_files_multiple
+
+    !<--------------------------------------------------------------------------
+    !< Open electric field files.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !< Inputs:
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
+    subroutine open_electric_field_files_multiple_suffix(tindex, suffix)
+        implicit none
+        integer, intent(in) :: tindex
+        character(*), intent(in) :: suffix
+        character(len=256) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        efields_fh = 0
+        fname = trim(adjustl(filepath))//'ex_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(1))
+        fname = trim(adjustl(filepath))//'ey_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(2))
+        fname = trim(adjustl(filepath))//'ez_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, efields_fh(3))
+    end subroutine open_electric_field_files_multiple_suffix
+
 
     !---------------------------------------------------------------------------
     ! Open current density files.
@@ -697,12 +865,12 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, jfields_fh(3))
     end subroutine open_current_density_files_multiple
 
-    !---------------------------------------------------------------------------
-    ! Open press tensor files.
-    ! Inputs:
-    !   species: particle species
-    !   tindex: the time index.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open press tensor files.
+    !< Inputs:
+    !<   species: particle species
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
     subroutine open_pressure_tensor_files_multiple(species, tindex)
         implicit none
         character(*), intent(in) :: species
@@ -735,6 +903,46 @@ module pic_fields
             call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
         endif
     end subroutine open_pressure_tensor_files_multiple
+
+    !<--------------------------------------------------------------------------
+    !< Open press tensor files.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !< Inputs:
+    !<   species: particle species
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
+    subroutine open_pressure_tensor_files_multiple_suffix(species, tindex, suffix)
+        implicit none
+        character(*), intent(in) :: species, suffix
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        pre_fh = 0
+        fname = trim(adjustl(filepath))//'p'//species//'-xx_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(1))
+        fname = trim(adjustl(filepath))//'p'//species//'-xy_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(2))
+        fname = trim(adjustl(filepath))//'p'//species//'-xz_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(3))
+        fname = trim(adjustl(filepath))//'p'//species//'-yy_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(4))
+        fname = trim(adjustl(filepath))//'p'//species//'-yz_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(5))
+        fname = trim(adjustl(filepath))//'p'//species//'-zz_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_fh(6))
+        if (is_rel == 1) then
+            fname = &
+                trim(adjustl(filepath))//'p'//species//'-yx_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(1))
+            fname = &
+                trim(adjustl(filepath))//'p'//species//'-zx_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(2))
+            fname = &
+                trim(adjustl(filepath))//'p'//species//'-zy_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+            call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, pre_rel_fh(3))
+        endif
+    end subroutine open_pressure_tensor_files_multiple_suffix
 
     !---------------------------------------------------------------------------
     ! Open velocity field files.
@@ -778,12 +986,12 @@ module pic_fields
         endif
     end subroutine open_velocity_field_files_multiple
 
-    !---------------------------------------------------------------------------
-    ! Open v field files when each time frame is saved in different files.
-    ! Inputs:
-    !   species: particle species
-    !   tindex: the time index.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open v field files when each time frame is saved in different files.
+    !< Inputs:
+    !<   species: particle species
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
     subroutine open_vfield_files_multiple(species, tindex)
         implicit none
         character(*), intent(in) :: species
@@ -800,6 +1008,30 @@ module pic_fields
         fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
     end subroutine open_vfield_files_multiple
+
+    !<--------------------------------------------------------------------------
+    !< Open v field files when each time frame is saved in different files.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !< Inputs:
+    !<   species: particle species
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
+    subroutine open_vfield_files_multiple_suffix(species, tindex, suffix)
+        implicit none
+        character(*), intent(in) :: species, suffix
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=16) :: cfname
+
+        write(cfname, "(I0)") tindex
+        vfields_fh = 0
+        fname = trim(adjustl(filepath))//'v'//species//'x_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(1))
+        fname = trim(adjustl(filepath))//'v'//species//'y_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(2))
+        fname = trim(adjustl(filepath))//'v'//species//'z_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, vfields_fh(3))
+    end subroutine open_vfield_files_multiple_suffix
 
     !---------------------------------------------------------------------------
     ! Open v field files when each time frame is saved in different files.
@@ -824,12 +1056,12 @@ module pic_fields
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, ufields_fh(3))
     end subroutine open_ufield_files_multiple
 
-    !---------------------------------------------------------------------------
-    ! Open number density file.
-    ! Inputs:
-    !   species: particle species
-    !   tindex: the time index.
-    !---------------------------------------------------------------------------
+    !<--------------------------------------------------------------------------
+    !< Open number density file.
+    !< Inputs:
+    !<   species: particle species
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
     subroutine open_number_density_file_multiple(species, tindex)
         implicit none
         character(*), intent(in) :: species
@@ -841,6 +1073,25 @@ module pic_fields
         fname = trim(adjustl(filepath))//'n'//species//'_'//trim(cfname)//'.gda'
         call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
     end subroutine open_number_density_file_multiple
+
+    !<--------------------------------------------------------------------------
+    !< Open number density file.
+    !< The files have a suffix, e.g. to identify previous and next time steps.
+    !< Inputs:
+    !<   species: particle species
+    !<   tindex: the time index.
+    !<--------------------------------------------------------------------------
+    subroutine open_number_density_file_multiple_suffix(species, tindex, suffix)
+        implicit none
+        character(*), intent(in) :: species, suffix
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=16) :: cfname
+        write(cfname, "(I0)") tindex
+        nrho_fh = 0
+        fname = trim(adjustl(filepath))//'n'//species//'_'//trim(suffix)//'_'//trim(cfname)//'.gda'
+        call open_data_mpi_io(fname, MPI_MODE_RDONLY, fileinfo, nrho_fh)
+    end subroutine open_number_density_file_multiple_suffix
 
     !---------------------------------------------------------------------------
     ! Open the file of the fraction of particle in one energy band.
@@ -1399,5 +1650,72 @@ module pic_fields
 
         absB = sqrt(bx**2 + by**2 + bz**2)
     end subroutine interp_emf_node_ghost
+
+    !<--------------------------------------------------------------------------
+    !< Linearly interpolate magnetic field to the node positions.
+    !< We need to calculate fields at ghost cells too.
+    !<--------------------------------------------------------------------------
+    subroutine interp_bfield_node_ghost
+        implicit none
+        integer :: nx, ny, nz, nxg, nyg, nzg
+        nx = ht%nx
+        ny = ht%ny
+        nz = ht%nz
+        nxg = htg%nx
+        nyg = htg%ny
+        nzg = htg%nz
+        ! Bx
+        if (nyg > 1 .and. nzg > 1) then
+            bx(:, 2:nyg, 2:nzg) = (bx(:, 1:nyg-1, 1:nzg-1) + &
+                                   bx(:, 1:nyg-1, 2:nzg) + &
+                                   bx(:, 2:nyg, 1:nzg-1) + &
+                                   bx(:, 2:nyg, 2:nzg)) * 0.25
+            bx(:, 2:nyg, 1) = bx(:, 1:nyg-1, 1) + bx(:, 2:nyg, 1) - bx(:, 2:nyg, 2)
+            bx(:, 1, 2:nzg) = bx(:, 1, 1:nzg-1) + bx(:, 1, 2:nzg) - bx(:, 2, 2:nzg)
+            bx(:, 1, 1) = bx(:, 1, 2) + bx(:, 2, 1) - bx(:, 2, 2)
+        else if (nyg == 1 .and. nzg > 1) then
+            bx(:, 1, 2:nzg) = (bx(:, 1, 1:nzg-1) + bx(:, 1, 2:nzg)) * 0.5
+            bx(:, 1, 1) = 2 * bx(:, 1, 1) - bx(:, 1, 2)
+        else if (nyg > 1 .and. nzg == 1) then
+            bx(:, 2:nyg, 1) = (bx(:, 1:nyg-1, 1) + bx(:, 2:nyg, 1)) * 0.5
+            bx(:, 1, 1) = 2 * bx(:, 1, 1) - bx(:, 2, 1)
+        endif
+
+        ! By
+        if (nxg > 1 .and. nzg > 1) then
+            by(2:nxg, :, 2:nzg) = (by(1:nxg-1, :, 1:nzg-1) + &
+                                   by(1:nxg-1, :, 2:nzg) + &
+                                   by(2:nxg, :, 1:nzg-1) + &
+                                   by(2:nxg, :, 2:nzg)) * 0.25
+            by(2:nxg, :, 1) = by(1:nxg-1, :, 1) + by(2:nxg, :, 1) - by(2:nxg, :, 2)
+            by(1, :, 2:nzg) = by(1, :, 1:nzg-1) + by(1, :, 2:nzg) - by(2, :, 2:nzg)
+            by(1, :, 1) = by(1, :, 2) + by(2, :, 1) - by(2, :, 2)
+        else if (nxg == 1 .and. nzg > 1) then
+            by(1, :, 2:nzg) = (by(1, :, 1:nzg-1) + by(1, :, 2:nzg)) * 0.5
+            by(1, :, 1) = 2 * by(1, :, 1) - by(1, :, 2)
+        else if (nxg > 1 .and. nzg == 1) then
+            by(2:nxg, :, 1) = (by(1:nxg-1, :, 1) + by(2:nxg, :, 1)) * 0.5
+            by(1, :, 1) = 2 * by(1, :, 1) - by(2, :, 1)
+        endif
+
+        ! Bz
+        if (nxg > 1 .and. nyg > 1) then
+            bz(2:nxg, 2:nyg, :) = (bz(1:nxg-1, 1:nyg-1, :) + &
+                                   bz(1:nxg-1, 2:nyg, :) + &
+                                   bz(2:nxg, 1:nyg-1, :) + &
+                                   bz(2:nxg, 2:nyg, :)) * 0.25
+            bz(2:nxg, 1, :) = bz(1:nxg-1, 1, :) + bz(2:nxg, 1, :) - bz(2:nxg, 2, :)
+            bz(1, 2:nyg, :) = bz(1, 1:nyg-1, :) + bz(1, 2:nyg, :) - bz(2, 2:nyg, :)
+            bz(1, 1, :) = bz(1, 2, :) + bz(2, 1, :) - bz(2, 2, :)
+        else if (nxg == 1 .and. nyg > 1) then
+            bz(1, 2:nyg, :) = (bz(1, 1:nyg-1, :) + bz(1, 2:nyg, :)) * 0.5
+            bz(1, 1, :) = 2 * bz(1, 1, :) - bz(1, 2, :)
+        else if (nxg > 1 .and. nyg == 1) then
+            bz(2:nxg, 1, :) = (bz(1:nxg-1, 1, :) + bz(2:nxg, 1, :)) * 0.5
+            bz(1, 1, :) = 2 * bz(1, 1, :) - bz(2, 1, :)
+        endif
+
+        absB = sqrt(bx**2 + by**2 + bz**2)
+    end subroutine interp_bfield_node_ghost
 
 end module pic_fields

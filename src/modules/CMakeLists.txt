@@ -24,9 +24,11 @@ add_library(mpi_setup mpi_setup.f90 global.f90 translate_config.f90)
 target_link_libraries(mpi_setup get_info)
 
 add_library(particle_info particle_info.f90 global.f90)
+target_link_libraries(particle_info get_info)
 
 add_library(mpi_io_fields mpi_io_fields.f90 global.f90)
-target_link_libraries(mpi_io_fields get_info particle_info mpi_io mpi_setup)
+target_link_libraries(mpi_io_fields parameters get_info particle_info
+    mpi_io mpi_setup)
 
 add_library(analysis_config STATIC analysis_config.f90 translate_config.f90
     get_info_translate.f90)
@@ -59,6 +61,13 @@ add_library(pre_post_hydro STATIC pre_post_hydro.f90)
 target_link_libraries(pre_post_hydro pic_fields)
 
 add_library(pre_post_emf STATIC pre_post_emf.f90)
+target_link_libraries(pre_post_emf pic_fields)
+
+add_library(exb_drift exb_drift.f90 neighbors.f90 global.f90)
+target_link_libraries(exb_drift get_info fields file_header)
+
+add_library(pre_post_vexb STATIC pre_post_vexb.f90)
+target_link_libraries(pre_post_vexb exb_drift)
 
 add_library(jdote STATIC current_densities.f90 jdote_module.f90
     neighbors.f90 global.f90)
@@ -125,7 +134,8 @@ add_library(interp_comp_shear interpolation_comp_shear.f90 neighbors.f90)
 target_link_libraries(interp_comp_shear interp_funs get_info fields file_header)
 
 add_library(interp_vexb interpolation_vexb.f90 neighbors.f90)
-target_link_libraries(interp_vexb interp_funs get_info fields file_header)
+target_link_libraries(interp_vexb interp_funs get_info fields
+    file_header exb_drift)
 
 add_library(interp_vel_mom interpolation_vel_mom.f90 neighbors.f90)
 target_link_libraries(interp_vel_mom interp_funs get_info fields file_header)
@@ -147,6 +157,10 @@ target_link_libraries(interp_pre_post_u interp_funs get_info pre_post_hydro
 
 add_library(interp_pre_post_v interpolation_pre_post_vfield.f90 neighbors.f90)
 target_link_libraries(interp_pre_post_v interp_funs get_info pre_post_hydro
+    file_header)
+
+add_library(interp_pre_post_vexb interpolation_pre_post_vexb.f90 neighbors.f90)
+target_link_libraries(interp_pre_post_vexb interp_funs get_info pre_post_vexb
     file_header)
 
 add_library(particle_drift particle_drift.f90 particle_frames.f90)

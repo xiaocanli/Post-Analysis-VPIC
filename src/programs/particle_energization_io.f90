@@ -48,7 +48,7 @@ program particle_energization_io
 
     call init_analysis
 
-    nvar = 17
+    nvar = 18
     call calc_particle_energization
 
     call end_analysis
@@ -89,7 +89,7 @@ program particle_energization_io
     !< Calculate particle energization due to parallel and perpendicular
     !< electric field, compression and shear, curvature drift, gradient drift,
     !< initial drift, polarization drift, and the conservation magnetic moment.
-    !< It requires 80 field components:
+    !< It requires 86 field components:
     !<  * electric field components (3)
     !<  * magnetic fields components and magnitude (4)
     !<  * velocity field (3)
@@ -98,9 +98,11 @@ program particle_energization_io
     !<  * momentum field at previous and latter time steps (6)
     !<  * velocity field at previous and latter time steps (6)
     !<  * ExB drift velocity (3)
-    !<  * gradient of magnetic field (9)
-    !<  * gradient of momentum field (9)
-    !<  * gradient of velocity field (9)
+    !<  * the perpendicular components of the velocity field (3)
+    !<  * the magnitude of the magnetic field (3)
+    !<  * gradients of magnetic field (9)
+    !<  * gradients of momentum field (9)
+    !<  * gradients of the perpendicular components of the velocity field (9)
     !<  * gradients of ExB drift (9)
     !< We need to read 36 field components:
     !<  * electric field components (3)
@@ -132,14 +134,19 @@ program particle_energization_io
             open_vfield_pre_post, close_ufield_pre_post, close_vfield_pre_post, &
             read_pre_post_u, read_pre_post_v
         use emf_derivatives, only: init_bfield_derivatives, &
-            free_bfield_derivatives, calc_bfield_derivatives
+            free_bfield_derivatives, calc_bfield_derivatives, &
+            init_absb_derivatives, free_absb_derivatives, &
+            calc_absb_derivatives
         use hydro_derivatives, only: init_ufield_derivatives, &
             free_ufield_derivatives, calc_ufield_derivatives
         use vperp_derivatives, only: init_vperp_derivatives, &
             init_vperp_components, free_vperp_derivatives, free_vperp_components, &
             calc_vperp_derivatives, calc_vperp_components
+        use exb_drift, only: init_exb_drift, free_exb_drift, calc_exb_drift, &
+            init_exb_derivatives, free_exb_derivatives, calc_exb_derivatives
         use interpolation_emf, only: init_emfields, init_emfields_derivatives, &
-            free_emfields, free_emfields_derivatives
+            free_emfields, free_emfields_derivatives, &
+            init_absb_derivatives_single, free_absb_derivatives_single
         use interpolation_vel_mom, only: init_vel_mom, free_vel_mom
         use interpolation_pre_post_bfield, only: init_bfield_magnitude, &
             init_bfield_components, free_bfield_magnitude, free_bfield_components
@@ -149,9 +156,7 @@ program particle_energization_io
             free_ufield_components
         use interpolation_pre_post_vfield, only: init_vfield_components, &
             free_vfield_components
-        use interpolation_vexb, only: init_exb_drift, free_exb_drift, &
-            calc_exb_drift, init_exb_derivatives, free_exb_derivatives, &
-            calc_exb_derivatives, init_exb_derivatives_single, &
+        use interpolation_vexb, only: init_exb_derivatives_single, &
             free_exb_derivatives_single
         use interpolation_ufield_derivatives, only: init_ufields_derivatives_single, &
             free_ufields_derivatives_single
@@ -174,6 +179,7 @@ program particle_energization_io
         call init_exb_derivatives_single
         call init_vfield_components
         call init_vperp_derivatives_single
+        call init_absb_derivatives_single
         if (is_translated_file) then
             call init_electric_fields(htg%nx, htg%ny, htg%nz)    ! 3 components
             call init_magnetic_fields(htg%nx, htg%ny, htg%nz)    ! 3 components + magnitude
@@ -188,6 +194,7 @@ program particle_energization_io
             call init_ufield_derivatives(htg%nx, htg%ny, htg%nz) ! 9 components
             call init_vperp_components(htg%nx, htg%ny, htg%nz)   ! 3 components
             call init_vperp_derivatives(htg%nx, htg%ny, htg%nz)  ! 9 components
+            call init_absb_derivatives(htg%nx, htg%ny, htg%nz)   ! 3 components
         endif
 
         allocate(ebins(nbins + 1))
@@ -295,6 +302,7 @@ program particle_energization_io
             call calc_ufield_derivatives(htg%nx, htg%ny, htg%nz)
             call calc_vperp_components
             call calc_vperp_derivatives(htg%nx, htg%ny, htg%nz)
+            call calc_absb_derivatives(htg%nx, htg%ny, htg%nz)
 
             dx_domain = domain%lx_de / domain%pic_tx
             dy_domain = domain%ly_de / domain%pic_ty
@@ -380,6 +388,7 @@ program particle_energization_io
             call free_ufield_derivatives
             call free_vperp_components
             call free_vperp_derivatives
+            call free_absb_derivatives
         endif
         call free_emfields
         call free_emfields_derivatives
@@ -392,6 +401,7 @@ program particle_energization_io
         call free_exb_derivatives_single
         call free_vfield_components
         call free_vperp_derivatives_single
+        call free_absb_derivatives_single
     end subroutine calc_particle_energization
 
     !<--------------------------------------------------------------------------
@@ -404,9 +414,11 @@ program particle_energization_io
         use rank_index_mapping, only: index_to_rank
         use interpolation_emf, only: trilinear_interp_bx, trilinear_interp_by, &
             trilinear_interp_bz, trilinear_interp_ex, trilinear_interp_ey, &
-            trilinear_interp_ez, set_emf, set_emf_derivatives, &
+            trilinear_interp_ez, trilinear_interp_absb_derivatives, &
+            set_emf, set_emf_derivatives, set_absb_derivatives, &
             bx0, by0, bz0, ex0, ey0, ez0, dbxdx0, dbxdy0, dbxdz0, &
-            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0
+            dbydx0, dbydy0, dbydz0, dbzdx0, dbzdy0, dbzdz0, &
+            dbdx0, dbdy0, dbdz0
         use interpolation_vel_mom, only: trilinear_interp_vel_mom, &
             set_vel_mom, vx0, vy0, vz0, ux0, uy0, uz0
         use interpolation_pre_post_bfield, only: set_bfield_components, &
@@ -448,11 +460,12 @@ program particle_energization_io
         real(fp) :: dke_para, dke_perp, weight
         real(fp) :: pxx, pxy, pxz, pyx, pyy, pyz, pzx, pzy, pzz
         real(fp) :: pscalar, ppara, pperp, bbsigma, divv0, divv0_3
-        real(fp) :: pdivv, pshear
+        real(fp) :: pdivv, pshear, ptensor_ene
         real(fp) :: curv_ene, grad_ene, parad_ene
-        real(fp) :: vcx, vcy, vcz, kappax, kappay, kappaz, b_dot_gradB
+        real(fp) :: vcx, vcy, vcz, kappax, kappay, kappaz
         real(fp) :: mag_moment, vgx, vgy, vgz, dBdx, dBdy, dBdz
-        real(fp) :: vdotB
+        real(fp) :: vdotB, vperpx0, vperpy0, vperpz0
+        real(fp) :: udotB, uperpx0, uperpy0, uperpz0
         real(fp) :: vexb_x, vexb_y, vexb_z
         real(fp) :: vpara_dx, vpara_dy, vpara_dz, vpara_d  ! Parallel drift
         real(fp) :: idt, dene_m
@@ -468,6 +481,7 @@ program particle_energization_io
         real(fp) :: vperpx1, vperpy1, vperpz1
         real(fp) :: vperpx2, vperpy2, vperpz2
         real(fp) :: polar_ene_time_v, polar_ene_spatial_v
+        real(fp) :: param
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
@@ -517,6 +531,9 @@ program particle_energization_io
             call set_vperp_derivatives(dom_x, dom_y, dom_z, &
                 domain%pic_tx, domain%pic_ty, &
                 domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
+            call set_absb_derivatives(dom_x, dom_y, dom_z, &
+                domain%pic_tx, domain%pic_ty, &
+                domain%pic_tz, ht%start_x, ht%start_y, ht%start_z)
         endif
 
         nxg = domain%pic_nx + 2  ! Including ghost cells
@@ -547,6 +564,7 @@ program particle_energization_io
             call trilinear_interp_ufield_derivatives(ino, jno, kno, dnx, dny, dnz)
             call trilinear_interp_vfield_components(ino, jno, kno, dnx, dny, dnz)
             call trilinear_interp_vperp_derivatives(ino, jno, kno, dnx, dny, dnz)
+            call trilinear_interp_absb_derivatives(ino, jno, kno, dnx, dny, dnz)
             ux = ptl%vx  ! v in ptl is actually gamma*v
             uy = ptl%vy
             uz = ptl%vz
@@ -625,43 +643,66 @@ program particle_energization_io
             bbsigma = bbsigma * ib2
             pdivv = -pscalar * divv0
             pshear = (pperp - ppara) * bbsigma
+            ptensor_ene = -(pxx * dvxdx0 + pxy * dvxdy0 + pxz * dvxdz0 + &
+                            pyx * dvydx0 + pyy * dvydy0 + pyz * dvydz0 + &
+                            pzx * dvzdx0 + pzy * dvzdy0 + pzz * dvzdz0)
 
             ! Energization due to gradient drift
             dBdx = bxn * dbxdx0 + byn * dbydx0 + bzn * dbzdx0
             dBdy = bxn * dbxdy0 + byn * dbydy0 + bzn * dbzdy0
             dBdz = bxn * dbxdz0 + byn * dbydz0 + bzn * dbzdz0
-            vgx = byn*dBdz - bzn*dBdy
-            vgy = bzn*dBdx - bxn*dBdz
-            vgz = bxn*dBdy - byn*dBdx
             ! mag_moment = ((vperpx - vexb_x)**2 + &
             !               (vperpy - vexb_y)**2 + &
             !               (vperpz - vexb_z)**2) * &
             !               gama * ptl_mass * ib * 0.5
             vdotB = vx0 * bxn + vy0 * byn + vz0 * bzn
-            mag_moment = ((vperpx - vx0 + vdotB * bxn)**2 + &
-                          (vperpy - vy0 + vdotB * byn)**2 + &
-                          (vperpz - vz0 + vdotB * bzn)**2) * &
-                          gama * ptl_mass * ib * 0.5
-            grad_ene = weight * mag_moment * ib * &
-                (ex0 * vgx + ey0 * vgy + ez0 * vgz)
+            vperpx0 = vx0 - vdotB * bxn
+            vperpy0 = vy0 - vdotB * byn
+            vperpz0 = vz0 - vdotB * bzn
+            udotB = ux0 * bxn + uy0 * byn + uz0 * bzn
+            uperpx0 = ux0 - udotB * bxn
+            uperpy0 = uy0 - udotB * byn
+            uperpz0 = uz0 - udotB * bzn
+            ! mag_moment = ((vperpx - vperpx0)**2 + &
+            !               (vperpy - vperpy0)**2 + &
+            !               (vperpz - vperpz0)**2) * &
+            !               gama * ptl_mass * ib * 0.5
+            mag_moment = ((vperpx - vperpx0) * (gama * vperpx - uperpx0) + &
+                          (vperpy - vperpy0) * (gama * vperpy - uperpy0) + &
+                          (vperpz - vperpz0) * (gama * vperpz - uperpz0)) * &
+                          ptl_mass * ib * 0.5
+            param = mag_moment * ib / ptl_charge
+            vgx = (byn*dbdz0 - bzn*dbdy0) * param
+            vgy = (bzn*dbdx0 - bxn*dbdz0) * param
+            vgz = (bxn*dbdy0 - byn*dbdx0) * param
+            grad_ene = weight * ptl_charge * (ex0 * vgx + ey0 * vgy + ez0 * vgz)
 
             ! Energization due to parallel drift
             vpara_d = ((dbzdy0 - dbydz0) * bxn + &
                        (dbxdz0 - dbzdx0) * byn + &
                        (dbydx0 - dbxdy0) * bzn) * ib
-            parad_ene = weight * vpara_d * mag_moment * &
-                (ex0 * bxn + ey0 * byn + ez0 * bzn)
+            ! parad_ene = weight * vpara_d * mag_moment * &
+            !     (ex0 * bxn + ey0 * byn + ez0 * bzn)
+            vpara_dx = vpara_d * mag_moment * bxn / ptl_charge
+            vpara_dy = vpara_d * mag_moment * byn / ptl_charge
+            vpara_dz = vpara_d * mag_moment * bzn / ptl_charge
+            parad_ene = weight * ptl_charge * &
+                (vpara_dx * ex0 + vpara_dy * ey0 + vpara_dz * ez0)
 
-            ! Energization due to curvature drift
-            b_dot_gradB = bxn * dBdx + byn * dBdy + bzn * dBdz
-            kappax = (bxn*dbxdx0 + byn*dbxdy0 + bzn*dbxdz0)*ib - bx0*b_dot_gradB*ib2
-            kappay = (bxn*dbydx0 + byn*dbydy0 + bzn*dbydz0)*ib - by0*b_dot_gradB*ib2
-            kappaz = (bxn*dbzdx0 + byn*dbzdy0 + bzn*dbzdz0)*ib - bz0*b_dot_gradB*ib2
-            vcx = byn*kappaz - bzn*kappay
-            vcy = bzn*kappax - bxn*kappaz
-            vcz = bxn*kappay - byn*kappax
-            curv_ene = weight * ptl_mass * gama * vpara**2 * ib * &
-                (ex0 * vcx + ey0 * vcy + ez0 * vcz)
+            ! Energization due to curvature drift. Another term is always 0.
+            kappax = (bxn*dbxdx0 + byn*dbxdy0 + bzn*dbxdz0)*ib
+            kappay = (bxn*dbydx0 + byn*dbydy0 + bzn*dbydz0)*ib
+            kappaz = (bxn*dbzdx0 + byn*dbzdy0 + bzn*dbzdz0)*ib
+            ! vcx = byn*kappaz - bzn*kappay
+            ! vcy = bzn*kappax - bxn*kappaz
+            ! vcz = bxn*kappay - byn*kappax
+            ! curv_ene = weight * ptl_mass * gama * vpara**2 * ib * &
+            !     (ex0 * vcx + ey0 * vcy + ez0 * vcz)
+            param = ptl_mass * gama * vpara**2 * ib / ptl_charge
+            vcx = (byn*kappaz - bzn*kappay) * param
+            vcy = (bzn*kappax - bxn*kappaz) * param
+            vcz = (bxn*kappay - byn*kappax) * param
+            curv_ene = weight * ptl_charge * (ex0 * vcx + ey0 * vcy + ez0 * vcz)
 
             ! Energization due to the conservation of magnetic moment
             absB1_0 = sqrt(bx1_0**2 + by1_0**2 + bz1_0**2)
@@ -691,7 +732,7 @@ program particle_energization_io
             polar_ene_time = weight * gama * ptl_mass * ib2 * &
                 (ex0 * vpx + ey0 * vpy + ez0 * vpz)
 
-            ! Initial drift (time varying field)
+            ! Inertial drift (time varying field)
             dbxdt = (bx2_0 * ib_2 - bx1_0 * ib_1) * idt
             dbydt = (by2_0 * ib_2 - by1_0 * ib_1) * idt
             dbzdt = (bz2_0 * ib_2 - bz1_0 * ib_1) * idt
@@ -710,12 +751,12 @@ program particle_energization_io
             polar_ene_spatial = weight * gama * ptl_mass * &
                 (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
 
-            ! Initial drift (spatially varying field)
-            dvxdt = vexb_x * dvxdx0 + vexb_y * dvxdy0 + vexb_z * dvxdz0
-            dvydt = vexb_x * dvydx0 + vexb_y * dvydy0 + vexb_z * dvydz0
-            dvzdt = vexb_x * dvzdx0 + vexb_y * dvzdy0 + vexb_z * dvzdz0
-            init_ene_spatial = -gama * ptl_mass * vpara * weight * &
-                (bxn * dvxdt + byn * dvydt + bzn * dvzdt)
+            ! Inertial drift (spatially varying field)
+            dbxdt = (vexb_x*dbxdx0 + vexb_y*dbxdy0 + vexb_z*dbxdz0) * ib
+            dbydt = (vexb_x*dbydx0 + vexb_y*dbydy0 + vexb_z*dbydz0) * ib
+            dbzdt = (vexb_x*dbzdx0 + vexb_y*dbzdy0 + vexb_z*dbzdz0) * ib
+            init_ene_spatial = gama * ptl_mass * vpara * weight * &
+                (vexb_x * dbxdt + vexb_y * dbydt + vexb_z * dbzdt)
 
             ! Fluid polarization (time varying field)
             dvxdt = (ux2_0 - ux1_0) * idt
@@ -726,9 +767,18 @@ program particle_energization_io
                 (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
 
             ! Fluid polarization (spatially varying field)
-            dvxdt = vx * duxdx0 + vy * duxdy0 + vz * duxdz0
-            dvydt = vx * duydx0 + vy * duydy0 + vz * duydz0
-            dvzdt = vx * duzdx0 + vy * duzdy0 + vz * duzdz0
+            ! vpx0 = vparax + vexb_x + vcx + vgx
+            ! vpy0 = vparay + vexb_y + vcy + vgy
+            ! vpz0 = vparaz + vexb_z + vcz + vgz
+            vpx0 = vparax + vexb_x
+            vpy0 = vparay + vexb_y
+            vpz0 = vparaz + vexb_z
+            dvxdt = vpx0 * duxdx0 + vpy0 * duxdy0 + vpz0 * duxdz0
+            dvydt = vpx0 * duydx0 + vpy0 * duydy0 + vpz0 * duydz0
+            dvzdt = vpx0 * duzdx0 + vpy0 * duzdy0 + vpz0 * duzdz0
+            ! dvxdt = vx * duxdx0 + vy * duxdy0 + vz * duxdz0
+            ! dvydt = vx * duydx0 + vy * duydy0 + vz * duydz0
+            ! dvzdt = vx * duzdx0 + vy * duzdy0 + vz * duzdz0
 
             polar_fluid_spatial = weight * ptl_mass * &
                 (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
@@ -756,7 +806,6 @@ program particle_energization_io
             dvxdt = vpx0 * dvperpx_dx0 + vpy0 * dvperpx_dy0 + vpz0 * dvperpx_dz0
             dvydt = vpx0 * dvperpy_dx0 + vpy0 * dvperpy_dy0 + vpz0 * dvperpy_dz0
             dvzdt = vpx0 * dvperpz_dx0 + vpy0 * dvperpz_dy0 + vpz0 * dvperpz_dz0
-
             polar_ene_spatial_v = weight * gama * ptl_mass * &
                 (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
 
@@ -779,6 +828,7 @@ program particle_energization_io
                 fbins(ibin+1, 15) = fbins(ibin+1, 15) + polar_fluid_spatial * iene
                 fbins(ibin+1, 16) = fbins(ibin+1, 16) + polar_ene_time_v * iene
                 fbins(ibin+1, 17) = fbins(ibin+1, 17) + polar_ene_spatial_v * iene
+                fbins(ibin+1, 18) = fbins(ibin+1, 18) + ptensor_ene * iene
             endif
         enddo
         deallocate(ptls)

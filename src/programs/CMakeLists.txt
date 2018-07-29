@@ -65,9 +65,10 @@ install (TARGETS particle_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 add_executable(particle_energization_io.exec particle_energization_io.f90)
 target_link_libraries(particle_energization_io.exec ${MPI_Fortran_LIBRARIES} flap
     get_info translate_module particle_module interp_emf particle_file
-    interp_vel_mom interp_comp_shear pre_post_emf interp_pre_post_b
+    interp_vel_mom interp_comp_shear pre_post_emf pre_post_vexb interp_pre_post_b
     interp_pre_post_e interp_pre_post_u interp_vexb interp_gradu
-    interp_j interp_grad_vperp interp_pre_post_v ${HDF5_Fortran_LIBRARIES})
+    interp_j interp_grad_vperp interp_pre_post_v interp_pre_post_vexb
+    ${HDF5_Fortran_LIBRARIES})
 install (TARGETS particle_energization_io.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 add_executable(combine_spectrum_hdf5.exec combine_spectrum_hdf5.f90)
@@ -80,6 +81,11 @@ target_link_libraries(fluid_energization.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module particle_info mpi_setup fluid_energization_module
     mpi_io_fields fields flap)
 install (TARGETS fluid_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+add_executable(calc_vexb.exec calc_vexb.f90)
+target_link_libraries(calc_vexb.exec ${MPI_Fortran_LIBRARIES}
+    get_info translate_module mpi_setup mpi_io_fields fields flap)
+install (TARGETS calc_vexb.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
