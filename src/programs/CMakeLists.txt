@@ -70,6 +70,11 @@ target_link_libraries(particle_energization_io.exec ${MPI_Fortran_LIBRARIES} fla
     interp_j interp_grad_vperp interp_pre_post_v ${HDF5_Fortran_LIBRARIES})
 install (TARGETS particle_energization_io.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(combine_spectrum_hdf5.exec combine_spectrum_hdf5.f90)
+target_link_libraries(combine_spectrum_hdf5.exec ${MPI_Fortran_LIBRARIES}
+    flap parameters ${HDF5_Fortran_LIBRARIES})
+install (TARGETS combine_spectrum_hdf5.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 add_executable(fluid_energization.exec fluid_energization.f90)
 target_link_libraries(fluid_energization.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module particle_info mpi_setup fluid_energization_module
