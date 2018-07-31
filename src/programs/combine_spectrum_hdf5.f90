@@ -6,9 +6,6 @@ program combine_spectrum_hdf5
     use mpi_module
     use hdf5
     implicit none
-    integer(hsize_t), parameter :: pic_mpi_size=131072
-    integer, parameter :: nzones=80  ! # of zones of each PIC MPI rank
-    integer, parameter :: ndata=1003 ! 1000 spectrum points + Bx, By, Bz
     integer(hsize_t), dimension(1) :: dcount, doffset
     real(fp), allocatable, dimension(:, :) :: pspect
     real(fp), allocatable, dimension(:) :: pspect_tot
@@ -16,6 +13,8 @@ program combine_spectrum_hdf5
     real(dp) :: start, finish
     integer :: tstart, tend, tinterval, tframe
     character(len=256) :: rootpath
+    integer(hsize_t) :: pic_mpi_size
+    integer :: nzones, ndata
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -173,6 +172,18 @@ program combine_spectrum_hdf5
         call cli%add(switch='--rootpath', switch_ab='-rp', &
             help='simulation root path', required=.true., act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--pic_mpi_size', switch_ab='-pm', &
+            help='MPI size for PIC simulation', &
+            required=.false., act='store', def='131072', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nzones', switch_ab='-nz', &
+            help='Number of zones in each PIC MPI rank', &
+            required=.false., act='store', def='80', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--ndata', switch_ab='-nd', &
+            help='Number of data points for each energy spectrum', &
+            required=.false., act='store', def='1003', error=error)
+        if (error/=0) stop
         call cli%add(switch='--tstart', switch_ab='-ts', &
             help='Starting time frame', required=.false., act='store', &
             def='0', error=error)
@@ -185,6 +196,12 @@ program combine_spectrum_hdf5
         if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
+        call cli%get(switch='-pm', val=pic_mpi_size, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nz', val=nzones, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nd', val=ndata, error=error)
+        if (error/=0) stop
         call cli%get(switch='-ts', val=tstart, error=error)
         if (error/=0) stop
         call cli%get(switch='-te', val=tend, error=error)
@@ -196,6 +213,9 @@ program combine_spectrum_hdf5
             print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
             print '(A,I0,A,I0,A,I0)', ' Min, max and interval: ', &
                 tstart, ' ', tend, ' ', tinterval
+            print '(A,I0)', ' MPI size of the PIC simulation: ', pic_mpi_size
+            print '(A,I0)', ' Number of zones in each PIC MPI rank: ', nzones
+            print '(A,I0)', ' Number of data points ine each spectrum: ', ndata
         endif
     end subroutine get_cmd_args
 
