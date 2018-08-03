@@ -67,7 +67,7 @@ add_library(exb_drift exb_drift.f90 neighbors.f90 global.f90)
 target_link_libraries(exb_drift get_info fields file_header)
 
 add_library(pre_post_vexb STATIC pre_post_vexb.f90)
-target_link_libraries(pre_post_vexb exb_drift)
+target_link_libraries(pre_post_vexb exb_drift pre_post_emf)
 
 add_library(jdote STATIC current_densities.f90 jdote_module.f90
     neighbors.f90 global.f90)

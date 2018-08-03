@@ -10,7 +10,7 @@ module mpi_datatype_module
     contains
 
     !---------------------------------------------------------------------------
-    ! Create a MPI data type and commit it.    
+    ! Create a MPI data type and commit it
     !---------------------------------------------------------------------------
     function set_mpi_datatype(sizes, subsizes, starts) result(datatype)
         implicit none
@@ -51,12 +51,17 @@ module  mpi_info_module
     subroutine set_mpi_info
         implicit none
         call MPI_INFO_CREATE(fileinfo, ierror)
-        !! Disable ROMIO's data-sieving
-        call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
-        call MPI_INFO_SET(fileinfo, "romio_ds_write", "automatic", ierror)
-        !! Enable ROMIO's collective buffering
+        ! Disable ROMIO's data-sieving
+        call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
+        call MPI_INFO_SET(fileinfo, "romio_ds_write", "disable", ierror)
+        ! Enable ROMIO's collective buffering
         call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
         call MPI_INFO_SET(fileinfo, "romio_cb_write", "enable", ierror)
+        ! call MPI_INFO_SET(fileinfo, "cb_buffer_size", "1048576", ierror)
+        ! call MPI_INFO_SET(fileinfo, "striping_factor", "32", ierror)
+        ! call MPI_INFO_SET(fileinfo, "striping_unit", "4194304", ierror)
+        ! call MPI_INFO_SET(fileinfo, "romio_no_indep_rw", "true", ierror)
+        ! call MPI_INFO_SET(fileinfo, "cb_nodes", "4", ierror)
 
         ! ! For panfs parallel file system.
         ! call MPI_INFO_SET(fileinfo, "panfs_concurrent_write", "1", ierror)

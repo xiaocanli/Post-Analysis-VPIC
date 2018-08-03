@@ -14,7 +14,6 @@ program particle_energization_io
     implicit none
     character(len=256) :: rootpath
     character(len=16) :: dir_emf, dir_hydro
-    real(dp) :: start, finish, step1, step2, time1, time2
     integer :: tstart, tend, tinterval, tframe, fields_interval, fd_tinterval
     integer, parameter :: nbins = 60
     real(fp), parameter :: emin = 1E-4
@@ -30,19 +29,20 @@ program particle_energization_io
                                             ! when local electric field is too large
 
     ! Particles in HDF5 format
-    integer, allocatable, dimension(:) :: np_local, offset_local
+    integer(hsize_t), allocatable, dimension(:) :: np_local, offset_local
     logical :: particle_hdf5, parallel_read, collective_io
     integer, parameter :: num_dset = 8
     integer(hid_t), dimension(num_dset) :: dset_ids
     integer(hid_t) :: file_id, group_id
     integer(hid_t) :: filespace
     integer(hsize_t), dimension(1) :: dset_dims, dset_dims_max
+    integer :: t1, t2, clock_rate, clock_max
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
     call MPI_COMM_SIZE(MPI_COMM_WORLD, numprocs, ierr)
 
-    call cpu_time(start)
+    call system_clock(t1, clock_rate, clock_max)
 
     call get_cmd_args
 
@@ -53,9 +53,9 @@ program particle_energization_io
 
     call end_analysis
 
-    call cpu_time(finish)
+    call system_clock(t2, clock_rate, clock_max)
     if (myid == master) then
-        print '("Time = ",f9.4," seconds.")',finish-start
+        write (*, *) 'Elapsed real time = ', real(t2 - t1) / real(clock_rate)
     endif
 
     call MPI_FINALIZE(ierr)
@@ -165,6 +165,7 @@ program particle_energization_io
         implicit none
         integer :: dom_x, dom_y, dom_z
         integer :: tindex, tindex_pre, tindex_pos
+        integer :: t1, t2, t3, t4, clock_rate, clock_max
         real(fp) :: dx_domain, dy_domain, dz_domain
         real(fp) :: dt_fields
 
@@ -218,12 +219,11 @@ program particle_energization_io
             call open_vfield_pre_post(species, separated_pre_post)
         endif
 
-        call cpu_time(step1)
+        call system_clock(t1, clock_rate, clock_max)
         do tframe = tstart, tend, tinterval
             if (myid == master) print*, tframe
             tp_emf = tframe / fields_interval + 1
             call set_dists_zero
-            call cpu_time(time1)
 
             ! Time frame and interval
             tindex = domain%fields_interval * (tp_emf - tp1)
@@ -253,43 +253,56 @@ program particle_energization_io
                     call open_electric_field_files(tindex)
                     call read_electric_fields(tp1)
                     call close_electric_field_files
+                    if (myid == master) print*, "Finished reading electric fields"
                     call open_magnetic_field_files(tindex)
                     call read_magnetic_fields(tp1)
                     call close_magnetic_field_files
+                    if (myid == master) print*, "Finished reading magnetic fields"
                     call open_velocity_field_files(species, tindex)
                     call read_velocity_fields(tp1)
                     call close_velocity_field_files
+                    if (myid == master) print*, "Finished reading velocity and momentum fields"
                     call open_bfield_pre_post(separated_pre_post, tindex, &
                                               tindex_pre, tindex_pos)
                     call read_pre_post_bfield(tp1, output_format, separated_pre_post)
                     call close_bfield_pre_post
+                    if (myid == master) print*, "Finished pre- and post- magnetic fields"
                     call open_efield_pre_post(separated_pre_post, tindex, &
                                               tindex_pre, tindex_pos)
                     call read_pre_post_efield(tp1, output_format, separated_pre_post)
                     call close_efield_pre_post
+                    if (myid == master) print*, "Finished pre- and post- electric fields"
                     call open_ufield_pre_post(species, separated_pre_post, &
                                               tindex, tindex_pre, tindex_pos)
                     call read_pre_post_u(tp1, output_format, separated_pre_post)
                     call close_ufield_pre_post
+                    if (myid == master) print*, "Finished pre- and post- momentum fields"
                     call open_vfield_pre_post(species, separated_pre_post, &
                                               tindex, tindex_pre, tindex_pos)
                     call read_pre_post_v(tp1, output_format, separated_pre_post)
                     call close_vfield_pre_post
+                    if (myid == master) print*, "Finished pre- and post- velocity fields"
                 else
                     ! Fields at all time steps are saved in the same file
                     call read_electric_fields(tp_emf)
+                    if (myid == master) print*, "Finished reading electric fields"
                     call read_magnetic_fields(tp_emf)
+                    if (myid == master) print*, "Finished reading magnetic fields"
                     call read_velocity_fields(tp_emf)
+                    if (myid == master) print*, "Finished reading velocity and momentum fields"
                     call read_pre_post_bfield(tp_emf, output_format, separated_pre_post)
+                    if (myid == master) print*, "Finished pre- and post- magnetic fields"
                     call read_pre_post_efield(tp_emf, output_format, separated_pre_post)
+                    if (myid == master) print*, "Finished pre- and post- electric fields"
                     call read_pre_post_u(tp_emf, output_format, separated_pre_post)
+                    if (myid == master) print*, "Finished pre- and post- momentum fields"
                     call read_pre_post_v(tp_emf, output_format, separated_pre_post)
+                    if (myid == master) print*, "Finished pre- and post- velocity fields"
                 endif
             endif
-            call cpu_time(time2)
+            call system_clock(t2, clock_rate, clock_max)
             if (myid == master) then
-                print '("Time for reading fields = ",f8.3," seconds.")', &
-                    time2 - time1
+                write (*, *) 'Time for reading fields = ', real(t2 - t1) / real(clock_rate)
             endif
 
             ! Interpolate EMF to node position
@@ -309,18 +322,17 @@ program particle_energization_io
             dz_domain = domain%lz_de / domain%pic_tz
 
             ! Particles are saved in HDF5
-            call cpu_time(time1)
             if (particle_hdf5) then
+                call system_clock(t3, clock_rate, clock_max)
                 call get_np_local_vpic(tframe, species)
                 call open_particle_file_h5(tframe, species)
-            endif
-            call cpu_time(time2)
-            if (myid == master) then
-                print '("Time for openning HDF5 = ",f8.3," seconds.")', &
-                    time2 - time1
+                call system_clock(t4, clock_rate, clock_max)
+                if (myid == master) then
+                    write (*, *) 'Time for openning HDF5 = ', real(t4 - t3) / real(clock_rate)
+                endif
             endif
 
-            call cpu_time(time1)
+            call system_clock(t3, clock_rate, clock_max)
             do dom_z = ht%start_z, ht%stop_z
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
@@ -330,36 +342,34 @@ program particle_energization_io
                     enddo ! x
                 enddo ! y
             enddo ! z
-            call cpu_time(time2)
+            call system_clock(t4, clock_rate, clock_max)
             if (myid == master) then
-                print '("Time for computing = ",f8.3," seconds.")', &
-                    time2 - time1
+                write (*, *) 'Time for computing = ', real(t4 - t3) / real(clock_rate)
             endif
 
             ! Particles are saved in HDF5
-            call cpu_time(time1)
             if (particle_hdf5) then
+                call system_clock(t3, clock_rate, clock_max)
                 call free_np_offset_local
                 call close_particle_file_h5
-            endif
-            call cpu_time(time2)
-            if (myid == master) then
-                print '("Time for closing HDF5 = ",f8.3," seconds.")', &
-                    time2 - time1
+                call system_clock(t4, clock_rate, clock_max)
+                if (myid == master) then
+                    write (*, *) 'Time for closing HDF5 = ', real(t4 - t3) / real(clock_rate)
+                endif
             endif
 
-            call cpu_time(time1)
+            call system_clock(t3, clock_rate, clock_max)
             call save_particle_energization(tframe, "particle_energization")
-            call cpu_time(time2)
+            call system_clock(t4, clock_rate, clock_max)
             if (myid == master) then
-                print '("Time saveing data = ",f8.3," seconds.")', &
-                    time2 - time1
+                write (*, *) 'Time for saving data = ', real(t4 - t3) / real(clock_rate)
             endif
-            call cpu_time(step2)
+
+            call system_clock(t2, clock_rate, clock_max)
             if (myid == master) then
-                print '("Time for this step = ",f8.3," seconds.")', step2 - step1
+                write (*, *) 'Time for this step = ', real(t2 - t1) / real(clock_rate)
             endif
-            step1 = step2
+            t1 = t2
         enddo  ! Time loop
 
         if (is_translated_file .and. output_format == 1) then
@@ -451,7 +461,8 @@ program particle_energization_io
         integer :: ino, jno, kno   ! w.r.t the node
         real(fp) :: dnx, dny, dnz
         integer :: nxg, nyg, nzg, icell
-        integer :: ibin, n, iptl, nptl
+        integer :: ibin, n
+        integer(hsize_t) :: iptl, nptl
         real(fp) :: gama, igama, iene, ux, uy, uz, vx, vy, vz
         real(fp) :: vpara, vperp, vparax, vparay, vparaz
         real(fp) :: vperpx, vperpy, vperpz, tmp
@@ -1218,14 +1229,17 @@ program particle_energization_io
         call h5open_f(error)
         call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, error)
         if (collective_io) then
-            call MPI_INFO_SET(fileinfo, "romio_cb_read", "automatic", ierror)
-            call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
-            ! call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
-            ! call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
-            call MPI_INFO_SET(fileinfo, "striping_factor", "4", ierror)
-            call MPI_INFO_SET(fileinfo, "striping_unit", "1048576", ierror)
-            ! call MPI_INFO_SET(fileinfo, "cb_buffer_size", "8388608", ierror)
-            call MPI_INFO_SET(fileinfo, "cb_nodes", "4", ierror)
+            ! Disable ROMIO's data-sieving
+            call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
+            call MPI_INFO_SET(fileinfo, "romio_ds_write", "disable", ierror)
+            ! Enable ROMIO's collective buffering
+            call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
+            call MPI_INFO_SET(fileinfo, "romio_cb_write", "enable", ierror)
+            ! call MPI_INFO_SET(fileinfo, "cb_buffer_size", "1048576", ierror)
+            ! call MPI_INFO_SET(fileinfo, "striping_factor", "32", ierror)
+            ! call MPI_INFO_SET(fileinfo, "striping_unit", "4194304", ierror)
+            ! call MPI_INFO_SET(fileinfo, "romio_no_indep_rw", "true", ierror)
+            ! call MPI_INFO_SET(fileinfo, "cb_nodes", "4", ierror)
         else
             call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
         endif
