@@ -29,7 +29,8 @@ program particle_energization_io
                                             ! when local electric field is too large
 
     ! Particles in HDF5 format
-    integer(hsize_t), allocatable, dimension(:) :: np_local, offset_local
+    integer, allocatable, dimension(:) :: np_local
+    integer(hsize_t), allocatable, dimension(:) :: offset_local
     logical :: particle_hdf5, parallel_read, collective_io
     integer, parameter :: num_dset = 8
     integer(hid_t), dimension(num_dset) :: dset_ids
@@ -231,9 +232,9 @@ program particle_energization_io
                 if (tp_emf == tp1) then
                     tindex_pre = tindex
                     tindex_pos = 1
-                else if (tp_emf == tp2) then
-                    tindex_pre = tindex - fd_tinterval
-                    tindex_pos = tindex
+                ! else if (tp_emf == tp2) then
+                !     tindex_pre = tindex - fd_tinterval
+                !     tindex_pos = tindex
                 else
                     tindex_pre = tindex - fd_tinterval
                     tindex_pos = tindex + fd_tinterval
@@ -462,7 +463,7 @@ program particle_energization_io
         real(fp) :: dnx, dny, dnz
         integer :: nxg, nyg, nzg, icell
         integer :: ibin, n
-        integer(hsize_t) :: iptl, nptl
+        integer :: iptl, nptl
         real(fp) :: gama, igama, iene, ux, uy, uz, vx, vy, vz
         real(fp) :: vpara, vperp, vparax, vparay, vparaz
         real(fp) :: vperpx, vperpy, vperpz, tmp
