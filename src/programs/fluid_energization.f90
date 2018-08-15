@@ -220,28 +220,40 @@ program fluid_energization
                 call open_magnetic_field_files(tindex)
                 call read_magnetic_fields(tp1)
                 call close_magnetic_field_files
+                if (myid == master) print*, "Finished reading magnetic fields"
                 call open_electric_field_files(tindex)
                 call read_electric_fields(tp1)
                 call close_electric_field_files
+                if (myid == master) print*, "Finished reading electric fields"
                 call open_pressure_tensor_files(species, tindex)
                 call read_pressure_tensor(tp1)
                 call close_pressure_tensor_files
+                if (myid == master) print*, "Finished reading pressure tensor"
                 call open_vfield_files(species, tindex)
                 call read_vfields(tp1)
                 call close_vfield_files
+                if (myid == master) print*, "Finished reading velocity fields"
                 call open_ufield_files(species, tindex)
                 call read_ufields(tp1)
                 call close_ufield_files
+                if (myid == master) print*, "Finished reading momentum fields"
                 call open_number_density_file(species, tindex)
                 call read_number_density(tp1)
                 call close_number_density_file
+                if (myid == master) print*, "Finished reading number density"
             else
                 call read_magnetic_fields(tframe)
+                if (myid == master) print*, "Finished reading magnetic fields"
                 call read_electric_fields(tframe)
+                if (myid == master) print*, "Finished reading electric fields"
                 call read_pressure_tensor(tframe)
+                if (myid == master) print*, "Finished reading pressure tensor"
                 call read_vfields(tframe)
+                if (myid == master) print*, "Finished reading velocity fields"
                 call read_ufields(tframe)
+                if (myid == master) print*, "Finished reading momentum fields"
                 call read_number_density(tframe)
+                if (myid == master) print*, "Finished reading number density"
             endif
             call interp_emf_node
             call shift_pressure_tensor
@@ -368,6 +380,7 @@ program fluid_energization
         jdote_tot = 0.0
 
         do tframe = tp1, tp2
+        ! do tframe = tp2, tp2
             if (myid==master) print*, tframe
             ! Time frame and interval
             tindex = domain%fields_interval * (tframe - tp1)
@@ -375,9 +388,9 @@ program fluid_energization
                 if (tframe == tp1) then
                     tindex_pre = tindex
                     tindex_pos = 1
-                else if (tframe == tp2) then
-                    tindex_pre = tindex - fd_tinterval
-                    tindex_pos = tindex
+                ! else if (tframe == tp2) then
+                !     tindex_pre = tindex - fd_tinterval
+                !     tindex_pos = tindex
                 else
                     tindex_pre = tindex - fd_tinterval
                     tindex_pos = tindex + fd_tinterval
@@ -390,35 +403,51 @@ program fluid_energization
                 !     dt_fields = domain%dt * 2.0
                 ! endif
             endif
+            if (myid == master) then
+                print*, "Pre, current, and next time step: ", &
+                    tindex_pre, tindex, tindex_pos
+            endif
             dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
 
             if (output_format /= 1) then
                 call open_magnetic_field_files(tindex)
                 call read_magnetic_fields(tp1)
                 call close_magnetic_field_files
+                if (myid == master) print*, "Finished reading magnetic fields"
                 call open_electric_field_files(tindex)
                 call read_electric_fields(tp1)
                 call close_electric_field_files
+                if (myid == master) print*, "Finished reading electric fields"
                 call open_ufield_files(species, tindex)
                 call read_ufields(tp1)
                 call close_ufield_files
+                if (myid == master) print*, "Finished reading momentum fields"
                 call open_vfield_files(species, tindex)
                 call read_vfields(tp1)
                 call close_vfield_files
+                if (myid == master) print*, "Finished reading velocity fields"
                 call open_number_density_file(species, tindex)
                 call read_number_density(tp1)
                 call close_number_density_file
+                if (myid == master) print*, "Finished reading number density"
                 call open_ufield_pre_post(species, separated_pre_post, &
                     tindex, tindex_pre, tindex_pos)
                 call read_pre_post_u(tp1, output_format, separated_pre_post)
                 call close_ufield_pre_post
+                if (myid == master) print*, "Finished pre- and post- momentum fields"
             else
                 call read_magnetic_fields(tframe)
+                if (myid == master) print*, "Finished reading magnetic fields"
                 call read_electric_fields(tframe)
+                if (myid == master) print*, "Finished reading electric fields"
                 call read_ufields(tframe)
+                if (myid == master) print*, "Finished reading momentum fields"
                 call read_vfields(tframe)
+                if (myid == master) print*, "Finished reading velocity fields"
                 call read_number_density(tframe)
+                if (myid == master) print*, "Finished reading number density"
                 call read_pre_post_u(tframe, output_format, separated_pre_post)
+                if (myid == master) print*, "Finished pre- and post- momentum fields"
             endif
             call interp_emf_node
             call shift_ufields
