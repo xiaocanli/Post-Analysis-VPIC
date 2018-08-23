@@ -25,3 +25,5 @@ tags
 __pycache__
 translate.sh
 translate[0-9].sh
+*.err
+*.out
