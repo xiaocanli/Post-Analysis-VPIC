@@ -92,6 +92,11 @@ target_link_libraries(calc_vexb.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module mpi_setup mpi_io_fields fields flap)
 install (TARGETS calc_vexb.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(bulk_internal_energy.exec bulk_internal_energy.f90)
+target_link_libraries(bulk_internal_energy.exec ${MPI_Fortran_LIBRARIES}
+    get_info translate_module particle_info mpi_setup mpi_io_fields fields flap)
+install (TARGETS bulk_internal_energy.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 add_executable(vdot_kappa.exec vdot_kappa.f90)
 target_link_libraries(vdot_kappa.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module mpi_setup mpi_io_fields fields flap)
@@ -138,11 +143,6 @@ install (TARGETS vdot_kappa.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 # target_link_libraries(nrho_eband.exec ${MPI_Fortran_LIBRARIES} analysis_config
 #     fields)
 # install (TARGETS nrho_eband.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
-# add_executable(bulk_internal_energy.exec bulk_internal_energy.f90)
-# target_link_libraries(bulk_internal_energy.exec ${MPI_Fortran_LIBRARIES}
-#     analysis_config fields)
-# install (TARGETS bulk_internal_energy.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 # 
 # add_executable(jdote_eband.exec jdote_eband.f90)
 # target_link_libraries(jdote_eband.exec ${MPI_Fortran_LIBRARIES} jdote_energy_band)
