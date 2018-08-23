@@ -370,12 +370,12 @@ program reduce_spectrum_hdf5
             print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
             print '(A,I0,A,I0,A,I0)', ' Min, max and interval: ', &
                 tstart, ' ', tend, ' ', tinterval
-            print '(A,I0,I0,I0)', ' PIC topology: ', &
-                pic_topox, pic_topoy, pic_topoz
-            print '(A,I0,I0,I0)', ' Number of zones along each direction: ', &
-                nzonex, nzoney, nzonez
-            print '(A,I0,I0,I0)', ' Reduce factor along each direction: ', &
-                nreducex, nreducey, nreducez
+            print '(A,I0,A,I0,A,I0)', ' PIC topology: ', &
+                pic_topox, ", ", pic_topoy, ", ", pic_topoz
+            print '(A,I0,A,I0,A,I0)', ' Number of zones along each direction: ', &
+                nzonex, ", ", nzoney, ", ", nzonez
+            print '(A,I0,A,I0,A,I0)', ' Reduce factor along each direction: ', &
+                nreducex, ", ", nreducey, ", ", nreducez
             print '(A,I0)', ' Number of data points ine each spectrum: ', ndata
         endif
     end subroutine get_cmd_args
