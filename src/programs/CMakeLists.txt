@@ -97,6 +97,11 @@ target_link_libraries(bulk_internal_energy.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module particle_info mpi_setup mpi_io_fields fields flap)
 install (TARGETS bulk_internal_energy.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(vdot_kappa.exec vdot_kappa.f90)
+target_link_libraries(vdot_kappa.exec ${MPI_Fortran_LIBRARIES}
+    get_info translate_module mpi_setup mpi_io_fields fields flap)
+install (TARGETS vdot_kappa.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
 # # -----------------------------------------------------------------------------
