@@ -82,15 +82,13 @@ def energy_spectrum_multi(bg, spect_info, species='e'):
         species = 'H'
     bg_str = str(int(bg * 10)).zfill(2)
     mimes = np.asarray([25, 100, 400])
-    tmaxs = np.asarray([115, 115, 102])
+    tmaxs = np.asarray([114, 114, 102])
     fig = plt.figure(figsize=[7, 5])
     ax = fig.add_axes([0.15, 0.15, 0.8, 0.8])
     COLORS = palettable.tableau.Tableau_10.mpl_colors
     ax.set_prop_cycle('color', COLORS)
     for mime, tmax in zip(mimes, tmaxs):
         run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
-        if mime == 25:
-            run_name += "_lx100"
         picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
         pic_info = read_data_from_json(picinfo_fname)
         if species == 'e':
