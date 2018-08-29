@@ -102,6 +102,11 @@ target_link_libraries(vdot_kappa.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module mpi_setup mpi_io_fields fields flap)
 install (TARGETS vdot_kappa.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(energetic_particle_density.exec energetic_particle_density.f90)
+target_link_libraries(energetic_particle_density.exec ${MPI_Fortran_LIBRARIES}
+    flap get_info translate_module particle_module particle_file
+    ${HDF5_Fortran_LIBRARIES})
+install (TARGETS energetic_particle_density.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
 # # -----------------------------------------------------------------------------
