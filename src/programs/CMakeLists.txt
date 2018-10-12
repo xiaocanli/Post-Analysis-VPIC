@@ -76,6 +76,11 @@ target_link_libraries(combine_spectrum_hdf5.exec ${MPI_Fortran_LIBRARIES}
     flap parameters ${HDF5_Fortran_LIBRARIES})
 install (TARGETS combine_spectrum_hdf5.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(combine_spectrum_binary.exec combine_spectrum_binary.f90)
+target_link_libraries(combine_spectrum_binary.exec ${MPI_Fortran_LIBRARIES}
+    flap parameters)
+install (TARGETS combine_spectrum_binary.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 add_executable(reduce_spectrum_hdf5.exec reduce_spectrum_hdf5.f90)
 target_link_libraries(reduce_spectrum_hdf5.exec ${MPI_Fortran_LIBRARIES}
     flap parameters ${HDF5_Fortran_LIBRARIES})

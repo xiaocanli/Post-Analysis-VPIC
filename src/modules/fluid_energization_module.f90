@@ -13,10 +13,12 @@ module fluid_energization_module
     public init_tmp_data, free_tmp_data, init_neighbors, free_neighbors, &
         get_neighbors, curv_drift_energization, grad_drift_energization, &
         magnetization_energization, para_perp_energization, &
-        fluid_accel_energization, compression_shear_energization
+        fluid_accel_energization, compression_shear_energization, &
+        para_drift_energization, magnetic_moment_energization
 
     integer :: nx, ny, nz
     real(fp), allocatable, dimension(:, :, :) :: tmpx, tmpy, tmpz, stmp
+    real(fp), allocatable, dimension(:, :, :) :: tmpx1, tmpy1, tmpz1
     integer, allocatable, dimension(:) :: ixl, iyl, izl
     integer, allocatable, dimension(:) :: ixh, iyh, izh
     real(fp), allocatable, dimension(:) :: idx, idy, idz
@@ -38,10 +40,16 @@ module fluid_energization_module
         allocate(tmpy(nx, ny, nz))
         allocate(tmpz(nx, ny, nz))
         allocate(stmp(nx, ny, nz))
+        allocate(tmpx1(nx, ny, nz))
+        allocate(tmpy1(nx, ny, nz))
+        allocate(tmpz1(nx, ny, nz))
 
         tmpx = 0.0
         tmpy = 0.0
         tmpz = 0.0
+        tmpx1 = 0.0
+        tmpy1 = 0.0
+        tmpz1 = 0.0
         stmp = 0.0
     end subroutine init_tmp_data
 
@@ -51,6 +59,7 @@ module fluid_energization_module
     subroutine free_tmp_data
         implicit none
         deallocate(tmpx, tmpy, tmpz)
+        deallocate(tmpx1, tmpy1, tmpz1)
         deallocate(stmp)
     end subroutine free_tmp_data
 
@@ -344,11 +353,12 @@ module fluid_energization_module
         implicit none
         real(fp), intent(in) :: dt_fields
         integer :: ix, iy, iz
-        real(fp), dimension(2) :: jdote
+        real(fp), dimension(4) :: jdote
         real(fp) :: idt
 
         idt = 1.0 / dt_fields
 
+        ! Total
         tmpx = (udx2(1:nx, 1:ny, 1:nz) - udx1(1:nx, 1:ny, 1:nz)) * idt
         tmpy = (udy2(1:nx, 1:ny, 1:nz) - udy1(1:nx, 1:ny, 1:nz)) * idt
         tmpz = (udz2(1:nx, 1:ny, 1:nz) - udz1(1:nx, 1:ny, 1:nz)) * idt
@@ -361,7 +371,33 @@ module fluid_energization_module
                                                 by(1:nx, 1:ny, 1:nz) * tmpx)) * &
                        num_rho(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)**2) * &
                        domain%dx * domain%dy * domain%dz * ptl_mass
+        ! Parallel. We use B at current time for simplicity.
+        stmp = (udx1(1:nx, 1:ny, 1:nz) * bx(1:nx, 1:ny, 1:nz) + &
+                udy1(1:nx, 1:ny, 1:nz) * by(1:nx, 1:ny, 1:nz) + &
+                udz1(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz)) / absB(1:nx, 1:ny, 1:nz)**2
+        tmpx = stmp * bx(1:nx, 1:ny, 1:nz)
+        tmpy = stmp * by(1:nx, 1:ny, 1:nz)
+        tmpz = stmp * bz(1:nx, 1:ny, 1:nz)
+        stmp = (udx2(1:nx, 1:ny, 1:nz) * bx(1:nx, 1:ny, 1:nz) + &
+                udy2(1:nx, 1:ny, 1:nz) * by(1:nx, 1:ny, 1:nz) + &
+                udz2(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz)) / absB(1:nx, 1:ny, 1:nz)**2
+        tmpx1 = stmp * bx(1:nx, 1:ny, 1:nz)
+        tmpy1 = stmp * by(1:nx, 1:ny, 1:nz)
+        tmpz1 = stmp * bz(1:nx, 1:ny, 1:nz)
+        tmpx = (tmpx1 - tmpx) * idt
+        tmpy = (tmpy1 - tmpy) * idt
+        tmpz = (tmpz1 - tmpz) * idt
+        jdote(2) = sum((ex(1:nx, 1:ny, 1:nz) * (by(1:nx, 1:ny, 1:nz) * tmpz - &
+                                                bz(1:nx, 1:ny, 1:nz) * tmpy) + &
+                        ey(1:nx, 1:ny, 1:nz) * (bz(1:nx, 1:ny, 1:nz) * tmpx - &
+                                                bx(1:nx, 1:ny, 1:nz) * tmpz) + &
+                        ez(1:nx, 1:ny, 1:nz) * (bx(1:nx, 1:ny, 1:nz) * tmpy - &
+                                                by(1:nx, 1:ny, 1:nz) * tmpx)) * &
+                       num_rho(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)**2) * &
+                       domain%dx * domain%dy * domain%dz * ptl_mass
+        jdote(1) = jdote(1) - jdote(2) ! Perpendicular
 
+        ! Total
         do iz = 1, nz
             do iy = 1, ny
                 tmpx(:, iy, iz) = vx(1:nx, iy, iz) * &
@@ -395,7 +431,7 @@ module fluid_energization_module
             enddo
         enddo
 
-        jdote(2) = sum((ex(1:nx, 1:ny, 1:nz) * (by(1:nx, 1:ny, 1:nz) * tmpz - &
+        jdote(3) = sum((ex(1:nx, 1:ny, 1:nz) * (by(1:nx, 1:ny, 1:nz) * tmpz - &
                                                 bz(1:nx, 1:ny, 1:nz) * tmpy) + &
                         ey(1:nx, 1:ny, 1:nz) * (bz(1:nx, 1:ny, 1:nz) * tmpx - &
                                                 bx(1:nx, 1:ny, 1:nz) * tmpz) + &
@@ -403,6 +439,56 @@ module fluid_energization_module
                                                 by(1:nx, 1:ny, 1:nz) * tmpx)) * &
                        num_rho(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)**2) * &
                        domain%dx * domain%dy * domain%dz * ptl_mass
+
+        ! Parallel
+        stmp = (ux(1:nx, 1:ny, 1:nz) * bx(1:nx, 1:ny, 1:nz) + &
+                uy(1:nx, 1:ny, 1:nz) * by(1:nx, 1:ny, 1:nz) + &
+                uz(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz)) / absB(1:nx, 1:ny, 1:nz)**2
+        tmpx1 = stmp * bx(1:nx, 1:ny, 1:nz)
+        tmpy1 = stmp * by(1:nx, 1:ny, 1:nz)
+        tmpz1 = stmp * bz(1:nx, 1:ny, 1:nz)
+        do iz = 1, nz
+            do iy = 1, ny
+                tmpx(:, iy, iz) = vx(1:nx, iy, iz) * &
+                    (tmpx1(ixh, iy, iz) - tmpx1(ixl, iy, iz)) * idx
+                tmpy(:, iy, iz) = vx(1:nx, iy, iz) * &
+                    (tmpy1(ixh, iy, iz) - tmpy1(ixl, iy, iz)) * idx
+                tmpz(:, iy, iz) = vx(1:nx, iy, iz) * &
+                    (tmpz1(ixh, iy, iz) - tmpz1(ixl, iy, iz)) * idx
+            enddo
+        enddo
+
+        do iz = 1, nz
+            do ix = 1, nx
+                tmpx(ix, :, iz) = tmpx(ix, :, iz) + vy(ix, 1:ny, iz) * &
+                    (tmpx1(ix, iyh, iz) - tmpx1(ix, iyl, iz)) * idy
+                tmpy(ix, :, iz) = tmpy(ix, :, iz) + vy(ix, 1:ny, iz) * &
+                    (tmpy1(ix, iyh, iz) - tmpy1(ix, iyl, iz)) * idy
+                tmpz(ix, :, iz) = tmpz(ix, :, iz) + vy(ix, 1:ny, iz) * &
+                    (tmpz1(ix, iyh, iz) - tmpz1(ix, iyl, iz)) * idy
+            enddo
+        enddo
+
+        do iy = 1, ny
+            do ix = 1, nx
+                tmpx(ix, iy, :) = tmpx(ix, iy, :) + vz(ix, iy, 1:nz) * &
+                    (tmpx1(ix, iy, izh) - tmpx1(ix, iy, izl)) * idz
+                tmpy(ix, iy, :) = tmpy(ix, iy, :) + vz(ix, iy, 1:nz) * &
+                    (tmpy1(ix, iy, izh) - tmpy1(ix, iy, izl)) * idz
+                tmpz(ix, iy, :) = tmpz(ix, iy, :) + vz(ix, iy, 1:nz) * &
+                    (tmpz1(ix, iy, izh) - tmpz1(ix, iy, izl)) * idz
+            enddo
+        enddo
+
+        jdote(4) = sum((ex(1:nx, 1:ny, 1:nz) * (by(1:nx, 1:ny, 1:nz) * tmpz - &
+                                                bz(1:nx, 1:ny, 1:nz) * tmpy) + &
+                        ey(1:nx, 1:ny, 1:nz) * (bz(1:nx, 1:ny, 1:nz) * tmpx - &
+                                                bx(1:nx, 1:ny, 1:nz) * tmpz) + &
+                        ez(1:nx, 1:ny, 1:nz) * (bx(1:nx, 1:ny, 1:nz) * tmpy - &
+                                                by(1:nx, 1:ny, 1:nz) * tmpx)) * &
+                       num_rho(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)**2) * &
+                       domain%dx * domain%dy * domain%dz * ptl_mass
+        jdote(3) = jdote(3) - jdote(4)
     end function fluid_accel_energization
 
     !<--------------------------------------------------------------------------
@@ -524,18 +610,19 @@ module fluid_energization_module
         ! Energization due to gyrotropic pressure tensor
         ! This is very dangerous, because it modifies pressure tensor data.
         stmp = ppara(1:nx, 1:ny, 1:nz) - pperp(1:nx, 1:ny, 1:nz)
+        tmpx = 1.0 / absB(1:nx, 1:ny, 1:nz)**2
         pxx(1:nx, 1:ny, 1:nz) = &
-            pperp(1:nx, 1:ny, 1:nz) + stmp * bx(1:nx, 1:ny, 1:nz)**2 / absB(1:nx, 1:ny, 1:nz)
+            pperp(1:nx, 1:ny, 1:nz) + stmp * bx(1:nx, 1:ny, 1:nz)**2 * tmpx
         pyy(1:nx, 1:ny, 1:nz) = &
-            pperp(1:nx, 1:ny, 1:nz) + stmp * by(1:nx, 1:ny, 1:nz)**2 / absB(1:nx, 1:ny, 1:nz)
+            pperp(1:nx, 1:ny, 1:nz) + stmp * by(1:nx, 1:ny, 1:nz)**2 * tmpx
         pzz(1:nx, 1:ny, 1:nz) = &
-            pperp(1:nx, 1:ny, 1:nz) + stmp * bz(1:nx, 1:ny, 1:nz)**2 / absB(1:nx, 1:ny, 1:nz)
+            pperp(1:nx, 1:ny, 1:nz) + stmp * bz(1:nx, 1:ny, 1:nz)**2 * tmpx
         pxy(1:nx, 1:ny, 1:nz) = &
-            stmp * bx(1:nx, 1:ny, 1:nz) * by(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)
+            stmp * bx(1:nx, 1:ny, 1:nz) * by(1:nx, 1:ny, 1:nz) * tmpx
         pxz(1:nx, 1:ny, 1:nz) = &
-            stmp * bx(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)
+            stmp * bx(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) * tmpx
         pyz(1:nx, 1:ny, 1:nz) = &
-            stmp * by(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)
+            stmp * by(1:nx, 1:ny, 1:nz) * bz(1:nx, 1:ny, 1:nz) * tmpx
         do iz = 1, nz
             do iy = 1, ny
                 tmpx(:, iy, iz) = (pxx(ixh, iy, iz) - pxx(ixl, iy, iz)) * idx
@@ -571,4 +658,95 @@ module fluid_energization_module
         econv(2:4) = econv(2:4) * domain%dx * domain%dy * domain%dz
     end function compression_shear_energization
 
+    !<--------------------------------------------------------------------------
+    !< Calculate energization due to parallel drift.
+    !<--------------------------------------------------------------------------
+    function para_drift_energization result(jdote)
+        use para_perp_pressure, only: pperp
+        implicit none
+        integer :: ix, iy, iz
+        real(fp) :: jdote
+
+        ! Curv b, where b is the unit vector along magnetic field direction
+        stmp = 1.0 / absB(1:nx, 1:ny, 1:nz)
+        tmpx = bx(1:nx, 1:ny, 1:nz) * stmp
+        tmpy = by(1:nx, 1:ny, 1:nz) * stmp
+        tmpz = bz(1:nx, 1:ny, 1:nz) * stmp
+
+        do iz = 1, nz
+            do iy = 1, ny
+                tmpy1(:, iy, iz) = -(tmpz(ixh, iy, iz) - tmpz(ixl, iy, iz)) * idx
+                tmpz1(:, iy, iz) =  (tmpy(ixh, iy, iz) - tmpy(ixl, iy, iz)) * idx
+            enddo
+        enddo
+
+        do iz = 1, nz
+            do ix = 1, nx
+                tmpx1(ix, :, iz) = (tmpz(ix, iyh, iz) - tmpz(ix, iyl, iz)) * idy
+                tmpz1(ix, :, iz) = tmpz1(ix, :, iz) - &
+                    (tmpx(ix, iyh, iz) - tmpx(ix, iyl, iz)) * idy
+            enddo
+        enddo
+
+        do iy = 1, ny
+            do ix = 1, nx
+                tmpx1(ix, iy, :) = tmpx1(ix, iy, :) - &
+                    (tmpy(ix, iy, izh) - tmpy(ix, iy, izl)) * idz
+                tmpy1(ix, iy, :) = tmpy1(ix, iy, :) + &
+                    (tmpx(ix, iy, izh) - tmpx(ix, iy, izl)) * idz
+            enddo
+        enddo
+
+        stmp = tmpx1 * tmpx + tmpy1 * tmpy + tmpz1 * tmpz
+        tmpx1 = stmp * tmpx
+        tmpy1 = stmp * tmpy
+        tmpz1 = stmp * tmpz
+
+        jdote = sum((tmpx1 * ex(1:nx, 1:ny, 1:nz) + &
+                     tmpy1 * ey(1:nx, 1:ny, 1:nz) + &
+                     tmpz1 * ez(1:nx, 1:ny, 1:nz)) * &
+                    pperp(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)) * &
+                domain%dx * domain%dy * domain%dz
+    end function para_drift_energization
+
+    !<--------------------------------------------------------------------------
+    !< Calculate energization due to the conservation of magnetic moment
+    !<--------------------------------------------------------------------------
+    function magnetic_moment_energization result(jdote)
+        use para_perp_pressure, only: pperp
+        implicit none
+        integer :: ix, iy, iz
+        real(fp) :: jdote
+
+        ! Calculate the curvature of the electric field
+        do iz = 1, nz
+            do iy = 1, ny
+                tmpy(:, iy, iz) = -(ez(ixh, iy, iz) - ez(ixl, iy, iz)) * idx
+                tmpz(:, iy, iz) =  (ey(ixh, iy, iz) - ey(ixl, iy, iz)) * idx
+            enddo
+        enddo
+
+        do iz = 1, nz
+            do ix = 1, nx
+                tmpx(ix, :, iz) = (ez(ix, iyh, iz) - ez(ix, iyl, iz)) * idy
+                tmpz(ix, :, iz) = tmpz(ix, :, iz) - &
+                    (ex(ix, iyh, iz) - ex(ix, iyl, iz)) * idy
+            enddo
+        enddo
+
+        do iy = 1, ny
+            do ix = 1, nx
+                tmpx(ix, iy, :) = tmpx(ix, iy, :) - &
+                    (ey(ix, iy, izh) - ey(ix, iy, izl)) * idz
+                tmpy(ix, iy, :) = tmpy(ix, iy, :) + &
+                    (ex(ix, iy, izh) - ex(ix, iy, izl)) * idz
+            enddo
+        enddo
+
+        jdote = -sum((tmpx * bx(1:nx, 1:ny, 1:nz) + &
+                      tmpy * by(1:nx, 1:ny, 1:nz) + &
+                      tmpz * bz(1:nx, 1:ny, 1:nz)) * &
+                     pperp(1:nx, 1:ny, 1:nz) / absB(1:nx, 1:ny, 1:nz)**2) * &
+                 domain%dx * domain%dy * domain%dz
+    end function magnetic_moment_energization
 end module fluid_energization_module

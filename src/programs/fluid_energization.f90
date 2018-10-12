@@ -7,16 +7,21 @@ program fluid_energization
     use particle_info, only: species, get_ptl_mass_charge
     implicit none
     integer :: nvar, separated_pre_post, fd_tinterval
+    logical :: calc_ene_emf_tensor, calc_para_perp_acc
     character(len=256) :: rootpath
     integer :: ct
 
     ct = 1
 
     call init_analysis
-    nvar = 8
-    call energization_emf_ptensor
-    nvar = 4
-    call energization_para_perp_acc
+    if (calc_ene_emf_tensor) then
+        nvar = 10
+        call energization_emf_ptensor
+    endif
+    if (calc_para_perp_acc) then
+        nvar = 6
+        call energization_para_perp_acc
+    endif
     call end_analysis
 
     contains
@@ -124,6 +129,14 @@ program fluid_energization
             help='Frame interval when dumping 3 continuous frames', &
             required=.false., def='1', act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--emf_tensor', switch_ab='-et', &
+            help='Whether calculating energization associated with pressure tensor', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--para_perp_acc', switch_ab='-pa', &
+            help='Whether calculating energization due to Epara, Eperp, and flow acceleration', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
@@ -131,6 +144,10 @@ program fluid_energization
         call cli%get(switch='-pp', val=separated_pre_post, error=error)
         if (error/=0) stop
         call cli%get(switch='-ft', val=fd_tinterval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-et', val=calc_ene_emf_tensor, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-pa', val=calc_para_perp_acc, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
@@ -141,14 +158,20 @@ program fluid_energization
                 print '(A, I0)', 'Frame interval between previous and current step is: ', &
                     fd_tinterval
             endif
+            if (calc_ene_emf_tensor) then
+                print '(A)', 'Calculate energization associated with pressure tensor'
+            endif
+            if (calc_para_perp_acc) then
+                print '(A)', 'Calculate energization  due to Epara, Eperp, and flow acceleration'
+            endif
         endif
     end subroutine get_cmd_args
 
     !<--------------------------------------------------------------------------
     !< Calculate energization due to curvature drift, gradient drift,
-    !< magnetization, compression energization, and shear energization.
-    !< These energization terms use electric field, magnetic field and pressure
-    !< tensor.
+    !< magnetization, compression energization, shear energization, and
+    !< energization due to parallel drift. These energization terms use
+    !< electric field, magnetic field and pressure tensor.
     !<--------------------------------------------------------------------------
     subroutine energization_emf_ptensor
         use mpi_topology, only: htg
@@ -173,7 +196,8 @@ program fluid_energization
         use fluid_energization_module, only: init_tmp_data, init_neighbors, &
             free_tmp_data, free_neighbors, get_neighbors, &
             curv_drift_energization, grad_drift_energization, &
-            magnetization_energization, compression_shear_energization
+            magnetization_energization, compression_shear_energization, &
+            para_drift_energization, magnetic_moment_energization
         use saving_flags, only: get_saving_flags
         use configuration_translate, only: output_format
         use parameters, only: tp1, tp2
@@ -267,6 +291,8 @@ program fluid_energization
             ! This part is very dangerous, because it modifies the pressure
             ! data. So be careful if you are going to use pressure data again.
             jdote(tframe - tp1 + 1, 5:8) = compression_shear_energization()
+            jdote(tframe - tp1 + 1, 9) = para_drift_energization()
+            jdote(tframe - tp1 + 1, 10) = magnetic_moment_energization()
         enddo
 
         call MPI_REDUCE(jdote, jdote_tot, nframes * nvar, &
@@ -380,7 +406,6 @@ program fluid_energization
         jdote_tot = 0.0
 
         do tframe = tp1, tp2
-        ! do tframe = tp2, tp2
             if (myid==master) print*, tframe
             ! Time frame and interval
             tindex = domain%fields_interval * (tframe - tp1)
@@ -402,10 +427,6 @@ program fluid_energization
                 ! else
                 !     dt_fields = domain%dt * 2.0
                 ! endif
-            endif
-            if (myid == master) then
-                print*, "Pre, current, and next time step: ", &
-                    tindex_pre, tindex, tindex_pos
             endif
             dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
 
@@ -454,8 +475,8 @@ program fluid_energization
             call shift_vfields
             call shift_number_density
             call shift_ufield_pre_post
-            jdote(tframe - tp1 + 1, 1:2) = fluid_accel_energization(dt_fields)
-            jdote(tframe - tp1 + 1, 3:4) = para_perp_energization()
+            jdote(tframe - tp1 + 1, 1:4) = fluid_accel_energization(dt_fields)
+            jdote(tframe - tp1 + 1, 5:6) = para_perp_energization()
         enddo
 
         call MPI_REDUCE(jdote, jdote_tot, nframes * nvar, &
