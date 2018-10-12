@@ -8,6 +8,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import palettable
+from scipy import signal
 
 from json_functions import read_data_from_json
 from shell_functions import mkdir_p
@@ -22,7 +23,7 @@ FONT = {'family': 'serif',
         'size': 24}
 
 
-def plot_energy_spectrum(run_name, spect_info, species='e'):
+def plot_energy_spectrum(run_name, spect_info, species='e', show_plot=True):
     """Plot particle energy spectrum
 
     Args:
@@ -34,10 +35,8 @@ def plot_energy_spectrum(run_name, spect_info, species='e'):
     pic_info = read_data_from_json(picinfo_fname)
     if species == 'h':
         species = 'H'
-    fig = plt.figure(figsize=[7, 5])
-    rect = [0.14, 0.16, 0.82, 0.8]
-    ax = fig.add_axes(rect)
-    ntf = spect_info["tmax"]
+    # ntf = spect_info["tmax"]
+    ntf = pic_info.ntf
     if species == 'e':
         vth = pic_info.vthe
     else:
@@ -46,33 +45,79 @@ def plot_energy_spectrum(run_name, spect_info, species='e'):
     eth = gama - 1.0
     emin_log = math.log10(spect_info["emin"])
     emax_log = math.log10(spect_info["emax"])
-    elog = 10**(np.linspace(emin_log, emax_log, spect_info["nbins"]))
+    nbins = spect_info["nbins"]
+    elog = 10**(np.linspace(emin_log, emax_log, nbins))
     elog /= eth
     nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
-    for tframe in range(ntf):
+
+    tframes = range(0, ntf - 1)
+    nframes = len(tframes)
+    flogs = np.zeros((nframes, nbins))
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.14, 0.16, 0.82, 0.8]
+    ax = fig.add_axes(rect)
+    for iframe, tframe in enumerate(tframes):
         print("Time frame: %d" % tframe)
         fdir = '../data/spectra/' + run_name + '/'
         fname = fdir + 'spectrum-' + species.lower() + '.' + str(tframe)
         flog = np.fromfile(fname)
         flog /= nptot
         color = plt.cm.jet(tframe/float(ntf), 1)
-        ax.loglog(elog, flog, linewidth=2, color=color)
+        flogs[iframe, :] = flog
+        # ax.loglog(elog, flog, linewidth=2, color=color)
 
-    if species == 'e':
-        ax.set_xlim([3E-1, 5E2])
-        ax.set_ylim([1E-9, 1E2])
-    else:
-        ax.set_xlim([3E-1, 2E3])
-        # ax.set_ylim([1E-8, 1E4])
+    # fmin = np.min(flogs[np.nonzero(flogs)])
+    fmin = 1E-9
+    flogs += fmin
+
+    fdata = np.diff(np.log10(flogs[:, 400:600]), axis=0).T
+    ng = 3
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    fdata = signal.convolve2d(fdata, kernel, mode='same')
+    ax.imshow(fdata, vmin=-1E-1, vmax=1E-1, cmap=plt.cm.seismic,
+              origin='lower', interpolation='bicubic')
+    # if species == 'e':
+    #     ax.set_xlim([1E0, 5E2])
+    #     ax.set_ylim([1E-9, 1E2])
+    # else:
+    #     ax.set_xlim([1E0, 2E3])
+    #     ax.set_ylim([1E-7, 1E4])
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$',
                   fontdict=FONT, fontsize=20)
     ax.set_ylabel(r'$f(\varepsilon)$', fontdict=FONT, fontsize=20)
     ax.tick_params(labelsize=16)
-    fpath = "../img/spectra/"
+    ename = 'electron' if species == 'e' else 'ion'
+    fpath = "../img/img_high_mime/spectra/" + ename + "/"
     mkdir_p(fpath)
     fname = fpath + "spect_time_" + run_name + "_" + species + ".pdf"
     fig.savefig(fname)
-    plt.show()
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def energy_spectrum(spect_info, species='e'):
+    """Plot particle energy spectrum
+
+    Args:
+        species: 'e' for electrons, 'H' for ions
+        spect_info: dictionary for spectra information
+    """
+    mimes = [25, 100, 400]
+    bgs = [0.0, 0.2, 0.4, 0.8]
+    for imime, mime in enumerate(mimes):
+        for ibg, bg in enumerate(bgs):
+            run_name = ('mime' + str(mime) + '_beta002_bg' +
+                        str(int(bg * 10)).zfill(2))
+            plot_energy_spectrum(run_name, spect_info,
+                                 species, show_plot=False)
 
 
 def energy_spectrum_multi(bg, spect_info, species='e'):
@@ -163,6 +208,7 @@ def main():
         energy_spectrum_multi(args.bg, spect_info, species=args.species)
     else:
         plot_energy_spectrum(args.run_name, spect_info, species=args.species)
+        # energy_spectrum(spect_info, species=args.species)
 
 
 if __name__ == "__main__":
