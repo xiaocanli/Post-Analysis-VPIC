@@ -84,13 +84,14 @@ def read_2d_fields(pic_info, fname, current_time, xl, xr, zb, zt):
     nx1 = xr_index - xl_index + 1
     nz1 = zt_index - zb_index + 1
     fp = np.zeros((nz1, nx1), dtype=np.float32)
-    offset = nx * nz * current_time * 4 + zb_index * nx * 4 + xl_index * 4
-    for k in range(nz1):
-        fp[k, :] = np.memmap(fname, dtype='float32',
-                             mode='r', offset=offset,
-                             shape=(nx1), order='F')
-        offset += nx * 4
-    return (x_di[xl_index:xr_index + 1], z_di[zb_index:zt_index + 1], fp)
+    offset = nx * nz * current_time * 4
+    fdata = np.memmap(fname, dtype='float32',
+                      mode='r', offset=offset,
+                      shape=(nz, nx), order='C')
+    xc = x_di[xl_index:xr_index + 1]
+    zc = z_di[zb_index:zt_index + 1]
+    fp = fdata[zb_index:zt_index + 1, xl_index:xr_index + 1]
+    return (xc, zc, fp)
 
 
 def plot_2d_contour(x, z, field_data, ax, fig, is_cbar=1, **kwargs):
