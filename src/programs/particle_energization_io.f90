@@ -5,6 +5,8 @@
 program particle_energization_io
     use constants, only: fp, dp
     use mpi_module
+    use picinfo, only: domain
+    use topology_translate, only: ht
     use path_info, only: set_filepath
     use particle_info, only: species, ptl_mass, ptl_charge
     use parameters, only: tp1, tp2
@@ -15,13 +17,23 @@ program particle_energization_io
     character(len=256) :: rootpath
     character(len=16) :: dir_emf, dir_hydro
     integer :: tstart, tend, tinterval, tframe, fields_interval, fd_tinterval
-    integer, parameter :: nbins = 60
-    real(fp), parameter :: emin = 1E-4
-    real(fp), parameter :: emax = 1E2
-    integer :: nvar, separated_pre_post
+    integer :: nbins        ! Number of particle bins
+    real(fp) :: emin, emax  ! Minimum and maximum particle Lorentz factor
+    integer :: nbins_alpha  ! Number of bins for acceleration rate alpha at each energy bin
+    ! Minimum and maximum of acceleration rate. Note that alpha can be possible
+    ! and negative. Here, alpha_min and alpha_max are positive values.
+    ! The negative part is just symmetric to the positive part.
+    real(fp) :: alpha_min, alpha_max
+    integer :: nbinx          ! Number of bins along x
+    integer :: npic_domain_x  ! Number PIC domains along x in each bin
+    integer, parameter :: nvar = 18
+    integer :: separated_pre_post
     real(fp), allocatable, dimension(:) :: ebins
     real(fp), allocatable, dimension(:, :) :: fbins, fbins_sum
+    real(fp), allocatable, dimension(:) :: alpha_bins
+    real(fp), allocatable, dimension(:, :, :, :) :: fbins_dist, fbins_dist_sum
     real(fp) :: de_log, emin_log
+    real(fp) :: dalpha_log, alpha_min_log
     integer :: i, tp_emf, tp_hydro
     logical :: is_translated_file
     type(particle), allocatable, dimension(:) :: ptls
@@ -49,7 +61,15 @@ program particle_energization_io
 
     call init_analysis
 
-    nvar = 18
+    if ((mod(domain%pic_tx, nbinx) .ne. 0) .or. &
+        (mod(ht%stop_x - ht%start_x + 1, domain%pic_tx/nbinx) .ne. 0)) then
+        print '(A)', ' wrong number of bins along x'
+        call end_analysis
+        call MPI_FINALIZE(ierr)
+    else
+        npic_domain_x = domain%pic_tx / nbinx
+    endif
+
     call calc_particle_energization
 
     call end_analysis
@@ -71,9 +91,16 @@ program particle_energization_io
         de_log = (log10(emax/ptl_mass) - log10(emin/ptl_mass)) / nbins
         emin_log = log10(emin/ptl_mass)
         do i = 1, nbins + 1
-            ebins(i) = emin * 10**(de_log * (i - 1))
+            ebins(i) = 10**(de_log * (i - 1) + emin_log)
         enddo
         ebins = ebins / ptl_mass
+
+        dalpha_log = (log10(alpha_max) - log10(alpha_min)) / nbins_alpha
+        alpha_min_log = log10(alpha_min)
+        do i = 1, nbins_alpha + 1
+            alpha_bins(i) = 10**(de_log * (i - 1) + alpha_min_log)
+        enddo
+
         call set_dists_zero
     end subroutine init_dists
 
@@ -84,6 +111,8 @@ program particle_energization_io
         implicit none
         fbins = 0.0
         fbins_sum = 0.0
+        fbins_dist = 0.0
+        fbins_dist_sum = 0.0
     end subroutine set_dists_zero
 
     !<--------------------------------------------------------------------------
@@ -202,6 +231,10 @@ program particle_energization_io
         allocate(ebins(nbins + 1))
         allocate(fbins(nbins + 1, nvar))
         allocate(fbins_sum(nbins + 1, nvar))
+
+        allocate(alpha_bins(nbins_alpha + 1))
+        allocate(fbins_dist((nbins_alpha+2)*4, nbinx, nbins + 1, nvar - 1))
+        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbinx, nbins + 1, nvar - 1))
 
         call init_dists
 
@@ -361,6 +394,7 @@ program particle_energization_io
 
             call system_clock(t3, clock_rate, clock_max)
             call save_particle_energization(tframe, "particle_energization")
+            call save_acceleration_rate_dist(tframe, "acc_rate_dist")
             call system_clock(t4, clock_rate, clock_max)
             if (myid == master) then
                 write (*, *) 'Time for saving data = ', real(t4 - t3) / real(clock_rate)
@@ -384,6 +418,7 @@ program particle_energization_io
         endif
 
         deallocate(ebins, fbins, fbins_sum)
+        deallocate(alpha_bins, fbins_dist, fbins_dist_sum)
 
         if (is_translated_file) then
             call free_electric_fields
@@ -494,6 +529,8 @@ program particle_energization_io
         real(fp) :: vperpx2, vperpy2, vperpz2
         real(fp) :: polar_ene_time_v, polar_ene_spatial_v
         real(fp) :: param
+        real(fp), dimension(18) :: acc_rate
+        integer :: ivar, ialpha, ibinx
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
@@ -553,6 +590,7 @@ program particle_energization_io
         nzg = domain%pic_nz + 2
 
         idt = 1.0 / dt_fields
+        ibinx = dom_x / npic_domain_x  ! index of the bin along x
         do iptl = 1, nptl, 1
             ptl = ptls(iptl)
             icell = ptl%icell
@@ -821,26 +859,60 @@ program particle_energization_io
             polar_ene_spatial_v = weight * gama * ptl_mass * &
                 (vexb_x * dvxdt + vexb_y * dvydt + vexb_z * dvzdt)
 
+            ! Acceleration rate
+            acc_rate(1) = weight
+            acc_rate(2) = dke_para * iene
+            acc_rate(3) = dke_perp * iene
+            acc_rate(4) = pdivv * iene
+            acc_rate(5) = pshear * iene
+            acc_rate(6) = curv_ene * iene
+            acc_rate(7) = grad_ene * iene
+            acc_rate(8) = parad_ene * iene
+            acc_rate(9) = dene_m * iene
+            acc_rate(10) = polar_ene_time * iene
+            acc_rate(11) = polar_ene_spatial * iene
+            acc_rate(12) = init_ene_time * iene
+            acc_rate(13) = init_ene_spatial * iene
+            acc_rate(14) = polar_fluid_time * iene
+            acc_rate(15) = polar_fluid_spatial * iene
+            acc_rate(16) = polar_ene_time_v * iene
+            acc_rate(17) = polar_ene_spatial_v * iene
+            acc_rate(18) = ptensor_ene * iene
+
             ibin = floor((log10(gama - 1) - emin_log) / de_log)
             if (ibin > 0 .and. ibin < nbins + 1) then
-                fbins(ibin+1, 1) = fbins(ibin+1, 1) + weight
-                fbins(ibin+1, 2) = fbins(ibin+1, 2) + dke_para * iene
-                fbins(ibin+1, 3) = fbins(ibin+1, 3) + dke_perp * iene
-                fbins(ibin+1, 4) = fbins(ibin+1, 4) + pdivv * iene
-                fbins(ibin+1, 5) = fbins(ibin+1, 5) + pshear * iene
-                fbins(ibin+1, 6) = fbins(ibin+1, 6) + curv_ene * iene
-                fbins(ibin+1, 7) = fbins(ibin+1, 7) + grad_ene * iene
-                fbins(ibin+1, 8) = fbins(ibin+1, 8) + parad_ene * iene
-                fbins(ibin+1, 9) = fbins(ibin+1, 9) + dene_m * iene
-                fbins(ibin+1, 10) = fbins(ibin+1, 10) + polar_ene_time * iene
-                fbins(ibin+1, 11) = fbins(ibin+1, 11) + polar_ene_spatial * iene
-                fbins(ibin+1, 12) = fbins(ibin+1, 12) + init_ene_time * iene
-                fbins(ibin+1, 13) = fbins(ibin+1, 13) + init_ene_spatial * iene
-                fbins(ibin+1, 14) = fbins(ibin+1, 14) + polar_fluid_time * iene
-                fbins(ibin+1, 15) = fbins(ibin+1, 15) + polar_fluid_spatial * iene
-                fbins(ibin+1, 16) = fbins(ibin+1, 16) + polar_ene_time_v * iene
-                fbins(ibin+1, 17) = fbins(ibin+1, 17) + polar_ene_spatial_v * iene
-                fbins(ibin+1, 18) = fbins(ibin+1, 18) + ptensor_ene * iene
+                do ivar = 1, nvar
+                    fbins(ibin+1, ivar) = fbins(ibin+1, ivar) + acc_rate(ivar)
+                enddo
+
+                ! The distribution of the acceleration rate
+                do ivar = 2, nvar
+                    if (acc_rate(ivar) > 0) then
+                        if (acc_rate(ivar) < alpha_min) then
+                            ialpha = nbins_alpha + 3
+                        else if (acc_rate(ivar) > alpha_max) then
+                            ialpha = (nbins_alpha + 2) * 2
+                        else
+                            ialpha = floor((log10(acc_rate(ivar)) - alpha_min_log) / dalpha_log)
+                            ialpha = nbins_alpha + ialpha + 4
+                        endif
+                    else
+                        if (-acc_rate(ivar) < alpha_min) then
+                            ialpha = 1
+                        else if (-acc_rate(ivar) > alpha_max) then
+                            ialpha = nbins_alpha + 2
+                        else
+                            ialpha = floor((log10(-acc_rate(ivar)) - alpha_min_log) / dalpha_log)
+                            ialpha = ialpha + 2
+                        endif
+                        ialpha = nbins_alpha - ialpha + 3
+                    endif
+                    fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) = &
+                        fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) + acc_rate(1)
+                    ialpha = ialpha + (nbins_alpha + 2) * 2
+                    fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) = &
+                        fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) + acc_rate(ivar)
+                enddo
             endif
         enddo
         deallocate(ptls)
@@ -884,6 +956,53 @@ program particle_energization_io
             close(fh1)
         endif
     end subroutine save_particle_energization
+
+    !<--------------------------------------------------------------------------
+    !< Save the distribution of particle acceleration rate.
+    !<--------------------------------------------------------------------------
+    subroutine save_acceleration_rate_dist(tindex, var_name)
+        use picinfo, only: domain
+        implicit none
+        integer, intent(in) :: tindex
+        character(*), intent(in) :: var_name
+        integer :: fh1, posf
+        character(len=16) :: tindex_str
+        character(len=256) :: fname
+        logical :: dir_e
+        call MPI_REDUCE(fbins_dist, fbins_dist_sum, &
+            4*(nbins_alpha+2) * nbinx * (nbins+1) * (nvar-1), &
+            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (myid == master) then
+            inquire(file='./data/particle_interp/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir -p ./data/particle_interp/')
+            endif
+            print*, "Saving the distribution of particle accelerate rate..."
+
+            fh1 = 67
+
+            write(tindex_str, "(I0)") tindex
+            fname = 'data/particle_interp/'//trim(var_name)//'_'//species
+            fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
+            open(unit=fh1, file=fname, access='stream', status='unknown', &
+                form='unformatted', action='write')
+            posf = 1
+            write(fh1, pos=posf) nbins_alpha + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nbinx + 0.0
+            posf = posf + 4
+            write(fh1, pos=posf) nbins + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nvar - 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) ebins
+            posf = posf + (nbins + 1) * 4
+            write(fh1, pos=posf) alpha_bins
+            posf = posf + (nbins_alpha + 1) * 4
+            write(fh1, pos=posf) fbins_dist_sum
+            close(fh1)
+        endif
+    end subroutine save_acceleration_rate_dist
 
     !<--------------------------------------------------------------------------
     !< Initialize the analysis.
@@ -1041,6 +1160,34 @@ program particle_energization_io
             help='Frame interval when dumping 3 continuous frames', &
             required=.false., def='1', act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--nbins', switch_ab='-nb', &
+            help='Number of energy bins', &
+            required=.false., def='60', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--emin', switch_ab='-el', &
+            help='Minimum particle Lorentz factor', &
+            required=.false., def='1E-4', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--emax', switch_ab='-eh', &
+            help='Maximum particle Lorentz factor', &
+            required=.false., def='1E2', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nbins_alpha', switch_ab='-na', &
+            help='Number of bins for the accelerate rate', &
+            required=.false., def='70', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--alpha_min', switch_ab='-al', &
+            help='Minimum particle acceleration rate', &
+            required=.false., def='1E-7', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--alpha_max', switch_ab='-ah', &
+            help='Maximum particle acceleration rate', &
+            required=.false., def='1E0', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nbinx', switch_ab='-nx', &
+            help='Number of bins along x-direction', &
+            required=.false., def='256', act='store', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-tf', val=is_translated_file, error=error)
@@ -1068,6 +1215,20 @@ program particle_energization_io
         call cli%get(switch='-ci', val=collective_io, error=error)
         if (error/=0) stop
         call cli%get(switch='-ft', val=fd_tinterval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nb', val=nbins, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-el', val=emin, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-eh', val=emax, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-na', val=nbins_alpha, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-al', val=alpha_min, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ah', val=alpha_max, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nx', val=nbinx, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
@@ -1098,6 +1259,12 @@ program particle_energization_io
                     endif
                 endif
             endif
+            print '(A,I0)', ' Number of energy bins: ', nbins
+            print '(A,E,E)', ' Minimum and maximum Lorentz factor: ', emin, emax
+            print '(A,I0)', ' Number of bins for particle acceleration rate: ', nbins_alpha
+            print '(A,E,E)', ' Minimum and maximum particle acceleration rate: ', &
+                alpha_min, alpha_max
+            print '(A,I0)', ' Number of bins for along x particle acceleration rate: ', nbinx
         endif
     end subroutine get_cmd_args
 
