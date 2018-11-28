@@ -29,7 +29,8 @@ program particle_energization_io
     integer, parameter :: nvar = 18
     integer :: separated_pre_post
     real(fp), allocatable, dimension(:) :: ebins
-    real(fp), allocatable, dimension(:, :) :: fbins, fbins_sum
+    real(fp), allocatable, dimension(:, :, :) :: fbins, fbins_sum
+    real(fp), allocatable, dimension(:, :, :) :: faniso, faniso_sum
     real(fp), allocatable, dimension(:) :: alpha_bins
     real(fp), allocatable, dimension(:, :, :, :) :: fbins_dist, fbins_dist_sum
     real(fp) :: de_log, emin_log
@@ -88,13 +89,14 @@ program particle_energization_io
     !<--------------------------------------------------------------------------
     subroutine init_dists
         implicit none
+        ! Energy bins
         de_log = (log10(emax/ptl_mass) - log10(emin/ptl_mass)) / nbins
         emin_log = log10(emin/ptl_mass)
         do i = 1, nbins + 1
             ebins(i) = 10**(de_log * (i - 1) + emin_log)
         enddo
-        ebins = ebins / ptl_mass
 
+        ! Acceleration rate bins
         dalpha_log = (log10(alpha_max) - log10(alpha_min)) / nbins_alpha
         alpha_min_log = log10(alpha_min)
         do i = 1, nbins_alpha + 1
@@ -113,6 +115,8 @@ program particle_energization_io
         fbins_sum = 0.0
         fbins_dist = 0.0
         fbins_dist_sum = 0.0
+        faniso = 0.0
+        faniso_sum = 0.0
     end subroutine set_dists_zero
 
     !<--------------------------------------------------------------------------
@@ -229,12 +233,15 @@ program particle_energization_io
         endif
 
         allocate(ebins(nbins + 1))
-        allocate(fbins(nbins + 1, nvar))
-        allocate(fbins_sum(nbins + 1, nvar))
+        allocate(fbins(nbins + 1, nbinx, 2*nvar - 1))
+        allocate(fbins_sum(nbins + 1, nbinx, 2*nvar - 1))
+
+        allocate(faniso(3, nbins + 1, nbinx))
+        allocate(faniso_sum(3, nbins + 1, nbinx))
 
         allocate(alpha_bins(nbins_alpha + 1))
-        allocate(fbins_dist((nbins_alpha+2)*4, nbinx, nbins + 1, nvar - 1))
-        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbinx, nbins + 1, nvar - 1))
+        allocate(fbins_dist((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
+        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
 
         call init_dists
 
@@ -395,6 +402,7 @@ program particle_energization_io
             call system_clock(t3, clock_rate, clock_max)
             call save_particle_energization(tframe, "particle_energization")
             call save_acceleration_rate_dist(tframe, "acc_rate_dist")
+            call save_pressure_anisotropy(tframe, "anisotropy")
             call system_clock(t4, clock_rate, clock_max)
             if (myid == master) then
                 write (*, *) 'Time for saving data = ', real(t4 - t3) / real(clock_rate)
@@ -418,6 +426,7 @@ program particle_energization_io
         endif
 
         deallocate(ebins, fbins, fbins_sum)
+        deallocate(faniso, faniso_sum)
         deallocate(alpha_bins, fbins_dist, fbins_dist_sum)
 
         if (is_translated_file) then
@@ -882,8 +891,19 @@ program particle_energization_io
             ibin = floor((log10(gama - 1) - emin_log) / de_log)
             if (ibin > 0 .and. ibin < nbins + 1) then
                 do ivar = 1, nvar
-                    fbins(ibin+1, ivar) = fbins(ibin+1, ivar) + acc_rate(ivar)
+                    fbins(ibin+1, ibinx+1, ivar) = &
+                        fbins(ibin+1, ibinx+1, ivar) + acc_rate(ivar)
                 enddo
+                ! Square of the acceleration rate
+                do ivar = 1, nvar - 1
+                    fbins(ibin+1, ibinx+1, ivar+nvar) = &
+                        fbins(ibin+1, ibinx+1, ivar+nvar) + acc_rate(ivar+1)**2
+                enddo
+
+                ! Anisotropy
+                faniso(1, ibin+1, ibinx+1) = faniso(1, ibin+1, ibinx+1) + acc_rate(1)
+                faniso(2, ibin+1, ibinx+1) = faniso(2, ibin+1, ibinx+1) + ppara
+                faniso(3, ibin+1, ibinx+1) = faniso(3, ibin+1, ibinx+1) + pperp
 
                 ! The distribution of the acceleration rate
                 do ivar = 2, nvar
@@ -907,11 +927,11 @@ program particle_energization_io
                         endif
                         ialpha = nbins_alpha - ialpha + 3
                     endif
-                    fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) = &
-                        fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) + acc_rate(1)
+                    fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) = &
+                        fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) + acc_rate(1)
                     ialpha = ialpha + (nbins_alpha + 2) * 2
-                    fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) = &
-                        fbins_dist(ialpha, ibinx+1, ibin+1, ivar-1) + acc_rate(ivar)
+                    fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) = &
+                        fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) + acc_rate(ivar)
                 enddo
             endif
         enddo
@@ -929,7 +949,7 @@ program particle_energization_io
         character(len=16) :: tindex_str
         character(len=256) :: fname
         logical :: dir_e
-        call MPI_REDUCE(fbins, fbins_sum, (nbins+1)*nvar, &
+        call MPI_REDUCE(fbins, fbins_sum, (nbins+1)*nbinx*(2*nvar-1), &
                 MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
@@ -946,9 +966,11 @@ program particle_energization_io
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
-            write(fh1, pos=posf) nbins + 1.0
+            write(fh1, pos=posf) (nbins + 1.0)
             posf = posf + 4
-            write(fh1, pos=posf) nvar + 0.0
+            write(fh1, pos=posf) (nbinx + 0.0)
+            posf = posf + 4
+            write(fh1, pos=posf) (2*nvar - 1.0)
             posf = posf + 4
             write(fh1, pos=posf) ebins
             posf = posf + (nbins + 1) * 4
@@ -956,6 +978,47 @@ program particle_energization_io
             close(fh1)
         endif
     end subroutine save_particle_energization
+
+    !<--------------------------------------------------------------------------
+    !< Save pressure anisotropy
+    !<--------------------------------------------------------------------------
+    subroutine save_pressure_anisotropy(tindex, var_name)
+        implicit none
+        integer, intent(in) :: tindex
+        character(*), intent(in) :: var_name
+        integer :: fh1, posf
+        character(len=16) :: tindex_str
+        character(len=256) :: fname
+        logical :: dir_e
+        call MPI_REDUCE(faniso, faniso_sum, (nbins+1)*nbinx*3, &
+                MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (myid == master) then
+            inquire(file='./data/particle_interp/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir -p ./data/particle_interp/')
+            endif
+            print*, "Saving energy-dependent pressure anisotropy..."
+
+            fh1 = 66
+
+            write(tindex_str, "(I0)") tindex
+            fname = 'data/particle_interp/'//trim(var_name)//'_'//species
+            fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
+            open(unit=fh1, file=fname, access='stream', status='unknown', &
+                form='unformatted', action='write')
+            posf = 1
+            write(fh1, pos=posf) 3.0
+            posf = posf + 4
+            write(fh1, pos=posf) (nbins + 1.0)
+            posf = posf + 4
+            write(fh1, pos=posf) (nbinx + 0.0)
+            posf = posf + 4
+            write(fh1, pos=posf) ebins
+            posf = posf + (nbins + 1) * 4
+            write(fh1, pos=posf) faniso_sum
+            close(fh1)
+        endif
+    end subroutine save_pressure_anisotropy
 
     !<--------------------------------------------------------------------------
     !< Save the distribution of particle acceleration rate.
@@ -970,7 +1033,7 @@ program particle_energization_io
         character(len=256) :: fname
         logical :: dir_e
         call MPI_REDUCE(fbins_dist, fbins_dist_sum, &
-            4*(nbins_alpha+2) * nbinx * (nbins+1) * (nvar-1), &
+            4*(nbins_alpha+2) * (nbins+1) * nbinx * (nvar-1), &
             MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
@@ -989,9 +1052,9 @@ program particle_energization_io
             posf = 1
             write(fh1, pos=posf) nbins_alpha + 1.0
             posf = posf + 4
-            write(fh1, pos=posf) nbinx + 0.0
-            posf = posf + 4
             write(fh1, pos=posf) nbins + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nbinx + 0.0
             posf = posf + 4
             write(fh1, pos=posf) nvar - 1.0
             posf = posf + 4
