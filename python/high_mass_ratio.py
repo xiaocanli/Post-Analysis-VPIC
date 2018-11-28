@@ -11,23 +11,28 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import palettable
+from matplotlib.colors import LogNorm
+from scipy.optimize import curve_fit
 from scipy import signal
+from scipy.interpolate import interp1d, interp2d
+from scipy.ndimage.filters import median_filter, gaussian_filter
 
+import fitting_funcs
 import pic_information
 from contour_plots import read_2d_fields
 from joblib import Parallel, delayed
 from json_functions import read_data_from_json
 from shell_functions import mkdir_p
 
-mpl.rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
+plt.style.use("seaborn-deep")
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = \
 [r"\usepackage{amsmath, bm}",
  r"\DeclareMathAlphabet{\mathsfit}{\encodingdefault}{\sfdefault}{m}{sl}",
  r"\SetMathAlphabet{\mathsfit}{bold}{\encodingdefault}{\sfdefault}{bx}{sl}",
  r"\newcommand{\tensorsym}[1]{\bm{\mathsfit{#1}}}"]
-
 COLORS = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
+
 FONT = {'family': 'serif',
         'color': 'black',
         'weight': 'normal',
@@ -104,29 +109,55 @@ def calc_rrate_multi(mime):
 def plot_rrate_multi(mime):
     """Plot reconnection rate for multiple runs
     """
-    fig = plt.figure(figsize=[7, 5])
-    ax = fig.add_axes([0.15, 0.15, 0.8, 0.8])
+    fig = plt.figure(figsize=[3.5, 2.5])
+    ax = fig.add_axes([0.16, 0.16, 0.78, 0.78])
     ax.set_prop_cycle('color', COLORS)
     bgs = np.asarray([0, 0.2, 0.4, 0.8])
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    tmin = tmax = 0.0
     for bg in bgs:
         bg_str = str(int(bg * 10)).zfill(2)
         run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
         fdir = "../data/rate/"
         fname = fdir + "rrate_" + run_name + ".dat"
         tfields, rrate = np.genfromtxt(fname)
+        rrate = np.convolve(rrate, kernel, 'same')
         ltext = r"$B_g=" + str(bg) + "$"
-        ax.plot(tfields, rrate, linewidth=2, label=ltext)
+        ax.plot(tfields, rrate, linewidth=1, label=ltext)
+        tmin = min(tmin, tfields.min())
+        tmax = max(tmin, tfields.max())
     ax.set_ylim([0, 0.13])
     if mime == 400:
         beg = 18
+        ax.set_xlim([0, 120])
     else:
         beg = 30
-    ax.plot([beg, beg], ax.get_ylim(), color='k', linestyle='--')
-    ax.legend(loc=1, prop={'size': 16}, ncol=2,
-              shadow=False, fancybox=False, frameon=False)
-    ax.tick_params(labelsize=16)
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=24)
-    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=24)
+        ax.set_xlim([0, 200])
+    ax.plot([beg, beg], ax.get_ylim(), color='k', linestyle='--',
+            linewidth=0.5)
+    text1 = r'$m_i/m_e = ' + str(mime) + '$'
+    ypos = 0.02 if mime == 25 else 0.9
+    ax.text(0.97, ypos, text1, color='k', fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform=ax.transAxes)
+    text2 = r'$t\Omega_{ci} = ' + str(beg) + '$'
+    ax.text(0.15, 0.6, text2, color='k', fontsize=10, rotation=90,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform=ax.transAxes)
+    if mime == 25:
+        ax.legend(loc=1, prop={'size': 8}, ncol=1,
+                  shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=10)
+    ax.set_ylabel(r'$E_R$', fontdict=FONT, fontsize=10)
     fdir = '../img/rate/'
     mkdir_p(fdir)
     fname = fdir + 'rrate_' + str(mime) + '.pdf'
@@ -142,8 +173,107 @@ def energy_evolution(bg):
     """
     bg_str = str(int(bg * 10)).zfill(2)
     mimes = np.asarray([25, 100, 400])
-    fig = plt.figure(figsize=[7, 5])
-    ax = fig.add_axes([0.15, 0.15, 0.8, 0.8])
+    fig = plt.figure(figsize=[3.5, 2.5])
+    ax = fig.add_axes([0.13, 0.15, 0.8, 0.8])
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for mime in mimes:
+        run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        tenergy = pic_info.tenergy
+        if mime != 400:
+            tenergy -= 12
+        ene_electric = pic_info.ene_electric
+        ene_magnetic = pic_info.ene_magnetic
+        kene_e = pic_info.kene_e
+        kene_i = pic_info.kene_i
+        ene_bx = pic_info.ene_bx
+        ene_by = pic_info.ene_by
+        ene_bz = pic_info.ene_bz
+
+        enorm = ene_bx[0]
+
+        tindex, t0 = find_nearest(tenergy, 100)
+        ltext = r"$m_i/m_e=" + str(mime) + "$"
+        p1, = ax.plot(tenergy[:tindex+1],
+                      (ene_magnetic[:tindex+1] - ene_magnetic[0]) / enorm,
+                      linewidth=1, label=ltext)
+        p2, = ax.plot(tenergy[:tindex+1],
+                      (kene_i[:tindex+1] - kene_i[0]) / enorm,
+                      color=p1.get_color(), linestyle='--', linewidth=1)
+        p3, = ax.plot(tenergy[:tindex+1],
+                      (kene_e[:tindex+1] - kene_e[0]) / enorm,
+                      color=p1.get_color(), linestyle='-.', linewidth=1)
+        dkm = ene_magnetic[tindex] - ene_magnetic[0]
+        dke = kene_e[tindex] - kene_e[0]
+        dki = kene_i[tindex] - kene_i[0]
+        print(dkm / enorm)
+        print(dke / enorm, dke / dkm)
+        print(dki / enorm, dki / dkm)
+    ax.set_xlim([0, 100])
+    ylim = ax.get_ylim()
+    ylen = ylim[1] - ylim[0]
+    height1 = ((kene_i[tindex//2] - kene_i[0]) / enorm - ylim[0]) / ylen + 0.12
+    height2 = ((kene_e[tindex//2] - kene_e[0]) / enorm - ylim[0]) / ylen - 0.07
+    height3 = ((ene_magnetic[tindex//2] - ene_magnetic[0]) / enorm - ylim[0]) / ylen - 0.13
+    ax.text(0.5, height1, r'$\Delta K_i/\varepsilon_{Bx0}$', color='k',
+            rotation=15, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.5, height2, r'$\Delta K_e/\varepsilon_{Bx0}$', color='k',
+            rotation=10, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.5, height3, r'$\Delta \varepsilon_{B}/\varepsilon_{Bx0}$',
+            color='k', rotation=-20, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.21, r'$m_i/m_e=25$', color=COLORS[0], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.13, r'$m_i/m_e=100$', color=COLORS[1], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.05, r'$m_i/m_e=400$', color=COLORS[2], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.85, r'$B_g=' + str(bg) + '$', color='k', fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=10)
+    # ax.legend(loc=3, prop={'size': 10}, ncol=1,
+    #           shadow=False, fancybox=False, frameon=False)
+    fdir = '../img/img_high_mime/'
+    mkdir_p(fdir)
+    fname = fdir + 'econv_' + bg_str + '.pdf'
+    fig.savefig(fname)
+    plt.show()
+
+
+def energy_evolution_fraction():
+    """Plot energy evolution fraction for all runs
+
+    Args:
+        bg: guide field strength
+    """
+    bg_str = str(int(bg * 10)).zfill(2)
+    mimes = np.asarray([25, 100, 400])
+    fig = plt.figure(figsize=[3.5, 2.5])
+    ax = fig.add_axes([0.13, 0.15, 0.8, 0.8])
     COLORS = palettable.tableau.Tableau_10.mpl_colors
     ax.set_prop_cycle('color', COLORS)
     for mime in mimes:
@@ -165,37 +295,303 @@ def energy_evolution(bg):
 
         ltext = r"$m_i/m_e=" + str(mime) + "$"
         p1, = ax.plot(tenergy, (ene_magnetic - ene_magnetic[0]) / enorm,
-                      linewidth=3, label=ltext)
+                      linewidth=1, label=ltext)
         p2, = ax.plot(tenergy, (kene_i - kene_i[0]) / enorm,
-                      color=p1.get_color(), linestyle='--', linewidth=3)
+                      color=p1.get_color(), linestyle='--', linewidth=1)
         p3, = ax.plot(tenergy, (kene_e - kene_e[0]) / enorm,
-                      color=p1.get_color(), linestyle='-.', linewidth=3)
+                      color=p1.get_color(), linestyle='-.', linewidth=1)
+    ax.set_xlim([0, 200])
     ylim = ax.get_ylim()
     ylen = ylim[1] - ylim[0]
-    height1 = ((kene_i[-1] - kene_i[0]) / enorm - ylim[0]) / ylen + 0.05
-    height2 = ((kene_e[-1] - kene_e[0]) / enorm - ylim[0]) / ylen - 0.1
+    height1 = ((kene_i[-1] - kene_i[0]) / enorm - ylim[0]) / ylen + 0.08
+    height2 = ((kene_e[-1] - kene_e[0]) / enorm - ylim[0]) / ylen - 0.08
     height3 = ((ene_magnetic[-1] - ene_magnetic[0]) / enorm - ylim[0]) / ylen - 0.1
-    ax.text(0.5, height1, r'$\Delta K_i/\varepsilon_{Bx0}$', color='k', fontsize=20,
+    ax.text(0.5, height1, r'$\Delta K_i/\varepsilon_{Bx0}$', color='k',
+            rotation=15, fontsize=10,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform=ax.transAxes)
-    ax.text(0.5, height2, r'$\Delta K_e/\varepsilon_{Bx0}$', color='k', fontsize=20,
+    ax.text(0.5, height2, r'$\Delta K_e/\varepsilon_{Bx0}$', color='k', fontsize=10,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform=ax.transAxes)
     ax.text(0.5, height3, r'$\Delta \varepsilon_{B}/\varepsilon_{Bx0}$',
-            color='k', fontsize=20,
+            color='k', rotation=-20, fontsize=10,
             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='center',
             transform=ax.transAxes)
-    ax.tick_params(labelsize=16)
-    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=20)
-    ax.legend(loc=3, prop={'size': 16}, ncol=1,
-              shadow=False, fancybox=False, frameon=False)
+    ax.text(0.03, 0.25, r'$m_i/m_e=25$', color=COLORS[0], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.15, r'$m_i/m_e=100$', color=COLORS[1], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.05, r'$m_i/m_e=400$', color=COLORS[2], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.85, r'$B_g=' + str(bg) + '$', color='k', fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=10)
+    # ax.legend(loc=3, prop={'size': 10}, ncol=1,
+    #           shadow=False, fancybox=False, frameon=False)
     fdir = '../img/img_high_mime/'
     mkdir_p(fdir)
     fname = fdir + 'econv_' + bg_str + '.pdf'
     fig.savefig(fname)
+    plt.show()
+
+
+def energy_conversion():
+    """Plot energy conversion rate for all runs
+    """
+    mimes = np.asarray([25, 100, 400])
+    bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
+    nmime, = mimes.shape
+    nbg, = bgs.shape
+    tmin = 1000.0
+    for imime, mime in enumerate(mimes):
+        for ibg, bg in enumerate(bgs):
+            print("Guide field: %0.1f" % bg)
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            tenergy = pic_info.tenergy
+            tmin = min(tmin, tenergy.max())
+
+    tmin = 100
+    # Second pass to get the energy conversion at tmin
+    econv_rates = np.zeros((nmime, nbg, 7))
+    for imime, mime in enumerate(mimes):
+        for ibg, bg in enumerate(bgs):
+            print("Guide field: %0.1f" % bg)
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            tenergy = pic_info.tenergy
+            tfields = pic_info.tfields
+            if mime != 400:
+                tenergy -= 12
+                tfields -= 12
+            tindex_e, t0 = find_nearest(tenergy, tmin)
+            tindex_f, t0 = find_nearest(tfields, tmin)
+            fname = "../data/bulk_internal_energy/" + run_name + "/"
+            fname += "bulk_internal_energy_e.dat"
+            fdata = np.fromfile(fname, dtype=np.float32)
+            sz, = fdata.shape
+            nframes = (sz//2)//4
+            bene_e4 = fdata[:sz//2].reshape(nframes, -1)
+            iene_e4 = fdata[sz//2:].reshape(nframes, -1)
+            fname = "../data/bulk_internal_energy/" + run_name + "/"
+            fname += "bulk_internal_energy_i.dat"
+            fdata = np.fromfile(fname, dtype=np.float32)
+            bene_i4 = fdata[:sz//2].reshape(nframes, -1)
+            iene_i4 = fdata[sz//2:].reshape(nframes, -1)
+            bene_e = bene_e4[:, -1]
+            iene_e = iene_e4[:, -1]
+            bene_i = bene_i4[:, -1]
+            iene_i = iene_i4[:, -1]
+            ene_magnetic = pic_info.ene_magnetic
+            kene_e = pic_info.kene_e
+            kene_i = pic_info.kene_i
+            ene_magnetic = pic_info.ene_magnetic
+            econv_rates[imime, ibg, 0] = (ene_magnetic[tindex_e] -
+                                          ene_magnetic[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 1] = (kene_e[tindex_e] - kene_e[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 2] = (kene_i[tindex_e] - kene_i[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 3] = (iene_e[tindex_f] - iene_e[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 4] = (iene_i[tindex_f] - iene_i[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 5] = (bene_e[tindex_f] - bene_e[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 6] = (bene_i[tindex_f] - bene_i[0]) / ene_magnetic[0]
+            print("Energy conversion:", econv_rates[imime, ibg, :])
+
+    fig = plt.figure(figsize=[3.5, 2.5])
+    ax = fig.add_axes([0.13, 0.15, 0.8, 0.8])
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    for imime, mime in enumerate(mimes):
+        ax.plot(bgs, econv_rates[imime, :, 0], marker='v', markersize=4,
+                linestyle='-', linewidth=1, color=COLORS[imime])
+        ax.plot(bgs, econv_rates[imime, :, 1], marker='o', markersize=4,
+                linestyle='-', linewidth=1, color=COLORS[imime])
+        ax.plot(bgs, econv_rates[imime, :, 2], marker='x', markersize=4,
+                linestyle='-', linewidth=1, color=COLORS[imime])
+
+    ax.text(0.6, 0.80, r'$\Delta K_i/\varepsilon_{Bx0}$', color='k',
+            rotation=-10, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.7, 0.56, r'$\Delta K_e/\varepsilon_{Bx0}$', color='k', fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.6, 0.24, r'$\Delta \varepsilon_{B}/\varepsilon_{Bx0}$',
+            color='k', rotation=15, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    # ax.text(0.03, 0.45, r'$m_i/m_e=25$', color=COLORS[0], fontsize=8,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='bottom',
+    #         transform=ax.transAxes)
+    # ax.text(0.03, 0.37, r'$m_i/m_e=100$', color=COLORS[1], fontsize=8,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='bottom',
+    #         transform=ax.transAxes)
+    # ax.text(0.03, 0.29, r'$m_i/m_e=400$', color=COLORS[2], fontsize=8,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='bottom',
+    #         transform=ax.transAxes)
+    ax.set_xlim([-0.05, 0.85])
+    # ax.plot(ax.get_xlim(), [0, 0], color='k', linewidth=0.5, linestyle='--')
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$B_g$', fontsize=10)
+    ax.tick_params(labelsize=8)
+
+    # embedded plot for internal energy
+    ax1 = fig.add_axes([0.25, 0.4, 0.25, 0.25])
+    for imime, mime in enumerate(mimes):
+        ax1.plot(bgs, econv_rates[imime, :, 4], marker='x', markersize=4,
+                 linestyle='--', linewidth=1, color=COLORS[imime])
+    ax1.tick_params(bottom=True, top=False, left=True, right=True)
+    ax1.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax1.tick_params(axis='x', which='major', direction='in')
+    ax1.tick_params(axis='y', which='minor', direction='in')
+    ax1.tick_params(axis='y', which='major', direction='in')
+    ax1.tick_params(axis='x', labelbottom='off')
+    ax1.tick_params(labelsize=6)
+    ax1.set_xlim(ax.get_xlim())
+    ax1.set_ylim([0, 0.1])
+    ax1.text(0.5, 0.75, 'internal', color='k', fontsize=6,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+             horizontalalignment='left', verticalalignment='bottom',
+             transform=ax1.transAxes)
+    fdir = '../img/img_high_mime/'
+    mkdir_p(fdir)
+    fname = fdir + 'econvs.pdf'
+    fig.savefig(fname)
+    plt.show()
+
+
+def internal_energy_conversion():
+    """Plot internal energy conversion rate for all runs
+    """
+    mimes = np.asarray([25, 100, 400])
+    bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
+    nmime, = mimes.shape
+    nbg, = bgs.shape
+    tmin = 100.0
+    # Second pass to get the energy conversion at tmin
+    econv_rates = np.zeros((nmime, nbg, 7))
+    for imime, mime in enumerate(mimes):
+        for ibg, bg in enumerate(bgs):
+            print("Guide field: %0.1f" % bg)
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            tenergy = pic_info.tenergy
+            tfields = pic_info.tfields
+            if mime != 400:
+                tenergy -= 12
+                tfields -= 12
+            tindex_e, t0 = find_nearest(tenergy, tmin)
+            tindex_f, t0 = find_nearest(tfields, tmin)
+            fname = "../data/bulk_internal_energy/" + run_name + "/"
+            fname += "bulk_internal_energy_e.dat"
+            fdata = np.fromfile(fname, dtype=np.float32)
+            sz, = fdata.shape
+            nframes = (sz//2)//4
+            bene_e4 = fdata[:sz//2].reshape(nframes, -1)
+            iene_e4 = fdata[sz//2:].reshape(nframes, -1)
+            fname = "../data/bulk_internal_energy/" + run_name + "/"
+            fname += "bulk_internal_energy_i.dat"
+            fdata = np.fromfile(fname, dtype=np.float32)
+            bene_i4 = fdata[:sz//2].reshape(nframes, -1)
+            iene_i4 = fdata[sz//2:].reshape(nframes, -1)
+            bene_e = bene_e4[:, -1]
+            iene_e = iene_e4[:, -1]
+            bene_i = bene_i4[:, -1]
+            iene_i = iene_i4[:, -1]
+            ene_magnetic = pic_info.ene_magnetic
+            kene_e = pic_info.kene_e
+            kene_i = pic_info.kene_i
+            ene_magnetic = pic_info.ene_magnetic
+            econv_rates[imime, ibg, 0] = (ene_magnetic[tindex_e] -
+                                          ene_magnetic[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 1] = (kene_e[tindex_e] - kene_e[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 2] = (kene_i[tindex_e] - kene_i[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 3] = (iene_e[tindex_f] - iene_e[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 4] = (iene_i[tindex_f] - iene_i[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 5] = (bene_e[tindex_f] - bene_e[0]) / ene_magnetic[0]
+            econv_rates[imime, ibg, 6] = (bene_i[tindex_f] - bene_i[0]) / ene_magnetic[0]
+            print("Energy conversion:", econv_rates[imime, ibg, :])
+
+    fig = plt.figure(figsize=[3.5, 2.5])
+    ax = fig.add_axes([0.13, 0.15, 0.8, 0.8])
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    for imime, mime in enumerate(mimes):
+        ax.plot(bgs, econv_rates[imime, :, 0], marker='v', markersize=4,
+                linestyle='-', linewidth=1, color=COLORS[imime])
+        ax.plot(bgs, econv_rates[imime, :, 3], marker='o', markersize=4,
+                linestyle='-', linewidth=1, color=COLORS[imime])
+        ax.plot(bgs, econv_rates[imime, :, 4], marker='x', markersize=4,
+                linestyle='-', linewidth=1, color=COLORS[imime])
+    ax.text(0.6, 0.80, r'$\Delta K_i/\varepsilon_{Bx0}$', color='k',
+            rotation=-10, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.2, 0.6, r'$\Delta K_e/\varepsilon_{Bx0}$', color='k', fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.6, 0.24, r'$\Delta \varepsilon_{B}/\varepsilon_{Bx0}$',
+            color='k', rotation=15, fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.45, r'$m_i/m_e=25$', color=COLORS[0], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.37, r'$m_i/m_e=100$', color=COLORS[1], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.29, r'$m_i/m_e=400$', color=COLORS[2], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.set_xlim([-0.05, 0.85])
+    ax.plot(ax.get_xlim(), [0, 0], color='k', linewidth=0.5, linestyle='--')
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$B_g$', fontsize=10)
+    ax.tick_params(labelsize=8)
+    fdir = '../img/img_high_mime/'
+    mkdir_p(fdir)
+    fname = fdir + 'econvs.pdf'
+    # fig.savefig(fname)
     plt.show()
 
 
@@ -321,6 +717,511 @@ def energy_partition(bg):
     plt.show()
 
 
+def fit_thermal_core(ene, f):
+    """Fit to get the thermal core of the particle distribution.
+
+    Fit the thermal core of the particle distribution.
+    The thermal core is fitted as a Maxwellian distribution.
+
+    Args:
+        ene: the energy bins array.
+        f: the particle flux distribution.
+
+    Returns:
+        fthermal: thermal part of the particle distribution.
+    """
+    print('Fitting to get the thermal core of the particle distribution')
+    estart = 0
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    fnew = np.convolve(f, kernel, 'same')
+    nshift = 10  # grids shift for fitting thermal core.
+    eend = np.argmax(f) + nshift
+    emax = ene[np.argmax(f)]
+    bguess = 1.0 / (3 * emax)
+    aguess = f.max() / (np.sqrt(emax) * np.exp(-bguess * emax))
+    popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
+                           ene[estart:eend], f[estart:eend],
+                           p0=[aguess, bguess])
+    fthermal = fitting_funcs.func_maxwellian(ene, popt[0], popt[1])
+    print('Energy with maximum flux: %f' % ene[eend - 10])
+    print('Energy with maximum flux in fitted thermal core: %f' % (0.5 / popt[1]))
+    return fthermal
+
+
+def fit_thermal_tail(ene, f):
+    """Fit to get the tail of the particle distribution.
+
+    The tail is fitted as a Maxwellian distribution.
+
+    Args:
+        ene: the energy bins array.
+        f: the particle flux distribution.
+    """
+    print('Fitting to get the thermal core of the particle distribution')
+    estart = 0
+    nshift = 10  # grids shift for fitting thermal core.
+    eend = np.argmax(f) + nshift
+    emax = ene[np.argmax(f)]
+    bguess = 1.0 / (3 * emax)
+    aguess = f.max() / (np.sqrt(emax) * np.exp(-bguess * emax))
+    popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
+                           ene[estart:eend], f[estart:eend],
+                           p0=[aguess, bguess])
+    print('Energy with maximum flux in fitted thermal tail: %f' % (0.5 / popt[1]))
+    return popt
+
+
+def accumulated_particle_info(ene, f):
+    """
+    Get the accumulated particle number and total energy from
+    the distribution function.
+
+    Args:
+        ene: the energy bins array.
+        f: the energy distribution array.
+    Returns:
+        nacc_ene: the accumulated particle number with energy.
+        eacc_ene: the accumulated particle total energy with energy.
+    """
+    nbins, = f.shape
+    dlogE = (math.log10(max(ene)) - math.log10(min(ene))) / nbins
+    nacc_ene = np.zeros(nbins)
+    eacc_ene = np.zeros(nbins)
+    nacc_ene[0] = f[0] * ene[0]
+    eacc_ene[0] = 0.5 * f[0] * ene[0]**2
+    for i in range(1, nbins):
+        nacc_ene[i] = f[i] * (ene[i] + ene[i - 1]) * 0.5 + nacc_ene[i - 1]
+        eacc_ene[i] = 0.5 * f[i] * (ene[i] - ene[i - 1]) * (
+            ene[i] + ene[i - 1])
+        eacc_ene[i] += eacc_ene[i - 1]
+    nacc_ene *= dlogE
+    eacc_ene *= dlogE
+    return (nacc_ene, eacc_ene)
+
+
+def energy_spectrum_early(bg, species, tframe, show_plot=True):
+    """Plot energy spectrum early in the simulations
+
+    Args:
+        bg: guide field strength
+        species: particle species
+        tframe: time frame
+    """
+    if species == 'h':
+        species = 'H'
+    spect_info = {"nbins": 800,
+                  "emin": 1E-5,
+                  "emax": 1E3}
+    bg_str = str(int(bg * 10)).zfill(2)
+    mimes = np.asarray([25, 100, 400])
+    fig = plt.figure(figsize=[7, 5])
+    ax = fig.add_axes([0.15, 0.15, 0.8, 0.8])
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for mime in mimes:
+        run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        tenergy = pic_info.tenergy
+        if mime == 400:
+            tframe1 = tframe
+        else:
+            tframe1 = tframe + 12
+        if species == 'e':
+            vth = pic_info.vthe
+        else:
+            vth = pic_info.vthi
+        gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+        eth = gama - 1.0
+        emin_log = math.log10(spect_info["emin"])
+        emax_log = math.log10(spect_info["emax"])
+        nbins = spect_info["nbins"]
+        delog = (emax_log - emin_log) / nbins
+        emin_log = emin_log - delog
+        emax_log = emax_log - delog
+        elog = np.logspace(emin_log, emax_log, nbins + 1)
+        elog_mid = 0.5 * (elog[:-1] + elog[1:])
+        elog /= eth
+        elog_mid /= eth
+        nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        fdir = '../data/spectra/' + run_name + '/'
+        fname = fdir + 'spectrum-' + species.lower() + '.' + str(tframe1)
+        flog = np.fromfile(fname)
+        flog /= nptot
+        if species != 'e':
+            flog /= pic_info.mime
+        flog[0] = flog[1]  # remove spike at 0
+        fth = fit_thermal_core(elog_mid, flog)
+        fnth = flog - fth
+        eindex, ene = find_nearest(elog_mid, 1E-1)
+        fth[:eindex] += fnth[:eindex]
+        fnth[:eindex] = 0
+        eindex, ene = find_nearest(elog_mid, 1E2)
+        popt = fit_thermal_tail(elog_mid[eindex:], flog[eindex:])
+        fth2 = fitting_funcs.func_maxwellian(elog_mid, popt[0], popt[1])
+
+        ltext = r"$m_i/m_e=" + str(mime) + "$"
+        p1, = ax.loglog(elog_mid, flog, linewidth=2, label=ltext)
+        # p1, = ax.loglog(elog_mid, fth, linewidth=1)
+        # p2, = ax.loglog(elog_mid, fnth, linewidth=2)
+        # p3, = ax.loglog(elog_mid, fth2, linewidth=1)
+    fnorm = 1E3 if species == 'e' else 1E5
+    pindex = -3.0
+    fpower = fnorm * elog_mid**pindex
+    power_index = "{%0.1f}" % pindex
+    pname = r'$\sim \varepsilon^{' + power_index + '}$'
+    es_index, es = find_nearest(elog_mid, 10)
+    ee_index, ee = find_nearest(elog_mid, 100)
+    ax.loglog(elog_mid[es_index:ee_index], fpower[es_index:ee_index],
+              linewidth=2, color='k', label=pname)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    if species == 'e':
+        ax.set_xlim([1E-1, 1E3])
+    else:
+        ax.set_xlim([1E-1, 1E3])
+    ax.set_ylim([1E-9, 1E2])
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$',
+                  fontdict=FONT, fontsize=20)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontdict=FONT, fontsize=20)
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    sname = 'electron' if species == 'e' else 'ion'
+    fdir = '../img/img_high_mime/spect_compare/' + sname + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'spect_' + bg_str + '_' + str(tframe) + '.pdf'
+    fig.savefig(fname)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def stacked_spectrum(species='e', show_plot=True):
+    """Plot stacked particle energy spectrum
+
+    Args:
+        species: 'e' for electrons, 'H' for ions
+    """
+    spect_info = {"nbins": 800,
+                  "emin": 1E-5,
+                  "emax": 1E3}
+    mimes = [25, 100, 400]
+    # mimes = [25]
+    bgs = [0.0, 0.2, 0.4, 0.8]
+    # bgs = [0.0]
+    if species == 'h':
+        species = 'H'
+    tshift = 12
+    ntf = 101
+    fmin = 1E-9
+
+    emin_log = math.log10(spect_info["emin"])
+    emax_log = math.log10(spect_info["emax"])
+    nbins = spect_info["nbins"]
+    delog = (emax_log - emin_log) / nbins
+    emin_log = emin_log - delog
+    emax_log = emax_log - delog
+    elog = np.logspace(emin_log, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[:-1] + elog[1:])
+
+    fig = plt.figure(figsize=[7, 4])
+    rect0 = [0.11, 0.68, 0.18, 0.26]
+    hgap, vgap = 0.015, 0.02
+
+    for imime, mime in enumerate(mimes):
+        rect = np.copy(rect0)
+        for ibg, bg in enumerate(bgs):
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = 'mime' + str(mime) + '_beta002_' + 'bg' + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            if species == 'e':
+                vth = pic_info.vthe
+            else:
+                vth = pic_info.vthi
+            gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+            eth = gama - 1.0
+            elog = elog_mid / eth
+            eindex1, ene = find_nearest(elog, 2)
+            eindex2, ene = find_nearest(elog, 1000)
+            eindex10, ene = find_nearest(elog, 10)
+            nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+
+            tframes = range(ntf)
+            nframes = len(tframes)
+            flogs = np.zeros((nframes, nbins))
+            for iframe, tframe in enumerate(tframes):
+                if mime != 400:
+                    tframe += tshift
+                # print("Time frame: %d" % tframe)
+                fdir = '../data/spectra/' + run_name + '/'
+                fname = fdir + 'spectrum-' + species.lower() + '.' + str(tframe)
+                flog = np.fromfile(fname)
+                flog /= nptot
+                color = plt.cm.jet(tframe/float(ntf), 1)
+                flogs[iframe, :] = flog
+                if iframe == 25 or iframe == nframes - 1:
+                    ntot, etot = accumulated_particle_info(elog, flog)
+                    print(">10 thermal energy (number fraction): %f" %
+                          ((ntot[-1] - ntot[eindex10])/ntot[-1]))
+                    print(">10 thermal energy (energy fraction): %f" %
+                          ((etot[-1] - etot[eindex10])/etot[-1]))
+            flogs += fmin
+            # fdata = np.diff(np.log10(flogs[:, eindex1:eindex2]), axis=0).T
+            fdata = np.log10(flogs[1:, eindex1:eindex2] / flogs[:-1, eindex1:eindex2]).T
+            ng = 3
+            kernel = np.ones((ng,ng)) / float(ng*ng)
+            fdata = signal.convolve2d(fdata, kernel, mode='same')
+            vmin, vmax = -0.1, 0.1
+
+            ax = fig.add_axes(rect)
+
+            cmap = palettable.colorbrewer.diverging.RdGy_11_r.mpl_colormap
+            img = ax.imshow(fdata, extent=[1, ntf-1, math.log10(elog[eindex1]),
+                                           math.log10(elog[eindex2])],
+                            vmin=vmin, vmax=vmax, cmap=plt.cm.seismic,
+                            aspect='auto', origin='lower', interpolation='bicubic')
+            ax.tick_params(bottom=True, top=True, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            ax.set_xticks([25, 50, 75, 100])
+            if imime == len(mimes) - 1:
+                ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=10)
+            else:
+                ax.tick_params(axis='x', labelbottom='off')
+            if ibg == 0:
+                ax.set_yticks([1, 2, 3])
+                ax.set_yticklabels([r'$10$', r'$10^2$', r'$10^3$'])
+                ax.set_ylabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
+            else:
+                ax.tick_params(axis='y', labelleft='off')
+            ax.tick_params(labelsize=8)
+            rect[0] += rect[2] + hgap
+            if imime == 0:
+                title = r"$B_g=" + str(bg) + "$"
+                ax.set_title(title, fontsize=10)
+            if ibg == 0:
+                text1 = r'$m_i/m_e=' + str(mime) + '$'
+                ax.text(-0.48, 0.5, text1, color='k', fontsize=10,
+                        rotation='vertical',
+                        bbox=dict(facecolor='none', alpha=1.0,
+                                  edgecolor='none', pad=10.0),
+                        horizontalalignment='left', verticalalignment='center',
+                        transform=ax.transAxes)
+            # if imime == 2:
+            #     ax.plot([1, ntf-1], [math.log10(50), math.log10(50)],
+            #             linewidth=0.5, color='k')
+        rect0[1] -= rect0[3] + vgap
+    rect0[1] += rect0[3] + vgap
+    rect_cbar = np.copy(rect0)
+    rect_cbar[0] += rect[2]*4 + hgap*4
+    rect_cbar[1] = rect0[1] + 0.5*rect0[3]
+    rect_cbar[2] = 0.01
+    rect_cbar[3] = rect0[3] * 2 + vgap * 2
+    cbar_ax = fig.add_axes(rect_cbar)
+    cbar_ax.tick_params(right=True)
+    cbar_ax.tick_params(axis='y', which='minor', direction='in')
+    cbar_ax.tick_params(axis='y', which='major', direction='in')
+    cbar = fig.colorbar(img, cax=cbar_ax, orientation='vertical',
+                        extend='both')
+    cbar.set_ticks(np.linspace(vmin, vmax, 5))
+    label1 = r'$\log_{10}((f(\varepsilon, t) + \epsilon)/(f(\varepsilon, t-\Delta t) + \epsilon))$'
+    cbar_ax.set_ylabel(label1, fontsize=10)
+    cbar.ax.tick_params(labelsize=8)
+
+    fdir = '../img/img_high_mime/'
+    mkdir_p(fdir)
+    fname = fdir + 'stacked_espect_' + species + '.pdf'
+    fig.savefig(fname, dpi=200)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def evolving_spectrum(species='e', show_plot=True):
+    """Plot evolving energy spectrum
+
+    Args:
+        species: 'e' for electrons, 'H' for ions
+    """
+    spect_info = {"nbins": 800,
+                  "emin": 1E-5,
+                  "emax": 1E3}
+    mimes = [25, 100, 400]
+    # mimes = [25]
+    bgs = [0.0, 0.2, 0.4, 0.8]
+    # bgs = [0.0]
+    if species == 'h':
+        species = 'H'
+    tshift = 12
+    ntf = 101
+    fmin = 1E-9
+
+    emin_log = math.log10(spect_info["emin"])
+    emax_log = math.log10(spect_info["emax"])
+    nbins = spect_info["nbins"]
+    delog = (emax_log - emin_log) / nbins
+    emin_log = emin_log - delog
+    emax_log = emax_log - delog
+    elog = np.logspace(emin_log, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[:-1] + elog[1:])
+
+    fig = plt.figure(figsize=[7, 4])
+    rect0 = [0.11, 0.68, 0.2, 0.26]
+    hgap, vgap = 0.015, 0.02
+
+    tframes = [25, 55, 100]
+    nframes = len(tframes)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    for iframe, tframe in enumerate(tframes):
+        rect = np.copy(rect0)
+        for ibg, bg in enumerate(bgs):
+            bg_str = str(int(bg * 10)).zfill(2)
+            ax = fig.add_axes(rect)
+            ax.set_prop_cycle('color', COLORS)
+            for imime, mime in enumerate(mimes):
+                run_name = 'mime' + str(mime) + '_beta002_' + 'bg' + bg_str
+                picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+                pic_info = read_data_from_json(picinfo_fname)
+                if species == 'e':
+                    vth = pic_info.vthe
+                else:
+                    vth = pic_info.vthi
+                gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+                eth = gama - 1.0
+                elog = elog_mid / eth
+                eindex1, ene = find_nearest(elog, 2)
+                eindex2, ene = find_nearest(elog, 1000)
+                nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+
+                tframe1 = tframe + tshift if mime != 400 else tframe
+                print("Time frame: %d" % tframe1)
+                fdir = '../data/spectra/' + run_name + '/'
+                fname = fdir + 'spectrum-' + species.lower() + '.' + str(tframe1)
+                flog = np.fromfile(fname)
+                flog /= nptot
+                if species != 'e':
+                    flog /= pic_info.mime
+
+                ax.loglog(elog, flog, linewidth=1)
+                ax.tick_params(bottom=True, top=True, left=True, right=True)
+                ax.tick_params(axis='x', which='minor', direction='in', top=True)
+                ax.tick_params(axis='x', which='major', direction='in')
+                ax.tick_params(axis='y', which='minor', direction='in')
+                ax.tick_params(axis='y', which='major', direction='in')
+                if imime == 0 and ibg == 1 and species == 'H':
+                    wpe_wce = pic_info.dtwce / pic_info.dtwpe
+                    va = wpe_wce / math.sqrt(pic_info.mime)
+                    bene = 0.5 * va**2 / eth
+                    ax.plot([bene, bene], [1E-8, 1E2], color='k', linewidth=0.5)
+                    if iframe == 1:
+                        text1 = r'$m_iv_A^2/2$'
+                        ax.text(0.55, 0.1, text1, color='k',
+                                fontsize=10, rotation=90,
+                                bbox=dict(facecolor='none', alpha=1.0,
+                                          edgecolor='none', pad=10.0),
+                                horizontalalignment='right',
+                                verticalalignment='bottom',
+                                transform=ax.transAxes)
+            if iframe > 0:
+                if species == 'e':
+                    pindex = -3.0
+                    fpower = elog**pindex * 500
+                    power_index = "{%0.1f}" % pindex
+                    pname = r'$\propto \varepsilon^{' + power_index + '}$'
+                    es_index, es = find_nearest(elog, 1)
+                    ee_index, ee = find_nearest(elog, 500)
+                    ax.loglog(elog[es_index:ee_index], fpower[es_index:ee_index],
+                              linewidth=0.5, color='k', linestyle='--', label=pname)
+                    ax.loglog(elog[es_index:ee_index], fpower[es_index:ee_index]/10,
+                              linewidth=0.5, color='k', linestyle='--')
+                else:
+                    pindex = -1.0
+                    fpower = elog**pindex * 5
+                    power_index = "{%0.1f}" % pindex
+                    pname = r'$\propto \varepsilon^{' + power_index + '}$'
+                    es_index, es = find_nearest(elog, 1)
+                    ee_index, ee = find_nearest(elog, 500)
+                    ax.loglog(elog[es_index:ee_index], fpower[es_index:ee_index],
+                              linewidth=0.5, color='k', linestyle='--', label=pname)
+                    if iframe == 1:
+                        pindex = -9.0
+                        fpower = elog**pindex * 1E15
+                        power_index = "{%0.1f}" % pindex
+                        pname = r'$\propto \varepsilon^{' + power_index + '}$'
+                        ax.loglog(elog[es_index:ee_index], fpower[es_index:ee_index],
+                                  linewidth=0.5, color='k', linestyle='-.', label=pname)
+                    else:
+                        pindex = -6.0
+                        fpower = elog**pindex * 2E10
+                        power_index = "{%0.1f}" % pindex
+                        pname = r'$\propto \varepsilon^{' + power_index + '}$'
+                        p1, = ax.loglog(elog[es_index:ee_index], fpower[es_index:ee_index],
+                                        linewidth=0.5, color='k', linestyle=':', label=pname)
+            if iframe == 1 and ibg == 0:
+                ax.legend(loc=3, prop={'size': 10}, ncol=1,
+                          shadow=False, fancybox=False, frameon=False)
+            elif iframe == 2 and ibg == 0:
+                ax.legend(handles=[p1], loc=3, prop={'size': 10}, ncol=1,
+                          shadow=False, fancybox=False, frameon=False)
+            ax.set_xlim([1, 500])
+            ax.set_ylim([1E-8, 1E2])
+            if iframe == 0 and ibg == 0:
+                ax.text(0.05, 0.36, r'$m_i/m_e=25$', color=COLORS[0], fontsize=8,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='left', verticalalignment='bottom',
+                        transform=ax.transAxes)
+                ax.text(0.05, 0.23, r'$m_i/m_e=100$', color=COLORS[1], fontsize=8,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='left', verticalalignment='bottom',
+                        transform=ax.transAxes)
+                ax.text(0.05, 0.1, r'$m_i/m_e=400$', color=COLORS[2], fontsize=8,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='left', verticalalignment='bottom',
+                        transform=ax.transAxes)
+            if iframe == nframes - 1:
+                ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
+            else:
+                ax.tick_params(axis='x', labelbottom='off')
+            if ibg == 0:
+                ax.set_ylabel(r'$f(\varepsilon)$', fontsize=10)
+            else:
+                ax.tick_params(axis='y', labelleft='off')
+            ax.tick_params(labelsize=8)
+            rect[0] += rect[2] + hgap
+            if iframe == 0:
+                title = r"$B_g=" + str(bg) + "$"
+                ax.set_title(title, fontsize=10)
+            if ibg == 0:
+                text1 = r'$t\Omega_{ci}=' + str(tframe) + '$'
+                ax.text(-0.48, 0.5, text1, color='k', fontsize=10,
+                        rotation='vertical',
+                        bbox=dict(facecolor='none', alpha=1.0,
+                                  edgecolor='none', pad=10.0),
+                        horizontalalignment='left', verticalalignment='center',
+                        transform=ax.transAxes)
+        rect0[1] -= rect0[3] + vgap
+    rect0[1] += rect0[3] + vgap
+
+    fdir = '../img/img_high_mime/'
+    mkdir_p(fdir)
+    fname = fdir + 'evolve_espect_' + species + '.pdf'
+    fig.savefig(fname)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
 def internal_energy_partition(bg):
     """Plot internal energy energy partition between ion and electrons
 
@@ -377,20 +1278,18 @@ def internal_energy_partition(bg):
 
 def plot_jy(tframe, show_plot=True):
     """Plot out-of-plane current density for different runs
-
-    Args:
-        run_dir: PIC run directory
     """
     bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
     mimes = np.asarray([25, 100, 400])
-    dmins = np.asarray([-0.1, -0.067, -0.033])
-    dmaxs = np.asarray([0.3, 0.2, 0.1])
-    lmins = np.asarray([-0.1, -0.06, -0.03])
-    lmaxs = np.asarray([0.3, 0.18, 0.09])
-    fig = plt.figure(figsize=[15, 8])
-    rect0 = [0.1, 0.77, 0.28, 0.18]
+    # mimes = np.asarray([25])
+    dmins = np.asarray([-0.1, -0.05, -0.025])
+    dmaxs = np.asarray([0.3, 0.15, 0.075])
+    lmins = np.asarray([-0.1, -0.04, -0.02])
+    lmaxs = np.asarray([0.3, 0.12, 0.06])
+    fig = plt.figure(figsize=[7, 3])
+    rect0 = [0.12, 0.76, 0.27, 0.16]
     rect = np.copy(rect0)
-    hgap, vgap = 0.022, 0.022
+    hgap, vgap = 0.022, 0.02
     nbg, = bgs.shape
     nmime, = mimes.shape
     for ibg, bg in enumerate(bgs):
@@ -413,47 +1312,1140 @@ def plot_jy(tframe, show_plot=True):
             x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
             rect[0] = rect0[0] + imime * (hgap + rect0[2])
             ax = fig.add_axes(rect)
+            ax.tick_params(bottom=True, top=False, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
             p1 = ax.imshow(jy, vmin=dmins[imime], vmax=dmaxs[imime],
-                           extent=sizes, cmap=plt.cm.jet, aspect='auto',
+                           extent=sizes, cmap=plt.cm.inferno, aspect='auto',
                            origin='lower', interpolation='bicubic')
             ax.contour(x, z, Ay, colors='k', linewidths=0.5)
-            ax.tick_params(labelsize=16)
+            ax.tick_params(labelsize=8)
             if ibg < nbg - 1:
                 ax.tick_params(axis='x', labelbottom='off')
             else:
-                ax.set_xlabel(r'$x/d_i$', fontsize=20)
+                ax.set_xlabel(r'$x/d_i$', fontsize=10)
             if imime > 0:
                 ax.tick_params(axis='y', labelleft='off')
             else:
-                ax.set_ylabel(r'$z/d_i$', fontsize=20)
+                ax.set_ylabel(r'$z/d_i$', fontsize=10)
 
             if ibg == 0:
                 title = r"$m_i/m_e=" + str(mime) + "$"
-                plt.title(title, fontsize=24)
+                plt.title(title, fontsize=10)
             if ibg == nbg - 1:
                 rect_cbar = np.copy(rect)
-                rect_cbar[1] = rect[1] - vgap * 5
+                rect_cbar[1] = rect[1] - vgap * 7
                 rect_cbar[3] = 0.02
                 cbar_ax = fig.add_axes(rect_cbar)
-                cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
+                cbar_ax.tick_params(bottom=True )
+                # cbar_ax.tick_params(axis='x', which='minor', direction='in')
+                # cbar_ax.tick_params(axis='x', which='major', direction='in')
+                cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal',
+                                    extend='both')
                 cbar.set_ticks(np.linspace(lmins[imime], lmaxs[imime], num=5))
-                cbar.ax.tick_params(labelsize=16)
+                cbar.ax.tick_params(labelsize=8)
             if imime == 0:
-                text = r"$B_g=" + str(bg) + "$"
-                ax.text(-0.25, 0.5, text, color='k',
-                        fontsize=24, rotation='vertical',
+                if ibg == 0:
+                    ax.text(-0.35, 0.9, r'$B_g$', color='k', fontsize=10,
+                            bbox=dict(facecolor='none', alpha=1.0,
+                                      edgecolor='none', pad=10.0),
+                            horizontalalignment='center',
+                            verticalalignment='center',
+                            transform=ax.transAxes)
+                text = r"$" + str(bg) + "$"
+                ax.text(-0.35, 0.5, text, color='k', fontsize=10,
                         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                         horizontalalignment='center', verticalalignment='center',
                         transform=ax.transAxes)
 
     fdir = '../img/img_high_mime/jy/'
     mkdir_p(fdir)
-    fname = fdir + 'jys_' + str(tframe) + '.jpg'
+    fname = fdir + 'jys_' + str(tframe) + '.pdf'
     fig.savefig(fname, dpi=200)
     if show_plot:
         plt.show()
     else:
         plt.close()
+
+
+def plot_va(tframe, show_plot=True):
+    """Plot the Alfven speed
+    """
+    bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
+    # mimes = np.asarray([25, 100, 400])
+    mimes = np.asarray([400])
+    dmins = np.asarray([0.5, 0.5, 0.5])
+    dmaxs = np.asarray([1.5, 1.5, 1.5])
+    lmins = dmins
+    lmaxs = dmaxs
+    fig = plt.figure(figsize=[7, 3])
+    rect0 = [0.12, 0.76, 0.27, 0.16]
+    rect = np.copy(rect0)
+    hgap, vgap = 0.022, 0.02
+    nbg, = bgs.shape
+    nmime, = mimes.shape
+    for ibg, bg in enumerate(bgs):
+        rect[1] = rect0[1] - ibg * (vgap + rect0[3])
+        for imime, mime in enumerate(mimes):
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            wpe_wce = pic_info.dtwce / pic_info.dtwpe
+            va0 = wpe_wce / math.sqrt(pic_info.mime)
+            smime = math.sqrt(pic_info.mime)
+            tframe_shift = (tframe + 12) if mime != 400 else tframe
+            kwargs = {"current_time": tframe_shift,
+                      "xl": 0, "xr": pic_info.lx_di,
+                      "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+            fname = pic_info.run_dir + "data/bx.gda"
+            x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/ni.gda"
+            x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
+            va = np.abs(bx) / np.sqrt(ni * pic_info.mime)
+            va /= va0
+            sizes = [x[0], x[-1], z[0], z[-1]]
+            print("Min and Max of va %f %f" % (np.min(va), np.max(va)))
+            fname = pic_info.run_dir + "data/Ay.gda"
+            x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+            rect[0] = rect0[0] + imime * (hgap + rect0[2])
+            ax = fig.add_axes(rect)
+            ax.tick_params(bottom=True, top=False, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            p1 = ax.imshow(va, vmin=dmins[imime], vmax=dmaxs[imime],
+                           extent=sizes, cmap=plt.cm.seismic, aspect='auto',
+                           origin='lower', interpolation='bicubic')
+            ax.contour(x, z, Ay, colors='k', linewidths=0.5)
+            ax.tick_params(labelsize=8)
+            if ibg < nbg - 1:
+                ax.tick_params(axis='x', labelbottom='off')
+            else:
+                ax.set_xlabel(r'$x/d_i$', fontsize=10)
+            if imime > 0:
+                ax.tick_params(axis='y', labelleft='off')
+            else:
+                ax.set_ylabel(r'$z/d_i$', fontsize=10)
+
+            if ibg == 0:
+                title = r"$m_i/m_e=" + str(mime) + "$"
+                plt.title(title, fontsize=10)
+            if ibg == nbg - 1:
+                rect_cbar = np.copy(rect)
+                rect_cbar[1] = rect[1] - vgap * 7
+                rect_cbar[3] = 0.02
+                cbar_ax = fig.add_axes(rect_cbar)
+                cbar_ax.tick_params(bottom=True )
+                # cbar_ax.tick_params(axis='x', which='minor', direction='in')
+                # cbar_ax.tick_params(axis='x', which='major', direction='in')
+                cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal',
+                                    extend='both')
+                cbar.set_ticks(np.linspace(lmins[imime], lmaxs[imime], num=5))
+                cbar.ax.tick_params(labelsize=8)
+            if imime == 0:
+                if ibg == 0:
+                    ax.text(-0.35, 0.9, r'$B_g$', color='k', fontsize=10,
+                            bbox=dict(facecolor='none', alpha=1.0,
+                                      edgecolor='none', pad=10.0),
+                            horizontalalignment='center',
+                            verticalalignment='center',
+                            transform=ax.transAxes)
+                text = r"$" + str(bg) + "$"
+                ax.text(-0.35, 0.5, text, color='k', fontsize=10,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='center', verticalalignment='center',
+                        transform=ax.transAxes)
+
+    # fdir = '../img/img_high_mime/jy/'
+    # mkdir_p(fdir)
+    # fname = fdir + 'jys_' + str(tframe) + '.pdf'
+    # fig.savefig(fname, dpi=200)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_pressure_anisotropy(plot_config, show_plot=True):
+    """Plot pressure anisotropy for different runs
+    """
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
+    # bgs = np.asarray([0.8])
+    mimes = np.asarray([25, 100, 400])
+    # mimes = np.asarray([400])
+    dmins = np.asarray([0.5, 0.5, 0.5])
+    dmaxs = np.asarray([8, 6, 4])
+    lmins = dmins
+    lmaxs = dmaxs
+    fig = plt.figure(figsize=[7, 3])
+    rect0 = [0.12, 0.76, 0.27, 0.16]
+    rect = np.copy(rect0)
+    hgap, vgap = 0.022, 0.02
+    nbg, = bgs.shape
+    nmime, = mimes.shape
+    for ibg, bg in enumerate(bgs):
+        rect[1] = rect0[1] - ibg * (vgap + rect0[3])
+        for imime, mime in enumerate(mimes):
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            smime = math.sqrt(pic_info.mime)
+            tframe_shift = (tframe + 12) if mime != 400 else tframe
+            kwargs = {"current_time": tframe_shift,
+                      "xl": 0, "xr": pic_info.lx_di,
+                      "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+            fname = pic_info.run_dir + "data/p" + species + "-xx.gda"
+            x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-xy.gda"
+            x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-xz.gda"
+            x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yx.gda"
+            x, z, pyx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yy.gda"
+            x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yz.gda"
+            x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zx.gda"
+            x, z, pzx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zy.gda"
+            x, z, pzy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zz.gda"
+            x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/bx.gda"
+            x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/by.gda"
+            x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/bz.gda"
+            x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+            ib2 = 1.0 / (bx*bx + by*by + bz*bz)
+            ppara = (pxx * bx**2 + pyy * by**2 + pzz * bz**2 +
+                     (pxy + pyx) * bx * by +
+                     (pxz + pzx) * bx * bz +
+                     (pyz + pzy) * by * bz)
+            ppara = ppara * ib2
+            pperp = 0.5 * (pxx + pyy + pzz - ppara)
+            sizes = [x[0], x[-1], z[0], z[-1]]
+            fname = pic_info.run_dir + "data/Ay.gda"
+            x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+            rect[0] = rect0[0] + imime * (hgap + rect0[2])
+            ax = fig.add_axes(rect)
+            ax.tick_params(bottom=True, top=False, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            p1 = ax.imshow(ppara/pperp,
+                           # norm = LogNorm(vmin=dmins[imime], vmax=dmaxs[imime]),
+                           vmin=dmins[imime], vmax=dmaxs[imime],
+                           extent=sizes, cmap=plt.cm.viridis, aspect='auto',
+                           origin='lower', interpolation='bicubic')
+            ax.contour(x, z, Ay, colors='k', linewidths=0.5)
+            ax.tick_params(labelsize=8)
+            if ibg < nbg - 1:
+                ax.tick_params(axis='x', labelbottom='off')
+            else:
+                ax.set_xlabel(r'$x/d_i$', fontsize=10)
+            if imime > 0:
+                ax.tick_params(axis='y', labelleft='off')
+            else:
+                ax.set_ylabel(r'$z/d_i$', fontsize=10)
+
+            if ibg == 0:
+                title = r"$m_i/m_e=" + str(mime) + "$"
+                plt.title(title, fontsize=10)
+            if ibg == nbg - 1:
+                rect_cbar = np.copy(rect)
+                rect_cbar[1] = rect[1] - vgap * 7
+                rect_cbar[3] = 0.02
+                cbar_ax = fig.add_axes(rect_cbar)
+                cbar_ax.tick_params(bottom=True )
+                cbar_ax.tick_params(axis='x', which='minor', direction='in')
+                cbar_ax.tick_params(axis='x', which='major', direction='out')
+                cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal',
+                                    extend='both')
+                # cbar.set_ticks(np.linspace(lmins[imime], lmaxs[imime], num=5))
+                cbar.ax.tick_params(labelsize=8)
+            if imime == 0:
+                if ibg == 0:
+                    ax.text(-0.35, 0.9, r'$B_g$', color='k', fontsize=10,
+                            bbox=dict(facecolor='none', alpha=1.0,
+                                      edgecolor='none', pad=10.0),
+                            horizontalalignment='center',
+                            verticalalignment='center',
+                            transform=ax.transAxes)
+                text = r"$" + str(bg) + "$"
+                ax.text(-0.35, 0.5, text, color='k', fontsize=10,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='center', verticalalignment='center',
+                        transform=ax.transAxes)
+
+    fdir = '../img/img_high_mime/anisotropy/'
+    mkdir_p(fdir)
+    fname = fdir + 'anisotropy_' + species + '_' + str(tframe) + '.pdf'
+    fig.savefig(fname, dpi=300)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_ene2d(plot_config, show_plot=True):
+    """Plot 2D energization terms
+    """
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    # bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
+    bgs = np.asarray([0.4])
+    # mimes = np.asarray([25, 100, 400])
+    mimes = np.asarray([25])
+    dmins = np.asarray([-2E-4, -0.05, -0.025])
+    dmaxs = -dmins
+    lmins = np.asarray([-0.1, -0.04, -0.02])
+    lmaxs = np.asarray([0.3, 0.12, 0.06])
+    fig = plt.figure(figsize=[7, 3])
+    rect0 = [0.12, 0.16, 0.77, 0.76]
+    rect = np.copy(rect0)
+    hgap, vgap = 0.022, 0.02
+    nbg, = bgs.shape
+    nmime, = mimes.shape
+    ng = 5
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    for ibg, bg in enumerate(bgs):
+        rect[1] = rect0[1] - ibg * (vgap + rect0[3])
+        for imime, mime in enumerate(mimes):
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            smime = math.sqrt(pic_info.mime)
+            dx = pic_info.dx_di * smime
+            dz = pic_info.dz_di * smime
+            tframe_shift = (tframe + 12) if mime != 400 else tframe
+            kwargs = {"current_time": tframe_shift,
+                      "xl": 0, "xr": pic_info.lx_di,
+                      "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+            fname = pic_info.run_dir + "data/p" + species + "-xx.gda"
+            x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-xy.gda"
+            x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-xz.gda"
+            x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yx.gda"
+            x, z, pyx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yy.gda"
+            x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yz.gda"
+            x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zx.gda"
+            x, z, pzx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zy.gda"
+            x, z, pzy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zz.gda"
+            x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/ex.gda"
+            x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/ey.gda"
+            x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/ez.gda"
+            x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/bx.gda"
+            x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/by.gda"
+            x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/bz.gda"
+            x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+            ib2 = 1.0 / (bx*bx + by*by + bz*bz)
+            ppara = (pxx * bx**2 + pyy * by**2 + pzz * bz**2 +
+                     (pxy + pyx) * bx * by +
+                     (pxz + pzx) * bx * bz +
+                     (pyz + pzy) * by * bz)
+            ppara = ppara * ib2
+            pperp = 0.5 * (pxx + pyy + pzz - ppara)
+            vexb_x = (ey * bz - ez * by) * ib2
+            vexb_y = (ez * bx - ex * bz) * ib2
+            vexb_z = (ex * by - ey * bx) * ib2
+            sizes = [x[0], x[-1], z[0], z[-1]]
+            divpt_vexb = ((np.gradient(pxx, dx, axis=1) +
+                           np.gradient(pxz, dz, axis=0)) * vexb_x +
+                          (np.gradient(pyx, dx, axis=1) +
+                           np.gradient(pyz, dz, axis=0)) * vexb_y +
+                          (np.gradient(pzx, dx, axis=1) +
+                           np.gradient(pzz, dz, axis=0)) * vexb_z)
+            # gyrotropic pressure tensor
+            pdiff = ppara - pperp
+            pxx = pperp + pdiff * bx * bx * ib2
+            pxz = pdiff * bx * bz * ib2
+            pyx = pdiff * by * bx * ib2
+            pyz = pdiff * by * bz * ib2
+            pzx = pdiff * bz * bx * ib2
+            pzz = pperp + pdiff * bz * bz * ib2
+            divpg_vexb = ((np.gradient(pxx, dx, axis=1) +
+                           np.gradient(pxz, dz, axis=0)) * vexb_x +
+                          (np.gradient(pyx, dx, axis=1) +
+                           np.gradient(pyz, dz, axis=0)) * vexb_y +
+                          (np.gradient(pzx, dx, axis=1) +
+                           np.gradient(pzz, dz, axis=0)) * vexb_z)
+            l1 = pxx + pyy + pzz
+            l2 = (pxx * pyy + pxx * pzz + pyy * pzz -
+                  pxy * pyx - pxz * pzx - pyz * pzy)
+            q = 1 - 4 * l2 / ((l1 - ppara) * (l1 + 3 * ppara))
+            # fname = pic_info.run_dir + "data/Ay.gda"
+            # x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+            rect[0] = rect0[0] + imime * (hgap + rect0[2])
+            ax = fig.add_axes(rect)
+            ax.tick_params(bottom=True, top=False, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            fdata = divpt_vexb - divpg_vexb
+            fdata = signal.convolve2d(fdata, kernel, mode='same')
+            # p1 = ax.imshow(fdata, vmin=dmins[imime], vmax=dmaxs[imime],
+                           # extent=sizes, cmap=plt.cm.seismic, aspect='auto',
+            p1 = ax.imshow(q, vmin=0, vmax=0.2,
+                           extent=sizes, cmap=plt.cm.viridis, aspect='auto',
+                           origin='lower', interpolation='bicubic')
+            # ax.contour(x, z, Ay, colors='k', linewidths=0.5)
+            ax.tick_params(labelsize=8)
+            if ibg < nbg - 1:
+                ax.tick_params(axis='x', labelbottom='off')
+            else:
+                ax.set_xlabel(r'$x/d_i$', fontsize=10)
+            if imime > 0:
+                ax.tick_params(axis='y', labelleft='off')
+            else:
+                ax.set_ylabel(r'$z/d_i$', fontsize=10)
+
+            if ibg == 0:
+                title = r"$m_i/m_e=" + str(mime) + "$"
+                plt.title(title, fontsize=10)
+            if ibg == nbg - 1:
+                rect_cbar = np.copy(rect)
+                rect_cbar[1] = rect[1] - vgap * 7
+                rect_cbar[3] = 0.02
+                cbar_ax = fig.add_axes(rect_cbar)
+                cbar_ax.tick_params(bottom=True )
+                cbar_ax.tick_params(axis='x', which='minor', direction='in')
+                cbar_ax.tick_params(axis='x', which='major', direction='in')
+                cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
+                cbar.set_ticks(np.linspace(lmins[imime], lmaxs[imime], num=5))
+                cbar.ax.tick_params(labelsize=8)
+            if imime == 0:
+                if ibg == 0:
+                    ax.text(-0.35, 0.9, r'$B_g$', color='k', fontsize=10,
+                            bbox=dict(facecolor='none', alpha=1.0,
+                                      edgecolor='none', pad=10.0),
+                            horizontalalignment='center',
+                            verticalalignment='center',
+                            transform=ax.transAxes)
+                text = r"$" + str(bg) + "$"
+                ax.text(-0.35, 0.5, text, color='k', fontsize=10,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='center', verticalalignment='center',
+                        transform=ax.transAxes)
+
+    # fdir = '../img/img_high_mime/jy/'
+    # mkdir_p(fdir)
+    # fname = fdir + 'jys_' + str(tframe) + '.pdf'
+    # fig.savefig(fname, dpi=200)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_agyq(plot_config, show_plot=True):
+    """Plot Q parameters defined by M. Swisdak to quantify the agyrotropy
+    """
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    bgs = np.asarray([0.0, 0.2, 0.4, 0.8])
+    # bgs = np.asarray([0.4])
+    mimes = np.asarray([25, 100, 400])
+    # mimes = np.asarray([25])
+    dmins = np.asarray([0, 0, 0])
+    if species == 'e':
+        dmaxs = np.asarray([0.1, 0.1, 0.1])
+    else:
+        dmaxs = np.asarray([0.3, 0.3, 0.3])
+    lmins = np.copy(dmins)
+    lmaxs = np.copy(dmaxs)
+    fig = plt.figure(figsize=[7, 3])
+    rect0 = [0.12, 0.76, 0.27, 0.16]
+    rect = np.copy(rect0)
+    hgap, vgap = 0.022, 0.02
+    nbg, = bgs.shape
+    nmime, = mimes.shape
+    ng = 5
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    for ibg, bg in enumerate(bgs):
+        rect[1] = rect0[1] - ibg * (vgap + rect0[3])
+        for imime, mime in enumerate(mimes):
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            smime = math.sqrt(pic_info.mime)
+            dx = pic_info.dx_di * smime
+            dz = pic_info.dz_di * smime
+            tframe_shift = (tframe + 12) if mime != 400 else tframe
+            kwargs = {"current_time": tframe_shift,
+                      "xl": 0, "xr": pic_info.lx_di,
+                      "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+            fname = pic_info.run_dir + "data/p" + species + "-xx.gda"
+            x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-xy.gda"
+            x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-xz.gda"
+            x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yx.gda"
+            x, z, pyx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yy.gda"
+            x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-yz.gda"
+            x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zx.gda"
+            x, z, pzx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zy.gda"
+            x, z, pzy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/p" + species + "-zz.gda"
+            x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/bx.gda"
+            x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/by.gda"
+            x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_info.run_dir + "data/bz.gda"
+            x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+            ib2 = 1.0 / (bx*bx + by*by + bz*bz)
+            ppara = (pxx * bx**2 + pyy * by**2 + pzz * bz**2 +
+                     (pxy + pyx) * bx * by +
+                     (pxz + pzx) * bx * bz +
+                     (pyz + pzy) * by * bz)
+            ppara = ppara * ib2
+            l1 = pxx + pyy + pzz
+            l2 = (pxx * pyy + pxx * pzz + pyy * pzz -
+                  pxy * pyx - pxz * pzx - pyz * pzy)
+            q = 1 - 4 * l2 / ((l1 - ppara) * (l1 + 3 * ppara))
+            # fname = pic_info.run_dir + "data/Ay.gda"
+            # x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+            rect[0] = rect0[0] + imime * (hgap + rect0[2])
+            ax = fig.add_axes(rect)
+            ax.tick_params(bottom=True, top=False, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            sizes = [x[0], x[-1], z[0], z[-1]]
+            p1 = ax.imshow(q, vmin=dmins[imime], vmax=dmaxs[imime],
+                           extent=sizes, cmap=plt.cm.Greys, aspect='auto',
+                           origin='lower', interpolation='bicubic')
+            # ax.contour(x, z, Ay, colors='k', linewidths=0.5)
+            ax.tick_params(labelsize=8)
+            if ibg < nbg - 1:
+                ax.tick_params(axis='x', labelbottom='off')
+            else:
+                ax.set_xlabel(r'$x/d_i$', fontsize=10)
+            if imime > 0:
+                ax.tick_params(axis='y', labelleft='off')
+            else:
+                ax.set_ylabel(r'$z/d_i$', fontsize=10)
+
+            if ibg == 0:
+                title = r"$m_i/m_e=" + str(mime) + "$"
+                plt.title(title, fontsize=10)
+            if ibg == nbg - 1:
+                rect_cbar = np.copy(rect)
+                rect_cbar[1] = rect[1] - vgap * 7
+                rect_cbar[3] = 0.02
+                cbar_ax = fig.add_axes(rect_cbar)
+                cbar_ax.tick_params(bottom=True )
+                cbar_ax.tick_params(axis='x', which='minor', direction='in')
+                cbar_ax.tick_params(axis='x', which='major', direction='in')
+                cbar = fig.colorbar(p1, cax=cbar_ax, orientation='horizontal')
+                cbar.set_ticks(np.linspace(lmins[imime], lmaxs[imime], num=5))
+                cbar.ax.tick_params(labelsize=8)
+            if imime == 0:
+                if ibg == 0:
+                    ax.text(-0.35, 0.9, r'$B_g$', color='k', fontsize=10,
+                            bbox=dict(facecolor='none', alpha=1.0,
+                                      edgecolor='none', pad=10.0),
+                            horizontalalignment='center',
+                            verticalalignment='center',
+                            transform=ax.transAxes)
+                text = r"$" + str(bg) + "$"
+                ax.text(-0.35, 0.5, text, color='k', fontsize=10,
+                        bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                        horizontalalignment='center', verticalalignment='center',
+                        transform=ax.transAxes)
+
+    # fdir = '../img/img_high_mime/jy/'
+    # mkdir_p(fdir)
+    # fname = fdir + 'jys_' + str(tframe) + '.pdf'
+    # fig.savefig(fname, dpi=200)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_temp(plot_config, show_plot=True):
+    """Plot plasma temperature
+    """
+    mime = plot_config["mime"]
+    bg = plot_config["bg"]
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+
+    bg_str = str(int(bg * 10)).zfill(2)
+    run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    if species == 'e':
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    temp0 = eth / 1.5
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    kene_e = pic_info.kene_e
+    kene_i = pic_info.kene_i
+    ene_magnetic = pic_info.ene_magnetic
+    tenergy = pic_info.tenergy
+
+    kwargs = {"current_time": tframe,
+              "xl": 0, "xr": pic_info.lx_di,
+              "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+    fname = pic_info.run_dir + "data/p" + species + "-xx.gda"
+    x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_info.run_dir + "data/p" + species + "-yy.gda"
+    x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_info.run_dir + "data/p" + species + "-zz.gda"
+    x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_info.run_dir + "data/n" + species + ".gda"
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_info.run_dir + "data/Ay.gda"
+    x, z, ay = read_2d_fields(pic_info, fname, **kwargs)
+    temp = (pxx + pyy + pzz) / (3 * nrho)
+    fig = plt.figure(figsize=[7, 4])
+    rect = [0.09, 0.6, 0.82, 0.36]
+    hgap, vgap = 0.022, 0.02
+    ax = fig.add_axes(rect)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    sizes = [x[0], x[-1], z[0], z[-1]]
+    p1 = ax.imshow(temp/temp0, vmin=1, vmax=10,
+                   extent=sizes, cmap=plt.cm.inferno, aspect='auto',
+                   origin='lower', interpolation='bicubic')
+    nx, nz = len(x), len(z)
+    ax.contour(x, z[:nz//2], ay[:nz//2, :], colors='w',
+               linewidths=1, linestyles='--')
+    ax.contour(x, z[nz//2:], ay[nz//2:, :], colors='w', linewidths=1)
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$x/d_i$', fontsize=10)
+    ax.set_ylabel(r'$z/d_i$', fontsize=10)
+    rect_cbar = np.copy(rect)
+    rect_cbar[0] += rect[2] + hgap
+    rect_cbar[2] = 0.01
+    cbar_ax = fig.add_axes(rect_cbar)
+    cbar_ax.tick_params(bottom=True )
+    cbar_ax.tick_params(axis='y', which='minor', direction='in')
+    cbar_ax.tick_params(axis='y', which='major', direction='in')
+    cbar = fig.colorbar(p1, cax=cbar_ax, extend='both')
+    cbar.set_ticks(np.linspace(1, 9, num=5))
+    label1 = r'$T_' + species + '/T_0$'
+    cbar.ax.set_ylabel(label1, fontsize=10)
+    cbar.ax.tick_params(labelsize=8)
+
+    hgap1 = 0.1
+    rect1 = np.copy(rect)
+    rect1[1] = 0.1
+    rect1[2] = 0.5 * (rect[2] - hgap1)
+    rect1[3] = 0.4
+    ax = fig.add_axes(rect1)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+
+    enorm = ene_magnetic[0]
+    ax.set_prop_cycle('color', COLORS)
+    p1, = ax.plot(tenergy, (ene_magnetic - ene_magnetic[0]) / enorm,
+                  linewidth=2)
+    p2, = ax.plot(tenergy, (kene_i - kene_i[0]) / enorm, linewidth=2)
+    p3, = ax.plot(tenergy, (kene_e - kene_e[0]) / enorm, linewidth=2)
+    ax.set_xlim([0, 200])
+    ax.set_ylim([-0.2, 0.15])
+    ax.plot([0, 200], [0, 0], linewidth=0.5, linestyle='--', color='k')
+    dkm = ene_magnetic[-1] - ene_magnetic[0]
+    dke = kene_e[-1] - kene_e[0]
+    dki = kene_i[-1] - kene_i[0]
+    ylim = ax.get_ylim()
+    ylen = ylim[1] - ylim[0]
+    twci = tframe * pic_info.dt_fields
+    ax.plot([twci, twci], ylim, linewidth=0.5, linestyle='-', color='k')
+    height1 = ((kene_i[-1] - kene_i[0]) / enorm - ylim[0]) / ylen - 0.06
+    height2 = ((kene_e[-1] - kene_e[0]) / enorm - ylim[0]) / ylen - 0.15
+    height3 = ((ene_magnetic[-1] - ene_magnetic[0]) / enorm - ylim[0]) / ylen + 0.27
+    ax.text(0.5, height1, 'ion', color=p2.get_color(), rotation=15, fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.5, height2, 'electron', color=p3.get_color(),
+            rotation=8, fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.5, height3, 'magnetic', color=p1.get_color(),
+            rotation=-20, fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=10)
+
+    rect1[0] += rect1[2] + hgap1
+    ax = fig.add_axes(rect1)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+    if species == 'h':
+        species = 'H'
+    spect_info = {"nbins": 800,
+                  "emin": 1E-5,
+                  "emax": 1E3}
+    emin_log = math.log10(spect_info["emin"])
+    emax_log = math.log10(spect_info["emax"])
+    nbins = spect_info["nbins"]
+    delog = (emax_log - emin_log) / nbins
+    emin_log = emin_log - delog
+    emax_log = emax_log - delog
+    elog = np.logspace(emin_log, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[:-1] + elog[1:])
+    elog /= eth
+    elog_mid /= eth
+    nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    fdir = '../data/spectra/' + run_name + '/'
+    for tframe1 in range(tframe+1):
+        fname = fdir + 'spectrum-' + species.lower() + '.' + str(tframe1)
+        flog = np.fromfile(fname)
+        flog /= nptot
+        if species != 'e':
+            flog /= pic_info.mime
+        flog[0] = flog[1]  # remove spike at 0
+        color = plt.cm.Spectral_r((tframe1 - 0)/float(pic_info.ntf), 1)
+        p1, = ax.loglog(elog_mid, flog, linewidth=2, color=color)
+        if species == 'e':
+            ax.set_xlim([1E-1, 5E2])
+        else:
+            ax.set_xlim([1E-1, 1E3])
+        ax.set_ylim([1E-8, 1E2])
+        ax.tick_params(labelsize=8)
+        ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
+        ax.set_ylabel(r'$f(\varepsilon)$', fontsize=10)
+
+    fdir = '../img/img_high_mime/temp/' + run_name + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'temp_' + str(tframe) + '.pdf'
+    fig.savefig(fname, dpi=300)
+    fname = fdir + 'temp_' + str(tframe) + '.jpg'
+    fig.savefig(fname, dpi=300)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_nrho(plot_config, show_plot=True):
+    """Plot plasma density
+    """
+    mime = plot_config["mime"]
+    bg = plot_config["bg"]
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+
+    bg_str = str(int(bg * 10)).zfill(2)
+    run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    if species == 'e':
+        vth = pic_info.vthe
+    else:
+        vth = pic_info.vthi
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    temp0 = eth / 1.5
+    smime = math.sqrt(pic_info.mime)
+    dx = pic_info.dx_di * smime
+    dz = pic_info.dz_di * smime
+    kene_e = pic_info.kene_e
+    kene_i = pic_info.kene_i
+    ene_magnetic = pic_info.ene_magnetic
+    tenergy = pic_info.tenergy
+
+    kwargs = {"current_time": tframe,
+              "xl": 0, "xr": pic_info.lx_di,
+              "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+    fname = pic_info.run_dir + "data/n" + species + ".gda"
+    x, z, nrho = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_info.run_dir + "data/Ay.gda"
+    x, z, ay = read_2d_fields(pic_info, fname, **kwargs)
+    fig = plt.figure(figsize=[7, 4])
+    rect = [0.09, 0.6, 0.82, 0.36]
+    hgap, vgap = 0.022, 0.02
+    ax = fig.add_axes(rect)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    sizes = [x[0], x[-1], z[0], z[-1]]
+    p1 = ax.imshow(nrho, vmin=0.5, vmax=3,
+                   extent=sizes, cmap=plt.cm.inferno, aspect='auto',
+                   origin='lower', interpolation='bicubic')
+    nx, nz = len(x), len(z)
+    # ax.contour(x, z[:nz//2], ay[:nz//2, :], colors='w',
+    #            linewidths=1, linestyles='--')
+    # ax.contour(x, z[nz//2:], ay[nz//2:, :], colors='w', linewidths=1)
+    ax.contour(x, z, ay, colors='w', linewidths=1)
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$x/d_i$', fontsize=10)
+    ax.set_ylabel(r'$z/d_i$', fontsize=10)
+    rect_cbar = np.copy(rect)
+    rect_cbar[0] += rect[2] + hgap
+    rect_cbar[2] = 0.01
+    cbar_ax = fig.add_axes(rect_cbar)
+    cbar_ax.tick_params(bottom=True )
+    cbar_ax.tick_params(axis='y', which='minor', direction='in')
+    cbar_ax.tick_params(axis='y', which='major', direction='in')
+    cbar = fig.colorbar(p1, cax=cbar_ax, extend='both')
+    cbar.set_ticks(np.linspace(1, 3, num=3))
+    label1 = r'$n_' + species + '/n_0$'
+    cbar.ax.set_ylabel(label1, fontsize=10)
+    cbar.ax.tick_params(labelsize=8)
+
+    hgap1 = 0.1
+    rect1 = np.copy(rect)
+    rect1[1] = 0.1
+    rect1[2] = 0.5 * (rect[2] - hgap1)
+    rect1[3] = 0.4
+    ax = fig.add_axes(rect1)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+
+    enorm = ene_magnetic[0]
+    ax.set_prop_cycle('color', COLORS)
+    p1, = ax.plot(tenergy, (ene_magnetic - ene_magnetic[0]) / enorm,
+                  linewidth=2)
+    p2, = ax.plot(tenergy, (kene_i - kene_i[0]) / enorm, linewidth=2)
+    p3, = ax.plot(tenergy, (kene_e - kene_e[0]) / enorm, linewidth=2)
+    ax.set_xlim([0, 200])
+    ax.set_ylim([-0.2, 0.15])
+    ax.plot([0, 200], [0, 0], linewidth=0.5, linestyle='--', color='k')
+    dkm = ene_magnetic[-1] - ene_magnetic[0]
+    dke = kene_e[-1] - kene_e[0]
+    dki = kene_i[-1] - kene_i[0]
+    ylim = ax.get_ylim()
+    ylen = ylim[1] - ylim[0]
+    twci = tframe * pic_info.dt_fields
+    ax.plot([twci, twci], ylim, linewidth=0.5, linestyle='-', color='k')
+    height1 = ((kene_i[-1] - kene_i[0]) / enorm - ylim[0]) / ylen - 0.06
+    height2 = ((kene_e[-1] - kene_e[0]) / enorm - ylim[0]) / ylen - 0.15
+    height3 = ((ene_magnetic[-1] - ene_magnetic[0]) / enorm - ylim[0]) / ylen + 0.27
+    ax.text(0.5, height1, 'ion', color=p2.get_color(), rotation=15, fontsize=12,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.5, height2, 'electron', color=p3.get_color(),
+            rotation=8, fontsize=12,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.text(0.5, height3, 'magnetic', color=p1.get_color(),
+            rotation=-20, fontsize=12,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=10)
+
+    rect1[0] += rect1[2] + hgap1
+    ax = fig.add_axes(rect1)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=8)
+    if species == 'h':
+        species = 'H'
+    spect_info = {"nbins": 800,
+                  "emin": 1E-5,
+                  "emax": 1E3}
+    emin_log = math.log10(spect_info["emin"])
+    emax_log = math.log10(spect_info["emax"])
+    nbins = spect_info["nbins"]
+    delog = (emax_log - emin_log) / nbins
+    emin_log = emin_log - delog
+    emax_log = emax_log - delog
+    elog = np.logspace(emin_log, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[:-1] + elog[1:])
+    elog /= eth
+    elog_mid /= eth
+    nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    fdir = '../data/spectra/' + run_name + '/'
+    for tframe1 in range(tframe+1):
+        fname = fdir + 'spectrum-' + species.lower() + '.' + str(tframe1)
+        flog = np.fromfile(fname)
+        flog /= nptot
+        if species != 'e':
+            flog /= pic_info.mime
+        flog[0] = flog[1]  # remove spike at 0
+        color = plt.cm.Spectral_r((tframe1 - 0)/float(pic_info.ntf), 1)
+        p1, = ax.loglog(elog_mid, flog, linewidth=2, color=color)
+        if species == 'e':
+            ax.set_xlim([1E-1, 5E2])
+        else:
+            ax.set_xlim([1E-1, 1E3])
+        ax.set_ylim([1E-8, 1E2])
+        ax.tick_params(labelsize=8)
+        ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
+        ax.set_ylabel(r'$f(\varepsilon)$', fontsize=10)
+
+    fdir = '../img/img_high_mime/nrho/' + run_name + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'n' + species + '_' + str(tframe) + '.pdf'
+    fig.savefig(fname, dpi=300)
+    fname = fdir + 'n' + species + '_' + str(tframe) + '.jpg'
+    fig.savefig(fname, dpi=300)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_agyq_bg(plot_config, show_plot=True):
+    """Plot Q parameters defined by M. Swisdak to quantify the agyrotropy
+    """
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    bg = plot_config["bg"]
+    mimes = np.asarray([25, 100, 400])
+    # mimes = np.asarray([25])
+    dmins = np.asarray([0, 0, 0])
+    if species == 'e':
+        dmaxs = np.asarray([0.1, 0.1, 0.1])
+    else:
+        dmaxs = np.asarray([0.5, 0.5, 0.5])
+    lmins = np.copy(dmins)
+    lmaxs = np.copy(dmaxs)
+    fig = plt.figure(figsize=[3.5, 2.4])
+    rect0 = [0.15, 0.71, 0.72, 0.26]
+    rect = np.copy(rect0)
+    hgap, vgap = 0.022, 0.02
+    nmime, = mimes.shape
+    ng = 5
+    kernel = np.ones((ng,ng)) / float(ng*ng)
+    bg_str = str(int(bg * 10)).zfill(2)
+    qbins = np.logspace(-2, 0, 201)
+    qbins_mid = (qbins[:-1] + qbins[1:]) * 0.5
+    qbins_diff = np.diff(qbins)
+    qdist = []
+    qnorm = [1, 4, 16]
+    for imime, mime in enumerate(mimes):
+        run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        smime = math.sqrt(pic_info.mime)
+        dx = pic_info.dx_di * smime
+        dz = pic_info.dz_di * smime
+        tframe_shift = (tframe + 12) if mime != 400 else tframe
+        kwargs = {"current_time": tframe_shift,
+                  "xl": 0, "xr": pic_info.lx_di,
+                  "zb": -pic_info.lz_di*0.25, "zt": pic_info.lz_di*0.25}
+        fname = pic_info.run_dir + "data/p" + species + "-xx.gda"
+        x, z, pxx = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-xy.gda"
+        x, z, pxy = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-xz.gda"
+        x, z, pxz = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-yx.gda"
+        x, z, pyx = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-yy.gda"
+        x, z, pyy = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-yz.gda"
+        x, z, pyz = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-zx.gda"
+        x, z, pzx = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-zy.gda"
+        x, z, pzy = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/p" + species + "-zz.gda"
+        x, z, pzz = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/bx.gda"
+        x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/by.gda"
+        x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_info.run_dir + "data/bz.gda"
+        x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+        ib2 = 1.0 / (bx*bx + by*by + bz*bz)
+        ppara = (pxx * bx**2 + pyy * by**2 + pzz * bz**2 +
+                 (pxy + pyx) * bx * by +
+                 (pxz + pzx) * bx * bz +
+                 (pyz + pzy) * by * bz)
+        ppara = ppara * ib2
+        l1 = pxx + pyy + pzz
+        l2 = (pxx * pyy + pxx * pzz + pyy * pzz -
+              pxy * pyx - pxz * pzx - pyz * pzy)
+        q = 1 - 4 * l2 / ((l1 - ppara) * (l1 + 3 * ppara))
+        hist, bin_edges = np.histogram(q, bins=qbins)
+        qdist.append(hist / qnorm[imime])
+        # fname = pic_info.run_dir + "data/Ay.gda"
+        # x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+        ax = fig.add_axes(rect)
+        ax.tick_params(bottom=True, top=False, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        sizes = [x[0], x[-1], z[0], z[-1]]
+        p1 = ax.imshow(q, vmin=dmins[imime], vmax=dmaxs[imime],
+                       extent=sizes, cmap=plt.cm.viridis, aspect='auto',
+                       origin='lower', interpolation='bicubic')
+        # ax.contour(x, z, Ay, colors='k', linewidths=0.5)
+        ax.tick_params(labelsize=8)
+        if imime == len(mimes) - 1:
+            ax.set_xlabel(r'$x/d_i$', fontsize=10)
+        else:
+            ax.tick_params(axis='x', labelbottom='off')
+        ax.set_ylabel(r'$z/d_i$', fontsize=10)
+
+        if imime == 1:
+            rect_cbar = np.copy(rect)
+            rect_cbar[0] += rect[2] + hgap
+            rect_cbar[1] = rect[1] - vgap - rect[3] * 0.5
+            rect_cbar[2] = 0.02
+            rect_cbar[3] = rect[3] * 2 + vgap * 2
+            cbar_ax = fig.add_axes(rect_cbar)
+            cbar_ax.tick_params(bottom=True )
+            cbar_ax.tick_params(axis='y', which='minor', direction='in')
+            cbar_ax.tick_params(axis='y', which='major', direction='in')
+            cbar = fig.colorbar(p1, cax=cbar_ax)
+            cbar.set_ticks(np.linspace(lmins[imime], lmaxs[imime], num=6))
+            cbar.ax.xaxis.set_label_position('top')
+            cbar.ax.set_xlabel(r'$Q$', fontsize=10)
+            cbar.ax.tick_params(labelsize=8)
+        text1 = r'$m_i/m_e = ' + str(mime) + '$'
+        ax.text(0.03, 0.85, text1, color='w', fontsize=10,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left',
+                verticalalignment='center',
+                transform=ax.transAxes)
+        rect[1] -= rect0[3] + vgap
+
+    fdir = '../img/img_high_mime/Q/'
+    mkdir_p(fdir)
+    fname = fdir + 'q_' + species + '_' + bg_str + '_' + str(tframe) + '.pdf'
+    fig.savefig(fname, dpi=300)
+
+    fdir = '../data/data_high_mime/Q/'
+    mkdir_p(fdir)
+    fname = fdir + 'q_' + species + '_' + bg_str + '_' + str(tframe) + '.dat'
+    qdist = np.asarray(qdist)
+    qdist.tofile(fname)
+    # fig = plt.figure(figsize=[3.5, 2.4])
+    # rect = [0.15, 0.15, 0.8, 0.8]
+    # ax = fig.add_axes(rect)
+    # ax.loglog(qbins_mid, qdist[0]/qbins_diff, color=COLORS[0])
+    # ax.loglog(qbins_mid, qdist[1]/qbins_diff, color=COLORS[1])
+    # ax.loglog(qbins_mid, qdist[2]/qbins_diff, color=COLORS[2])
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_stacked_agyq(plot_config, show_plot=True):
+    """Plot stacked Q parameters defined by M. Swisdak
+    """
+    tframe = plot_config["tframe"]
+    tstart = plot_config["tstart"]
+    tend = plot_config["tend"]
+    species = plot_config["species"]
+    bg = plot_config["bg"]
+    mimes = np.asarray([25, 100, 400])
+    bg_str = str(int(bg * 10)).zfill(2)
+    nbins = 200
+    qbins = np.logspace(-2, 0, nbins + 1)
+    qbins_mid = (qbins[:-1] + qbins[1:]) * 0.5
+    qbins_diff = np.diff(qbins)
+    fdir = '../data/data_high_mime/Q/'
+    qdist = []
+    for tframe in range(tstart, tend + 1):
+        fname = (fdir + 'q_' + species + '_' + bg_str +
+                 '_' + str(tframe) + '.dat')
+        fdata = np.fromfile(fname)
+        fdata = fdata.reshape((-1, nbins)) / qbins_diff
+        qdist.append(fdata)
+
+    qdist = np.asarray(qdist)
+    tframes = np.linspace(tstart, tend + 1, tend - tstart + 1)
+    tframes_new = np.linspace(tstart, tend + 1, (tend - tstart)*10 + 1)
+    qbins_new = np.logspace(-2, 0, nbins*10 + 1)
+    qbins_mid_new = (qbins_new[:-1] + qbins_new[1:]) * 0.5
+
+    fig = plt.figure(figsize=[3.5, 2.4])
+    rect = [0.13, 0.15, 0.74, 0.8]
+    hgap, vgap = 0.02, 0.02
+    vmin, vmax = 1E-1, 1E1
+    fdata = div0(qdist[:, 2, :], qdist[:, 0, :]).T
+    fdata[fdata == 0.0] = 1.0
+    f = interp2d(tframes, qbins_mid, fdata, kind='cubic')
+    fdata_new = f(tframes_new, qbins_mid_new)
+    Xn, Yn = np.meshgrid(tframes_new, qbins_mid_new)
+    ax = fig.add_axes(rect)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in', top='on')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_yscale('log')
+    img = ax.pcolormesh(Xn, Yn, fdata_new,
+                        cmap=plt.cm.seismic,
+                        norm = LogNorm(vmin=vmin, vmax=vmax))
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=10)
+    # rect_cbar = np.copy(rect)
+    # rect_cbar[0] += rect[2] + hgap
+    # rect_cbar[2] = 0.02
+    # cbar_ax = fig.add_axes(rect_cbar)
+    # cbar_ax.tick_params(right=True)
+    # cbar = fig.colorbar(img, cax=cbar_ax, orientation='vertical',
+    #                     extend='both')
+    # cbar.set_ticks(np.linspace(vmin, vmax, 5))
+    # cbar.ax.tick_params(labelsize=8)
+    plt.show()
 
 
 def fluid_energization(mime, bg, species, show_plot=True):
@@ -660,13 +2652,13 @@ def fluid_energization_mime(bg, species, show_plot=True):
     COLORS = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
     bg_str = str(int(bg * 10)).zfill(2)
     mimes = [25, 100, 400]
-    fig1 = plt.figure(figsize=[7, 12])
+    fig1 = plt.figure(figsize=[3.5, 6])
     box1 = [0.15, 0.66, 0.8, 0.27]
     axs1 = []
-    fig2 = plt.figure(figsize=[7, 12])
+    fig2 = plt.figure(figsize=[3.5, 6])
     box2 = [0.15, 0.66, 0.8, 0.27]
     axs2 = []
-    fig3 = plt.figure(figsize=[7, 12])
+    fig3 = plt.figure(figsize=[3.5, 6])
     box3 = [0.15, 0.66, 0.8, 0.27]
     axs3 = []
     tshift = 12
@@ -741,7 +2733,7 @@ def fluid_energization_mime(bg, species, show_plot=True):
         acc_drift_dote[-1] = acc_drift_dote[-2]
 
         jperp_dote = curv_drift_dote + grad_drift_dote + magnetization_dote
-        jagy_dote = ptensor_ene - jperp_dote
+        jagy_dote = ptensor_ene - pgyro_ene
         if species == 'e':
             dkene = pic_info.dkene_e
             kene = pic_info.kene_e
@@ -760,115 +2752,130 @@ def fluid_energization_mime(bg, species, show_plot=True):
         ax.set_prop_cycle('color', COLORS)
         label1 = (r'$\boldsymbol{j}_{' + species + '\parallel}' +
                   r'\cdot\boldsymbol{E}_\parallel$')
-        ax.plot(tfields, epara_ene, linewidth=2, label=label1)
+        ax.plot(tfields, epara_ene, linewidth=1, label=label1)
         label2 = (r'$\boldsymbol{j}_{' + species + '\perp}' +
                   r'\cdot\boldsymbol{E}_\perp$')
-        ax.plot(tfields, eperp_ene, linewidth=2, label=label2)
+        ax.plot(tfields, eperp_ene, linewidth=1, label=label2)
         label3 = r'$(\nabla\cdot\tensorsym{P}_' + species + r')\cdot\boldsymbol{v}_E$'
-        ax.plot(tfields, ptensor_ene, linewidth=2, label=label3)
+        ax.plot(tfields, ptensor_ene, linewidth=1, label=label3)
         label4 = (r'$\boldsymbol{j}_{' + species + r'-\text{agy}}' +
                   r'\cdot\boldsymbol{E}_\perp$')
-        # ax.plot(tfields, jagy_dote, linewidth=2, label=label4)
+        # ax.plot(tfields, jagy_dote, linewidth=1, label=label4)
         # label5 = (r'$\boldsymbol{j}_{' + species + '\parallel}' +
         #           r'\cdot\boldsymbol{E}_\parallel + ' +
         #           r'\boldsymbol{j}_{' + species + '\perp}' +
         #           r'\cdot\boldsymbol{E}_\perp$')
-        # ax.plot(tfields, epara_ene + eperp_ene, linewidth=2, label=label5)
+        # ax.plot(tfields, epara_ene + eperp_ene, linewidth=1, label=label5)
         label6 = r'$dK_' + species + '/dt$'
-        ax.plot(tenergy, dkene, linewidth=2, label=label6)
+        ax.plot(tenergy, dkene, linewidth=1, label=label6)
         ax.plot([0, 100], [0, 0], linestyle='--', color='k')
         ax.set_xlim([0, 100])
         ax.set_ylim(ylim1)
-        ax.tick_params(labelsize=16)
+        ax.tick_params(labelsize=8)
         if mime == 400:
-            ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=20)
+            ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=10)
         else:
             xticks = ax.get_xticks()
             xticks_labels = [str(int(x + tshift)) for x in xticks]
             ax.set_xticklabels(xticks_labels)
-        ax.set_ylabel('Energization', fontdict=FONT, fontsize=20)
+        ax.set_ylabel('Energization', fontdict=FONT, fontsize=10)
         text1 = r'$m_i/m_e=' + str(mime) + '$'
-        ax.text(0.02, 0.9, text1, color='k', fontsize=20,
+        ax.text(0.02, 0.9, text1, color='k', fontsize=10,
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                 horizontalalignment='left', verticalalignment='center',
                 transform=ax.transAxes)
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
 
         ax = fig2.add_axes(box1)
         axs2.append(ax)
         ax.set_prop_cycle('color', COLORS)
-        ax.plot(tfields, curv_drift_dote, linewidth=2, label='Curvature')
-        # ax.plot(tfields, bulk_curv_dote, linewidth=2, label='Bulk Curvature')
-        ax.plot(tfields, grad_drift_dote, linewidth=2, label='Gradient')
-        ax.plot(tfields, magnetization_dote, linewidth=2, label='Magnetization')
-        ax.plot(tfields, acc_drift_dote, linewidth=2, label='Inertial')
+        ax.plot(tfields, curv_drift_dote, linewidth=1, label='Curvature')
+        # ax.plot(tfields, bulk_curv_dote, linewidth=1, label='Bulk Curvature')
+        ax.plot(tfields, grad_drift_dote, linewidth=1, label='Gradient')
+        ax.plot(tfields, magnetization_dote, linewidth=1, label='Magnetization')
+        ax.plot(tfields, acc_drift_dote, linewidth=1, label='Inertial')
         label2 = (r'$\boldsymbol{j}_{' + species + '\perp}' +
                   r'\cdot\boldsymbol{E}_\perp$')
-        ax.plot(tfields, eperp_ene, linewidth=2, label=label2)
+        ax.plot(tfields, eperp_ene, linewidth=1, label=label2)
         jdote_sum = (curv_drift_dote + grad_drift_dote +
                      magnetization_dote + jagy_dote + acc_drift_dote)
-        # ax.plot(tfields, jdote_sum, linewidth=2)
-        ax.tick_params(labelsize=16)
+        # ax.plot(tfields, jdote_sum, linewidth=1)
         ax.plot([0, 100], [0, 0], linestyle='--', color='k')
         ax.set_xlim([0, 100])
         ax.set_ylim(ylim2)
-        ax.tick_params(labelsize=16)
+        ax.tick_params(labelsize=8)
         if mime == 400:
-            ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=20)
+            ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=10)
         else:
             xticks = ax.get_xticks()
             xticks_labels = [str(int(x + tshift)) for x in xticks]
             ax.set_xticklabels(xticks_labels)
-        ax.set_ylabel('Energization', fontdict=FONT, fontsize=20)
+        ax.set_ylabel('Energization', fontdict=FONT, fontsize=10)
         text1 = r'$m_i/m_e=' + str(mime) + '$'
-        ax.text(0.02, 0.9, text1, color='k', fontsize=20,
+        ax.text(0.02, 0.9, text1, color='k', fontsize=10,
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                 horizontalalignment='left', verticalalignment='center',
                 transform=ax.transAxes)
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
 
         ax = fig3.add_axes(box1)
         axs3.append(ax)
         ax.set_prop_cycle('color', COLORS)
-        ax.plot(tfields, comp_ene, linewidth=2, label='Compression')
-        ax.plot(tfields, shear_ene, linewidth=2, label='Shear')
+        ax.plot(tfields, comp_ene, linewidth=1, label='Compression')
+        ax.plot(tfields, shear_ene, linewidth=1, label='Shear')
+        # label2 = (r'$\boldsymbol{j}_{' + species + '\perp}' +
+        #           r'\cdot\boldsymbol{E}_\perp -' + 'n_' + species +
+        #           'm_' + species + r'(d\boldsymbol{u}_' + species +
+        #           r'/dt)\cdot\boldsymbol{v}_E$')
         label2 = (r'$\boldsymbol{j}_{' + species + '\perp}' +
-                  r'\cdot\boldsymbol{E}_\perp -' + 'n_' + species +
-                  'm_' + species + r'(d\boldsymbol{u}_' + species +
-                  r'/dt)\cdot\boldsymbol{v}_E$')
-        ax.plot(tfields, eperp_ene - acc_drift_dote, linewidth=2, label=label2)
+                  r'\cdot\boldsymbol{E}_\perp -$' + 'inertial')
+        ax.plot(tfields, eperp_ene - acc_drift_dote, linewidth=1, label=label2)
         label4 = (r'$\boldsymbol{j}_{' + species + r'-\text{agy}}' +
                   r'\cdot\boldsymbol{E}_\perp$')
-        ax.plot(tfields, jagy_dote, linewidth=2, label=label4)
+        ax.plot(tfields, jagy_dote, linewidth=1, label=label4)
         # jdote_sum = comp_ene + shear_ene + jagy_dote
-        # ax.plot(tfields, jdote_sum, linewidth=2)
-        ax.tick_params(labelsize=16)
+        # ax.plot(tfields, jdote_sum, linewidth=1)
         ax.plot([0, 100], [0, 0], linestyle='--', color='k')
         ax.set_xlim([0, 100])
         ax.set_ylim(ylim3)
-        ax.tick_params(labelsize=16)
+        ax.tick_params(labelsize=8)
         if mime == 400:
-            ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=20)
+            ax.set_xlabel(r'$t\Omega_{ci}$', fontdict=FONT, fontsize=10)
         else:
             xticks = ax.get_xticks()
             xticks_labels = [str(int(x + tshift)) for x in xticks]
             ax.set_xticklabels(xticks_labels)
-        ax.set_ylabel('Energization', fontdict=FONT, fontsize=20)
+        ax.set_ylabel('Energization', fontdict=FONT, fontsize=10)
         text1 = r'$m_i/m_e=' + str(mime) + '$'
-        ax.text(0.02, 0.9, text1, color='k', fontsize=20,
+        ax.text(0.02, 0.9, text1, color='k', fontsize=10,
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                 horizontalalignment='left', verticalalignment='center',
                 transform=ax.transAxes)
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
 
         box1[1] -= box1[3] + 0.03
 
-    axs1[0].legend(loc='upper center', prop={'size': 20}, ncol=2,
+    axs1[0].legend(loc='upper center', prop={'size': 10}, ncol=2,
                    bbox_to_anchor=(0.5, 1.3),
                    shadow=False, fancybox=False, frameon=False,
                    columnspacing=0.1)
-    axs2[0].legend(loc='upper center', prop={'size': 20}, ncol=3,
+    axs2[0].legend(loc='upper center', prop={'size': 10}, ncol=3,
                    bbox_to_anchor=(0.5, 1.3),
                    shadow=False, fancybox=False, frameon=False,
                    columnspacing=0.2, handletextpad=0.1)
-    axs3[0].legend(loc='upper center', prop={'size': 20}, ncol=2,
+    axs3[0].legend(loc='upper center', prop={'size': 10}, ncol=2,
                    bbox_to_anchor=(0.5, 1.3),
                    shadow=False, fancybox=False, frameon=False,
                    columnspacing=0.1, handletextpad=0.1)
@@ -891,6 +2898,348 @@ def fluid_energization_mime(bg, species, show_plot=True):
         plt.show()
     else:
         plt.close('all')
+
+
+def get_cumsum_jdote(jdote, dt):
+    """
+    Return the cumulative sum of the jdote along time
+    """
+    jdote[0] = 0  # Make sure that it starts from 0
+    jdote_cum = np.cumsum(jdote) * dt
+    return jdote_cum
+
+
+def fluid_energization_fraction(species, show_plot=True):
+    """Plot fluid energization fraction
+
+    Args:
+        bg: guide-field strength
+        species: particle species
+    """
+    mimes = [25, 100, 400]
+    bgs = [0.0, 0.2, 0.4, 0.8]
+    jdotes_cum = np.zeros((22, len(mimes), len(bgs)))
+    tshift = 12
+    for imime, mime in enumerate(mimes):
+        for ibg, bg in enumerate(bgs):
+            bg_str = str(int(bg * 10)).zfill(2)
+            run_name = "mime" + str(mime) + "_beta002_bg" + bg_str
+            picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            tfields = pic_info.tfields
+            tenergy = pic_info.tenergy
+            dtf = pic_info.dt_fields * pic_info.dtwpe / pic_info.dtwci
+            if mime != 400:
+                tfields -= tshift
+                tenergy -= tshift
+            fname = "../data/fluid_energization/" + run_name + "/"
+            fname += "emf_ptensor_" + species + '.gda'
+            fluid_ene = np.fromfile(fname, dtype=np.float32)
+            nvar = int(fluid_ene[0])
+            nframes = int(fluid_ene[1])
+            curv_drift_dote = fluid_ene[2:nframes+2]
+            bulk_curv_dote = fluid_ene[nframes+2:2*nframes+2]
+            grad_drift_dote = fluid_ene[2*nframes+2:3*nframes+2]
+            magnetization_dote = fluid_ene[3*nframes+2:4*nframes+2]
+            comp_ene = fluid_ene[4*nframes+2:5*nframes+2]
+            shear_ene = fluid_ene[5*nframes+2:6*nframes+2]
+            ptensor_ene = fluid_ene[6*nframes+2:7*nframes+2]
+            pgyro_ene = fluid_ene[7*nframes+2:8*nframes+2]
+            para_drift_ene = fluid_ene[8*nframes+2:9*nframes+2]
+            mu_ene = fluid_ene[9*nframes+2:10*nframes+2]
+
+            curv_drift_dote_cum = get_cumsum_jdote(curv_drift_dote, dtf)
+            bulk_curv_dote_cum = get_cumsum_jdote(bulk_curv_dote, dtf)
+            grad_drift_dote_cum = get_cumsum_jdote(grad_drift_dote, dtf)
+            magnetization_dote_cum = get_cumsum_jdote(magnetization_dote, dtf)
+            comp_ene_cum = get_cumsum_jdote(comp_ene, dtf)
+            shear_ene_cum = get_cumsum_jdote(shear_ene, dtf)
+            ptensor_ene_cum = get_cumsum_jdote(ptensor_ene, dtf)
+            pgyro_ene_cum = get_cumsum_jdote(pgyro_ene, dtf)
+            para_drift_ene_cum = get_cumsum_jdote(para_drift_ene, dtf)
+            mu_ene_cum = get_cumsum_jdote(mu_ene, dtf)
+
+            curv_drift_dote_cum -= curv_drift_dote_cum[0]
+            bulk_curv_dote_cum -= bulk_curv_dote_cum[0]
+            grad_drift_dote_cum -= grad_drift_dote_cum[0]
+            magnetization_dote_cum -= magnetization_dote_cum[0]
+            comp_ene_cum -= comp_ene_cum[0]
+            shear_ene_cum -= shear_ene_cum[0]
+            ptensor_ene_cum -= ptensor_ene_cum[0]
+            pgyro_ene_cum -= pgyro_ene_cum[0]
+            para_drift_ene_cum -= para_drift_ene_cum[0]
+            mu_ene_cum -= mu_ene_cum[0]
+
+            fname = "../data/fluid_energization/" + run_name + "/"
+            fname += "para_perp_acc_" + species + '.gda'
+            fluid_ene = np.fromfile(fname, dtype=np.float32)
+            nvar = int(fluid_ene[0])
+            nframes = int(fluid_ene[1])
+            acc_drift_perp_dote_t = fluid_ene[2:nframes+2]
+            acc_drift_para_dote_t = fluid_ene[nframes+2:2*nframes+2]
+            acc_drift_perp_dote_s = fluid_ene[2*nframes+2:3*nframes+2]
+            acc_drift_para_dote_s = fluid_ene[3*nframes+2:4*nframes+2]
+            acc_drift_dote_t = acc_drift_para_dote_t + acc_drift_perp_dote_t
+            acc_drift_dote_s = acc_drift_para_dote_s + acc_drift_perp_dote_s
+            acc_drift_dote = acc_drift_dote_t + acc_drift_dote_s
+            epara_ene = fluid_ene[4*nframes+2:5*nframes+2]
+            eperp_ene = fluid_ene[5*nframes+2:6*nframes+2]
+            acc_drift_dote[-1] = acc_drift_dote[-2]
+
+            acc_drift_para_dote_t_cum = get_cumsum_jdote(acc_drift_para_dote_t, dtf)
+            acc_drift_perp_dote_t_cum = get_cumsum_jdote(acc_drift_perp_dote_t, dtf)
+            acc_drift_para_dote_s_cum = get_cumsum_jdote(acc_drift_para_dote_s, dtf)
+            acc_drift_perp_dote_s_cum = get_cumsum_jdote(acc_drift_perp_dote_s, dtf)
+            acc_drift_dote_t_cum = get_cumsum_jdote(acc_drift_dote_t, dtf)
+            acc_drift_dote_s_cum = get_cumsum_jdote(acc_drift_dote_s, dtf)
+            acc_drift_dote_cum = get_cumsum_jdote(acc_drift_dote, dtf)
+            epara_ene_cum = get_cumsum_jdote(epara_ene, dtf)
+            eperp_ene_cum = get_cumsum_jdote(eperp_ene, dtf)
+
+            acc_drift_para_dote_t_cum -= acc_drift_para_dote_t_cum[0]
+            acc_drift_perp_dote_t_cum -= acc_drift_perp_dote_t_cum[0]
+            acc_drift_para_dote_s_cum -= acc_drift_para_dote_s_cum[0]
+            acc_drift_perp_dote_s_cum -= acc_drift_perp_dote_s_cum[0]
+            acc_drift_dote_t_cum -= acc_drift_dote_t_cum[0]
+            acc_drift_dote_s_cum -= acc_drift_dote_s_cum[0]
+            acc_drift_dote_cum -= acc_drift_dote_cum[0]
+            epara_ene_cum -= epara_ene_cum[0]
+            eperp_ene_cum -= eperp_ene_cum[0]
+
+            jperp_dote = curv_drift_dote + grad_drift_dote + magnetization_dote
+            jagy_dote = ptensor_ene - pgyro_ene
+
+            jperp_dote_cum = get_cumsum_jdote(jperp_dote, dtf)
+            jagy_dote_cum = get_cumsum_jdote(jagy_dote, dtf)
+
+            jperp_dote_cum -= jperp_dote_cum[0]
+            jagy_dote_cum -= jagy_dote_cum[0]
+
+            if species == 'e':
+                dkene = pic_info.dkene_e
+                kene = pic_info.kene_e
+            else:
+                dkene = pic_info.dkene_i
+                kene = pic_info.kene_i
+            ene_mag = pic_info.ene_magnetic
+            tindex_e, te = find_nearest(tenergy, 100)
+            tindex_f, tf = find_nearest(tfields, 100)
+            jdotes_cum[0, imime, ibg] = curv_drift_dote_cum[tindex_f]
+            jdotes_cum[1, imime, ibg] = bulk_curv_dote_cum[tindex_f]
+            jdotes_cum[2, imime, ibg] = grad_drift_dote_cum[tindex_f]
+            jdotes_cum[3, imime, ibg] = magnetization_dote_cum[tindex_f]
+            jdotes_cum[4, imime, ibg] = comp_ene_cum[tindex_f]
+            jdotes_cum[5, imime, ibg] = shear_ene_cum[tindex_f]
+            jdotes_cum[6, imime, ibg] = ptensor_ene_cum[tindex_f]
+            jdotes_cum[7, imime, ibg] = pgyro_ene_cum[tindex_f]
+            jdotes_cum[8, imime, ibg] = para_drift_ene_cum[tindex_f]
+            jdotes_cum[9, imime, ibg] = mu_ene_cum[tindex_f]
+            jdotes_cum[10, imime, ibg] = acc_drift_para_dote_t_cum[tindex_f]
+            jdotes_cum[11, imime, ibg] = acc_drift_perp_dote_t_cum[tindex_f]
+            jdotes_cum[12, imime, ibg] = acc_drift_para_dote_s_cum[tindex_f]
+            jdotes_cum[13, imime, ibg] = acc_drift_perp_dote_s_cum[tindex_f]
+            jdotes_cum[14, imime, ibg] = acc_drift_dote_t_cum[tindex_f]
+            jdotes_cum[15, imime, ibg] = acc_drift_dote_s_cum[tindex_f]
+            jdotes_cum[16, imime, ibg] = acc_drift_dote_cum[tindex_f]
+            jdotes_cum[17, imime, ibg] = epara_ene_cum[tindex_f]
+            jdotes_cum[18, imime, ibg] = eperp_ene_cum[tindex_f]
+            jdotes_cum[19, imime, ibg] = jperp_dote_cum[tindex_f]
+            jdotes_cum[20, imime, ibg] = jagy_dote_cum[tindex_f]
+            jdotes_cum[-1, imime, ibg] = kene[tindex_e] - kene[0]
+
+    jdotes_cum[:-1, :] /= jdotes_cum[-1, :]
+
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    fig1 = plt.figure(figsize=[3.5, 5])
+    box1 = [0.12, 0.77, 0.83, 0.16]
+    vgap = 0.01
+    ax = fig1.add_axes(box1)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    for imime in range(len(mimes)):
+        ax.plot(bgs, jdotes_cum[17, imime, :],
+                linewidth=1, marker='o', markersize=4, color=COLORS[imime])
+        ax.plot(bgs, jdotes_cum[18, imime, :], linewidth=1, marker='x',
+                markersize=4, color=COLORS[imime])
+    ax.text(0.03, 0.6, r'$m_i/m_e=25$', color=COLORS[0], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.45, r'$m_i/m_e=100$', color=COLORS[1], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.text(0.03, 0.3, r'$m_i/m_e=400$', color=COLORS[2], fontsize=8,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    label1 = (r'$\boldsymbol{j}_{' + species + '\parallel}' +
+              r'\cdot\boldsymbol{E}_\parallel$')
+    label2 = (r'$\boldsymbol{j}_{' + species + '\perp}' +
+              r'\cdot\boldsymbol{E}_\perp$')
+    angle = -15 if species == 'e' else 0
+    ypos = 0.6 if species == 'e' else 0.67
+    ax.text(0.7, ypos, label2, color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    angle = 15 if species == 'e' else 0
+    ypos = 0.12 if species == 'e' else 0.25
+    ax.text(0.7, ypos, label1, color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.set_xlim([-0.05, 0.9])
+    ax.plot(ax.get_xlim(), [0, 0], linewidth=0.5, linestyle='--', color='k')
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=8)
+    sp = 'Electron' if species == 'e' else 'Ion'
+    label1 = sp + ' energization terms'
+    label1 += r'$/\Delta K_' + species + r'\text{ at }t\Omega_{ci}=100$'
+    ax.set_title(label1, fontsize=10)
+
+    box1[1] -= box1[3] + vgap
+    ax = fig1.add_axes(box1)
+    ax.set_prop_cycle('color', COLORS)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    for imime in range(len(mimes)):
+        ax.plot(bgs, jdotes_cum[4, imime, :],
+                linewidth=1, marker='x', markersize=4, color=COLORS[imime])
+        ax.plot(bgs, jdotes_cum[5, imime, :], linewidth=1, marker='o',
+                markersize=4, color=COLORS[imime])
+    ax.set_xlim([-0.05, 0.9])
+    ax.plot(ax.get_xlim(), [0, 0], linewidth=0.5, linestyle='--', color='k')
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=8)
+    angle = -11 if species == 'e' else -10
+    ypos = 0.45 if species == 'e' else 0.37
+    ax.text(0.6, ypos, 'compression', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    angle = -10 if species == 'e' else -8
+    ypos = 0.13 if species == 'e' else 0.15
+    ax.text(0.65, ypos, 'shear', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+
+    box1[1] -= box1[3] + vgap
+    ax = fig1.add_axes(box1)
+    ax.set_prop_cycle('color', COLORS)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    for imime in range(len(mimes)):
+        ax.plot(bgs, jdotes_cum[0, imime, :],
+                linewidth=1, marker='x', markersize=4, color=COLORS[imime])
+        ax.plot(bgs, jdotes_cum[2, imime, :], linewidth=1, marker='o',
+                markersize=4, color=COLORS[imime])
+    ax.set_xlim([-0.05, 0.9])
+    ax.plot(ax.get_xlim(), [0, 0], linewidth=0.5, linestyle='--', color='k')
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=8)
+    angle = -12 if species == 'e' else -5
+    ypos = 0.51 if species == 'e' else 0.4
+    ax.text(0.6, ypos, 'curvature', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    angle = -3 if species == 'e' else 0
+    ypos = 0.29 if species == 'e' else 0.15
+    ax.text(0.6, ypos, 'gradient', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    # label1 = r'Energization$/\Delta K_' + species + r'\text{ at }t\Omega_{ci}=100$'
+    # ax.text(-0.18, 0.5, label1, color='k', fontsize=10, rotation='vertical',
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='center',
+    #         transform=ax.transAxes)
+
+    box1[1] -= box1[3] + vgap
+    ax = fig1.add_axes(box1)
+    ax.set_prop_cycle('color', COLORS)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    for imime in range(len(mimes)):
+        ax.plot(bgs, jdotes_cum[3, imime, :],
+                linewidth=1, marker='o', markersize=4, color=COLORS[imime])
+        ax.plot(bgs, jdotes_cum[16, imime, :], linewidth=1, marker='x',
+                markersize=4, color=COLORS[imime])
+        # ax.plot(bgs, jdotes_cum[3, imime, :],
+        #         linewidth=1, marker='o', markersize=4, color=COLORS[imime])
+        # ax.plot(bgs, jdotes_cum[9, imime, :],
+        #         linewidth=1, marker='x', markersize=4, color=COLORS[imime])
+        # ax.plot(bgs, jdotes_cum[10, imime, :] + jdotes_cum[12, imime, :],
+        #         linewidth=1, marker='o', markersize=4, color=COLORS[imime])
+        # ax.plot(bgs, jdotes_cum[11, imime, :] + jdotes_cum[13, imime, :],
+        #         linewidth=1, marker='x', markersize=4, color=COLORS[imime])
+    ax.set_xlim([-0.05, 0.9])
+    ax.plot(ax.get_xlim(), [0, 0], linewidth=0.5, linestyle='--', color='k')
+    ax.tick_params(axis='x', labelbottom='off')
+    ax.tick_params(labelsize=8)
+    angle = 0 if species == 'e' else 15
+    ypos = 0.73 if species == 'e' else 0.68
+    ax.text(0.6, ypos, 'inertial', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    angle = 6 if species == 'e' else 0
+    ypos = 0.32 if species == 'e' else 0.2
+    ax.text(0.6, ypos, 'magnetization', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+
+    box1[1] -= box1[3] + vgap
+    ax = fig1.add_axes(box1)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_prop_cycle('color', COLORS)
+    for imime in range(len(mimes)):
+        ax.plot(bgs, jdotes_cum[20, imime, :],
+                linewidth=1, marker='o', markersize=4, color=COLORS[imime])
+        ax.plot(bgs, jdotes_cum[7, imime, :],
+                linewidth=1, marker='x', markersize=4, color=COLORS[imime])
+    ax.set_xlim([-0.05, 0.9])
+    ax.plot(ax.get_xlim(), [0, 0], linewidth=0.5, linestyle='--', color='k')
+    ax.tick_params(labelsize=8)
+    ax.set_xlabel(r'$B_g/B_0$', fontdict=FONT, fontsize=10)
+    angle = -16 if species == 'e' else -14
+    xpos = 0.65 if species == 'e' else 0.2
+    ypos = 0.55 if species == 'e' else 0.6
+    ax.text(xpos, ypos, 'gyrotropic', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    angle = -3 if species == 'e' else 12
+    xpos = 0.65 if species == 'e' else 0.1
+    ypos = 0.18 if species == 'e' else 0.25
+    ax.text(xpos, ypos, 'agyrotropic', color='k', fontsize=8, rotation=angle,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+    fdir = '../img/img_high_mime/'
+    mkdir_p(fdir)
+    fname = fdir + 'fluid_ene_' + species + '.pdf'
+    fig1.savefig(fname)
+    plt.show()
 
 
 def bulk_internal_energy(bg, species, show_plot=True):
@@ -1405,14 +3754,15 @@ def model_energization(run_name, species, tframe, show_plot=True):
         plt.close()
 
 
-def particle_energization2(run_name, species, tframe):
+def particle_energization2(plot_config):
     """Particle-based energization
-
-    Args:
-        run_name: PIC simulation run name
-        species: particle species
-        tframe: time frame
     """
+    mime = plot_config["mime"]
+    bg = plot_config["bg"]
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    bg_str = str(int(bg * 10)).zfill(2)
+    run_name = "mime" + str(mime) + "_beta002_" + "bg" + bg_str
     fpath = "../data/particle_interp/" + run_name + "/"
     picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
@@ -1610,6 +3960,392 @@ def particle_energization2(run_name, species, tframe):
     plt.show()
 
 
+def read_particle_energization(run_name, species, tindex):
+    """
+    The data format in the particle energization file:
+         0. Particle energy bins
+         1. Particle number
+         2. Energization due to parallel electric field
+         3. Energization due to perpendicular electric field
+         4. Compression energization
+         5. Shear energization
+         6. Curvature drift acceleration
+         7. Gradient drift acceleration
+         8. Parallel drift acceleration
+         9. Energization due to the conservation of magnetic moment
+        10. Polarization drift acceleration (time)
+        11. Polarization drift acceleration (spatial)
+        12. Inertial drift acceleration (time)
+        13. Inertial drift acceleration (spatial)
+        14. Polarization drift in fluid form (time)
+        15. Polarization drift in fluid form (spatial)
+        16. Polarization drift using v instead of u (time)
+        17. Polarization drift using v instead of u (spatial)
+        18. Energization due to whole pressure tensor
+    """
+    fpath = "../data/particle_interp/" + run_name + "/"
+    fname = (fpath + "particle_energization_" + species +
+             "_" + str(tindex) + ".gda")
+    fdata = np.fromfile(fname, dtype=np.float32)
+    # The first two numbers are number of bins and variables
+    nbins = int(fdata[0])
+    nvar = int(fdata[1])
+    ebins = fdata[2:nbins+2]
+    fbins = fdata[nbins+2:].reshape((nvar, nbins))
+    return (ebins, fbins)
+
+
+def particle_energization_bg(plot_config):
+    """Particle-based energization for simulations with the same guide field
+    """
+    mime = plot_config["mime"]
+    bg = plot_config["bg"]
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    bg_str = str(int(bg * 10)).zfill(2)
+    mimes = [25, 100, 400]
+    fig = plt.figure(figsize=[8, 3])
+    rect = [0.08, 0.17, 0.28, 0.78]
+    hgap, vgap = 0.02, 0.02
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    colors = np.copy(COLORS)
+    colors[-1] = colors[5]
+    colors[5] = COLORS[-1]
+    pene = []
+    tstart, tend = 5, 10
+    nframes = tend - tstart + 1
+    for imime, mime in enumerate(mimes):
+        ax = fig.add_axes(rect)
+        run_name = "mime" + str(mime) + "_beta002_" + "bg" + bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        ntp = int(pic_info.ntp)
+        fnorm = 1E-3 * 25 / mime
+        pene_frame = []
+        for tframe in range(tstart, tend + 1):
+            tstep = tframe * pic_info.particle_interval
+            ebins, fbins = read_particle_energization(run_name, species, tstep)
+            nvar, nbins = fbins.shape
+            # ebins = ebins[1::4]
+            # fbins = fbins[:, 1:].reshape((-1, nbins//4, 4)).sum(axis=2)
+
+            if species == 'i':
+                ebins *= pic_info.mime  # ebins are actually gamma
+            if species == 'e':
+                fbins[1:, :] = div0(fbins[1:, :], fbins[0, :])
+            else:
+                fbins[1:, :] = div0(fbins[1:, :], fbins[0, :] * pic_info.mime)
+            ebins_new = np.logspace(math.log10(ebins.min()),
+                                    math.log10(ebins.max()),
+                                    4*(nbins - 1) + 1)
+            ebins_new[0] = ebins[0]
+            ebins_new[-1] = ebins[-1]
+            nbins, = ebins_new.shape
+            fbins_new = np.zeros((nvar, nbins))
+            for ivar in range(nvar-1):
+                f = interp1d(ebins, fbins[ivar+1, :], kind='quadratic')
+                fbins_new[ivar+1, :] = f(ebins_new)
+            ebins = ebins_new
+            fbins = fbins_new
+
+            # normalized with thermal energy
+            if species == 'e':
+                vth = pic_info.vthe
+            else:
+                vth = pic_info.vthi
+            gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+            eth = gama - 1.0
+            if species == 'i':
+                eth *= pic_info.mime
+            ebins /= eth
+
+            eindex, ene0 = find_nearest(ebins, 100)
+
+            # color = plt.cm.jet((tframe - tstart)/float(nframes), 1)
+            color = colors[tframe - tstart]
+            fdata = np.copy(fbins[2, :])
+            fdata /= fnorm
+            pene_frame.append(fbins/fnorm)
+            ax.semilogx(ebins, fdata, color=color, marker='o',
+                        markersize=3, linestyle='-')
+            # ax.semilogx(ebins, fdata, color=color, linewidth=3)
+
+        pene.append(pene_frame)
+        ax.plot([1, 100], [0, 0], color='k', linestyle='--', linewidth=0.5)
+        ax.set_xlim([1, 100])
+        ax.set_ylim([-1, 3])
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.tick_params(labelsize=12)
+        ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$',
+                      fontdict=FONT, fontsize=16)
+        if imime == 0:
+            ax.set_ylabel('Acceleration rate', fontsize=16)
+        else:
+            ax.tick_params(axis='y', labelleft='off')
+
+        rect[0] += rect[2] + hgap
+    plt.close()
+    pene = np.asarray(pene)
+    fig = plt.figure(figsize=[14, 10])
+    rect0 = [0.07, 0.77, 0.22, 0.21]
+    hgap, vgap = 0.01, 0.02
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    tframes = range(tstart, tend + 1)
+    eindex1, ene1 = find_nearest(ebins, 10)
+    eindex2, ene2 = find_nearest(ebins, 200)
+    elog = ebins[eindex1:eindex2+1]
+    ivar = 2
+    mime_index = [1, 0, 2]
+    texts = ["parallel E", "perpendicular E", "compression", "shear",
+             "curvature", "gradient", "parallel drift", "magnetic moment",
+             "polarization-t", "polarization-s", "inertial-t", "inertial-s",
+             "polarization-ft", "polarization-fs",
+             "polarization-vt", "polarization-vs"]
+    for ivar in range(1, nvar-1):
+        if ivar % 4 == 1:
+            rect = np.copy(rect0)
+        ax = fig.add_axes(rect)
+        for imime in mime_index:
+            ts = 1 if imime == 2 else 2
+            fmin_var = np.min(pene[imime, ts:, ivar, eindex1:eindex2+1], axis=0)
+            fmax_var = np.max(pene[imime, ts:, ivar, eindex1:eindex2+1], axis=0)
+            ax.fill_between(elog, fmin_var, fmax_var,
+                            where=fmax_var >= fmin_var,
+                            facecolor=COLORS[imime], interpolate=True,
+                            alpha=0.8-imime*0.25)
+        ax.set_xscale("log")
+        ax.set_xlim([elog.min(), elog.max()])
+        ax.set_ylim([-3, 5])
+        ax.plot(ax.get_xlim(), [0, 0],
+                linewidth=1.0, linestyle='--', color='k')
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.text(0.05, 0.05, texts[ivar-1], color='k', fontsize=12,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+        if (ivar - 1) // 4 == 3:
+            ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=16)
+        else:
+            ax.tick_params(axis='x', labelbottom='off')
+        if ivar % 4 == 1:
+            ax.set_ylabel('Acceleration rate', fontsize=16)
+        else:
+            ax.tick_params(axis='y', labelleft='off')
+        rect[0] += rect[2] + hgap
+        if ivar % 4 == 3:
+            rect0[1] -= rect0[3] + vgap
+    fdir = '../img/img_high_mime/pene_terms/'
+    mkdir_p(fdir)
+    fname = fdir + 'pene_' + species + '_' + bg_str + '.pdf'
+    fig.savefig(fname)
+    plt.show()
+
+
+def particle_energization_sample(plot_config):
+    """Particle-based energization samples
+    """
+    mime = plot_config["mime"]
+    bg = plot_config["bg"]
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    bg_str = str(int(bg * 10)).zfill(2)
+    mimes = [25, 100, 400]
+    fig = plt.figure(figsize=[7, 3.5])
+    rect0 = [0.12, 0.68, 0.27, 0.24]
+    hgap, vgap = 0.02, 0.03
+    tframes = np.asarray([4, 6, 8, 10])
+    nframes = len(tframes)
+    for imime, mime in enumerate(mimes):
+        if mime != 400:
+            colors = np.copy(COLORS)
+            colors[-1] = colors[5]
+            colors[5] = COLORS[-1]
+        else:
+            colors = palettable.tableau.ColorBlind_10.mpl_colors
+        run_name = "mime" + str(mime) + "_beta002_" + "bg" + bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        ntp = int(pic_info.ntp)
+        fnorm = 1.0 / mime
+        pene_frame = []
+        # tframes = np.asarray(range(tstart, tend + 1, 1))
+        if mime == 400:
+            tframes -= 1
+            tframes[0] = 2
+        for iframe, tframe in enumerate(tframes):
+            tstep = tframe * pic_info.particle_interval
+            ebins, fbins = read_particle_energization(run_name, species, tstep)
+            nvar, nbins = fbins.shape
+            # ebins = ebins[1::4]
+            # fbins = fbins[:, 1:].reshape((-1, nbins//4, 4)).sum(axis=2)
+
+            if species == 'i':
+                ebins *= pic_info.mime  # ebins are actually gamma
+            if species == 'e':
+                fbins[1:, :] = div0(fbins[1:, :], fbins[0, :])
+            else:
+                fbins[1:, :] = div0(fbins[1:, :], fbins[0, :] * pic_info.mime)
+            ebins_new = np.logspace(math.log10(ebins.min()),
+                                    math.log10(ebins.max()),
+                                    4*(nbins - 1) + 1)
+            ebins_new[0] = ebins[0]
+            ebins_new[-1] = ebins[-1]
+            nbins_new, = ebins_new.shape
+            fbins_new = np.zeros((nvar, nbins_new))
+            for ivar in range(nvar-1):
+                f = interp1d(ebins, fbins[ivar+1, :], kind='quadratic')
+                fbins_new[ivar+1, :] = f(ebins_new)
+            # ebins = ebins_new
+            # fbins = fbins_new
+            # nbins = nbins_new
+
+            # normalized with thermal energy
+            if species == 'e':
+                vth = pic_info.vthe
+            else:
+                vth = pic_info.vthi
+            gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+            eth = gama - 1.0
+            if species == 'i':
+                eth *= pic_info.mime
+            ebins /= eth
+
+            eindex, ene0 = find_nearest(ebins, 100)
+
+            pene_frame.append(fbins/fnorm)
+
+        pene_frame = np.asarray(pene_frame)
+        rect = np.copy(rect0)
+        if species == 'e':
+            var = [[1], [2], [5]]
+            texts = [r'$E_\parallel$', r'$E_\perp$', 'Curvature']
+        else:
+            var = [[11, 12], [13, 14], [5]]
+            texts = ["Inertial'", 'Polarization', 'Curvature']
+
+        for ivar, var_indices in enumerate(var):
+            ax = fig.add_axes(rect)
+            for iframe, tframe in enumerate(tframes):
+                color = colors[iframe]
+                flog = np.zeros(nbins)
+                for var_index in var_indices:
+                    flog += pene_frame[iframe, var_index, :]
+                ax.semilogx(ebins, flog, color=color,
+                            linestyle='-', linewidth=1.0)
+
+            ax.plot([1, 200], [0, 0], color='k', linestyle='--', linewidth=0.5)
+            ax.set_xlim([1, 200])
+            if species == 'i':
+                if bg_str == '00':
+                    ax.set_ylim([-0.05, 0.08])
+                elif bg_str == '02':
+                    ax.set_ylim([-0.05, 0.06])
+                elif bg_str == '04':
+                    ax.set_ylim([-0.05, 0.05])
+                else:
+                    ax.set_ylim([-0.05, 0.05])
+            else:
+                if bg_str == '00':
+                    ax.set_ylim([-0.03, 0.08])
+                elif bg_str == '02':
+                    ax.set_ylim([-0.03, 0.08])
+                elif bg_str == '04':
+                    ax.set_ylim([-0.03, 0.08])
+                else:
+                    ax.set_ylim([-0.03, 0.08])
+            ax.tick_params(bottom=True, top=True, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            ax.tick_params(labelsize=8)
+            if ivar == len(var) - 1:
+                ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$',
+                              fontdict=FONT, fontsize=10)
+            else:
+                ax.tick_params(axis='x', labelbottom='off')
+
+            if imime == 0:
+                ax.set_ylabel(r'$\alpha/\Omega_{ci}$', fontsize=10)
+            else:
+                ax.tick_params(axis='y', labelleft='off')
+            if ivar == 0:
+                title = r"$m_i/m_e=" + str(mime) + "$"
+                ax.set_title(title, fontsize=10)
+            if imime == 0:
+                ax.text(-0.39, 0.5, texts[ivar], color='k', fontsize=10,
+                        rotation='vertical',
+                        bbox=dict(facecolor='none', alpha=1.0,
+                                  edgecolor='none', pad=10.0),
+                        horizontalalignment='left', verticalalignment='center',
+                        transform=ax.transAxes)
+
+            if imime == 0 and ivar == 0:
+                rect_cbar = np.copy(rect)
+                rect_cbar[0] += hgap * 0.5
+                rect_cbar[1] = rect[1] + rect[3] * 0.8
+                rect_cbar[2] = rect[2] * 0.4
+                rect_cbar[3] = 0.02
+                cax = fig.add_axes(rect_cbar)
+                Set1_4 = palettable.colorbrewer.qualitative.Set1_4.mpl_colors
+                cmap = mpl.colors.ListedColormap(Set1_4)
+                tmin = 30
+                tmax = 110
+                sm = plt.cm.ScalarMappable(cmap=cmap,
+                                           norm=plt.Normalize(vmin=tmin,
+                                                              vmax=tmax))
+                cax.tick_params(axis='x', which='major', direction='in')
+                sm._A = []
+                cbar = fig.colorbar(sm, cax=cax, orientation='horizontal')
+                cbar.ax.yaxis.set_label_position('right')
+                cbar.ax.set_ylabel(r'$t\Omega_{ci}$', fontsize=8,
+                                   rotation=0, labelpad=10)
+                cbar.set_ticks([40, 60, 80, 100])
+                cbar.ax.tick_params(labelsize=8)
+
+            if imime == 2 and ivar == 0:
+                rect_cbar = np.copy(rect)
+                rect_cbar[0] += hgap * 0.5
+                rect_cbar[1] = rect[1] + rect[3] * 0.8
+                rect_cbar[2] = rect[2] * 0.4
+                rect_cbar[3] = 0.02
+                cax = fig.add_axes(rect_cbar)
+                ColorBlind_10 = palettable.tableau.ColorBlind_10.mpl_colors
+                cmap = mpl.colors.ListedColormap(ColorBlind_10[:4])
+                tmin = 20
+                tmax = 100
+                sm = plt.cm.ScalarMappable(cmap=cmap,
+                                           norm=plt.Normalize(vmin=tmin,
+                                                              vmax=tmax))
+                cax.tick_params(axis='x', which='major', direction='in')
+                sm._A = []
+                cbar = fig.colorbar(sm, cax=cax, orientation='horizontal')
+                cbar.ax.yaxis.set_label_position('right')
+                cbar.ax.set_ylabel(r'$t\Omega_{ci}$', fontsize=8,
+                                   rotation=0, labelpad=10)
+                cbar.set_ticks([30, 50, 70, 90])
+                cbar.set_ticklabels([20, 50, 70, 90])
+                cbar.ax.tick_params(labelsize=8)
+            rect[1] -= rect[3] + vgap
+
+        rect0[0] += rect0[2] + hgap
+
+    fdir = '../img/img_high_mime/pene_evolve/'
+    mkdir_p(fdir)
+    fname = fdir + 'pene_' + species + '_' + bg_str + '.pdf'
+    fig.savefig(fname)
+    plt.show()
+
+
 def fluid_energization_multi(species):
     """Plot fluid energization for multiple runs
     """
@@ -1655,14 +4391,26 @@ def get_cmd_args():
                         help='whether plotting reconnection rate')
     parser.add_argument('--ene_evol', action="store_true", default=False,
                         help='whether plotting energy evolution')
+    parser.add_argument('--ene_conv', action="store_true", default=False,
+                        help='whether calculating energy conversion rate')
+    parser.add_argument('--iene_conv', action="store_true", default=False,
+                        help='whether calculating internal energy conversion rate')
     parser.add_argument('--ene_part', action="store_true", default=False,
                         help='whether plotting energy partition')
     parser.add_argument('--plot_jy', action="store_true", default=False,
                         help='whether plotting jy')
+    parser.add_argument('--plot_va', action="store_true", default=False,
+                        help='whether plotting the Alfven speed')
+    parser.add_argument('--plot_anisotropy', action="store_true", default=False,
+                        help='whether plotting pressure anisotropy')
     parser.add_argument('--fluid_energization', action="store_true", default=False,
                         help='whether plotting fluid energization terms')
     parser.add_argument('--particle_energization', action="store_true", default=False,
                         help='whether plotting particle energization terms')
+    parser.add_argument('--pene_bg', action="store_true", default=False,
+                        help='whether plotting particle energization for the same bg')
+    parser.add_argument('--pene_sample', action="store_true", default=False,
+                        help='whether plotting particle energization samples')
     parser.add_argument('--para_perp', action="store_true", default=False,
                         help='whether plotting particle energization due to' +
                         ' parallel and perpendicular electric field')
@@ -1677,16 +4425,36 @@ def get_cmd_args():
                         ' different models')
     parser.add_argument('--fluid_ene_mime', action="store_true", default=False,
                         help='whether plotting fluid energization for different mime')
+    parser.add_argument('--fluid_ene_frac', action="store_true", default=False,
+                        help='whether plotting fluid energization fraction')
     parser.add_argument('--bulk_internal', action="store_true", default=False,
                         help='whether plotting bulk and internal energy')
     parser.add_argument('--iene_evol', action="store_true", default=False,
                         help='whether plotting internal energy evolution')
     parser.add_argument('--iene_part', action="store_true", default=False,
                         help='whether plotting internal energy partition')
+    parser.add_argument('--espect_early', action="store_true", default=False,
+                        help='whether plotting energy spectrum early in the simulation')
+    parser.add_argument('--stacked_spect', action="store_true", default=False,
+                        help='whether plotting stacked energy spectrum')
+    parser.add_argument('--evolve_spect', action="store_true", default=False,
+                        help='whether plotting evolving energy spectrum')
+    parser.add_argument('--plot_ene2d', action="store_true", default=False,
+                        help='whether plotting 2D energization terms')
+    parser.add_argument('--plot_agyq', action="store_true", default=False,
+                        help='whether plotting Q agyrotropy parameter')
+    parser.add_argument('--plot_agyq_bg', action="store_true", default=False,
+                        help='whether plotting Q agyrotropy parameter for a single Bg')
+    parser.add_argument('--plot_temp', action="store_true", default=False,
+                        help='whether plotting plasma temperature')
+    parser.add_argument('--plot_nrho', action="store_true", default=False,
+                        help='whether plotting electron density')
+    parser.add_argument('--stacked_agyq', action="store_true", default=False,
+                        help='whether plotting stacked Q agyrotropy parameter')
     return parser.parse_args()
 
 
-def analysis_single_frame(args):
+def analysis_single_frame(plot_config, args):
     """Analysis for single time frame
     """
     if args.multi_runs:
@@ -1699,15 +4467,27 @@ def analysis_single_frame(args):
     else:
         if args.ene_evol:
             energy_evolution(args.bg)
+        if args.ene_conv:
+            energy_conversion()
+        if args.iene_conv:
+            internal_energy_conversion()
         if args.ene_part:
             energy_partition(args.bg)
         if args.plot_jy:
             plot_jy(args.tframe, show_plot=True)
+        if args.plot_va:
+            plot_va(args.tframe, show_plot=True)
+        if args.plot_anisotropy:
+            plot_pressure_anisotropy(plot_config, show_plot=True)
         if args.fluid_energization:
             fluid_energization(args.mime, args.bg,
                                args.species, show_plot=True)
         if args.particle_energization:
-            particle_energization2(args.run_name, args.species, args.tframe)
+            particle_energization2(plot_config)
+        if args.pene_bg:
+            particle_energization_bg(plot_config)
+        if args.pene_sample:
+            particle_energization_sample(plot_config)
         if args.para_perp:
             para_perp_energization(args.run_name, args.species, args.tframe)
         if args.comp_shear:
@@ -1718,21 +4498,53 @@ def analysis_single_frame(args):
             model_energization(args.run_name, args.species, args.tframe)
         if args.fluid_ene_mime:
             fluid_energization_mime(args.bg, args.species, show_plot=True)
+        if args.fluid_ene_frac:
+            fluid_energization_fraction(args.species, show_plot=True)
         if args.bulk_internal:
             bulk_internal_energy(args.bg, args.species, show_plot=True)
         if args.iene_evol:
             internal_energy_evolution(args.bg)
         if args.iene_part:
             internal_energy_partition(args.bg)
+        if args.espect_early:
+            energy_spectrum_early(args.bg, args.species, args.tframe)
+        if args.stacked_spect:
+            stacked_spectrum(args.species, args.tframe)
+        if args.evolve_spect:
+            evolving_spectrum(args.species, args.tframe)
+        if args.plot_ene2d:
+            plot_ene2d(plot_config)
+        if args.plot_agyq:
+            plot_agyq(plot_config)
+        if args.plot_temp:
+            plot_temp(plot_config)
+        if args.plot_nrho:
+            plot_nrho(plot_config)
+        if args.plot_agyq_bg:
+            plot_agyq_bg(plot_config)
+        if args.stacked_agyq:
+            plot_stacked_agyq(plot_config)
 
 
-def process_input(args, tframe):
+def process_input(args, plot_config, tframe):
     """process one time frame"""
+    plot_config["tframe"] = tframe
+    print("Time frame %d" % tframe)
     if args.plot_jy:
         plot_jy(tframe, show_plot=False)
+    elif args.espect_early:
+        energy_spectrum_early(args.bg, args.species, tframe, show_plot=False)
+    elif args.plot_agyq_bg:
+        plot_agyq_bg(plot_config, show_plot=False)
+    elif args.plot_anisotropy:
+        plot_pressure_anisotropy(plot_config, show_plot=False)
+    elif args.plot_temp:
+        plot_temp(plot_config, show_plot=False)
+    elif args.plot_nrho:
+        plot_nrho(plot_config, show_plot=False)
 
 
-def analysis_multi_frames(args):
+def analysis_multi_frames(plot_config, args):
     """Analysis for multiple time frames
     """
     tframes = range(args.tstart, args.tend + 1)
@@ -1753,17 +4565,26 @@ def analysis_multi_frames(args):
     else:
         ncores = multiprocessing.cpu_count()
         ncores = 8
-        Parallel(n_jobs=ncores)(delayed(process_input)(args, tframe)
+        Parallel(n_jobs=ncores)(delayed(process_input)(args, plot_config, tframe)
                                 for tframe in tframes)
 
 
 def main():
     """business logic for when running this module as the primary one!"""
     args = get_cmd_args()
+    plot_config = {}
+    plot_config["pic_run"] = args.run_name
+    plot_config["pic_run_dir"] = args.run_dir
+    plot_config["tframe"] = args.tframe
+    plot_config["tstart"] = args.tstart
+    plot_config["tend"] = args.tend
+    plot_config["species"] = args.species
+    plot_config["bg"] = args.bg
+    plot_config["mime"] = args.mime
     if args.multi_frames:
-        analysis_multi_frames(args)
+        analysis_multi_frames(plot_config, args)
     else:
-        analysis_single_frame(args)
+        analysis_single_frame(plot_config, args)
 
 
 if __name__ == "__main__":
