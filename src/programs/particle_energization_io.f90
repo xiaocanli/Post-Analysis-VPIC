@@ -629,7 +629,7 @@ program particle_energization_io
             uz = ptl%vz
             gama = sqrt(1.0 + ux**2 + uy**2 + uz**2)
             igama = 1.0 / gama
-            iene = 1.0 / (gama - 1.0)
+            iene = 1.0 / ((gama - 1.0) * ptl_mass)
             vx = ux * igama
             vy = uy * igama
             vz = uz * igama
@@ -897,7 +897,7 @@ program particle_energization_io
                 ! Square of the acceleration rate
                 do ivar = 1, nvar - 1
                     fbins(ibin+1, ibinx+1, ivar+nvar) = &
-                        fbins(ibin+1, ibinx+1, ivar+nvar) + acc_rate(ivar+1)**2
+                        fbins(ibin+1, ibinx+1, ivar+nvar) + acc_rate(ivar+1)**2 / weight
                 enddo
 
                 ! Anisotropy
