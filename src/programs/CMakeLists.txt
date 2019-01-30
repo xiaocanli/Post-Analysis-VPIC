@@ -97,6 +97,11 @@ target_link_libraries(fluid_energization.exec ${MPI_Fortran_LIBRARIES}
     mpi_io_fields fields flap)
 install (TARGETS fluid_energization.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(temperature_anisotropy.exec temperature_anisotropy.f90)
+target_link_libraries(temperature_anisotropy.exec ${MPI_Fortran_LIBRARIES}
+    get_info translate_module particle_info mpi_setup mpi_io_fields fields flap)
+install (TARGETS temperature_anisotropy.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 add_executable(calc_vexb.exec calc_vexb.f90)
 target_link_libraries(calc_vexb.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module mpi_setup mpi_io_fields fields flap)

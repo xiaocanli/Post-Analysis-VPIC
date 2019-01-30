@@ -34,7 +34,8 @@ module pic_fields
     public free_magnetic_fields, free_electric_fields, free_current_densities, &
            free_pressure_tensor, free_velocity_fields, free_vfields, &
            free_ufields, free_number_density, free_fraction_eband
-    public interp_emf_node, interp_emf_node_ghost, shift_pressure_tensor, &
+    public interp_emf_node, interp_bfield_node, &
+           interp_emf_node_ghost, shift_pressure_tensor, &
            shift_ufields, shift_vfields, shift_number_density
     public interp_bfield_node_ghost
 
@@ -1394,6 +1395,34 @@ module pic_fields
             absB(:, :, 1:ht%nz) = absB(:, :, 2:ht%nz+1)
         endif
     end subroutine interp_emf_node
+
+    !<--------------------------------------------------------------------------
+    !< Linearly interpolate magnetic field to the node positions.
+    !< We don't calculate the fields at ghost cells. And we need to shift some
+    !< of the fields because they include ghost cell when they are read in.
+    !<--------------------------------------------------------------------------
+    subroutine interp_bfield_node
+        implicit none
+        call interp_bfield_node_ghost
+        if (ht%ix > 0) then
+            bx(1:ht%nx, :, :) = bx(2:ht%nx+1, :, :)
+            by(1:ht%nx, :, :) = by(2:ht%nx+1, :, :)
+            bz(1:ht%nx, :, :) = bz(2:ht%nx+1, :, :)
+            absB(1:ht%nx, :, :) = absB(2:ht%nx+1, :, :)
+        endif
+        if (ht%iy > 0) then
+            bx(:, 1:ht%ny, :) = bx(:, 2:ht%ny+1, :)
+            by(:, 1:ht%ny, :) = by(:, 2:ht%ny+1, :)
+            bz(:, 1:ht%ny, :) = bz(:, 2:ht%ny+1, :)
+            absB(:, 1:ht%ny, :) = absB(:, 2:ht%ny+1, :)
+        endif
+        if (ht%iz > 0) then
+            bx(:, :, 1:ht%nz) = bx(:, :, 2:ht%nz+1)
+            by(:, :, 1:ht%nz) = by(:, :, 2:ht%nz+1)
+            bz(:, :, 1:ht%nz) = bz(:, :, 2:ht%nz+1)
+            absB(:, :, 1:ht%nz) = absB(:, :, 2:ht%nz+1)
+        endif
+    end subroutine interp_bfield_node
 
     !<--------------------------------------------------------------------------
     !< Shift pressure tensor to remove ghost cells at lower end along x-, y-,
