@@ -1,6 +1,7 @@
 #!/bin/bash
 
-ana_path=/net/scratch3/xiaocanli/pic_analysis
+ana_path=/global/u2/x/xiaocan/pic_analysis
+# ana_path=/global/cscratch1/sd/xiaocan/pic_analysis
 ana_config=$ana_path/config_files/analysis_config.dat
 conf=$ana_path/config_files/conf.dat
 ch_inductive () {
@@ -16,7 +17,7 @@ ch_htt () {
     sed -i -e "s/\(httz = \).*,\(.*\)/\1$3,\2/" $conf
 }
 
-mpi_size=2
+mpi_size=512
 
 run_temp_anisotropy () {
     cd $ana_path
@@ -27,11 +28,12 @@ run_temp_anisotropy () {
     mv data/temperature_anisotropy/*.gda data/temperature_anisotropy/${12}
 }
 
-runs_path=/net/scratch3/xiaocanli/reconnection/mime25
+runs_path=/global/cscratch1/sd/xiaocan
 
-run_name=mime25_beta002_bg00
+run_name=3D-Lx150-bg0.2-150ppc-2048KNL
 rootpath=$runs_path/$run_name/
-ch_tp2 201
+# rootpath=$DW_PERSISTENT_STRIPED_energization/
+ch_tp2 41
 nbins_temp=700
 nbins_beta=600
 nbins_tratio=400
@@ -42,5 +44,18 @@ beta_max=1000.0
 tratio_min=1E-2
 tratio_max=100.0
 run_temp_anisotropy $rootpath e $nbins_temp $nbins_beta $nbins_tratio \
+                    $temp_min $temp_max $beta_min $beta_max \
+                    $tratio_min $tratio_max $run_name
+run_temp_anisotropy $rootpath i $nbins_temp $nbins_beta $nbins_tratio \
+                    $temp_min $temp_max $beta_min $beta_max \
+                    $tratio_min $tratio_max $run_name
+
+run_name=3D-Lx150-bg1.0-150ppc-2048KNL
+rootpath=$runs_path/$run_name/
+# rootpath=$DW_PERSISTENT_STRIPED_energization/
+run_temp_anisotropy $rootpath e $nbins_temp $nbins_beta $nbins_tratio \
+                    $temp_min $temp_max $beta_min $beta_max \
+                    $tratio_min $tratio_max $run_name
+run_temp_anisotropy $rootpath i $nbins_temp $nbins_beta $nbins_tratio \
                     $temp_min $temp_max $beta_min $beta_max \
                     $tratio_min $tratio_max $run_name
