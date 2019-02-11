@@ -1,5 +1,9 @@
+#!/usr/bin/env python3
 """
-Read particle-in-cell (VPIC) simulation information.
+Get particle-in-cell (VPIC) simulation information and save it in a JSON file.
+You can run the code by "python pic_information.py $pic_run_dir $pic_run_name",
+where pic_run_dir is the directory for your PIC run and pic_run_name is the
+unique name for your PIC run. The JSON file will be saved in "../data/pic_info/".
 """
 import collections
 import errno
@@ -42,10 +46,12 @@ def get_pic_info(base_directory, run_name):
     dt_energy = energy_interval * dtwci
     dte_wpe = dt_energy * dtwpe / dtwci
     pic_ene = read_pic_energies(dt_energy, dte_wpe, base_directory)
-    pic_times = collections.namedtuple("pic_times", [
-        'ntf', 'dt_fields', 'tfields', 'ntp', 'dt_particles', 'tparticles',
-        'dt_energy', 'fields_interval', 'particle_interval', 'trace_interval'
-    ])
+
+    pic_times = collections.namedtuple("pic_times",
+                                       ['ntf', 'dt_fields', 'tfields', 'ntp',
+                                        'dt_particles', 'tparticles',
+                                        'dt_energy', 'fields_interval',
+                                        'particle_interval', 'trace_interval'])
     pic_times_info = pic_times(ntf=ntf,
                                dt_fields=dt_fields,
                                dt_particles=dt_particles,
@@ -115,29 +121,28 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
         'dene_ex', 'dene_ey', 'dene_ez', 'dene_bx', 'dene_by', 'dene_bz',
         'dkene_i', 'dkene_e', 'dene_electric', 'dene_magnetic'
     ])
-    pic_ene = pic_energies(
-        nte=nte,
-        tenergy=tenergy,
-        ene_ex=ene_ex,
-        ene_ey=ene_ey,
-        ene_ez=ene_ez,
-        ene_bx=ene_bx,
-        ene_by=ene_by,
-        ene_bz=ene_bz,
-        kene_i=kene_i,
-        kene_e=kene_e,
-        ene_electric=ene_electric,
-        ene_magnetic=ene_magnetic,
-        dene_ex=dene_ex,
-        dene_ey=dene_ey,
-        dene_ez=dene_ez,
-        dene_bx=dene_bx,
-        dene_by=dene_by,
-        dene_bz=dene_bz,
-        dkene_i=dkene_i,
-        dkene_e=dkene_e,
-        dene_electric=dene_electric,
-        dene_magnetic=dene_magnetic)
+    pic_ene = pic_energies(nte=nte,
+                           tenergy=tenergy,
+                           ene_ex=ene_ex,
+                           ene_ey=ene_ey,
+                           ene_ez=ene_ez,
+                           ene_bx=ene_bx,
+                           ene_by=ene_by,
+                           ene_bz=ene_bz,
+                           kene_i=kene_i,
+                           kene_e=kene_e,
+                           ene_electric=ene_electric,
+                           ene_magnetic=ene_magnetic,
+                           dene_ex=dene_ex,
+                           dene_ey=dene_ey,
+                           dene_ez=dene_ez,
+                           dene_bx=dene_bx,
+                           dene_by=dene_by,
+                           dene_bz=dene_bz,
+                           dkene_i=dkene_i,
+                           dkene_e=dkene_e,
+                           dene_electric=dene_electric,
+                           dene_magnetic=dene_magnetic)
     return pic_ene
 
 
@@ -243,7 +248,7 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file):
     """
     Get output intervals from the main configuration file for current PIC
     simulation.
-    
+
     Args:
         dtwpe: the time step in 1/wpe.
         dtwce: the time step in 1/wce.
@@ -314,7 +319,7 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file):
 
 def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
     """Get time interval from a line
-    
+
     The line is in the form: int *** = int(5.0/***);
 
     Args:
@@ -344,7 +349,7 @@ def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
 
 def read_pic_info(base_directory):
     """Read particle-in-cell simulation information.
-    
+
     Args:
         pic_info: a namedtuple for PIC initial information.
     """
@@ -354,18 +359,20 @@ def read_pic_info(base_directory):
     f.close()
     nlines = len(content)
     current_line = 0
+    ti_te, current_line = get_variable_value('Ti/Te', current_line, content)
+    wpe_wce, current_line = get_variable_value('wpe/wce', current_line, content)
     mime, current_line = get_variable_value('mi/me', current_line, content)
     lx, current_line = get_variable_value('Lx/di', current_line, content)
     ly, current_line = get_variable_value('Ly/di', current_line, content)
     lz, current_line = get_variable_value('Lz/di', current_line, content)
-    nx, current_line = get_variable_value('nx', current_line, content)
-    ny, current_line = get_variable_value('ny', current_line, content)
-    nz, current_line = get_variable_value('nz', current_line, content)
-    nx = int(nx)
-    ny = int(ny)
-    nz = int(nz)
-    nppc, current_line = get_variable_value('nppc', current_line, content)
+    nx, current_line = get_variable_value('nx', current_line, content, int)
+    ny, current_line = get_variable_value('ny', current_line, content, int)
+    nz, current_line = get_variable_value('nz', current_line, content, int)
+    courant, current_line = get_variable_value('courant', current_line, content)
+    nproc, current_line = get_variable_value('nproc', current_line, content, int)
+    nppc, current_line = get_variable_value('nppc', current_line, content, int)
     b0, current_line = get_variable_value('b0', current_line, content)
+    ne, current_line = get_variable_value('Ne', current_line, content)
     dtwpe, current_line = get_variable_value('dt*wpe', current_line, content)
     try:
         dtwce, current_line = get_variable_value_h('dt*wce', content)
@@ -375,14 +382,8 @@ def read_pic_info(base_directory):
         dtwci, current_line = get_variable_value_h('dt*wci', content)
     except:
         dtwci = dtwce / mime
-    while not 'energies_interval' in content[current_line]:
-        current_line += 1
-    single_line = content[current_line]
-    if '=' in single_line:
-        line_splits = single_line.split("=")
-    else:
-        line_splits = single_line.split(":")
-    energy_interval = float(line_splits[1])
+    energy_interval, current_line = get_variable_value('energies_interval',
+                                                       current_line, content)
     dxde, current_line = get_variable_value('dx/de', current_line, content)
     dyde, current_line = get_variable_value('dy/de', current_line, content)
     dzde, current_line = get_variable_value('dz/de', current_line, content)
@@ -392,46 +393,127 @@ def read_pic_info(base_directory):
     x = np.arange(nx) * dxdi
     y = (np.arange(ny) - ny / 2.0 + 0.5) * dydi
     z = (np.arange(nz) - nz / 2.0 + 0.5) * dzdi
+    dx_rhoi, current_line = get_variable_value('dx/rhoi', current_line, content)
+    dx_rhoe, current_line = get_variable_value('dx/rhoe', current_line, content)
+    dx_debye, current_line = get_variable_value('dx/debye', current_line, content)
     if any('vthi/c' in s for s in content):
         vthi, current_line = get_variable_value('vthi/c', current_line,
                                                 content)
         vthe, current_line = get_variable_value('vthe/c', current_line,
                                                 content)
-    else:
+    else:  # highly relativistic cases
         vthe = 1.0
         vthi = 1.0
+    restart_interval, current_line = get_variable_value('restart_interval',
+                                                        current_line, content, int)
+    fields_interval_info, current_line = get_variable_value('fields_interval',
+                                                            current_line, content, int)
+    ehydro_interval, current_line = get_variable_value('ehydro_interval',
+                                                       current_line, content, int)
+    Hhydro_interval, current_line = get_variable_value('Hhydro_interval',
+                                                       current_line, content, int)
+    eparticle_interval, current_line = get_variable_value('eparticle_interval',
+                                                          current_line, content, int)
+    Hparticle_interval, current_line = get_variable_value('Hparticle_interval',
+                                                          current_line, content, int)
+    quota_check_interval, current_line = get_variable_value('quota_check_interval',
+                                                            current_line, content, int)
+    particle_tracing, current_line = get_variable_value('particle_tracing',
+                                                        current_line, content, int)
+    tracer_interval, current_line = get_variable_value('tracer_interval',
+                                                       current_line, content, int)
+    tracer_pass1_interval, current_line = get_variable_value('tracer_pass1_interval',
+                                                             current_line, content, int)
+    tracer_pass2_interval, current_line = get_variable_value('tracer_pass2_interval',
+                                                             current_line, content, int)
+    ntracer, current_line = get_variable_value('Ntracer', current_line, content, int)
+    emf_at_tracer, current_line = get_variable_value('emf_at_tracer',
+                                                     current_line, content, int)
+    hydro_at_tracer, current_line = get_variable_value('hydro_at_tracer',
+                                                       current_line, content, int)
+    dump_traj_directly, current_line = get_variable_value('dump_traj_directly',
+                                                          current_line, content, int)
+    num_tracer_fields_add, current_line = get_variable_value('num_tracer_fields_add',
+                                                             current_line, content, int)
+    emax_band, current_line = get_variable_value('emax_band', current_line, content)
+    emin_band, current_line = get_variable_value('emin_band', current_line, content)
+    nbands, current_line = get_variable_value('nbands', current_line, content, int)
+    emax_spect, current_line = get_variable_value('emax_spect', current_line, content)
+    emin_spect, current_line = get_variable_value('emin_spect', current_line, content)
+    nbins_spect, current_line = get_variable_value('nbins', current_line, content, int)
+    nx_zone, current_line = get_variable_value('nx_zone', current_line, content, int)
+    ny_zone, current_line = get_variable_value('ny_zone', current_line, content, int)
+    nz_zone, current_line = get_variable_value('nz_zone', current_line, content, int)
+    stride_particle_dump, current_line = get_variable_value('stride_particle_dump',
+                                                            current_line, content, int)
 
-    pic_init_info = collections.namedtuple('pic_init_info', [
-        'mime', 'lx_di', 'ly_di', 'lz_di', 'nx', 'ny', 'nz', 'dx_di', 'dy_di',
-        'dz_di', 'x_di', 'y_di', 'z_di', 'nppc', 'b0', 'dtwpe', 'dtwce',
-        'dtwci', 'energy_interval', 'vthi', 'vthe'
-    ])
-    pic_info = pic_init_info(
-        mime=mime,
-        lx_di=lx,
-        ly_di=ly,
-        lz_di=lz,
-        nx=nx,
-        ny=ny,
-        nz=nz,
-        dx_di=dxdi,
-        dy_di=dydi,
-        dz_di=dzdi,
-        x_di=x,
-        y_di=y,
-        z_di=z,
-        nppc=nppc,
-        b0=b0,
-        dtwpe=dtwpe,
-        dtwce=dtwce,
-        dtwci=dtwci,
-        energy_interval=energy_interval,
-        vthi=vthi,
-        vthe=vthe)
+    pic_init_info = collections.namedtuple('pic_init_info',
+                                           ['ti_te', 'wpe_wce', 'mime',
+                                            'lx_di', 'ly_di', 'lz_di',
+                                            'nx', 'ny', 'nz',
+                                            'courant', 'nproc',
+                                            'nppc', 'b0', 'ne',
+                                            'dtwpe', 'dtwce', 'dtwci',
+                                            'dx_di', 'dy_di', 'dz_di',
+                                            'x_di', 'y_di', 'z_di',
+                                            'dx_rhoi', 'dx_rhoe', 'dx_debye',
+                                            'restart_interval',
+                                            'fields_interval_info',
+                                            'ehydro_interval',
+                                            'Hhydro_interval',
+                                            'eparticle_interval',
+                                            'Hparticle_interval',
+                                            'energy_interval',
+                                            'quota_check_interval',
+                                            'particle_tracing',
+                                            'tracer_interval',
+                                            'tracer_pass1_interval',
+                                            'tracer_pass2_interval',
+                                            'ntracer', 'emf_at_tracer',
+                                            'hydro_at_tracer',
+                                            'dump_traj_directly',
+                                            'num_tracer_fields_add',
+                                            'emax_band', 'emin_band', 'nbands',
+                                            'emax_spect', 'emin_spect', 'nbins_spect',
+                                            'nx_zone', 'ny_zone', 'nz_zone',
+                                            'stride_particle_dump',
+                                            'vthi', 'vthe'])
+    pic_info = pic_init_info(ti_te=ti_te, wpe_wce=wpe_wce, mime=mime,
+                             lx_di=lx, ly_di=ly, lz_di=lz,
+                             nx=nx, ny=ny, nz=nz,
+                             courant=courant, nproc=nproc,
+                             nppc=nppc, b0=b0, ne=ne,
+                             dtwpe=dtwpe, dtwce=dtwce, dtwci=dtwci,
+                             dx_di=dxdi, dy_di=dydi, dz_di=dzdi,
+                             x_di=x, y_di=y, z_di=z,
+                             dx_rhoi=dx_rhoi, dx_rhoe=dx_rhoe, dx_debye=dx_debye,
+                             restart_interval=restart_interval,
+                             fields_interval_info=fields_interval_info,
+                             ehydro_interval=ehydro_interval,
+                             Hhydro_interval=Hhydro_interval,
+                             eparticle_interval=eparticle_interval,
+                             Hparticle_interval=Hparticle_interval,
+                             energy_interval=energy_interval,
+                             quota_check_interval=quota_check_interval,
+                             particle_tracing=particle_tracing,
+                             tracer_interval=tracer_interval,
+                             tracer_pass1_interval=tracer_pass1_interval,
+                             tracer_pass2_interval=tracer_pass2_interval,
+                             ntracer=ntracer,
+                             emf_at_tracer=emf_at_tracer,
+                             hydro_at_tracer=hydro_at_tracer,
+                             dump_traj_directly=dump_traj_directly,
+                             num_tracer_fields_add=num_tracer_fields_add,
+                             emax_band=emax_band, emin_band=emin_band, nbands=nbands,
+                             emax_spect=emax_spect, emin_spect=emin_spect,
+                             nbins_spect=nbins_spect,
+                             nx_zone=nx_zone, ny_zone=ny_zone, nz_zone=nz_zone,
+                             stride_particle_dump=stride_particle_dump,
+                             vthi=vthi, vthe=vthe)
     return pic_info
 
 
-def get_variable_value(variable_name, current_line, content):
+def get_variable_value(variable_name, current_line, content, data_type=float):
     """
     Get the value of one variable from the content of the information file.
 
@@ -439,16 +521,30 @@ def get_variable_value(variable_name, current_line, content):
         variable_name: the variable name.
         current_line: current line number.
         content: the content of the information file.
+        data_type: data type (float, int, ...)
     Returns:
         variable_value: the value of the variable.
         line_number: current line number after the operations.
     """
     line_number = current_line
-    while not variable_name in content[line_number]:
+    nlines = len(content)
+    cond1 = not variable_name in content[line_number]
+    cond2 = line_number < nlines
+    while cond1 and cond2:
         line_number += 1
-    single_line = content[line_number]
-    line_splits = single_line.split("=")
-    variable_value = float(line_splits[1])
+        cond1 = not variable_name in content[line_number]
+        cond2 = line_number < nlines
+    if cond1 and (not cond2):  # no such variable_name
+        variable_name = 0.0
+        line_number = current_line
+    else:
+        single_line = content[line_number]
+        if "=" in single_line:
+            line_splits = single_line.split("=")
+        elif ":" in single_line:
+            line_splits = single_line.split(":")
+        variable_value = float(line_splits[1])
+    variable_value = data_type(variable_value)
     return (variable_value, line_number)
 
 
@@ -548,24 +644,6 @@ if __name__ == "__main__":
     else:
         base_directory = '/net/scratch2/guofan/sigma1-mime25-beta001-average/'
         run_name = 'sigma1-mime25-beta001-average'
-    # base_directory = '../../'
-    # pic_info = get_pic_info(base_directory)
-    # pic_info_json = data_to_json(pic_info)
-    # run_name = 'nersc_large'
-    # base_directory = '/net/scratch2/guofan/sigma1-mime25-beta0001/'
-    # run_name = 'mime25_beta0001'
-    # base_directory = '/net/scratch2/guofan/sigma1-mime25-beta0002-1127'
-    # run_name = 'sigma1-mime25-beta0002'
-    # base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-2'
-    # run_name = '2D-90-Mach4-sheet6-2'
-    # base_directory = '/net/scratch2/guofan/for_Senbei/2D-90-Mach4-sheet6-3'
-    # run_name = '2D-90-Mach4-sheet6-3'
-    # base_directory = '/net/scratch3/xiaocanli/herts/tether_potential_tests/v200_b0_wce'
-    # run_name = 'v200_b0_wce'
-    # base_directory = '/net/scratch1/guofan/Project2017/low-beta/sigma1-mime25-beta0002/'
-    # run_name = 'sigma1-mime25-beta0002-fan'
-    # base_directory = '/net/scratch2/guofan/for_Xiaocan/sigma100-lx300/'
-    # run_name = 'sigma100-lx300'
     pic_info = get_pic_info(base_directory, run_name)
     pic_info_json = data_to_json(pic_info)
     fname = '../data/pic_info/pic_info_' + run_name + '.json'
