@@ -18,6 +18,7 @@ program translate
     character(len=256) :: rootpath, fname
     real(dp) :: mp_elapsed
     logical :: dfile, frequent_dump, sub_directory
+    logical :: current_step, pre_step, post_step
     integer :: out_record, numfold
     character(len=8) :: suffix
 
@@ -28,57 +29,63 @@ program translate
     out_record = output_record_initial
 
     ! Loop over time slices
-    dfile= .true.
-    tindex = tindex_start
-    do while(dfile)
-        if (myid==master) print *, " Time slice: ", tindex
-        call translate_fields(.false.)
-        ! Check if there is another time slice to read
-        tindex_new = tindex + nout
-        call check_file_existence
-    enddo
+    if (current_step) then
+        dfile= .true.
+        tindex = tindex_start
+        do while(dfile)
+            if (myid==master) print *, " Time slice: ", tindex
+            call translate_fields(.false.)
+            ! Check if there is another time slice to read
+            tindex_new = tindex + nout
+            call check_file_existence
+        enddo
+    endif
 
     if (frequent_dump) then
-        out_record = output_record_initial
-        suffix = '_pre'
-        tindex = tindex_start
-        if (myid==master) print *, " Translate prevous time step"
-        dfile= .true.
-        if (tindex > 0) then
-            tindex = tindex_start - nout_fd
-        endif
-        do while(dfile)
-            if (myid==master) print *, " Time slice: ", tindex
-            call translate_fields(frequent_dump)
-            ! Check if there is another time slice to read
-            if (tindex == 0) then
-                tindex_new = nout - nout_fd ! Previous time step
-            else
-                tindex_new = tindex + nout
+        if (pre_step) then
+            out_record = output_record_initial
+            suffix = '_pre'
+            tindex = tindex_start
+            if (myid==master) print *, " Translate prevous time step"
+            dfile= .true.
+            if (tindex > 0) then
+                tindex = tindex_start - nout_fd
             endif
-            call check_file_existence
-        enddo
+            do while(dfile)
+                if (myid==master) print *, " Time slice: ", tindex
+                call translate_fields(frequent_dump)
+                ! Check if there is another time slice to read
+                if (tindex == 0) then
+                    tindex_new = nout - nout_fd ! Previous time step
+                else
+                    tindex_new = tindex + nout
+                endif
+                call check_file_existence
+            enddo
+        endif
 
-        out_record = output_record_initial
-        suffix = '_post'
-        if (tindex_start == 0) then
-            tindex = 1
-        else
-            tindex = tindex_start + nout_fd
-        endif
-        if (myid==master) print *, " Translate latter time step"
-        dfile= .true.
-        do while(dfile)
-            if (myid==master) print *, " Time slice: ", tindex
-            call translate_fields(frequent_dump)
-            ! Check if there is another time slice to read
-            if (tindex == 1) then
-                tindex_new = nout + nout_fd
+        if (post_step) then
+            out_record = output_record_initial
+            suffix = '_post'
+            if (tindex_start == 0) then
+                tindex = 1
             else
-                tindex_new = tindex + nout
+                tindex = tindex_start + nout_fd
             endif
-            call check_file_existence
-        enddo
+            if (myid==master) print *, " Translate latter time step"
+            dfile= .true.
+            do while(dfile)
+                if (myid==master) print *, " Time slice: ", tindex
+                call translate_fields(frequent_dump)
+                ! Check if there is another time slice to read
+                if (tindex == 1) then
+                    tindex_new = nout + nout_fd
+                else
+                    tindex_new = tindex + nout
+                endif
+                call check_file_existence
+            enddo
+        endif
     endif
 
     mp_elapsed = MPI_WTIME() - mp_elapsed
@@ -248,6 +255,18 @@ program translate
             help='Every numfold domains are saved in one sub-directory', &
             required=.false., def='32', act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--current_step', switch_ab='-cs', &
+            help='whether to translate current step', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--pre_step', switch_ab='-ps', &
+            help='whether to translate previous step', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--post_step', switch_ab='-ns', &
+            help='whether to translate next step', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-fd', val=frequent_dump, error=error)
@@ -255,6 +274,12 @@ program translate
         call cli%get(switch='-sd', val=sub_directory, error=error)
         if (error/=0) stop
         call cli%get(switch='-nf', val=numfold, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-cs', val=current_step, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ps', val=pre_step, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ns', val=post_step, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
@@ -264,6 +289,15 @@ program translate
             endif
             if (sub_directory) then
                 print '(A,I0,A)', 'Every ', numfold, " domains are saved in one sub-directory"
+            endif
+            if (current_step) then
+                print '(A)', 'translate current time step'
+            endif
+            if (pre_step) then
+                print '(A)', 'translate previous time step'
+            endif
+            if (post_step) then
+                print '(A)', 'translate next time step'
             endif
         endif
     end subroutine get_cmd_args
