@@ -18,7 +18,7 @@ from contour_plots import read_2d_fields
 from energy_conversion import read_data_from_json
 from shell_functions import mkdir_p
 
-style.use(['seaborn-white', 'seaborn-paper'])
+plt.style.use("seaborn-deep")
 mpl.rc("font", family="Times New Roman")
 mpl.rc('text', usetex=True)
 mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
@@ -58,7 +58,7 @@ def plot_bfield_single(run_dir, run_name, tframe, show_plot=True):
     xs0, ys0 = 0.09, 0.95 - h0
     vgap, hgap = 0.02, 0.02
 
-    vmax1 = 3.0E2
+    vmax1 = 300
     vmin1 = -vmax1
     def plot_one_field(fdata, ax, text, text_color, label_bottom='on',
                        label_left='on', ylabel=False, ay_color='k',
@@ -107,7 +107,7 @@ def plot_bfield_single(run_dir, run_name, tframe, show_plot=True):
     ax4 = fig.add_axes([xs, ys, w0, h0])
     im4 = plot_one_field(absB, ax4, r'$B$', 'k', label_bottom='on',
                          label_left='on', ylabel=True, ay_color='k',
-                         vmin=10, vmax=300, cmap1=plt.cm.viridis)
+                         vmin=10, vmax=vmax1, cmap1=plt.cm.viridis)
     ax4.set_xlabel(r'$x/d_i$', fontdict=FONT, fontsize=20)
     cax2 = fig.add_axes([xs1, ys, w1, h0])
     cbar2 = fig.colorbar(im4, cax=cax2)
@@ -912,6 +912,253 @@ def radiation_map_tri(plot_config, show_plot=True):
         plt.close()
 
 
+def get_energy_bins(run_dir, source_file):
+    """Get energy bins information
+
+    Args:
+        run_dir: the run directory of the PIC simulation
+        source_file: file including these information
+    """
+    fname = run_dir + source_file
+    nbins = 1000
+    emin = 1E-3
+    emax = 1E7
+    with open(fname, 'r') as f:
+        content = f.readlines()
+        f.close()
+        nlines = len(content)
+        current_line = 0
+        while not 'int nbin =' in content[current_line]:
+            current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        nbins = int(word_splits[0])
+        current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        emin = float(word_splits[0])
+        current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        emax = float(word_splits[0])
+    return (nbins, emin, emax)
+
+
+def reduce_spectrum(plot_config):
+    """Reduce energy spectrum from the binary files for each MPI rank
+
+    Args:
+        plot_config: plot configuration
+    """
+    run_name = plot_config["run_name"]
+    run_dir = plot_config["run_dir"]
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    rank = 0
+    interval = pic_info.fields_interval
+    mpi_size = pic_info.topology_x * pic_info.topology_y * pic_info.topology_z
+
+    nbins = plot_config["nbins"]
+    ndata = nbins + 3  # including bx, by, bz
+    tindex = plot_config["tframe"] * interval
+    species = plot_config["species"]
+    fname_pre = run_dir + 'hydro/T.' + str(tindex)
+    if species in ['e', 'electron']:
+        fname_pre = fname_pre + '/spectrum-ehydro.' + str(tindex)
+    else:
+        fname_pre = fname_pre + '/spectrum-Hhydro.' + str(tindex)
+    fname = fname_pre + '.' + str(rank)
+    fdata = np.fromfile(fname, dtype=np.float32)
+    sz, = fdata.shape
+    nzone = sz // ndata
+    for rank in range(1, mpi_size):
+        fname = fname_pre + '.' + str(rank)
+        fdata += np.fromfile(fname, dtype=np.float32)
+    print("number of zones: %d" % nzone)
+    flog_tot = np.zeros(nbins)
+    for i in range(nzone):
+        flog = fdata[i*ndata+3:(i+1)*ndata]
+        flog_tot += flog
+    emin_log = math.log10(plot_config["emin"])
+    emax_log = math.log10(plot_config["emax"])
+    dloge = (emax_log - emin_log) / (nbins - 1)
+    emin_log_adjust = emin_log - dloge
+    elog = np.logspace(emin_log_adjust, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[1:] + elog[:-1])
+    delog = np.diff(elog)
+    flog_tot /= delog
+    fdir = '../data/spectra/' + run_name + '/'
+    mkdir_p(fdir)
+    if species in ['e', 'electron']:
+        fname = fdir + 'spectrum-e.' + str(plot_config["tframe"])
+    else:
+        fname = fdir + 'spectrum-H.' + str(plot_config["tframe"])
+    flog_tot.tofile(fname)
+
+
+def plot_spectrum(plot_config):
+    """Plot energy spectrum
+    """
+    emin_log = math.log10(plot_config["emin"])
+    emax_log = math.log10(plot_config["emax"])
+    nbins = plot_config["nbins"]
+    dloge = (emax_log - emin_log) / (nbins - 1)
+    emin_log_adjust = emin_log - dloge
+    elog = np.logspace(emin_log_adjust, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[1:] + elog[:-1])
+    fig = plt.figure(figsize=[7, 5])
+    xs, ys = 0.15, 0.15
+    w1, h1 = 0.8, 0.8
+    ax = fig.add_axes([xs, ys, w1, h1])
+    nframes = plot_config["nframes"]
+    fdir = '../data/spectra/' + plot_config["run_name"] + '/'
+    species = plot_config["species"]
+    for tframe in range(0, nframes, 3):
+        if species in ['e', 'electron']:
+            fname = fdir + 'spectrum-e.' + str(tframe)
+        else:
+            fname = fdir + 'spectrum-H.' + str(tframe)
+        flog = np.fromfile(fname)
+        color = plt.cm.jet(tframe / float(nframes), 1)
+        ax.loglog(elog_mid, flog, linewidth=2, color=color)
+
+    tframe = nframes - 1
+    if species in ['e', 'electron']:
+        fname = fdir + 'spectrum-e.' + str(tframe)
+    else:
+        fname = fdir + 'spectrum-H.' + str(tframe)
+    flog = np.fromfile(fname)
+    color = plt.cm.jet(tframe / float(nframes), 1)
+    # ax.loglog(elog_mid*5, flog*10, linewidth=2, color='k')
+
+    ax.tick_params(labelsize=16)
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
+    ax.tick_params(axis='x', which='major', direction='in', top=True)
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in', right=True)
+    ax.set_xlabel(r'$\gamma-1$', fontsize=20)
+    ax.set_ylabel(r'$f(\gamma-1)$', fontsize=20)
+    ax.set_xlim([1E1, 5E5])
+    ax.set_ylim([1E-3, 1E7])
+    fdir = '../img/radiation_cooling/spectra/'
+    mkdir_p(fdir)
+    fname = fdir + 'spect_time_' + plot_config["run_name"] + '_' + species + '.pdf'
+    fig.savefig(fname)
+    plt.show()
+
+
+def get_nz_local(run_dir, source_file):
+    """Get the number of cells along z for each local zone
+
+    Args:
+        run_dir: the run directory of the PIC simulation
+        source_file: file including these information
+    """
+    fname = run_dir + source_file
+    nz_local = 16
+    with open(fname, 'r') as f:
+        content = f.readlines()
+        f.close()
+        nlines = len(content)
+        current_line = 0
+        while not 'int nz_local =' in content[current_line]:
+            current_line += 1
+        single_line = content[current_line]
+        line_splits = single_line.split("=")
+        word_splits = line_splits[1].split(";")
+        nz_local = int(word_splits[0])
+    return nz_local
+
+
+def spect_bfield_3dpol_new(plot_config):
+    """Local spectrum and magnetic field for the new version of 3DPol
+    """
+    run_name = plot_config["run_name"]
+    run_dir = plot_config["run_dir"]
+    picinfo_fname = '../data/pic_info/pic_info_' + run_name + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    interval = pic_info.fields_interval
+    mpi_sizex = pic_info.topology_x
+    mpi_sizey = pic_info.topology_y
+    mpi_sizez = pic_info.topology_z
+    mpi_size = mpi_sizex * mpi_sizey * mpi_sizez
+    nbins = plot_config["nbins"]
+    tframe = plot_config["tframe"]
+    tindex = tframe * interval
+    species = plot_config["species"]
+    nz_local = plot_config["nz_local"]
+    reduce_factor_z = plot_config["reduce_factor_z"]
+    # We assume nz is dividable by (nz_local * reduce_factor_z)
+    nradz = pic_info.nz // (nz_local * reduce_factor_z)
+    nradx = pic_info.nx * nradz // pic_info.nz
+    reduce_factor_x  = mpi_sizex // nradx
+    nradz_local = nradz // mpi_sizez  # number of zones along z in each MPI rank
+
+    emin_log = math.log10(plot_config["emin"])
+    emax_log = math.log10(plot_config["emax"])
+    dloge = (emax_log - emin_log) / (nbins - 1)
+    emin_log_adjust = emin_log - dloge
+    elog = np.logspace(emin_log_adjust, emax_log, nbins + 1)
+    elog_mid = 0.5 * (elog[1:] + elog[:-1])
+    delog = np.diff(elog)
+
+    ndata = nbins + 3  # including bx, by, bz
+    tindex = tframe * interval
+    fname_pre = run_dir + 'hydro/T.' + str(tindex)
+    fname_pre = fname_pre + '/spectrum-ehydro.' + str(tindex)
+    fname = fname_pre + '.0'
+    fdata = np.fromfile(fname, dtype=np.float32)
+    sz, = fdata.shape
+    nzone = sz // ndata
+    output_dir = '../data/data-radiation-3dpol-new/' + run_name + '/'
+    mkdir_p(output_dir)
+    fname0 = output_dir + "radiation-"
+    cit = str(tframe).zfill(3)
+    ciy = str(1).zfill(3)
+
+    nbins_skip = 300  # Skip some bins that have no particles
+    nbins_target = 100  # Assume we do not need all the bins
+
+    nreduce = (nbins - nbins_skip) // nbins_target
+    frad = np.zeros([nradz, nradx, nbins_target + 6])
+    bx   = np.zeros([nradz, nradx])
+    by   = np.zeros([nradz, nradx])
+    bz   = np.zeros([nradz, nradx])
+
+    for mpi_rankz in range(mpi_sizez):
+        for mpi_rankx in range(mpi_sizex):
+            ix = mpi_rankx // reduce_factor_x
+            mpi_rank = mpi_rankx + mpi_rankz * mpi_sizex
+            fname = fname_pre + '.' + str(mpi_rank)
+            fdata = np.fromfile(fname, dtype=np.float32)
+            for zone_z in range(nzone):
+                iz = zone_z // reduce_factor_z + mpi_rankz * nradz_local
+                bx[iz, ix] += fdata[zone_z * ndata]
+                by[iz, ix] += fdata[zone_z * ndata + 1]
+                bz[iz, ix] += fdata[zone_z * ndata + 2]
+                flog  = fdata[zone_z*ndata+3:(zone_z+1)*ndata]
+                flog /= delog
+                frad[iz, ix, 6:] += flog[nbins_skip::nreduce]
+
+    bx /= reduce_factor_x * reduce_factor_z
+    by /= reduce_factor_x * reduce_factor_z
+    bz /= reduce_factor_x * reduce_factor_z
+    bmag = np.sqrt(bx**2 + by**2 + bz**2)
+    btheta = np.arccos(bz/bmag)
+    bphi = np.arctan(by/bx)
+    frad[:, :, 0] = bmag
+    frad[:, :, 1] = btheta
+    frad[:, :, 2] = bphi
+    frad[:, :, 3] = 1.0
+    frad[:, :, 4] = 0.0
+    frad[:, :, 5] = 0.0
+    fname = fname0 + cit
+    frad.tofile(fname)
+
+
 def get_cmd_args():
     """Get command line arguments
     """
@@ -962,6 +1209,14 @@ def get_cmd_args():
                         type=float, help="polarization flux scale factor")
     parser.add_argument('--obs_ang', action="store", default='0', type=int,
                         help='observation angle')
+    parser.add_argument('--reduce_spect', action="store_true", default=False,
+                        help='whether to reduce particle energy spectrum')
+    parser.add_argument('--plot_spect', action="store_true", default=False,
+                        help='whether to plot particle energy spectrum')
+    parser.add_argument('--data_3dpol', action="store_true", default=False,
+                        help='whether to get data for 3DPol')
+    parser.add_argument("--reduce_factor_z", action="store", default='1',
+                        type=int, help="Reduce factor along z for local spectrum")
     return parser.parse_args()
 
 
@@ -978,6 +1233,7 @@ def analysis_single_frame(args, plot_config):
     plot_config["pflux_scale"] = args.pflux_scale
     plot_config["obs_ang"] = args.obs_ang
     plot_config["map_dir"] = args.map_dir
+    plot_config["nframes"] = args.tend - args.tstart + 1
     if args.bfield_single:
         plot_bfield_single(run_dir, run_name, args.tframe, show_plot=True)
     if args.density_eband:
@@ -999,6 +1255,12 @@ def analysis_single_frame(args, plot_config):
         # plot_config["zrange"] = [0.25, 0.75]
         # plot_config["tframes"] = [55, 69, 75]
         radiation_map_tri(plot_config, show_plot=True)
+    if args.reduce_spect:
+        reduce_spectrum(plot_config)
+    if args.plot_spect:
+        plot_spectrum(plot_config)
+    if args.data_3dpol:
+        spect_bfield_3dpol_new(plot_config)
 
 
 def process_input(args, plot_config, tframe):
@@ -1006,14 +1268,14 @@ def process_input(args, plot_config, tframe):
     run_dir = plot_config["run_dir"]
     run_name = plot_config["run_name"]
     species = plot_config["species"]
+    plot_config["tframe"] = tframe
     if args.bfield_single:
-        plot_bfield_single(run_dir, run_name, tframe)
+        plot_bfield_single(run_dir, run_name, tframe, show_plot=False)
     if args.density_eband:
         plot_density_eband(run_dir, run_name, tframe, species)
     if args.dist_2d:
         plot_dist_2d(run_dir, run_name, tframe)
     if args.radiation_map:
-        plot_config["tframe"] = tframe
         plot_config["energy_band"] = args.energy_band
         plot_config["old_rad"] = args.old_rad
         plot_config["flux_range"] = [args.flux_min, args.flux_max],
@@ -1021,6 +1283,10 @@ def process_input(args, plot_config, tframe):
         plot_config["obs_ang"] = args.obs_ang
         plot_config["map_dir"] = args.map_dir
         radiation_map(plot_config, show_plot=False)
+    if args.reduce_spect:
+        reduce_spectrum(plot_config)
+    if args.data_3dpol:
+        spect_bfield_3dpol_new(plot_config)
 
 
 def analysis_multi_frames(args, plot_config):
@@ -1028,7 +1294,7 @@ def analysis_multi_frames(args, plot_config):
     """
     tframes = range(args.tstart, args.tend + 1)
     ncores = multiprocessing.cpu_count()
-    ncores = 16
+    ncores = 36
     Parallel(n_jobs=ncores)(delayed(process_input)(args, plot_config, tframe)
                             for tframe in tframes)
 
@@ -1040,6 +1306,12 @@ def main():
     plot_config["run_name"] = args.run_name
     plot_config["run_dir"] = args.run_dir
     plot_config["species"] = args.species
+    nbins, emin, emax = get_energy_bins(args.run_dir, "energy_local.cxx")
+    plot_config["nbins"] = nbins
+    plot_config["emin"] = emin
+    plot_config["emax"] = emax
+    plot_config["nz_local"] = get_nz_local(args.run_dir, "energy_local.cxx")
+    plot_config["reduce_factor_z"] = args.reduce_factor_z
     picinfo_fname = '../data/pic_info/pic_info_' + args.run_name + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     if args.multi_frames:
