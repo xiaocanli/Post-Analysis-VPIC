@@ -11,22 +11,30 @@ run_parspec () {
     cd config_files
 }
 
-run_name=mime25_beta002_guide00_frequent_dump
-run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+# run_name=mime25_beta002_guide00_frequent_dump
+# run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+# run_parspec $run_path $run_name
+
+# run_name=mime25_beta002_guide05_frequent_dump
+# run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+# run_parspec $run_path $run_name
+
+# run_name=mime25_beta002_guide10_frequent_dump
+# run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+# run_parspec $run_path $run_name
+
+# run_name=mime25_beta008_guide00_frequent_dump
+# run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+# run_parspec $run_path $run_name
+
+# run_name=mime25_beta032_guide00_frequent_dump
+# run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+# run_parspec $run_path $run_name
+
+run_name=mime400_beta002_bg00
+run_path=/net/scratch3/xiaocanli/reconnection/mime400/$run_name/
 run_parspec $run_path $run_name
 
-run_name=mime25_beta002_guide05_frequent_dump
-run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
-run_parspec $run_path $run_name
-
-run_name=mime25_beta002_guide10_frequent_dump
-run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
-run_parspec $run_path $run_name
-
-run_name=mime25_beta008_guide00_frequent_dump
-run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
-run_parspec $run_path $run_name
-
-run_name=mime25_beta032_guide00_frequent_dump
-run_path=/net/scratch3/xiaocanli/reconnection/frequent_dump/$run_name/
+run_name=mime400_beta002_bg04
+run_path=/net/scratch3/xiaocanli/reconnection/mime400/$run_name/
 run_parspec $run_path $run_name

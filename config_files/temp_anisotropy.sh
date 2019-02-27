@@ -29,7 +29,7 @@ run_temp_anisotropy () {
 
 runs_path=/net/scratch3/xiaocanli/reconnection/mime25
 
-run_name=mime25_beta002_bg00
+run_name=mime25_beta002_bg08
 rootpath=$runs_path/$run_name/
 ch_tp2 201
 nbins_temp=700
