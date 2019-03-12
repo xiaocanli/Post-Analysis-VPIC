@@ -100,7 +100,7 @@ program particle_energization_io
         dalpha_log = (log10(alpha_max) - log10(alpha_min)) / nbins_alpha
         alpha_min_log = log10(alpha_min)
         do i = 1, nbins_alpha + 1
-            alpha_bins(i) = 10**(de_log * (i - 1) + alpha_min_log)
+            alpha_bins(i) = 10**(dalpha_log * (i - 1) + alpha_min_log)
         enddo
 
         call set_dists_zero
