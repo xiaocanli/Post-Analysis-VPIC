@@ -96,6 +96,11 @@ target_link_libraries(reduce_organized_spectrum_hdf5.exec ${MPI_Fortran_LIBRARIE
     flap parameters ${HDF5_Fortran_LIBRARIES})
 install (TARGETS reduce_organized_spectrum_hdf5.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
 
+add_executable(spectrum_reconnection_layer.exec spectrum_reconnection_layer.f90)
+target_link_libraries(spectrum_reconnection_layer.exec ${MPI_Fortran_LIBRARIES}
+    get_info flap parameters ${HDF5_Fortran_LIBRARIES})
+install (TARGETS spectrum_reconnection_layer.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 add_executable(fluid_energization.exec fluid_energization.f90)
 target_link_libraries(fluid_energization.exec ${MPI_Fortran_LIBRARIES}
     get_info translate_module particle_info mpi_setup fluid_energization_module
@@ -127,6 +132,12 @@ target_link_libraries(energetic_particle_density.exec ${MPI_Fortran_LIBRARIES}
     flap get_info translate_module particle_module particle_file
     ${HDF5_Fortran_LIBRARIES})
 install (TARGETS energetic_particle_density.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
+add_executable(kappa_dist.exec kappa_dist.f90)
+target_link_libraries(kappa_dist.exec ${MPI_Fortran_LIBRARIES}
+    get_info translate_module mpi_setup mpi_io_fields fields flap)
+install (TARGETS kappa_dist.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
+
 # # -----------------------------------------------------------------------------
 # # Particle tracer procedures
 # # -----------------------------------------------------------------------------
@@ -135,7 +146,7 @@ install (TARGETS energetic_particle_density.exec DESTINATION ${CMAKE_INSTALL_PRE
 #     ${HDF5_Fortran_LIBRARIES} particle_drift interp_emf get_info
 #     translate_module interp_pfields fields flap)
 # install (TARGETS parallel_hdf5.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(ptl_tracer_hdf5.exec ptl_tracer_hdf5.f90)
 # target_link_libraries(ptl_tracer_hdf5.exec ${MPI_Fortran_LIBRARIES}
 #     ${HDF5_Fortran_LIBRARIES} get_info translate_module commandline_arguments)
@@ -148,41 +159,41 @@ install (TARGETS energetic_particle_density.exec DESTINATION ${CMAKE_INSTALL_PRE
 # target_link_libraries(parallel_potential.exec ${MPI_Fortran_LIBRARIES}
 #     fieldline_tracing electric_field analysis_config)
 # install (TARGETS parallel_potential.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(spectrum_along_fieldline.exec spectrum_along_fieldline.f90)
 # target_link_libraries(spectrum_along_fieldline.exec ${MPI_Fortran_LIBRARIES}
 #     analysis_config particle_spectrum fieldline_tracing particle_fieldline)
 # install (TARGETS spectrum_along_fieldline.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(vdist_2d_along_fieldline.exec vdist_2d_along_fieldline.f90)
 # target_link_libraries(vdist_2d_along_fieldline.exec ${MPI_Fortran_LIBRARIES}
 #     analysis_config vdist fieldline_tracing particle_fieldline)
 # install (TARGETS vdist_2d_along_fieldline.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(vdist_1d_along_fieldline.exec vdist_1d_along_fieldline.f90)
 # target_link_libraries(vdist_1d_along_fieldline.exec ${MPI_Fortran_LIBRARIES}
 #     analysis_config vdist fieldline_tracing particle_fieldline)
 # install (TARGETS vdist_1d_along_fieldline.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(nrho_eband.exec particle_number_eband.f90)
 # target_link_libraries(nrho_eband.exec ${MPI_Fortran_LIBRARIES} analysis_config
 #     fields)
 # install (TARGETS nrho_eband.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(jdote_eband.exec jdote_eband.f90)
 # target_link_libraries(jdote_eband.exec ${MPI_Fortran_LIBRARIES} jdote_energy_band)
 # install (TARGETS jdote_eband.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(particle_based_jdote.exec particle_based_jdote.f90)
 # target_link_libraries(particle_based_jdote.exec ${MPI_Fortran_LIBRARIES}
 #     particle_drift interp_emf get_info translate_module)
 # install (TARGETS particle_based_jdote.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(particle_spectrum_box.exec particle_spectrum_box.f90)
 # target_link_libraries(particle_spectrum_box.exec ${MPI_Fortran_LIBRARIES}
 #     particle_spectrum get_info)
 # install (TARGETS particle_spectrum_box.exec DESTINATION ${CMAKE_INSTALL_PREFIX})
-# 
+#
 # add_executable(particle_spectrum_vdist_box.exec particle_spectrum_vdist_box.f90)
 # target_link_libraries(particle_spectrum_vdist_box.exec ${MPI_Fortran_LIBRARIES}
 #     particle_spectrum_vdist)
