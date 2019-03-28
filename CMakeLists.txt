@@ -6,6 +6,7 @@ enable_language (Fortran)
 
 # convert relative paths to absolute paths
 cmake_policy(SET CMP0015 NEW)
+cmake_policy(SET CMP0074 NEW)
 
 # MPI libraries
 find_package(MPI REQUIRED)
@@ -22,10 +23,13 @@ find_package(HDF5 COMPONENTS Fortran REQUIRED)
 add_definitions(${HDF5_DEFINITIONS})
 if(DEFINED ENV{HDF5_INCL})
     include_directories($ENV{HDF5_INCL})
+    set(HDF5_INCLUDE $ENV{HDF5_INCL})
 elseif(DEFINED ENV{HDF5_ROOT})
     include_directories($ENV{HDF5_ROOT}/include)
+    set(HDF5_INCLUDE $ENV{HDF5_ROOT}/include)
 elseif(DEFINED ENV{TACC_HDF5_INC})
     include_directories($ENV{TACC_HDF5_INC})
+    set(HDF5_INCLUDE $ENV{TACC_HDF5_INC})
 endif()
 link_directories(${HDF5_Fortran_LIBRARIES})
 MESSAGE(STATUS ${HDF5_Fortran_LIBRARIES})
