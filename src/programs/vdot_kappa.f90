@@ -1,5 +1,5 @@
 !<******************************************************************************
-!< Calculate v.kappa
+!< Calculate v.kappa and its distribution
 !<******************************************************************************
 program vdot_kappa
     use mpi_module
@@ -8,11 +8,16 @@ program vdot_kappa
     use particle_info, only: get_ptl_mass_charge, ptl_mass, species
     implicit none
     character(len=256) :: rootpath
+    real(fp) :: vkappa_min, vkappa_max
+    integer :: nbins
+    logical :: with_nrho
     real(fp), allocatable, dimension(:, :, :) :: vkappa
     real(fp), allocatable, dimension(:, :, :) :: tmpx, tmpy, tmpz, stmp
     real(fp), allocatable, dimension(:, :, :) :: vsx, vsy, vsz
+    real(fp), allocatable, dimension(:) :: vkappa_bins_edge
+    real(fp), allocatable, dimension(:) :: fvkappa_local, fvkappa_global
     real(fp) :: pmass_e, pmass_i
-    logical :: with_nrho
+    real(fp) :: dvkappa_log, vkappa_min_log
 
     call init_analysis
     call get_ptl_mass_charge('e')
@@ -41,7 +46,9 @@ program vdot_kappa
         call init_tmp_data(htg%nx, htg%ny, htg%nz)
         call init_vsingle(htg%nx, htg%ny, htg%nz)
 
+        call init_dists
         call eval_vkappa
+        call free_dists
 
         call free_magnetic_fields
         call free_vfields
@@ -50,6 +57,45 @@ program vdot_kappa
         call free_tmp_data
         call free_vsingle
     end subroutine commit_analysis
+
+    !<--------------------------------------------------------------------------
+    !< Initialize bins and distributions
+    !<--------------------------------------------------------------------------
+    subroutine init_dists
+        implicit none
+        integer :: i
+        allocate(vkappa_bins_edge(nbins*2 + 5))
+        allocate(fvkappa_local(nbins*2 + 4))
+        allocate(fvkappa_global(nbins*2 + 4))
+        vkappa_bins_edge = 0
+        dvkappa_log = (log10(vkappa_max) - log10(vkappa_min)) / nbins
+        vkappa_min_log = log10(vkappa_min)
+        do i = nbins+4, nbins*2+5
+            vkappa_bins_edge(i) = 10**(dvkappa_log * (i - nbins - 4) + vkappa_min_log)
+        enddo
+        vkappa_bins_edge(1:nbins+2) = vkappa_bins_edge(nbins*2+5:nbins+4:-1)
+        vkappa_bins_edge(nbins+3) = 0
+
+        call set_dists_zero
+    end subroutine init_dists
+
+    !<--------------------------------------------------------------------------
+    !< Free bins and distributions
+    !<--------------------------------------------------------------------------
+    subroutine free_dists
+        implicit none
+        deallocate(vkappa_bins_edge)
+        deallocate(fvkappa_local, fvkappa_global)
+    end subroutine free_dists
+
+    !<--------------------------------------------------------------------------
+    !< Reset distributions to 0
+    !<--------------------------------------------------------------------------
+    subroutine set_dists_zero
+        implicit none
+        fvkappa_local = 0.0
+        fvkappa_global = 0.0
+    end subroutine set_dists_zero
 
     !<--------------------------------------------------------------------------
     !< Evaluate v.kappa
@@ -116,6 +162,8 @@ program vdot_kappa
 
                 call eval_vkappa_single
                 call write_vkappa(1, 1, tindex)
+                call get_vkappa_dist
+                call save_vkappa_dist(tindex)
 
                 tindex = tindex + domain%fields_interval
                 call check_file_existence(tindex, dfile)
@@ -140,6 +188,8 @@ program vdot_kappa
 
                 call eval_vkappa_single
                 call write_vkappa(tframe, tp1_local, 0)
+                call get_vkappa_dist
+                call save_vkappa_dist(0)
             enddo
         endif
 
@@ -230,6 +280,56 @@ program vdot_kappa
             vkappa = vkappa * stmp
         endif
     end subroutine eval_vkappa_single
+
+    !<--------------------------------------------------------------------------
+    !< Get the distribution of v.kappa
+    !<--------------------------------------------------------------------------
+    subroutine get_vkappa_dist
+        use mpi_topology, only: range_out
+        implicit none
+        integer :: ixl, iyl, izl, ixh, iyh, izh
+        integer :: ix, iy, iz, ivkappa
+        real(fp) :: vkappa_tmp
+
+        ixl = range_out%ixl
+        ixh = range_out%ixh
+        iyl = range_out%iyl
+        iyh = range_out%iyh
+        izl = range_out%izl
+        izh = range_out%izh
+
+        call set_dists_zero
+
+        do iz = izl, izh
+            do iy = iyl, iyh
+                do ix = ixl, ixh
+                    vkappa_tmp = vkappa(ix, iy, iz)
+                    if (vkappa_tmp > 0) then
+                        if (vkappa_tmp < vkappa_min) then
+                            ivkappa = nbins + 3
+                        else if (vkappa_tmp > vkappa_max) then
+                            ivkappa = nbins*2 + 4
+                        else
+                            ivkappa = floor((log10(vkappa_tmp) - vkappa_min_log) / dvkappa_log)
+                            ivkappa = nbins + ivkappa + 4
+                        endif
+                    else
+                        if (-vkappa_tmp < vkappa_min) then
+                            ivkappa = nbins + 2
+                        else if (-vkappa_tmp > vkappa_max) then
+                            ivkappa = 1
+                        else
+                            ivkappa = floor((log10(-vkappa_tmp) - vkappa_min_log) / dvkappa_log)
+                            ivkappa = nbins - ivkappa + 1
+                        endif
+                    endif
+                    fvkappa_local(ivkappa) = fvkappa_local(ivkappa) + 1
+                enddo
+            enddo
+        enddo
+        call MPI_REDUCE(fvkappa_local, fvkappa_global, (nbins+2)*2, &
+            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+    end subroutine get_vkappa_dist
 
     !<--------------------------------------------------------------------------
     !< Initialize the analysis
@@ -330,11 +430,29 @@ program vdot_kappa
             help="Particle species: 'e' or 'h'", required=.false., &
             act='store', def='e', error=error)
         if (error/=0) stop
+        call cli%add(switch='--nbins', switch_ab='-nb', &
+            help='Number of bins for vdot_kappa', &
+            required=.false., def='100', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--vkappa_min', switch_ab='-kl', &
+            help='Minimum vkappa', &
+            required=.false., def='1E-8', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--vkappa_max', switch_ab='-kh', &
+            help='Maximum vkappa', &
+            required=.false., def='1E2', act='store', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-wn', val=with_nrho, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nb', val=nbins, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-kl', val=vkappa_min, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-kh', val=vkappa_max, error=error)
         if (error/=0) stop
 
         if (myid == 0) then
@@ -343,6 +461,8 @@ program vdot_kappa
             if (with_nrho) then
                 print '(A)', 'Calculate nv.kappa instead of v.kappa'
             endif
+            print '(A,I0)', ' Number of bins for vkappa: ', nbins
+            print '(A,E,E)', ' Minimum and maximum vdot_kappa: ', vkappa_min, vkappa_max
         endif
     end subroutine get_cmd_args
 
@@ -500,5 +620,39 @@ program vdot_kappa
             disp, offset, vkappa(ixl:ixh, iyl:iyh, izl:izh))
         call MPI_FILE_CLOSE(fh, ierror)
     end subroutine write_vkappa
+
+    !<--------------------------------------------------------------------------
+    !< Save the distribution of vkappa
+    !<--------------------------------------------------------------------------
+    subroutine save_vkappa_dist(tindex)
+        implicit none
+        integer, intent(in) :: tindex
+        integer :: fh1, posf
+        character(len=16) :: tindex_str
+        character(len=256) :: fname
+        logical :: dir_e
+        if (myid == master) then
+            inquire(file='./data/vkappa_dist/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir -p ./data/vkappa_dist/')
+            endif
+            print*, "Saving the distribution of vdot_kappa..."
+
+            fh1 = 66
+
+            write(tindex_str, "(I0)") tindex
+            fname = 'data/vkappa_dist/vkappa_dist'//'_'//species
+            fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
+            open(unit=fh1, file=fname, access='stream', status='unknown', &
+                form='unformatted', action='write')
+            posf = 1
+            write(fh1, pos=posf) (nbins*2 + 4.0)
+            posf = posf + 4
+            write(fh1, pos=posf) vkappa_bins_edge
+            posf = posf + (nbins*2 + 4) * 5
+            write(fh1, pos=posf) fvkappa_global
+            close(fh1)
+        endif
+    end subroutine save_vkappa_dist
 
 end program vdot_kappa
