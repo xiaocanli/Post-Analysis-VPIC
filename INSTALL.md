@@ -7,6 +7,7 @@ This package uses [FLAP](https://github.com/szaghi/FLAP) to deal with comand lin
 - **Git** The newer the better.
 - **CMake** 3.0.0 or higher
 - **GCC** or **Intel** compilers. Not sure if it works for different versions.
+    1. Failed compiling with intel/18.0.5 (reason unknown).
 - **OpenMPI** and **MVAPICH2**. Minimum versions are unknown.
 - Parallel **HDF5**. Tested with version 1.8.13 and 1.8.16
 - [FoBiS](https://github.com/szaghi/FoBiS)
