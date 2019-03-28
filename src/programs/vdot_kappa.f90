@@ -636,12 +636,20 @@ program vdot_kappa
             if (.not. dir_e) then
                 call system('mkdir -p ./data/vkappa_dist/')
             endif
-            print*, "Saving the distribution of vdot_kappa..."
+            if (with_nrho) then
+                print*, "Saving the distribution of nvdot_kappa..."
+            else
+                print*, "Saving the distribution of vdot_kappa..."
+            endif
 
             fh1 = 66
 
             write(tindex_str, "(I0)") tindex
-            fname = 'data/vkappa_dist/vkappa_dist'//'_'//species
+            if (with_nrho) then
+                fname = 'data/vkappa_dist/nvkappa_dist'//'_'//species
+            else
+                fname = 'data/vkappa_dist/vkappa_dist'
+            endif
             fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
