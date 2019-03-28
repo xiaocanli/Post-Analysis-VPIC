@@ -539,6 +539,7 @@ program particle_energization_io
         real(fp) :: polar_ene_time_v, polar_ene_spatial_v
         real(fp) :: param
         real(fp), dimension(18) :: acc_rate
+        real(fp) :: arate_no_weight
         integer :: ivar, ialpha, ibinx
         character(len=16) :: cid
 
@@ -907,22 +908,23 @@ program particle_energization_io
 
                 ! The distribution of the acceleration rate
                 do ivar = 2, nvar
-                    if (acc_rate(ivar) > 0) then
-                        if (acc_rate(ivar) < alpha_min) then
+                    arate_no_weight = acc_rate(ivar) / weight
+                    if (arate_no_weight > 0) then
+                        if (arate_no_weight < alpha_min) then
                             ialpha = nbins_alpha + 3
-                        else if (acc_rate(ivar) > alpha_max) then
+                        else if (arate_no_weight > alpha_max) then
                             ialpha = (nbins_alpha + 2) * 2
                         else
-                            ialpha = floor((log10(acc_rate(ivar)) - alpha_min_log) / dalpha_log)
+                            ialpha = floor((log10(arate_no_weight) - alpha_min_log) / dalpha_log)
                             ialpha = nbins_alpha + ialpha + 4
                         endif
                     else
-                        if (-acc_rate(ivar) < alpha_min) then
+                        if (-arate_no_weight < alpha_min) then
                             ialpha = 1
-                        else if (-acc_rate(ivar) > alpha_max) then
+                        else if (-arate_no_weight > alpha_max) then
                             ialpha = nbins_alpha + 2
                         else
-                            ialpha = floor((log10(-acc_rate(ivar)) - alpha_min_log) / dalpha_log)
+                            ialpha = floor((log10(-arate_no_weight) - alpha_min_log) / dalpha_log)
                             ialpha = ialpha + 2
                         endif
                         ialpha = nbins_alpha - ialpha + 3
@@ -1237,15 +1239,15 @@ program particle_energization_io
         if (error/=0) stop
         call cli%add(switch='--nbins_alpha', switch_ab='-na', &
             help='Number of bins for the accelerate rate', &
-            required=.false., def='70', act='store', error=error)
+            required=.false., def='100', act='store', error=error)
         if (error/=0) stop
         call cli%add(switch='--alpha_min', switch_ab='-al', &
             help='Minimum particle acceleration rate', &
-            required=.false., def='1E-7', act='store', error=error)
+            required=.false., def='1E-8', act='store', error=error)
         if (error/=0) stop
         call cli%add(switch='--alpha_max', switch_ab='-ah', &
             help='Maximum particle acceleration rate', &
-            required=.false., def='1E0', act='store', error=error)
+            required=.false., def='1E2', act='store', error=error)
         if (error/=0) stop
         call cli%add(switch='--nbinx', switch_ab='-nx', &
             help='Number of bins along x-direction', &
