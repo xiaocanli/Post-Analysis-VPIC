@@ -657,7 +657,7 @@ program vdot_kappa
             write(fh1, pos=posf) (nbins*2 + 4.0)
             posf = posf + 4
             write(fh1, pos=posf) vkappa_bins_edge
-            posf = posf + (nbins*2 + 4) * 4
+            posf = posf + (nbins*2 + 5) * 4
             write(fh1, pos=posf) fvkappa_global
             close(fh1)
         endif
