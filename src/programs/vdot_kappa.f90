@@ -73,7 +73,7 @@ program vdot_kappa
         do i = nbins+4, nbins*2+5
             vkappa_bins_edge(i) = 10**(dvkappa_log * (i - nbins - 4) + vkappa_min_log)
         enddo
-        vkappa_bins_edge(1:nbins+2) = vkappa_bins_edge(nbins*2+5:nbins+4:-1)
+        vkappa_bins_edge(1:nbins+2) = -vkappa_bins_edge(nbins*2+5:nbins+4:-1)
         vkappa_bins_edge(nbins+3) = 0
 
         call set_dists_zero
@@ -657,7 +657,7 @@ program vdot_kappa
             write(fh1, pos=posf) (nbins*2 + 4.0)
             posf = posf + 4
             write(fh1, pos=posf) vkappa_bins_edge
-            posf = posf + (nbins*2 + 4) * 5
+            posf = posf + (nbins*2 + 4) * 4
             write(fh1, pos=posf) fvkappa_global
             close(fh1)
         endif
