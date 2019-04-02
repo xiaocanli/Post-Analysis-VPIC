@@ -10,7 +10,7 @@ program vdot_kappa
     character(len=256) :: rootpath
     real(fp) :: vkappa_min, vkappa_max
     integer :: nbins
-    logical :: with_nrho
+    logical :: with_nrho, with_exb
     real(fp), allocatable, dimension(:, :, :) :: vkappa
     real(fp), allocatable, dimension(:, :, :) :: tmpx, tmpy, tmpz, stmp
     real(fp), allocatable, dimension(:, :, :) :: vsx, vsy, vsz
@@ -35,11 +35,14 @@ program vdot_kappa
     subroutine commit_analysis
         use mpi_topology, only: htg
         use pic_fields, only: init_magnetic_fields, init_vfields, &
-            init_number_density, free_magnetic_fields, free_vfields, &
-            free_number_density
+            init_number_density, init_electric_fields, free_magnetic_fields, &
+            free_vfields, free_number_density, free_electric_fields
         implicit none
 
         call init_magnetic_fields(htg%nx, htg%ny, htg%nz)
+        if (with_exb) then
+            call init_electric_fields(htg%nx, htg%ny, htg%nz)
+        endif
         call init_vfields(htg%nx, htg%ny, htg%nz)
         call init_number_density(htg%nx, htg%ny, htg%nz)
         call init_vkappa(htg%nx, htg%ny, htg%nz)
@@ -51,6 +54,9 @@ program vdot_kappa
         call free_dists
 
         call free_magnetic_fields
+        if (with_exb) then
+            call free_electric_fields
+        endif
         call free_vfields
         call free_number_density
         call free_vkappa
@@ -105,9 +111,10 @@ program vdot_kappa
         use configuration_translate, only: tindex_start
         use configuration_translate, only: output_format
         use pic_fields, only: open_magnetic_field_files, open_vfield_files, &
-            open_number_density_file, close_magnetic_field_files, &
-            close_vfield_files, close_number_density_file, &
-            read_magnetic_fields, read_vfields, read_number_density, &
+            open_number_density_file, open_electric_field_files, &
+            close_magnetic_field_files, close_vfield_files, close_number_density_file, &
+            close_electric_field_files, read_magnetic_fields, read_vfields, &
+            read_number_density, read_electric_fields, interp_emf_node_ghost, &
             vfields_fh, nrho_fh
         use parameters, only: tp1
         implicit none
@@ -119,6 +126,9 @@ program vdot_kappa
         out_record = output_record_initial
         if (output_format == 1) then
             call open_magnetic_field_files
+            if (with_exb) then
+                call open_electric_field_files
+            endif
             call open_vfield_files('e')
             call open_number_density_file('e')
             ! Save file handlers so we open both electron and ion files
@@ -141,6 +151,12 @@ program vdot_kappa
                 call read_magnetic_fields(tp1)
                 call close_magnetic_field_files
                 if (myid == master) print*, "Finished reading magnetic fields"
+                if (with_exb) then
+                    call open_electric_field_files(tindex)
+                    call read_electric_fields(tp1)
+                    call close_electric_field_files
+                    if (myid == master) print*, "Finished reading electric fields"
+                endif
 
                 call open_vfield_files('e', tindex)
                 call open_number_density_file('e', tindex)
@@ -149,7 +165,9 @@ program vdot_kappa
                 call close_vfield_files
                 call close_number_density_file
                 if (myid == master) print*, "Finished reading electron velocity and density fields"
-                call vsingle_tmp
+                if (.not. with_exb) then
+                    call vsingle_tmp
+                endif
 
                 call open_vfield_files('i', tindex)
                 call open_number_density_file('i', tindex)
@@ -158,7 +176,12 @@ program vdot_kappa
                 call close_vfield_files
                 call close_number_density_file
                 if (myid == master) print*, "Finished reading ion velocity and density fields"
-                call vsingle_final
+                if (.not. with_exb) then
+                    call vsingle_final
+                else
+                    call interp_emf_node_ghost
+                    call calc_vexb
+                endif
 
                 call eval_vkappa_single
                 call write_vkappa(1, 1, tindex)
@@ -173,18 +196,28 @@ program vdot_kappa
             do tframe = tp1_local, tp2_local
                 if (myid==master) print*, tframe
                 call read_magnetic_fields(tframe)
+                if (with_exb) then
+                    call read_electric_fields(tframe)
+                endif
 
                 vfields_fh = vfields_fh_e
                 nrho_fh = nrho_fh_e
                 call read_vfields(tframe)
                 call read_number_density(tframe)
-                call vsingle_tmp
+                if (.not. with_exb) then
+                    call vsingle_tmp
+                endif
 
                 vfields_fh = vfields_fh_i
                 nrho_fh = nrho_fh_i
                 call read_vfields(tframe)
                 call read_number_density(tframe)
-                call vsingle_final
+                if (.not. with_exb) then
+                    call vsingle_final
+                else
+                    call interp_emf_node_ghost
+                    call calc_vexb
+                endif
 
                 call eval_vkappa_single
                 call write_vkappa(tframe, tp1_local, 0)
@@ -195,6 +228,9 @@ program vdot_kappa
 
         if (output_format == 1) then
             call close_magnetic_field_files
+            if (with_exb) then
+                call close_electric_field_files
+            endif
             vfields_fh = vfields_fh_e
             nrho_fh = nrho_fh_e
             call close_vfield_files
@@ -240,6 +276,18 @@ program vdot_kappa
     end subroutine vsingle_final
 
     !<--------------------------------------------------------------------------
+    !< Evaluate ExB drift velocity
+    !<--------------------------------------------------------------------------
+    subroutine calc_vexb
+        use pic_fields, only: bx, by, bz, ex, ey, ez, absB
+        implicit none
+        vsx = 1.0 / absB**2 ! Use vsx as temporary variable
+        vsy = (ez * bx - ex * bz) * vsx
+        vsz = (ex * by - ey * bx) * vsx
+        vsx = (ey * bz - ez * by) * vsx
+    end subroutine calc_vexb
+
+    !<--------------------------------------------------------------------------
     !< Evaluate v.kappa for a single time step
     !<--------------------------------------------------------------------------
     subroutine eval_vkappa_single
@@ -249,8 +297,10 @@ program vdot_kappa
         implicit none
         integer :: ix, iy, iz
 
-        ! Interpolation magnetic field to nodes
-        call interp_bfield_node_ghost
+        if (.not. with_exb) then
+            ! Interpolation magnetic field to nodes
+            call interp_bfield_node_ghost
+        endif
 
         do ix = 1, htg%nx
             tmpx(ix, :, :) = bx(ix, :, :) * (bx(ixh(ix), :, :) - bx(ixl(ix), :, :)) * idx(ix)
@@ -426,6 +476,10 @@ program vdot_kappa
             help='whether including number density', required=.false., &
             act='store_true', def='.false.', error=error)
         if (error/=0) stop
+        call cli%add(switch='--with_exb', switch_ab='-we', &
+            help='whether using ExB drift velocity', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%add(switch='--species', switch_ab='-sp', &
             help="Particle species: 'e' or 'h'", required=.false., &
             act='store', def='e', error=error)
@@ -446,6 +500,8 @@ program vdot_kappa
         if (error/=0) stop
         call cli%get(switch='-wn', val=with_nrho, error=error)
         if (error/=0) stop
+        call cli%get(switch='-we', val=with_exb, error=error)
+        if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
         if (error/=0) stop
         call cli%get(switch='-nb', val=nbins, error=error)
@@ -460,6 +516,9 @@ program vdot_kappa
             print '(A,A)', 'Default particle species is: ', species
             if (with_nrho) then
                 print '(A)', 'Calculate nv.kappa instead of v.kappa'
+            endif
+            if (with_exb) then
+                print '(A)', 'Using ExB drift instead of single-fluid velocity'
             endif
             print '(A,I0)', ' Number of bins for vkappa: ', nbins
             print '(A,E,E)', ' Minimum and maximum vdot_kappa: ', vkappa_min, vkappa_max
@@ -588,7 +647,7 @@ program vdot_kappa
         integer :: fh
         integer :: ixl, iyl, izl, ixh, iyh, izh
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        character(len=16) :: cfname
+        character(len=16) :: cfname, vname
 
         write(cfname, "(I0)") tindex
 
@@ -602,17 +661,25 @@ program vdot_kappa
         disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (tframe-tstart)
         offset = 0
 
+        if (with_exb) then
+            vname = 'vexb_'
+        else
+            vname = 'v'
+        endif
         if (output_format /= 1) then
             if (with_nrho) then
-                fname1 = trim(adjustl(outputpath))//'n'//species//'_vkappa_'//trim(cfname)//'.gda'
+                fname1 = trim(adjustl(outputpath))//'n'//species//'_'
+                fname1 = trim(fname1)//trim(vname)//'kappa_'//trim(cfname)//'.gda'
             else
-                fname1 = trim(adjustl(outputpath))//'vkappa_'//trim(cfname)//'.gda'
+                fname1 = trim(adjustl(outputpath))
+                fname1 = trim(fname1)//trim(vname)//'kappa_'//trim(cfname)//'.gda'
             endif
         else
             if (with_nrho) then
-                fname1 = trim(adjustl(outputpath))//'n'//species//'_vkappa.gda'
+                fname1 = trim(adjustl(outputpath))//'n'//species//'_'
+                fname1 = trim(fname1)//trim(vname)//'kappa.gda'
             else
-                fname1 = trim(adjustl(outputpath))//'nvkappa.gda'
+                fname1 = trim(adjustl(outputpath))//trim(vname)//'kappa.gda'
             endif
         endif
         call open_data_mpi_io(fname1, MPI_MODE_RDWR+MPI_MODE_CREATE, fileinfo, fh)
@@ -628,7 +695,7 @@ program vdot_kappa
         implicit none
         integer, intent(in) :: tindex
         integer :: fh1, posf
-        character(len=16) :: tindex_str
+        character(len=16) :: tindex_str, vname
         character(len=256) :: fname
         logical :: dir_e
         if (myid == master) then
@@ -645,10 +712,15 @@ program vdot_kappa
             fh1 = 66
 
             write(tindex_str, "(I0)") tindex
-            if (with_nrho) then
-                fname = 'data/vkappa_dist/nvkappa_dist'//'_'//species
+            if (with_exb) then
+                vname = 'vexb_'
             else
-                fname = 'data/vkappa_dist/vkappa_dist'
+                vname = 'v'
+            endif
+            if (with_nrho) then
+                fname = 'data/vkappa_dist/n'//trim(vname)//'kappa_dist'//'_'//species
+            else
+                fname = 'data/vkappa_dist/'//trim(vname)//'kappa_dist'
             endif
             fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
             open(unit=fh1, file=fname, access='stream', status='unknown', &
