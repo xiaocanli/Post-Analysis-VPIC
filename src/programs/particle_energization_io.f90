@@ -18,8 +18,12 @@ program particle_energization_io
     character(len=16) :: dir_emf, dir_hydro
     integer :: tstart, tend, tinterval, tframe, fields_interval, fd_tinterval
     integer :: nbins        ! Number of particle bins
+    integer :: nbins_high   ! Number of bins for high-energy particles
     real(fp) :: emin, emax  ! Minimum and maximum particle Lorentz factor
+    real(fp) :: emin_high   ! Minimum Lorentz factor for high-energy particles
+    real(fp) :: emax_high   ! Maximum Lorentz factor for high-energy particles
     integer :: nbins_alpha  ! Number of bins for acceleration rate alpha at each energy bin
+    integer :: nzone_x, nzone_y, nzone_z ! Number of zones in each PIC local domain
     ! Minimum and maximum of acceleration rate. Note that alpha can be possible
     ! and negative. Here, alpha_min and alpha_max are positive values.
     ! The negative part is just symmetric to the positive part.
@@ -29,17 +33,22 @@ program particle_energization_io
     integer, parameter :: nvar = 18
     integer :: separated_pre_post
     real(fp), allocatable, dimension(:) :: ebins
+    real(fp), allocatable, dimension(:) :: ebins_high  ! For high-energy particles
     real(fp), allocatable, dimension(:, :, :) :: fbins, fbins_sum
     real(fp), allocatable, dimension(:, :, :) :: faniso, faniso_sum
     real(fp), allocatable, dimension(:) :: alpha_bins
     real(fp), allocatable, dimension(:, :, :, :) :: fbins_dist, fbins_dist_sum
+    real(fp), allocatable, dimension(:, :, :, :, :) :: falpha, faniso_3d
     real(fp) :: de_log, emin_log
+    real(fp) :: dehigh_log, emin_high_log  ! For high-energy particles
     real(fp) :: dalpha_log, alpha_min_log
     integer :: i, tp_emf, tp_hydro
     logical :: is_translated_file
     type(particle), allocatable, dimension(:) :: ptls
-    integer :: ptl_rm_local, ptl_rm_global  ! Number of particles got removed
-                                            ! when local electric field is too large
+    integer :: ptl_rm_local, ptl_rm_global   ! Number of particles got removed
+                                             ! when local electric field is too large
+    integer :: nzonex_local, nzoney_local, nzonez_local ! Number of zones in current MPI rank
+    integer :: nx_zone, ny_zone, nz_zone     ! Number of cells in each zone
 
     ! Particles in HDF5 format
     integer, allocatable, dimension(:) :: np_local
@@ -71,6 +80,7 @@ program particle_energization_io
         npic_domain_x = domain%pic_tx / nbinx
     endif
 
+    call get_local_zones
     call calc_particle_energization
 
     call end_analysis
@@ -85,15 +95,52 @@ program particle_energization_io
     contains
 
     !<--------------------------------------------------------------------------
+    !< Get local number of zones and their sizes
+    !<--------------------------------------------------------------------------
+    subroutine get_local_zones
+        use topology_translate, only: ht
+        use picinfo, only: domain
+        implicit none
+        nzonex_local = (domain%pic_tx / ht%tx) * nzone_x
+        nzoney_local = (domain%pic_ty / ht%ty) * nzone_y
+        nzonez_local = (domain%pic_tz / ht%tz) * nzone_z
+        nx_zone = domain%pic_nx / nzone_x
+        ny_zone = domain%pic_ny / nzone_y
+        nz_zone = domain%pic_nz / nzone_z
+    end subroutine get_local_zones
+
+    !<--------------------------------------------------------------------------
     !< Initialize energy bins and distributions
     !<--------------------------------------------------------------------------
     subroutine init_dists
         implicit none
+        allocate(ebins(nbins + 1))
+        allocate(fbins(nbins + 1, nbinx, 2*nvar - 1))
+        allocate(fbins_sum(nbins + 1, nbinx, 2*nvar - 1))
+
+        allocate(faniso(3, nbins + 1, nbinx))
+        allocate(faniso_sum(3, nbins + 1, nbinx))
+
+        allocate(alpha_bins(nbins_alpha + 1))
+        allocate(fbins_dist((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
+        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
+
+        allocate(ebins_high(nbins_high+1))
+        allocate(falpha(nbins_high+1, nzonex_local, nzoney_local, nzonez_local, 2*nvar-1))
+        allocate(faniso_3d(nbins_high+1, nzonex_local, nzoney_local, nzonez_local, 3))
+
         ! Energy bins
         de_log = (log10(emax/ptl_mass) - log10(emin/ptl_mass)) / nbins
         emin_log = log10(emin/ptl_mass)
         do i = 1, nbins + 1
             ebins(i) = 10**(de_log * (i - 1) + emin_log)
+        enddo
+
+        ! Energy bins for high-energy particles
+        dehigh_log = (log10(emax_high/ptl_mass) - log10(emin_high/ptl_mass)) / nbins_high
+        emin_high_log = log10(emin_high/ptl_mass)
+        do i = 1, nbins_high + 1
+            ebins_high(i) = 10**(dehigh_log * (i - 1) + emin_high_log)
         enddo
 
         ! Acceleration rate bins
@@ -107,6 +154,18 @@ program particle_energization_io
     end subroutine init_dists
 
     !<--------------------------------------------------------------------------
+    !< Free energy bins and distributions
+    !<--------------------------------------------------------------------------
+    subroutine free_dists
+        implicit none
+        deallocate(ebins, fbins, fbins_sum)
+        deallocate(faniso, faniso_sum)
+        deallocate(alpha_bins, fbins_dist, fbins_dist_sum)
+        deallocate(ebins_high, falpha)
+        deallocate(faniso_3d)
+    end subroutine free_dists
+
+    !<--------------------------------------------------------------------------
     !< Set distributions to be 0
     !<--------------------------------------------------------------------------
     subroutine set_dists_zero
@@ -117,6 +176,8 @@ program particle_energization_io
         fbins_dist_sum = 0.0
         faniso = 0.0
         faniso_sum = 0.0
+        falpha = 0.0
+        faniso_3d = 0.0
     end subroutine set_dists_zero
 
     !<--------------------------------------------------------------------------
@@ -200,7 +261,6 @@ program particle_energization_io
         integer :: dom_x, dom_y, dom_z
         integer :: tindex, tindex_pre, tindex_pos
         integer :: t1, t2, t3, t4, clock_rate, clock_max
-        real(fp) :: dx_domain, dy_domain, dz_domain
         real(fp) :: dt_fields
 
         call init_emfields
@@ -231,17 +291,6 @@ program particle_energization_io
             call init_vperp_derivatives(htg%nx, htg%ny, htg%nz)  ! 9 components
             call init_absb_derivatives(htg%nx, htg%ny, htg%nz)   ! 3 components
         endif
-
-        allocate(ebins(nbins + 1))
-        allocate(fbins(nbins + 1, nbinx, 2*nvar - 1))
-        allocate(fbins_sum(nbins + 1, nbinx, 2*nvar - 1))
-
-        allocate(faniso(3, nbins + 1, nbinx))
-        allocate(faniso_sum(3, nbins + 1, nbinx))
-
-        allocate(alpha_bins(nbins_alpha + 1))
-        allocate(fbins_dist((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
-        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
 
         call init_dists
 
@@ -358,10 +407,6 @@ program particle_energization_io
             call calc_vperp_derivatives(htg%nx, htg%ny, htg%nz)
             call calc_absb_derivatives(htg%nx, htg%ny, htg%nz)
 
-            dx_domain = domain%lx_de / domain%pic_tx
-            dy_domain = domain%ly_de / domain%pic_ty
-            dz_domain = domain%lz_de / domain%pic_tz
-
             ! Particles are saved in HDF5
             if (particle_hdf5) then
                 call system_clock(t3, clock_rate, clock_max)
@@ -378,8 +423,7 @@ program particle_energization_io
                 do dom_y = ht%start_y, ht%stop_y
                     do dom_x = ht%start_x, ht%stop_x
                         call calc_particle_energization_single(tframe, &
-                            dom_x, dom_y, dom_z, dx_domain, dy_domain, &
-                            dz_domain, dt_fields)
+                            dom_x, dom_y, dom_z, dt_fields)
                     enddo ! x
                 enddo ! y
             enddo ! z
@@ -403,6 +447,8 @@ program particle_energization_io
             call save_particle_energization(tframe, "particle_energization")
             call save_acceleration_rate_dist(tframe, "acc_rate_dist")
             call save_pressure_anisotropy(tframe, "anisotropy")
+            call save_spatial_acceleration_rates(tframe)
+            call save_anisotropy_3d(tframe)
             call system_clock(t4, clock_rate, clock_max)
             if (myid == master) then
                 write (*, *) 'Time for saving data = ', real(t4 - t3) / real(clock_rate)
@@ -425,9 +471,7 @@ program particle_energization_io
             call close_vfield_pre_post
         endif
 
-        deallocate(ebins, fbins, fbins_sum)
-        deallocate(faniso, faniso_sum)
-        deallocate(alpha_bins, fbins_dist, fbins_dist_sum)
+        call free_dists
 
         if (is_translated_file) then
             call free_electric_fields
@@ -462,8 +506,7 @@ program particle_energization_io
     !<--------------------------------------------------------------------------
     !< Calculate particle energization for particles in a single PIC MPI rank
     !<--------------------------------------------------------------------------
-    subroutine calc_particle_energization_single(tindex, dom_x, dom_y, dom_z, &
-            dx_domain, dy_domain, dz_domain, dt_fields)
+    subroutine calc_particle_energization_single(tindex, dom_x, dom_y, dom_z, dt_fields)
         use picinfo, only: domain
         use topology_translate, only: ht
         use rank_index_mapping, only: index_to_rank
@@ -501,12 +544,12 @@ program particle_energization_io
         use file_header, only: pheader
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
-        real(fp), intent(in) :: dx_domain, dy_domain, dz_domain, dt_fields
+        real(fp), intent(in) :: dt_fields
         type(particle) :: ptl
         integer :: ino, jno, kno   ! w.r.t the node
         real(fp) :: dnx, dny, dnz
         integer :: nxg, nyg, nzg, icell
-        integer :: ibin, n
+        integer :: ibin, n, ibin_high
         integer :: iptl, nptl
         real(fp) :: gama, igama, iene, ux, uy, uz, vx, vy, vz
         real(fp) :: vpara, vperp, vparax, vparay, vparaz
@@ -541,6 +584,7 @@ program particle_energization_io
         real(fp), dimension(18) :: acc_rate
         real(fp) :: arate_no_weight
         integer :: ivar, ialpha, ibinx
+        integer :: izonex_local, izoney_local, izonez_local
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
@@ -936,6 +980,33 @@ program particle_energization_io
                         fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) + acc_rate(ivar)
                 enddo
             endif
+
+            ! High-energy particles
+            ibin_high = floor((log10(gama - 1) - emin_high_log) / dehigh_log)
+            if (ibin_high > 0 .and. ibin_high < nbins_high + 1) then
+                izonex_local = (dom_x - ht%start_x) * nzone_x + (ino - 1) / nx_zone + 1
+                izoney_local = (dom_y - ht%start_y) * nzone_y + (jno - 1) / ny_zone + 1
+                izonez_local = (dom_z - ht%start_z) * nzone_z + (kno - 1) / nz_zone + 1
+                do ivar = 1, nvar
+                    falpha(ibin_high+1, izonex_local, izoney_local, izonez_local, ivar) = &
+                        falpha(ibin_high+1, izonex_local, izoney_local, izonez_local, ivar) + &
+                        acc_rate(ivar)
+                enddo
+                ! Square of the acceleration rate
+                do ivar = 1, nvar - 1
+                    falpha(ibin_high+1, izonex_local, izoney_local, izonez_local, ivar+nvar) = &
+                        falpha(ibin_high+1, izonex_local, izoney_local, izonez_local, ivar+nvar) + &
+                        acc_rate(ivar+1)**2 / weight
+                enddo
+
+                ! Anisotropy
+                faniso_3d(ibin_high+1, izonex_local, izoney_local, izonez_local, 1) = &
+                    faniso_3d(ibin_high+1, izonex_local, izoney_local, izonez_local, 1) + acc_rate(1)
+                faniso_3d(ibin_high+1, izonex_local, izoney_local, izonez_local, 2) = &
+                    faniso_3d(ibin_high+1, izonex_local, izoney_local, izonez_local, 2) + ppara
+                faniso_3d(ibin_high+1, izonex_local, izoney_local, izonez_local, 3) = &
+                    faniso_3d(ibin_high+1, izonex_local, izoney_local, izonez_local, 3) + pperp
+            endif
         enddo
         deallocate(ptls)
     end subroutine calc_particle_energization_single
@@ -1070,6 +1141,202 @@ program particle_energization_io
     end subroutine save_acceleration_rate_dist
 
     !<--------------------------------------------------------------------------
+    !< Save spatially distributed particle acceleration rates
+    !<--------------------------------------------------------------------------
+    subroutine save_spatial_acceleration_rates(tindex)
+        use path_info, only: rootpath
+        use picinfo, only: domain
+        use topology_translate, only: ht
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=256) :: fdir, fname
+        character(len=16) :: dataset_name
+        integer(hid_t) :: file_id, group_id, plist_id
+        integer(hid_t) :: filespace, memspace, dataset_id
+        integer, parameter :: rank = 4
+        integer(hsize_t), dimension(rank) :: dset_dims, dcount, doffset
+        integer :: fileinfo, error, nx, ny, nz, ivar
+        character(len=16) :: tindex_str
+        character(len=16), dimension(nvar-1) :: var_names
+        logical :: dir_e
+
+        nx = domain%pic_tx * nzone_x
+        ny = domain%pic_ty * nzone_y
+        nz = domain%pic_tz * nzone_z
+        dset_dims = (/nbins_high+1, nx, ny, nz/)
+        nx = nzonex_local
+        ny = nzoney_local
+        nz = nzonez_local
+        dcount = (/nbins_high+1, nx, ny, nz/)
+        doffset = (/0, nx*ht%ix, ny*ht%iy, nz*ht%iz/)
+        var_names = (/'Epara', 'Eperp', 'Compression', 'Shear', 'Curvature', &
+                      'Gradient', 'Parallel-drift', 'mu-conservation', &
+                      'Polar-time', 'Polar-spatial', 'Inertial-time', &
+                      'Inertial-spatial', 'Polar-fluid-time', 'Polar-fluid-spatial', &
+                      'Polar-time-v', 'Polar-spatial-v', 'Ptensor'/)
+
+        ! Set filefinfo for parallel writing or reading
+        call MPI_INFO_CREATE(fileinfo, ierror)
+        call MPI_INFO_SET(fileinfo, "romio_cb_read", "automatic", ierror)
+        call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
+        ! call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
+        ! call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
+
+        fdir = trim(adjustl(rootpath))//"spatial_acceleration_rates"
+        inquire(file=trim(fdir)//'/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir -p '//trim(fdir)//'/')
+        endif
+        if (myid == master) then
+            print*, "Saving the spatial distribution of particle accelerate rate..."
+        endif
+
+        write(tindex_str, "(I0)") tindex
+        fname = trim(fdir)//'/spatial_acc_rates_'//species//"_"//trim(tindex_str)//'.h5'
+
+        call h5open_f(error)
+
+        call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, error)
+        call h5pset_fapl_mpio_f(plist_id, MPI_COMM_WORLD, fileinfo, error)
+        call h5fcreate_f(fname, H5F_ACC_TRUNC_F, file_id, error, access_prp=plist_id)
+        call h5pclose_f(plist_id, error)
+
+        call h5screate_simple_f(rank, dset_dims, filespace, error)
+        CALL h5screate_simple_f(rank, dcount, memspace, error)
+        call h5sselect_hyperslab_f(filespace, H5S_SELECT_SET_F, doffset, &
+            dcount, error)
+
+        call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, error)
+        call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, error)
+
+        ! Particle distribution
+        call h5dcreate_f(file_id, 'particle_distribution', H5T_NATIVE_REAL, &
+            filespace, dataset_id, error)
+        call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, falpha(:, :, :, :, 1), &
+            dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
+            xfer_prp=plist_id)
+        call h5dclose_f(dataset_id, error)
+
+        ! Accelerates rates
+        call h5gcreate_f(file_id, 'acc_rates', group_id, error)
+        do ivar = 1, nvar-1
+            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_REAL, &
+                filespace, dataset_id, error)
+            call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, falpha(:, :, :, :, ivar+1), &
+                dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
+                xfer_prp=plist_id)
+            call h5dclose_f(dataset_id, error)
+        enddo
+        call h5gclose_f(group_id, error)
+
+        ! Square of reconnection rates
+        call h5gcreate_f(file_id, 'acc_rates_square', group_id, error)
+        do ivar = 1, nvar-1
+            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_REAL, &
+                filespace, dataset_id, error)
+            call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, falpha(:, :, :, :, ivar+nvar), &
+                dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
+                xfer_prp=plist_id)
+            call h5dclose_f(dataset_id, error)
+        enddo
+        call h5gclose_f(group_id, error)
+
+        call h5pclose_f(plist_id, error)
+        call h5sclose_f(memspace, error)
+        call h5sclose_f(filespace, error)
+        call h5fclose_f(file_id, error)
+        call h5close_f(error)
+
+        call MPI_INFO_FREE(fileinfo, ierror)
+    end subroutine save_spatial_acceleration_rates
+
+    !<--------------------------------------------------------------------------
+    !< Save spatially distributed anisotropy
+    !<--------------------------------------------------------------------------
+    subroutine save_anisotropy_3d(tindex)
+        use path_info, only: rootpath
+        use picinfo, only: domain
+        use topology_translate, only: ht
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=256) :: fdir, fname
+        character(len=16) :: dataset_name
+        integer(hid_t) :: file_id, group_id, plist_id
+        integer(hid_t) :: filespace, memspace, dataset_id
+        integer, parameter :: rank = 4
+        integer(hsize_t), dimension(rank) :: dset_dims, dcount, doffset
+        integer :: fileinfo, error, nx, ny, nz, ivar
+        character(len=16) :: tindex_str
+        character(len=16), dimension(3) :: var_names
+        logical :: dir_e
+
+        nx = domain%pic_tx * nzone_x
+        ny = domain%pic_ty * nzone_y
+        nz = domain%pic_tz * nzone_z
+        dset_dims = (/nbins_high+1, nx, ny, nz/)
+        nx = nzonex_local
+        ny = nzoney_local
+        nz = nzonez_local
+        dcount = (/nbins_high+1, nx, ny, nz/)
+        doffset = (/0, nx*ht%ix, ny*ht%iy, nz*ht%iz/)
+        var_names = (/'particle_dist', 'ppara', 'pperp'/)
+
+        ! Set filefinfo for parallel writing or reading
+        call MPI_INFO_CREATE(fileinfo, ierror)
+        call MPI_INFO_SET(fileinfo, "romio_cb_read", "automatic", ierror)
+        call MPI_INFO_SET(fileinfo, "romio_ds_read", "automatic", ierror)
+        ! call MPI_INFO_SET(fileinfo, "romio_cb_read", "enable", ierror)
+        ! call MPI_INFO_SET(fileinfo, "romio_ds_read", "disable", ierror)
+
+        fdir = trim(adjustl(rootpath))//"spatial_anisotropy"
+        inquire(file=trim(fdir)//'/.', exist=dir_e)
+        if (.not. dir_e) then
+            call system('mkdir -p '//trim(fdir)//'/')
+        endif
+        if (myid == master) then
+            print*, "Saving the spatial distribution of pressure anisotropy..."
+        endif
+
+        write(tindex_str, "(I0)") tindex
+        fname = trim(fdir)//'/spatial_aniso_'//species//"_"//trim(tindex_str)//'.h5'
+
+        call h5open_f(error)
+
+        call h5pcreate_f(H5P_FILE_ACCESS_F, plist_id, error)
+        call h5pset_fapl_mpio_f(plist_id, MPI_COMM_WORLD, fileinfo, error)
+        call h5fcreate_f(fname, H5F_ACC_TRUNC_F, file_id, error, access_prp=plist_id)
+        call h5pclose_f(plist_id, error)
+
+        call h5screate_simple_f(rank, dset_dims, filespace, error)
+        CALL h5screate_simple_f(rank, dcount, memspace, error)
+        call h5sselect_hyperslab_f(filespace, H5S_SELECT_SET_F, doffset, &
+            dcount, error)
+
+        call h5pcreate_f(H5P_DATASET_XFER_F, plist_id, error)
+        call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, error)
+
+        ! Accelerates rates
+        call h5gcreate_f(file_id, 'anisotropy', group_id, error)
+        do ivar = 1, 3
+            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_REAL, &
+                filespace, dataset_id, error)
+            call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, faniso_3d(:, :, :, :, ivar), &
+                dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
+                xfer_prp=plist_id)
+            call h5dclose_f(dataset_id, error)
+        enddo
+        call h5gclose_f(group_id, error)
+
+        call h5pclose_f(plist_id, error)
+        call h5sclose_f(memspace, error)
+        call h5sclose_f(filespace, error)
+        call h5fclose_f(file_id, error)
+        call h5close_f(error)
+
+        call MPI_INFO_FREE(fileinfo, ierror)
+    end subroutine save_anisotropy_3d
+
+    !<--------------------------------------------------------------------------
     !< Initialize the analysis.
     !<--------------------------------------------------------------------------
     subroutine init_analysis
@@ -1157,181 +1424,6 @@ program particle_energization_io
         read(fh, IOSTAT=IOstatus) ptls
         call close_particle_file
     end subroutine read_particle_binary
-
-    !<--------------------------------------------------------------------------
-    !< Get commandline arguments
-    !<--------------------------------------------------------------------------
-    subroutine get_cmd_args
-        use flap                                !< FLAP package
-        use penf
-        implicit none
-        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
-        integer(I4P)                 :: error   !< Error trapping flag.
-        call cli%init(progname = 'interpolation', &
-            authors     = 'Xiaocan Li', &
-            help        = 'Usage: ', &
-            description = 'Interpolate fields at particle positions', &
-            examples    = ['interpolation -rp rootpath'])
-        call cli%add(switch='--rootpath', switch_ab='-rp', &
-            help='simulation root path', required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--translated_file', switch_ab='-tf', &
-            help='whether using translated fields file', required=.false., &
-            act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--tstart', switch_ab='-ts', &
-            help='Starting time frame', required=.false., act='store', &
-            def='0', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--tend', switch_ab='-te', help='Last time frame', &
-            required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--tinterval', switch_ab='-ti', help='Time interval', &
-            required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--fields_interval', switch_ab='-fi', &
-            help='Time interval for PIC fields', &
-            required=.true., act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--species', switch_ab='-sp', &
-            help="Particle species: 'e' or 'h'", required=.false., &
-            act='store', def='e', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--dir_emf', switch_ab='-de', &
-            help='EMF data directory', required=.false., &
-            act='store', def='data', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--dir_hydro', switch_ab='-dh', &
-            help='Hydro data directory', required=.false., &
-            act='store', def='data', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--separated_pre_post', switch_ab='-pp', &
-            help='separated pre and post fields', required=.false., act='store', &
-            def='1', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--particle_hdf5', switch_ab='-ph', &
-            help='Whether particles are saved in HDF5', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--parallel_read', switch_ab='-pr', &
-            help='Whether to read HDF5 partile file in parallel', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--collective_io', switch_ab='-ci', &
-            help='Whether to use collective IO to read HDF5 partile file', &
-            required=.false., act='store_true', def='.false.', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--fd_tinterval', switch_ab='-ft', &
-            help='Frame interval when dumping 3 continuous frames', &
-            required=.false., def='1', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--nbins', switch_ab='-nb', &
-            help='Number of energy bins', &
-            required=.false., def='60', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--emin', switch_ab='-el', &
-            help='Minimum particle Lorentz factor', &
-            required=.false., def='1E-4', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--emax', switch_ab='-eh', &
-            help='Maximum particle Lorentz factor', &
-            required=.false., def='1E2', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--nbins_alpha', switch_ab='-na', &
-            help='Number of bins for the accelerate rate', &
-            required=.false., def='100', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--alpha_min', switch_ab='-al', &
-            help='Minimum particle acceleration rate', &
-            required=.false., def='1E-8', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--alpha_max', switch_ab='-ah', &
-            help='Maximum particle acceleration rate', &
-            required=.false., def='1E2', act='store', error=error)
-        if (error/=0) stop
-        call cli%add(switch='--nbinx', switch_ab='-nx', &
-            help='Number of bins along x-direction', &
-            required=.false., def='256', act='store', error=error)
-        if (error/=0) stop
-        call cli%get(switch='-rp', val=rootpath, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-tf', val=is_translated_file, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ts', val=tstart, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-te', val=tend, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ti', val=tinterval, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-fi', val=fields_interval, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-sp', val=species, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-de', val=dir_emf, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-dh', val=dir_hydro, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-pp', val=separated_pre_post, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ph', val=particle_hdf5, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-pr', val=parallel_read, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ci', val=collective_io, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ft', val=fd_tinterval, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-nb', val=nbins, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-el', val=emin, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-eh', val=emax, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-na', val=nbins_alpha, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-al', val=alpha_min, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-ah', val=alpha_max, error=error)
-        if (error/=0) stop
-        call cli%get(switch='-nx', val=nbinx, error=error)
-        if (error/=0) stop
-
-        if (myid == 0) then
-            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,L1)', ' Whether using translated fields file: ', is_translated_file
-            print '(A,I0,A,I0,A,I0)', ' Min, max and interval: ', &
-                tstart, ' ', tend, ' ', tinterval
-            print '(A,I0)', ' Time interval for electric and magnetic fields: ', &
-                fields_interval
-            if (species == 'e') then
-                print '(A,A)', ' Particle: electron'
-            else if (species == 'h' .or. species == 'i') then
-                print '(A,A)', ' Particle: ion'
-            endif
-            print '(A,A)', ' EMF data directory: ', trim(dir_emf)
-            print '(A,A)', ' Hydro data directory: ', trim(dir_hydro)
-            if (separated_pre_post) then
-                print '(A)', ' Fields at previous and next time steps are saved separately'
-                print '(A, I0)', ' Frame interval between previous and current step is: ', &
-                    fd_tinterval
-            endif
-            if (particle_hdf5) then
-                print '(A)', ' Particles are saved in HDF5 format'
-                if (parallel_read) then
-                    print '(A)', ' Read HDF5 particle file in parallel'
-                    if (collective_io) then
-                        print '(A)', ' Using colletive IO to read HDF5 particle file'
-                    endif
-                endif
-            endif
-            print '(A,I0)', ' Number of energy bins: ', nbins
-            print '(A,E,E)', ' Minimum and maximum Lorentz factor: ', emin, emax
-            print '(A,I0)', ' Number of bins for particle acceleration rate: ', nbins_alpha
-            print '(A,E,E)', ' Minimum and maximum particle acceleration rate: ', &
-                alpha_min, alpha_max
-            print '(A,I0)', ' Number of bins for along x particle acceleration rate: ', nbinx
-        endif
-    end subroutine get_cmd_args
 
     !<--------------------------------------------------------------------------
     !< Initialize the np_local and offset_local array
@@ -1729,5 +1821,221 @@ program particle_energization_io
         call read_hdf5_integer_parallel(dset_ids(7), dcount, doffset, dset_dims, ptls%icell)
         call read_hdf5_real_parallel(dset_ids(8), dcount, doffset, dset_dims, ptls%q)
     end subroutine read_particle_h5_parallel
+
+    !<--------------------------------------------------------------------------
+    !< Get commandline arguments
+    !<--------------------------------------------------------------------------
+    subroutine get_cmd_args
+        use flap                                !< FLAP package
+        use penf
+        implicit none
+        type(command_line_interface) :: cli     !< Command Line Interface (CLI).
+        integer(I4P)                 :: error   !< Error trapping flag.
+        call cli%init(progname = 'interpolation', &
+            authors     = 'Xiaocan Li', &
+            help        = 'Usage: ', &
+            description = 'Interpolate fields at particle positions', &
+            examples    = ['interpolation -rp rootpath'])
+        call cli%add(switch='--rootpath', switch_ab='-rp', &
+            help='simulation root path', required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--translated_file', switch_ab='-tf', &
+            help='whether using translated fields file', required=.false., &
+            act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--tstart', switch_ab='-ts', &
+            help='Starting time frame', required=.false., act='store', &
+            def='0', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--tend', switch_ab='-te', help='Last time frame', &
+            required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--tinterval', switch_ab='-ti', help='Time interval', &
+            required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--fields_interval', switch_ab='-fi', &
+            help='Time interval for PIC fields', &
+            required=.true., act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--species', switch_ab='-sp', &
+            help="Particle species: 'e' or 'h'", required=.false., &
+            act='store', def='e', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--dir_emf', switch_ab='-de', &
+            help='EMF data directory', required=.false., &
+            act='store', def='data', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--dir_hydro', switch_ab='-dh', &
+            help='Hydro data directory', required=.false., &
+            act='store', def='data', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--separated_pre_post', switch_ab='-pp', &
+            help='separated pre and post fields', required=.false., act='store', &
+            def='1', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--particle_hdf5', switch_ab='-ph', &
+            help='Whether particles are saved in HDF5', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--parallel_read', switch_ab='-pr', &
+            help='Whether to read HDF5 partile file in parallel', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--collective_io', switch_ab='-ci', &
+            help='Whether to use collective IO to read HDF5 partile file', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--fd_tinterval', switch_ab='-ft', &
+            help='Frame interval when dumping 3 continuous frames', &
+            required=.false., def='1', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nbins', switch_ab='-nb', &
+            help='Number of energy bins', &
+            required=.false., def='60', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--emin', switch_ab='-el', &
+            help='Minimum particle Lorentz factor', &
+            required=.false., def='1E-4', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--emax', switch_ab='-eh', &
+            help='Maximum particle Lorentz factor', &
+            required=.false., def='1E2', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nbins_alpha', switch_ab='-na', &
+            help='Number of bins for the accelerate rate', &
+            required=.false., def='100', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--alpha_min', switch_ab='-al', &
+            help='Minimum particle acceleration rate', &
+            required=.false., def='1E-8', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--alpha_max', switch_ab='-ah', &
+            help='Maximum particle acceleration rate', &
+            required=.false., def='1E2', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nbinx', switch_ab='-nx', &
+            help='Number of bins along x-direction', &
+            required=.false., def='256', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nbins_high', switch_ab='-nh', &
+            help='Number of energy bins for high-energy particles', &
+            required=.false., def='15', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--emin_high', switch_ab='-eb', &
+            help='Minimum Lorentz factor for high-energy particles', &
+            required=.false., def='1E-2', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--emax_high', switch_ab='-et', &
+            help='Maximum Lorentz factor for high-energy particles', &
+            required=.false., def='1E1', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nzone_x', switch_ab='-zx', &
+            help='Number of zones along x in each PIC local domain', &
+            required=.false., def='1', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nzone_y', switch_ab='-zy', &
+            help='Number of zones along y in each PIC local domain', &
+            required=.false., def='1', act='store', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--nzone_z', switch_ab='-zz', &
+            help='Number of zones along z in each PIC local domain', &
+            required=.false., def='80', act='store', error=error)
+        if (error/=0) stop
+        call cli%get(switch='-rp', val=rootpath, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-tf', val=is_translated_file, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ts', val=tstart, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-te', val=tend, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ti', val=tinterval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-fi', val=fields_interval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-sp', val=species, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-de', val=dir_emf, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-dh', val=dir_hydro, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-pp', val=separated_pre_post, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ph', val=particle_hdf5, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-pr', val=parallel_read, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ci', val=collective_io, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ft', val=fd_tinterval, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nb', val=nbins, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-el', val=emin, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-eh', val=emax, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-na', val=nbins_alpha, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-al', val=alpha_min, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-ah', val=alpha_max, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nx', val=nbinx, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-nh', val=nbins_high, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-eb', val=emin_high, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-et', val=emax_high, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-zx', val=nzone_x, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-zy', val=nzone_y, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-zz', val=nzone_z, error=error)
+        if (error/=0) stop
+
+        if (myid == 0) then
+            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,L1)', ' Whether using translated fields file: ', is_translated_file
+            print '(A,I0,A,I0,A,I0)', ' Min, max and interval: ', &
+                tstart, ' ', tend, ' ', tinterval
+            print '(A,I0)', ' Time interval for electric and magnetic fields: ', &
+                fields_interval
+            if (species == 'e') then
+                print '(A,A)', ' Particle: electron'
+            else if (species == 'h' .or. species == 'i') then
+                print '(A,A)', ' Particle: ion'
+            endif
+            print '(A,A)', ' EMF data directory: ', trim(dir_emf)
+            print '(A,A)', ' Hydro data directory: ', trim(dir_hydro)
+            if (separated_pre_post) then
+                print '(A)', ' Fields at previous and next time steps are saved separately'
+                print '(A, I0)', ' Frame interval between previous and current step is: ', &
+                    fd_tinterval
+            endif
+            if (particle_hdf5) then
+                print '(A)', ' Particles are saved in HDF5 format'
+                if (parallel_read) then
+                    print '(A)', ' Read HDF5 particle file in parallel'
+                    if (collective_io) then
+                        print '(A)', ' Using colletive IO to read HDF5 particle file'
+                    endif
+                endif
+            endif
+            print '(A,I0)', ' Number of energy bins: ', nbins
+            print '(A,E,E)', ' Minimum and maximum Lorentz factor: ', emin, emax
+            print '(A,I0)', ' Number of bins for particle acceleration rate: ', nbins_alpha
+            print '(A,E,E)', ' Minimum and maximum particle acceleration rate: ', &
+                alpha_min, alpha_max
+            print '(A,I0)', ' Number of bins for along x particle acceleration rate: ', nbinx
+            print '(A,I0)', ' Number of energy bins for high-energy particles: ', nbins_high
+            print '(A,E,E)', ' Minimum and maximum Lorentz factor for high-energy particles: ', &
+                emin_high, emax_high
+            print '(A,I0,A,I0,A,I0)', ' Number of zones in each PIC local domain: ', &
+                nzone_x, ', ', nzone_y, ', ', nzone_z
+        endif
+    end subroutine get_cmd_args
 
 end program particle_energization_io
