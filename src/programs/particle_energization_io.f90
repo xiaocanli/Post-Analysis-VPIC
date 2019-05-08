@@ -983,7 +983,7 @@ program particle_energization_io
 
             ! High-energy particles
             ibin_high = floor((log10(gama - 1) - emin_high_log) / dehigh_log)
-            if (ibin_high > 0 .and. ibin_high < nbins_high + 1) then
+            if (ibin_high >= 0 .and. ibin_high < nbins_high + 1) then
                 izonex_local = (dom_x - ht%start_x) * nzone_x + (ino - 1) / nx_zone + 1
                 izoney_local = (dom_y - ht%start_y) * nzone_y + (jno - 1) / ny_zone + 1
                 izonez_local = (dom_z - ht%start_z) * nzone_z + (kno - 1) / nz_zone + 1
@@ -1919,11 +1919,11 @@ program particle_energization_io
         if (error/=0) stop
         call cli%add(switch='--nbins_high', switch_ab='-nh', &
             help='Number of energy bins for high-energy particles', &
-            required=.false., def='15', act='store', error=error)
+            required=.false., def='20', act='store', error=error)
         if (error/=0) stop
         call cli%add(switch='--emin_high', switch_ab='-eb', &
             help='Minimum Lorentz factor for high-energy particles', &
-            required=.false., def='1E-2', act='store', error=error)
+            required=.false., def='1E-3', act='store', error=error)
         if (error/=0) stop
         call cli%add(switch='--emax_high', switch_ab='-et', &
             help='Maximum Lorentz factor for high-energy particles', &
