@@ -102,7 +102,7 @@ module picinfo
         integer :: fh, index1, index2, index3
         character(len=256) :: buff, code
         character(len=64) :: fname, another_interval
-        logical :: cond1, cond2, numeric
+        logical :: cond1, cond2, cond3, numeric
         integer :: interval, ratio, interval_base, slen
         fh = 40
 
@@ -154,12 +154,14 @@ module picinfo
         endif
 
         ! Read fields_interval
-        cond1 = index(buff, 'int fields_interval = ') == 0
+        cond1 = index(buff, 'int fields_interval') == 0
         cond2 = index(buff, '//') /= 0
-        do while (cond1 .or. cond2)
+        cond3 = index(buff, '=') == 0
+        do while (cond1 .or. cond2 .or. cond3)
             read(fh, '(A)') buff
-            cond1 = index(buff, 'int fields_interval = ') == 0
+            cond1 = index(buff, 'int fields_interval') == 0
             cond2 = index(buff, '//') /= 0
+            cond3 = index(buff, '=') == 0
         enddo
         if (index(buff, '*') /= 0) then
             index1 = index(buff, '=')
@@ -171,12 +173,14 @@ module picinfo
         fields_interval = interval * ratio
 
         ! Read hydro_interval, assuming ehydro_interval == Hhydro_interval
-        cond1 = index(buff, 'int ehydro_interval = ') == 0
+        cond1 = index(buff, 'int ehydro_interval') == 0
         cond2 = index(buff, '//') /= 0
-        do while (cond1 .or. cond2)
+        cond3 = index(buff, '=') == 0
+        do while (cond1 .or. cond2 .or. cond3)
             read(fh, '(A)') buff
-            cond1 = index(buff, 'int ehydro_interval = ') == 0
+            cond1 = index(buff, 'int ehydro_interval') == 0
             cond2 = index(buff, '//') /= 0
+            cond3 = index(buff, '=') == 0
         enddo
         if (index(buff, '*') /= 0) then
             index1 = index(buff, '=')
@@ -188,12 +192,14 @@ module picinfo
         hydro_interval = interval * ratio
 
         ! Read particle_interval, assuming eparticle_interval == Hparticle_interval
-        cond1 = index(buff, 'int eparticle_interval = ') == 0
+        cond1 = index(buff, 'int eparticle_interval') == 0
         cond2 = index(buff, '//') /= 0
-        do while (cond1 .or. cond2)
+        cond3 = index(buff, '=') == 0
+        do while (cond1 .or. cond2 .or. cond3)
             read(fh, '(A)') buff
-            cond1 = index(buff, 'int eparticle_interval = ') == 0
+            cond1 = index(buff, 'int eparticle_interval') == 0
             cond2 = index(buff, '//') /= 0
+            cond3 = index(buff, '=') == 0
         enddo
         if (index(buff, '*') /= 0) then
             index1 = index(buff, '=')
