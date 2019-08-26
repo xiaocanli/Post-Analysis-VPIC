@@ -11,13 +11,15 @@ module particle_fields
     implicit none
     private
     public init_particle_fields, init_density_fields, init_velocity_fields, &
-           init_current_densities, init_pressure_tensor, read_particle_fields, &
-           read_density_fields_single, read_velocity_fields_single, &
-           read_pressure_tensor_single, free_particle_fields, &
+           init_current_densities, init_pressure_tensor, init_mixing_rate, &
+           init_top_bottom_hydro, read_particle_fields, read_density_fields_single, &
+           read_velocity_fields_single, read_pressure_tensor_single, free_particle_fields, &
            free_velocity_fields, free_density_fields, free_current_densities, &
-           free_pressure_tensor, set_current_density_zero, adjust_particle_fields, &
-           write_particle_fields, calc_current_density, calc_absJ, &
-           write_current_densities
+           free_pressure_tensor, free_mixing_rate, free_top_bottom_hydro, &
+           set_current_density_zero, set_mixing_rate_zero, adjust_particle_fields, &
+           write_particle_fields, & calc_current_density, calc_absJ, write_current_densities, &
+           read_particle_fields_mixing, adjust_particle_fields_mixing, &
+           write_particle_fields_mixing, write_mixing_rate
     public nrho, eb
     real(fp), allocatable, dimension(:,:,:) :: vx, vy, vz, nrho
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
@@ -25,6 +27,12 @@ module particle_fields
     real(fp), allocatable, dimension(:,:,:) :: pyx, pzx, pzy, ux, uy, uz
     real(fp), allocatable, dimension(:,:,:) :: ke_density
     real(fp), allocatable, dimension(:,:,:,:) :: eb
+    ! Turbulence mixing diagnostics
+    real(fp), allocatable, dimension(:,:,:) :: mix1, nrho_top, nrho_bot
+    real(fp), allocatable, dimension(:,:,:) :: vx_top, vy_top, vz_top
+    real(fp), allocatable, dimension(:,:,:) :: vx_bot, vy_bot, vz_bot
+    real(fp), allocatable, dimension(:,:,:) :: ux_top, uy_top, uz_top
+    real(fp), allocatable, dimension(:,:,:) :: ux_bot, uy_bot, uz_bot
 
     contains
 
@@ -121,6 +129,46 @@ module particle_fields
     end subroutine init_kinetic_energy_density
 
     !---------------------------------------------------------------------------
+    ! Initialize mixing rate
+    !---------------------------------------------------------------------------
+    subroutine init_mixing_rate
+        use topology_translate, only: ht
+        implicit none
+        allocate(mix1(ht%nx, ht%ny, ht%nz))
+        call set_mixing_rate_zero
+    end subroutine init_mixing_rate
+
+    !---------------------------------------------------------------------------
+    ! Initialize top and bottom hydro
+    !---------------------------------------------------------------------------
+    subroutine init_top_bottom_hydro
+        use topology_translate, only: ht
+        implicit none
+        allocate(nrho_top(ht%nx, ht%ny, ht%nz))
+        allocate(nrho_bot(ht%nx, ht%ny, ht%nz))
+        allocate(vx_top(ht%nx, ht%ny, ht%nz))
+        allocate(vy_top(ht%nx, ht%ny, ht%nz))
+        allocate(vz_top(ht%nx, ht%ny, ht%nz))
+        allocate(vx_bot(ht%nx, ht%ny, ht%nz))
+        allocate(vy_bot(ht%nx, ht%ny, ht%nz))
+        allocate(vz_bot(ht%nx, ht%ny, ht%nz))
+        vx_top = 0.0; vy_top = 0.0; vz_top = 0.0
+        vx_bot = 0.0; vy_bot = 0.0; vz_bot = 0.0
+
+        if (is_rel == 1) then
+            ! Relativistic fields
+            allocate(ux_top(ht%nx, ht%ny, ht%nz))
+            allocate(uy_top(ht%nx, ht%ny, ht%nz))
+            allocate(uz_top(ht%nx, ht%ny, ht%nz))
+            allocate(ux_bot(ht%nx, ht%ny, ht%nz))
+            allocate(uy_bot(ht%nx, ht%ny, ht%nz))
+            allocate(uz_bot(ht%nx, ht%ny, ht%nz))
+            ux_top = 0.0; uy_top = 0.0; uz_top = 0.0
+            ux_bot = 0.0; uy_bot = 0.0; uz_bot = 0.0
+        endif
+    end subroutine init_top_bottom_hydro
+
+    !---------------------------------------------------------------------------
     ! Set current densities to zero to avoid accumulation.
     !---------------------------------------------------------------------------
     subroutine set_current_density_zero
@@ -128,6 +176,14 @@ module particle_fields
         jx = 0.0; jy = 0.0; jz = 0.0
         absJ = 0.0
     end subroutine set_current_density_zero
+
+    !---------------------------------------------------------------------------
+    ! Set the mixing rate to zero to avoid accumulation.
+    !---------------------------------------------------------------------------
+    subroutine set_mixing_rate_zero
+        implicit none
+        mix1 = 0.0
+    end subroutine set_mixing_rate_zero
 
     !---------------------------------------------------------------------------
     ! Free particle related fields.
@@ -193,6 +249,28 @@ module particle_fields
     end subroutine free_kinetic_energy_density
 
     !---------------------------------------------------------------------------
+    ! Free mixing rate
+    !---------------------------------------------------------------------------
+    subroutine free_mixing_rate
+        implicit none
+        deallocate(mix1)
+    end subroutine free_mixing_rate
+
+    !---------------------------------------------------------------------------
+    ! Free top and bottom hydro
+    !---------------------------------------------------------------------------
+    subroutine free_top_bottom_hydro
+        implicit none
+        deallocate(nrho_top, nrho_bot)
+        deallocate(vx_top, vy_top, vz_top)
+        deallocate(vx_bot, vy_bot, vz_bot)
+        if (is_rel == 1) then
+            deallocate(ux_top, uy_top, uz_top)
+            deallocate(ux_bot, uy_bot, uz_bot)
+        endif
+    end subroutine free_top_bottom_hydro
+
+    !---------------------------------------------------------------------------
     ! Read electromagnetic fields from file.
     ! Inputs:
     !   tindex0: the time step index.
@@ -226,12 +304,61 @@ module particle_fields
     end subroutine read_particle_fields
 
     !---------------------------------------------------------------------------
+    ! Read electromagnetic fields from file for simulations with diagnostics on
+    ! turbulence mixing.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
+    !---------------------------------------------------------------------------
+    subroutine read_particle_fields_mixing(tindex0, species, numfold)
+        use rank_index_mapping, only: index_to_rank
+        use picinfo, only: domain
+        use topology_translate, only: ht
+        implicit none
+        integer, intent(in) :: tindex0
+        character(len=1), intent(in) :: species
+        integer, intent(in), optional :: numfold
+        integer :: dom_x, dom_y, dom_z, n
+        integer :: numfold_local, iband
+        if (.not. present(numfold)) then
+            numfold_local = 1
+        else
+            numfold_local = numfold
+        endif
+        do dom_x = ht%start_x, ht%stop_x
+            do dom_y = ht%start_y, ht%stop_y
+                do dom_z = ht%start_z, ht%stop_z
+                    call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
+                                       domain%pic_ty, domain%pic_tz, n)
+                    call read_particle_fields_single_mixing(tindex0, n-1, species, numfold_local)
+                enddo ! x
+            enddo ! y
+        enddo ! z
+
+        vx = vx_top + vx_bot
+        vy = vy_top + vy_bot
+        vz = vz_top + vz_bot
+        nrho = nrho_top + nrho_bot
+        ux = ux_top + ux_bot
+        uy = uy_top + uy_bot
+        uz = uz_top + uz_bot
+        mix1 = nrho_bot - nrho_top
+
+        do iband = 1, nbands
+            where (nrho > 0)
+                eb(iband,:,:,:) = eb(iband,:,:,:) / nrho
+            endwhere
+        enddo
+    end subroutine read_particle_fields_mixing
+
+    !---------------------------------------------------------------------------
     ! Open one particle fields file.
     ! Input:
     !   fh: file handler
     !   tindex0: the time step index.
     !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
-    !   species: 'e' for electron, 'H' for ion.
+    !   species: 'e' for electron, 'H' for ion. Or 'eToP', 'eBot', 'HTop', 'HBot'
     !   numfold: every numfold domains are saved in one sub-directory
     !---------------------------------------------------------------------------
     subroutine open_particle_file(fh, tindex0, pic_mpi_id, species, numfold)
@@ -239,7 +366,7 @@ module particle_fields
         implicit none
         integer, intent(in) :: fh   ! File handler
         integer, intent(in) :: tindex0, pic_mpi_id, numfold
-        character(len=1), intent(in) :: species
+        character(*), intent(in) :: species
         character(len=256) :: fname1, fname2
         integer :: tindex, folded_id
         logical :: is_exist1, is_exist2, is_exist
@@ -247,30 +374,30 @@ module particle_fields
         folded_id = pic_mpi_id / numfold
         !! Index 0 does not have proper current, so use index 1 if it exists
         if (tindex == 0) then
-            write(fname1, "(A,I0,A1,A1,A6,I0,A1,I0)") &
-                trim(adjustl(rootpath))//"hydro/T.", 1, "/", species, &
+            write(fname1, "(A,I0,A1,A,A6,I0,A1,I0)") &
+                trim(adjustl(rootpath))//"hydro/T.", 1, "/", trim(species), &
                 "hydro.", 1, ".", pic_mpi_id
-            write(fname2, "(A,I0,A,I0,A1,A1,A6,I0,A1,I0)") &
+            write(fname2, "(A,I0,A,I0,A1,A,A6,I0,A1,I0)") &
                 trim(adjustl(rootpath))//"hydro/", folded_id, "/T.", 1, "/", &
-                species, "hydro.", 1, ".", pic_mpi_id
+                trim(species), "hydro.", 1, ".", pic_mpi_id
             is_exist = .false.
             inquire(file=trim(fname1), exist=is_exist1)
             inquire(file=trim(fname2), exist=is_exist2)
             is_exist = is_exist1 .or. is_exist2
             if (is_exist) tindex = 1
         endif
-        write(fname1, "(A,I0,A1,A1,A6,I0,A1,I0)") &
-            trim(adjustl(rootpath))//"hydro/T.", tindex, "/", species, &
+        write(fname1, "(A,I0,A1,A,A6,I0,A1,I0)") &
+            trim(adjustl(rootpath))//"hydro/T.", tindex, "/", trim(species), &
             "hydro.", tindex, ".", pic_mpi_id
-        write(fname2, "(A,I0,A,I0,A1,A1,A6,I0,A1,I0)") &
+        write(fname2, "(A,I0,A,I0,A1,A,A6,I0,A1,I0)") &
             trim(adjustl(rootpath))//"hydro/", folded_id ,"/T.", tindex, "/", &
-            species, "hydro.", tindex, ".", pic_mpi_id
+            trim(species), "hydro.", tindex, ".", pic_mpi_id
         is_exist = .false.
         inquire(file=trim(fname1), exist=is_exist1)
         inquire(file=trim(fname2), exist=is_exist2)
         is_exist = is_exist1 .or. is_exist2
-      
-        if (is_exist) then 
+
+        if (is_exist) then
             if (is_exist1) then
                 open(unit=fh, file=trim(fname1), access='stream', status='unknown', &
                      form='unformatted', action='read')
@@ -342,7 +469,7 @@ module particle_fields
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
         call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
                 izl, izh, nc1, nc2, nc3)
-        
+
         read(fh) buffer
         vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
@@ -375,7 +502,7 @@ module particle_fields
         pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
         pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
-        
+
         ! Particle fraction in each energy band.
         if (nbands > 0) then
             do i = 1, nbands
@@ -387,6 +514,139 @@ module particle_fields
         deallocate(buffer)
         close(fh)
     end subroutine read_particle_fields_single
+
+    !---------------------------------------------------------------------------
+    ! Read the particle related fields for a single MPI process of PIC for
+    ! simulations with diagnostics on turbulence mixing
+    ! simulation.
+    ! Inputs:
+    !   tindex0: the time step index.
+    !   pic_mpi_id: MPI id for the PIC simulation to identify the file.
+    !   species: 'e' for electron, 'H' for ion.
+    !   numfold: every numfold domains are saved in one sub-directory
+    !---------------------------------------------------------------------------
+    subroutine read_particle_fields_single_mixing(tindex0, pic_mpi_id, species, numfold)
+        use constants, only: fp
+        use file_header, only: fheader
+        use topology_translate, only: idxstart, idxstop
+        implicit none
+        integer, intent(in) :: tindex0, pic_mpi_id, numfold
+        character(len=1), intent(in) :: species
+        real(fp), allocatable, dimension(:,:,:) :: buffer
+        integer :: ixl, iyl, izl, ixh, iyh, izh
+        integer :: nc1, nc2, nc3
+        integer :: i, fh
+        character(len=4) :: species_mixing
+
+        fh = 10
+
+        ! Top
+        write(species_mixing, "(A1,A3)") trim(species), "Top"
+        call open_particle_file(fh, tindex0, pic_mpi_id, species_mixing, numfold)
+
+        allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
+        call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
+                izl, izh, nc1, nc2, nc3)
+
+        read(fh) buffer
+        vx_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        vy_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        vz_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        nrho_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+
+        if (is_rel == 1) then
+            read(fh) buffer
+            ux_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uy_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uz_top(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            ke_density(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        endif
+
+        read(fh) buffer
+        pxx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pyy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pzz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pyz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+
+        ! Particle fraction in each energy band.
+        if (nbands > 0) then
+            do i = 1, nbands
+                read(fh) buffer
+                eb(ixl:ixh, iyl:iyh, izl:izh, i) = &
+                    buffer(2:nc1, 2:nc2, 2:nc3) * nrho_top(ixl:ixh, iyl:iyh, izl:izh)
+            end do
+        endif
+        close(fh)
+
+        ! Bottom
+        write(species_mixing, "(A1,A3)") trim(species), "Bot"
+        call open_particle_file(fh, tindex0, pic_mpi_id, species_mixing, numfold)
+        read(fh) buffer
+        vx_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        vy_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        vz_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        nrho_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+
+        if (is_rel == 1) then
+            read(fh) buffer
+            ux_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uy_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            uz_bot(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
+            read(fh) buffer
+            ke_density(ixl:ixh, iyl:iyh, izl:izh) = &
+                ke_density(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+        endif
+
+        read(fh) buffer
+        pxx(ixl:ixh, iyl:iyh, izl:izh) = &
+            pxx(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pyy(ixl:ixh, iyl:iyh, izl:izh) = &
+            pyy(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pzz(ixl:ixh, iyl:iyh, izl:izh) = &
+            pzz(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pyz(ixl:ixh, iyl:iyh, izl:izh) = &
+            pyz(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pxz(ixl:ixh, iyl:iyh, izl:izh) = &
+            pxz(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+        read(fh) buffer
+        pxy(ixl:ixh, iyl:iyh, izl:izh) = &
+            pxy(ixl:ixh, iyl:iyh, izl:izh) + buffer(2:nc1, 2:nc2, 2:nc3)
+
+        ! Particle fraction in each energy band.
+        if (nbands > 0) then
+            do i = 1, nbands
+                read(fh) buffer
+                eb(ixl:ixh, iyl:iyh, izl:izh, i) = &
+                    eb(ixl:ixh, iyl:iyh, izl:izh, i) + &
+                    buffer(2:nc1, 2:nc2, 2:nc3) * nrho_bot(ixl:ixh, iyl:iyh, izl:izh)
+            end do
+        endif
+        close(fh)
+
+        deallocate(buffer)
+    end subroutine read_particle_fields_single_mixing
 
     !---------------------------------------------------------------------------
     ! Read the particle velocity fields only.
@@ -415,7 +675,7 @@ module particle_fields
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
         call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
                 izl, izh, nc1, nc2, nc3)
-        
+
         read(fh) buffer
         vx(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
@@ -467,7 +727,7 @@ module particle_fields
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
         call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
                 izl, izh, nc1, nc2, nc3)
-        
+
         buffer_size = fheader%nc(1) * fheader%nc(2) * fheader%nc(3) * 4
         offset = offset + 4 * buffer_size
 
@@ -487,7 +747,7 @@ module particle_fields
         pxz(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
         read(fh) buffer
         pxy(ixl:ixh, iyl:iyh, izl:izh) = buffer(2:nc1, 2:nc2, 2:nc3)
-        
+
         deallocate(buffer)
         close(fh)
     end subroutine read_pressure_tensor_single
@@ -521,7 +781,7 @@ module particle_fields
         allocate(buffer(fheader%nc(1), fheader%nc(2), fheader%nc(3)))
         call set_array_indices(pic_mpi_id, ixl, ixh, iyl, iyh, &
                 izl, izh, nc1, nc2, nc3)
-        
+
         buffer_size = fheader%nc(1) * fheader%nc(2) * fheader%nc(3) * 4
         offset = offset + 3 * buffer_size
         read(fh, pos=offset+1) buffer
@@ -589,7 +849,7 @@ module particle_fields
 
         nrho = abs(nrho / ptl_charge)
         if (is_rel == 1) then
-            where (nrho > 0.0) 
+            where (nrho > 0.0)
                vx = (vx/nrho) * ptl_charge
                vy = (vy/nrho) * ptl_charge
                vz = (vz/nrho) * ptl_charge
@@ -648,6 +908,88 @@ module particle_fields
     end subroutine adjust_particle_fields
 
     !---------------------------------------------------------------------------
+    ! Adjust particle fields for simulations with diagnostics on turbulence mixing
+    ! The changes include
+    !   1. vx, vy, vz are actually current densities. So we need to change them
+    !      to be revl bulk velocities.
+    !   1. ux, uy, uz are actually momentum densities. So we need to change them
+    !      to be 4-velocities.
+    !---------------------------------------------------------------------------
+    subroutine adjust_particle_fields_mixing(species)
+        use picinfo, only: mime
+        use constants, only: fp
+        implicit none
+        character(len=1), intent(in) :: species
+        real(fp) :: ptl_mass, ptl_charge
+        if (species == 'e') then
+            ptl_mass = 1.0
+            ptl_charge = -1.0
+        else
+            ptl_mass = real(mime, kind=fp)
+            ptl_charge = 1.0
+        endif
+
+        nrho_top = abs(nrho_top / ptl_charge)
+        nrho_bot = abs(nrho_bot / ptl_charge)
+        where (nrho > 0)
+            mix1 = mix1 / nrho
+        elsewhere
+            mix1 = 0.0
+        endwhere
+        if (is_rel == 1) then
+            where (nrho_top > 0.0)
+               vx_top = (vx_top/nrho_top) * ptl_charge
+               vy_top = (vy_top/nrho_top) * ptl_charge
+               vz_top = (vz_top/nrho_top) * ptl_charge
+               ux_top = (ux_top/nrho_top) / ptl_mass
+               uy_top = (uy_top/nrho_top) / ptl_mass
+               uz_top = (uz_top/nrho_top) / ptl_mass
+            elsewhere
+               vx_top = 0.0
+               vy_top = 0.0
+               vz_top = 0.0
+               ux_top = 0.0
+               uy_top = 0.0
+               uz_top = 0.0
+            endwhere
+            where (nrho_bot > 0.0)
+               vx_bot = (vx_bot/nrho_bot) * ptl_charge
+               vy_bot = (vy_bot/nrho_bot) * ptl_charge
+               vz_bot = (vz_bot/nrho_bot) * ptl_charge
+               ux_bot = (ux_bot/nrho_bot) / ptl_mass
+               uy_bot = (uy_bot/nrho_bot) / ptl_mass
+               uz_bot = (uz_bot/nrho_bot) / ptl_mass
+            elsewhere
+               vx_bot = 0.0
+               vy_bot = 0.0
+               vz_bot = 0.0
+               ux_bot = 0.0
+               uy_bot = 0.0
+               uz_bot = 0.0
+            endwhere
+        else
+            where (nrho_top > 0)
+                vx_top = ptl_charge * (vx_top/nrho_top)
+                vy_top = ptl_charge * (vy_top/nrho_top)
+                vz_top = ptl_charge * (vz_top/nrho_top)
+            elsewhere
+                vx_top = 0.0
+                vy_top = 0.0
+                vz_top = 0.0
+            endwhere
+            where (nrho_bot > 0)
+                vx_bot = ptl_charge * (vx_bot/nrho_bot)
+                vy_bot = ptl_charge * (vy_bot/nrho_bot)
+                vz_bot = ptl_charge * (vz_bot/nrho_bot)
+            elsewhere
+                vx_bot = 0.0
+                vy_bot = 0.0
+                vz_bot = 0.0
+            endwhere
+        endif
+    end subroutine adjust_particle_fields_mixing
+
+    !---------------------------------------------------------------------------
     ! Save particle fields to file.
     !   tindex: the time step index.
     !   output_record: it decides the offset from the file head.
@@ -667,44 +1009,44 @@ module particle_fields
         integer :: ib
         if (with_suffix) then
             fname = trim(adjustl(rootpath))//'data/v'//species//'x'//suffix
-            call write_data(fname, vx, tindex, output_record)              
+            call write_data(fname, vx, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/v'//species//'y'//suffix
-            call write_data(fname, vy, tindex, output_record)              
+            call write_data(fname, vy, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/v'//species//'z'//suffix
             call write_data(fname, vz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/n'//species//suffix
             call write_data(fname, nrho, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-xx'//suffix
-            call write_data(fname, pxx, tindex, output_record)       
+            call write_data(fname, pxx, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-yy'//suffix
-            call write_data(fname, pyy, tindex, output_record)       
+            call write_data(fname, pyy, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-zz'//suffix
-            call write_data(fname, pzz, tindex, output_record)       
+            call write_data(fname, pzz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-yz'//suffix
-            call write_data(fname, pyz, tindex, output_record)       
+            call write_data(fname, pyz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-xz'//suffix
-            call write_data(fname, pxz, tindex, output_record)       
+            call write_data(fname, pxz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-xy'//suffix
             call write_data(fname, pxy, tindex, output_record)
         else
             fname = trim(adjustl(rootpath))//'data/v'//species//'x'
-            call write_data(fname, vx, tindex, output_record)      
+            call write_data(fname, vx, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/v'//species//'y'
-            call write_data(fname, vy, tindex, output_record)      
+            call write_data(fname, vy, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/v'//species//'z'
             call write_data(fname, vz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/n'//species
             call write_data(fname, nrho, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-xx'
-            call write_data(fname, pxx, tindex, output_record)       
+            call write_data(fname, pxx, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-yy'
-            call write_data(fname, pyy, tindex, output_record)       
+            call write_data(fname, pyy, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-zz'
-            call write_data(fname, pzz, tindex, output_record)       
+            call write_data(fname, pzz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-yz'
-            call write_data(fname, pyz, tindex, output_record)       
+            call write_data(fname, pyz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-xz'
-            call write_data(fname, pxz, tindex, output_record)       
+            call write_data(fname, pxz, tindex, output_record)
             fname = trim(adjustl(rootpath))//'data/p'//species//'-xy'
             call write_data(fname, pxy, tindex, output_record)
         endif
@@ -712,19 +1054,19 @@ module particle_fields
         if (is_rel == 1) then
             if (with_suffix) then
                 fname = trim(adjustl(rootpath))//'data/u'//species//'x'//suffix
-                call write_data(fname, ux, tindex, output_record)              
+                call write_data(fname, ux, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/u'//species//'y'//suffix
-                call write_data(fname, uy, tindex, output_record)              
+                call write_data(fname, uy, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/u'//species//'z'//suffix
                 call write_data(fname, uz, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/p'//species//'-yx'//suffix
-                call write_data(fname, pyx, tindex, output_record)       
+                call write_data(fname, pyx, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/p'//species//'-zx'//suffix
-                call write_data(fname, pzx, tindex, output_record)       
+                call write_data(fname, pzx, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'//suffix
                 call write_data(fname, pzy, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/ke-'//species//suffix
-                call write_data(fname, ke_density, tindex, output_record)              
+                call write_data(fname, ke_density, tindex, output_record)
             else
                 fname = trim(adjustl(rootpath))//'data/u'//species//'x'
                 call write_data(fname, ux, tindex, output_record)
@@ -739,10 +1081,10 @@ module particle_fields
                 fname = trim(adjustl(rootpath))//'data/p'//species//'-zy'
                 call write_data(fname, pzy, tindex, output_record)
                 fname = trim(adjustl(rootpath))//'data/ke-'//species
-                call write_data(fname, ke_density, tindex, output_record)              
+                call write_data(fname, ke_density, tindex, output_record)
             endif
         endif
-                    
+
         if (nbands > 0) then
             do ib = 1, nbands
                 if (with_suffix) then
@@ -757,6 +1099,100 @@ module particle_fields
             enddo
         endif
     end subroutine write_particle_fields
+
+    !---------------------------------------------------------------------------
+    ! Save additional particle fields to file for simulations with diagnostics
+    ! on turbulence mixing
+    !   tindex: the time step index.
+    !   output_record: it decides the offset from the file head.
+    !   species: 'e' for electron. 'i' for ion.
+    !   with_suffix: whether files will have suffix
+    !   suffix: indicates the kind of data
+    !---------------------------------------------------------------------------
+    subroutine write_particle_fields_mixing(tindex, output_record, species, &
+                                     with_suffix, suffix)
+        use mpi_io_translate, only: write_data
+        implicit none
+        integer, intent(in) :: tindex, output_record
+        character(len=1), intent(in) :: species
+        character(*), intent(in) :: suffix
+        logical, intent(in) :: with_suffix
+        character(len=256) :: fname
+        integer :: ib
+        if (with_suffix) then
+            fname = trim(adjustl(rootpath))//'data/v'//species//'x-top'//suffix
+            call write_data(fname, vx_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'y-top'//suffix
+            call write_data(fname, vy_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'z-top'//suffix
+            call write_data(fname, vz_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/n'//species//'-top'//suffix
+            call write_data(fname, nrho_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'x-bot'//suffix
+            call write_data(fname, vx_bot, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'y-bot'//suffix
+            call write_data(fname, vy_bot, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'z-bot'//suffix
+            call write_data(fname, vz_bot, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/n'//species//'-bot'//suffix
+            call write_data(fname, nrho_bot, tindex, output_record)
+        else
+            fname = trim(adjustl(rootpath))//'data/v'//species//'x-top'
+            call write_data(fname, vx_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'y-top'
+            call write_data(fname, vy_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'z-top'
+            call write_data(fname, vz_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/n'//species//'-top'
+            call write_data(fname, nrho_top, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'x-bot'
+            call write_data(fname, vx_bot, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'y-bot'
+            call write_data(fname, vy_bot, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/v'//species//'z-bot'
+            call write_data(fname, vz_bot, tindex, output_record)
+            fname = trim(adjustl(rootpath))//'data/n'//species//'-bot'
+            call write_data(fname, nrho_bot, tindex, output_record)
+        endif
+
+        if (is_rel == 1) then
+            if (with_suffix) then
+                fname = trim(adjustl(rootpath))//'data/u'//species//'x-top'//suffix
+                call write_data(fname, ux_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'y-top'//suffix
+                call write_data(fname, uy_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'z-top'//suffix
+                call write_data(fname, uz_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/n'//species//'-top'//suffix
+                call write_data(fname, nrho_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'x-bot'//suffix
+                call write_data(fname, ux_bot, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'y-bot'//suffix
+                call write_data(fname, uy_bot, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'z-bot'//suffix
+                call write_data(fname, uz_bot, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/n'//species//'-bot'//suffix
+                call write_data(fname, nrho_bot, tindex, output_record)
+            else
+                fname = trim(adjustl(rootpath))//'data/u'//species//'x-top'
+                call write_data(fname, ux_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'y-top'
+                call write_data(fname, uy_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'z-top'
+                call write_data(fname, uz_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/n'//species//'-top'
+                call write_data(fname, nrho_top, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'x-bot'
+                call write_data(fname, ux_bot, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'y-bot'
+                call write_data(fname, uy_bot, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/u'//species//'z-bot'
+                call write_data(fname, uz_bot, tindex, output_record)
+                fname = trim(adjustl(rootpath))//'data/n'//species//'-bot'
+                call write_data(fname, nrho_bot, tindex, output_record)
+            endif
+        endif
+    end subroutine write_particle_fields_mixing
 
     !---------------------------------------------------------------------------
     ! Save current densities to file.
@@ -789,4 +1225,26 @@ module particle_fields
                             absJ, tindex, output_record)
         endif
     end subroutine write_current_densities
+
+    !---------------------------------------------------------------------------
+    ! Save mixing rate to file.
+    !   with_suffix: whether files will have suffix
+    !   species: 'e' for electron. 'i' for ion.
+    !   suffix: indicates the kind of data
+    !---------------------------------------------------------------------------
+    subroutine write_mixing_rate(tindex, output_record, species, with_suffix, suffix)
+        use mpi_io_translate, only: write_data
+        implicit none
+        integer, intent(in) :: tindex, output_record
+        character(len=1), intent(in) :: species
+        logical, intent(in) :: with_suffix
+        character(*), intent(in) :: suffix
+        if (with_suffix) then
+            call write_data(trim(adjustl(rootpath))//'data/'//species//'-mix1'//suffix, &
+                            mix1, tindex, output_record)
+        else
+            call write_data(trim(adjustl(rootpath))//'data/'//species//'-mix1', &
+                            mix1, tindex, output_record)
+        endif
+    end subroutine write_mixing_rate
 end module particle_fields

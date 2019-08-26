@@ -9,16 +9,13 @@ program translate
     use constants, only: dp
     use configuration_translate, only: tindex_start, tindex_stop
     use time_info, only: nout, nout_fd, output_record_initial => output_record
-    use emfields, only: read_emfields, write_emfields
-    use particle_fields, only: read_particle_fields, set_current_density_zero, &
-            calc_current_density, calc_absJ, write_current_densities, &
-            adjust_particle_fields, write_particle_fields
     implicit none
     integer :: tindex, tindex_new
     character(len=256) :: rootpath, fname
     real(dp) :: mp_elapsed
     logical :: dfile, frequent_dump, sub_directory
     logical :: current_step, pre_step, post_step
+    logical :: turbulence_mixing, write_top_bottom
     integer :: out_record, numfold
     character(len=8) :: suffix
 
@@ -125,6 +122,12 @@ program translate
     !< translate both EM fields and particle fields
     !<---------------------------------------------------------------------------
     subroutine translate_fields(with_suffix)
+        use emfields, only: read_emfields, write_emfields
+        use particle_fields, only: read_particle_fields, set_current_density_zero, &
+                calc_current_density, calc_absJ, write_current_densities, &
+                adjust_particle_fields, write_particle_fields, read_particle_fields_mixing, &
+                adjust_particle_fields_mixing, write_particle_fields_mixing, &
+                write_mixing_rate
         implicit none
         logical, intent(in) :: with_suffix
         ! EMF
@@ -136,24 +139,59 @@ program translate
         call write_emfields(tindex, out_record, with_suffix, trim(adjustl(suffix)))
 
         ! Particle fields
-        if (sub_directory) then
-            call read_particle_fields(tindex, 'e', numfold)
+        if (turbulence_mixing) then
+            if (sub_directory) then
+                call read_particle_fields_mixing(tindex, 'e', numfold)
+            else
+                call read_particle_fields_mixing(tindex, 'e')
+            endif
         else
-            call read_particle_fields(tindex, 'e')
+            if (sub_directory) then
+                call read_particle_fields(tindex, 'e', numfold)
+            else
+                call read_particle_fields(tindex, 'e')
+            endif
         endif
         call calc_current_density
         call adjust_particle_fields('e')
         call write_particle_fields(tindex, out_record, 'e', &
             with_suffix, trim(adjustl(suffix)))
-        if (sub_directory) then
-            call read_particle_fields(tindex, 'H', numfold)
+        if (turbulence_mixing) then
+            call adjust_particle_fields_mixing('e')
+            call write_mixing_rate(tindex, out_record, 'e', &
+                with_suffix, trim(adjustl(suffix)))
+            if (write_top_bottom) then
+                call write_particle_fields_mixing(tindex, out_record, 'e', &
+                    with_suffix, trim(adjustl(suffix)))
+            endif
+        endif
+
+        if (turbulence_mixing) then
+            if (sub_directory) then
+                call read_particle_fields_mixing(tindex, 'H', numfold)
+            else
+                call read_particle_fields_mixing(tindex, 'H')
+            endif
         else
-            call read_particle_fields(tindex, 'H')
+            if (sub_directory) then
+                call read_particle_fields(tindex, 'H', numfold)
+            else
+                call read_particle_fields(tindex, 'H')
+            endif
         endif
         call calc_current_density
         call adjust_particle_fields('H')
         call write_particle_fields(tindex, out_record, 'i', &
             with_suffix, trim(adjustl(suffix)))
+        if (turbulence_mixing) then
+            call adjust_particle_fields_mixing('H')
+            call write_mixing_rate(tindex, out_record, 'i', &
+                with_suffix, trim(adjustl(suffix)))
+            if (write_top_bottom) then
+                call write_particle_fields_mixing(tindex, out_record, 'i', &
+                    with_suffix, trim(adjustl(suffix)))
+            endif
+        endif
         call calc_absJ
         call write_current_densities(tindex, out_record, with_suffix, suffix)
         ! Avoid accumulation in calc_current_density
@@ -170,13 +208,14 @@ program translate
         use mpi_module
         use path_info, only: get_file_paths
         use picinfo, only: read_domain, broadcast_pic_info, write_pic_info, &
-                get_energy_band_number
+            get_energy_band_number
         use configuration_translate, only: read_configuration
         use topology_translate, only: set_topology, set_start_stop_cells
         use time_info, only: get_nout, adjust_tindex_start, set_output_record
         use mpi_io_translate, only: set_mpi_io
         use emfields, only: init_emfields
-        use particle_fields, only: init_particle_fields
+        use particle_fields, only: init_particle_fields, init_mixing_rate, &
+            init_top_bottom_hydro
         use parameters, only: get_relativistic_flag, get_emf_flag
         implicit none
 
@@ -204,6 +243,10 @@ program translate
         call set_mpi_io
         call init_emfields
         call init_particle_fields
+        if (turbulence_mixing) then
+            call init_mixing_rate
+            call init_top_bottom_hydro
+        endif
 
     end subroutine init_analysis
 
@@ -216,9 +259,14 @@ program translate
         use mpi_io_translate, only: datatype
         use mpi_info_module, only: fileinfo
         use emfields, only: free_emfields
-        use particle_fields, only: free_particle_fields
+        use particle_fields, only: free_particle_fields, free_mixing_rate, &
+            free_top_bottom_hydro
         implicit none
         call free_particle_fields
+        if (turbulence_mixing) then
+            call free_mixing_rate
+            call free_top_bottom_hydro
+        endif
         call free_emfields
         call free_start_stop_cells
         call MPI_TYPE_FREE(datatype, ierror)
@@ -247,6 +295,14 @@ program translate
             help='whether VPIC dumps fields frequently', required=.false., &
             act='store_true', def='.false.', error=error)
         if (error/=0) stop
+        call cli%add(switch='--turbulence_mixing', switch_ab='-tm', &
+            help='whether simulation has diagnostics on turbulence mixing', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
+        call cli%add(switch='--write_top_bottom', switch_ab='-wt', &
+            help='whether writting top and bottom hydro fields', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%add(switch='--sub_dir', switch_ab='-sd', &
             help='whether VPIC fields are saved in sub-directory', &
             required=.false., act='store_true', def='.false.', error=error)
@@ -271,6 +327,10 @@ program translate
         if (error/=0) stop
         call cli%get(switch='-fd', val=frequent_dump, error=error)
         if (error/=0) stop
+        call cli%get(switch='-tm', val=turbulence_mixing, error=error)
+        if (error/=0) stop
+        call cli%get(switch='-wt', val=write_top_bottom, error=error)
+        if (error/=0) stop
         call cli%get(switch='-sd', val=sub_directory, error=error)
         if (error/=0) stop
         call cli%get(switch='-nf', val=numfold, error=error)
@@ -286,6 +346,12 @@ program translate
             print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
             if (frequent_dump) then
                 print '(A)', 'VPIC saves fieds from both previous and next time step'
+            endif
+            if (turbulence_mixing) then
+                print '(A)', 'VPIC simulation has diagnostics on turbulence mixing'
+                if (write_top_bottom) then
+                    print '(A)', 'Write top and bottom hydro fields for turbulence mixing runs'
+                endif
             endif
             if (sub_directory) then
                 print '(A,I0,A)', 'Every ', numfold, " domains are saved in one sub-directory"
