@@ -15,6 +15,7 @@ program combine_spectrum_hdf5
     character(len=256) :: rootpath
     integer(hsize_t) :: pic_mpi_size
     integer :: nzones, ndata
+    character(len=32) :: species
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -36,10 +37,8 @@ program combine_spectrum_hdf5
 
     do tframe = tstart, tend, tinterval
         if (myid == master) print*, tframe
-        call combine_spectrum_single(tframe, 'e', dcount, doffset)
-        call save_energy_spectrum(tframe, 'e')
-        call combine_spectrum_single(tframe, 'i', dcount, doffset)
-        call save_energy_spectrum(tframe, 'i')
+        call combine_spectrum_single(tframe, dcount, doffset)
+        call save_energy_spectrum(tframe)
     enddo
 
     deallocate(pspect)
@@ -58,10 +57,9 @@ program combine_spectrum_hdf5
     !<--------------------------------------------------------------------------
     !< Combine spectrum for a single time frame
     !<--------------------------------------------------------------------------
-    subroutine combine_spectrum_single(tframe, species, dcount, doffset)
+    subroutine combine_spectrum_single(tframe, dcount, doffset)
         implicit none
         integer, intent(in) :: tframe
-        character(*), intent(in) :: species
         integer(hsize_t), dimension(1), intent(in) :: dcount, doffset
         character(len=256) :: fname
         character(len=16) :: groupname, dataset_name
@@ -74,11 +72,7 @@ program combine_spectrum_hdf5
 
         write(tframe_char, "(I0)") tframe
         fname = trim(adjustl(rootpath))//"/spectrum/T."//trim(tframe_char)
-        if (species == 'e') then
-            fname = trim(fname)//"/spectrum_electron_"
-        else if (species == 'H' .or. species == 'h' .or. species == 'i') then
-            fname = trim(fname)//"/spectrum_ion_"
-        endif
+        fname = trim(fname)//"/spectrum_"//trim(species)//"_"
         fname = trim(fname)//trim(tframe_char)//".h5part"
         groupname = "/"
         call MPI_INFO_CREATE(fileinfo, ierror)
@@ -124,10 +118,9 @@ program combine_spectrum_hdf5
     !<--------------------------------------------------------------------------
     !< Save particle particle energy spectra
     !<--------------------------------------------------------------------------
-    subroutine save_energy_spectrum(tindex, species)
+    subroutine save_energy_spectrum(tindex)
         implicit none
         integer, intent(in) :: tindex
-        character(*), intent(in) :: species
         integer :: fh1, posf
         character(len=16) :: tindex_str
         character(len=256) :: fname, fpath
@@ -146,7 +139,7 @@ program combine_spectrum_hdf5
             fh1 = 66
 
             write(tindex_str, "(I0)") tindex
-            fname = trim(fpath)//"spectrum_"//species//'_'//trim(tindex_str)//'.dat'
+            fname = trim(fpath)//"spectrum_"//trim(species)//'_'//trim(tindex_str)//'.dat'
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
@@ -172,6 +165,10 @@ program combine_spectrum_hdf5
         call cli%add(switch='--rootpath', switch_ab='-rp', &
             help='simulation root path', required=.true., act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--species', switch_ab='-sp', &
+            help='particle_species', required=.false., act='store', &
+            def='electron', error=error)
+        if (error/=0) stop
         call cli%add(switch='--pic_mpi_size', switch_ab='-pm', &
             help='MPI size for PIC simulation', &
             required=.false., act='store', def='131072', error=error)
@@ -196,6 +193,8 @@ program combine_spectrum_hdf5
         if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
+        call cli%get(switch='-sp', val=species, error=error)
+        if (error/=0) stop
         call cli%get(switch='-pm', val=pic_mpi_size, error=error)
         if (error/=0) stop
         call cli%get(switch='-nz', val=nzones, error=error)
@@ -211,6 +210,7 @@ program combine_spectrum_hdf5
 
         if (myid == 0) then
             print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,A)', ' Particle species: ', trim(adjustl(species))
             print '(A,I0,A,I0,A,I0)', ' Min, max and interval: ', &
                 tstart, ' ', tend, ' ', tinterval
             print '(A,I0)', ' MPI size of the PIC simulation: ', pic_mpi_size
