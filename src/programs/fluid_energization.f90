@@ -5,9 +5,10 @@ program fluid_energization
     use mpi_module
     use constants, only: fp, dp
     use particle_info, only: species, get_ptl_mass_charge
+    use hdf5
     implicit none
     integer :: nvar, separated_pre_post, fd_tinterval
-    logical :: calc_ene_emf_tensor, calc_para_perp_acc
+    logical :: calc_ene_emf_tensor, calc_para_perp_acc, use_hdf5_fields
     character(len=256) :: rootpath
     integer :: ct
 
@@ -45,7 +46,7 @@ program fluid_energization
         use parameters, only: get_relativistic_flag, get_start_end_time_points, tp2
         use neighbors_module, only: init_neighbors, get_neighbors
         implicit none
-        integer :: nx, ny, nz
+        integer :: nx, ny, nz, ierror
 
         call MPI_INIT(ierr)
         call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -67,7 +68,9 @@ program fluid_energization
             call calc_energy_interval
         endif
         call read_configuration
-        call get_total_time_frames(tp2)
+        if (.not. use_hdf5_fields) then
+            call get_total_time_frames(tp2)
+        endif
         call set_topology
         call set_start_stop_cells
         call set_mpi_io
@@ -79,6 +82,9 @@ program fluid_energization
         call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
+        if (use_hdf5_fields) then
+            call h5open_f(ierror)
+        endif
     end subroutine init_analysis
 
     !<--------------------------------------------------------------------------
@@ -91,6 +97,7 @@ program fluid_energization
         use neighbors_module, only: free_neighbors
         use mpi_datatype_fields, only: filetype_ghost, filetype_nghost
         implicit none
+        integer :: ierror
         call free_neighbors
         call free_start_stop_cells
         call MPI_TYPE_FREE(datatype, ierror)
@@ -137,6 +144,10 @@ program fluid_energization
             help='Whether calculating energization due to Epara, Eperp, and flow acceleration', &
             required=.false., act='store_true', def='.false.', error=error)
         if (error/=0) stop
+        call cli%add(switch='--hdf5_fields', switch_ab='-hf', &
+            help='Whether to use fields saved in HDF5 files', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
@@ -149,20 +160,25 @@ program fluid_energization
         if (error/=0) stop
         call cli%get(switch='-pa', val=calc_para_perp_acc, error=error)
         if (error/=0) stop
+        call cli%get(switch='-hf', val=use_hdf5_fields, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,A)', 'Partical species: ', species
+            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,A)', ' Partical species: ', species
             if (separated_pre_post) then
-                print '(A)', 'Fields at previous and next time steps are saved separately'
-                print '(A, I0)', 'Frame interval between previous and current step is: ', &
+                print '(A)', ' Fields at previous and next time steps are saved separately'
+                print '(A, I0)', ' Frame interval between previous and current step is: ', &
                     fd_tinterval
             endif
             if (calc_ene_emf_tensor) then
-                print '(A)', 'Calculate energization associated with pressure tensor'
+                print '(A)', ' Calculate energization associated with pressure tensor'
             endif
             if (calc_para_perp_acc) then
-                print '(A)', 'Calculate energization  due to Epara, Eperp, and flow acceleration'
+                print '(A)', ' Calculate energization  due to Epara, Eperp, and flow acceleration'
+            endif
+            if (use_hdf5_fields) then
+                print '(A)', ' Use fields and hydro saved in HDF5 files'
             endif
         endif
     end subroutine get_cmd_args
@@ -192,7 +208,8 @@ program fluid_energization
             read_electric_fields, read_pressure_tensor, read_vfields, &
             read_ufields, read_number_density, interp_emf_node, &
             shift_pressure_tensor, shift_vfields, shift_ufields, &
-            shift_number_density
+            shift_number_density, open_field_file_h5, open_hydro_files_h5, &
+            close_field_file_h5, close_hydro_files_h5
         use fluid_energization_module, only: init_tmp_data, init_neighbors, &
             free_tmp_data, free_neighbors, get_neighbors, &
             curv_drift_energization, grad_drift_energization, &
@@ -217,13 +234,15 @@ program fluid_energization
         call init_number_density(htg%nx, htg%ny, htg%nz)
         call init_para_perp_pressure
 
-        if (output_format == 1) then
-            call open_magnetic_field_files
-            call open_electric_field_files
-            call open_pressure_tensor_files(species)
-            call open_vfield_files(species)
-            call open_ufield_files(species)
-            call open_number_density_file(species)
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call open_magnetic_field_files
+                call open_electric_field_files
+                call open_pressure_tensor_files(species)
+                call open_vfield_files(species)
+                call open_ufield_files(species)
+                call open_number_density_file(species)
+            endif
         endif
 
         call init_tmp_data
@@ -239,45 +258,70 @@ program fluid_energization
 
         do tframe = tp1, tp2
             if (myid==master) print*, tframe
-            if (output_format /= 1) then
+            if (use_hdf5_fields) then
                 tindex = domain%fields_interval * (tframe - tp1)
-                call open_magnetic_field_files(tindex)
-                call read_magnetic_fields(tp1)
-                call close_magnetic_field_files
+                ! electric and magnetic fields
+                call open_field_file_h5(tindex)
+                call read_magnetic_fields(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading magnetic fields"
-                call open_electric_field_files(tindex)
-                call read_electric_fields(tp1)
-                call close_electric_field_files
+                call read_electric_fields(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading electric fields"
-                call open_pressure_tensor_files(species, tindex)
-                call read_pressure_tensor(tp1)
-                call close_pressure_tensor_files
-                if (myid == master) print*, "Finished reading pressure tensor"
-                call open_vfield_files(species, tindex)
-                call read_vfields(tp1)
-                call close_vfield_files
-                if (myid == master) print*, "Finished reading velocity fields"
-                call open_ufield_files(species, tindex)
-                call read_ufields(tp1)
-                call close_ufield_files
-                if (myid == master) print*, "Finished reading momentum fields"
-                call open_number_density_file(species, tindex)
-                call read_number_density(tp1)
-                call close_number_density_file
+                call close_field_file_h5
+                ! hydro fields
+                ! We need to read in this order: number density, v, u, and pressure,
+                ! tensor, because reading v and u needs number density, and because
+                ! reading pressure tensor needs number density, v, and u
+                call open_hydro_files_h5(tindex)
+                call read_number_density(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading number density"
+                call read_vfields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading velocity fields"
+                call read_ufields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading momentum fields"
+                call read_pressure_tensor(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading pressure tensor"
+                call close_hydro_files_h5
             else
-                call read_magnetic_fields(tframe)
-                if (myid == master) print*, "Finished reading magnetic fields"
-                call read_electric_fields(tframe)
-                if (myid == master) print*, "Finished reading electric fields"
-                call read_pressure_tensor(tframe)
-                if (myid == master) print*, "Finished reading pressure tensor"
-                call read_vfields(tframe)
-                if (myid == master) print*, "Finished reading velocity fields"
-                call read_ufields(tframe)
-                if (myid == master) print*, "Finished reading momentum fields"
-                call read_number_density(tframe)
-                if (myid == master) print*, "Finished reading number density"
+                if (output_format /= 1) then
+                    tindex = domain%fields_interval * (tframe - tp1)
+                    call open_magnetic_field_files(tindex)
+                    call read_magnetic_fields(tp1)
+                    call close_magnetic_field_files
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    call open_electric_field_files(tindex)
+                    call read_electric_fields(tp1)
+                    call close_electric_field_files
+                    if (myid == master) print*, "Finished reading electric fields"
+                    call open_pressure_tensor_files(species, tindex)
+                    call read_pressure_tensor(tp1)
+                    call close_pressure_tensor_files
+                    if (myid == master) print*, "Finished reading pressure tensor"
+                    call open_vfield_files(species, tindex)
+                    call read_vfields(tp1)
+                    call close_vfield_files
+                    if (myid == master) print*, "Finished reading velocity fields"
+                    call open_ufield_files(species, tindex)
+                    call read_ufields(tp1)
+                    call close_ufield_files
+                    if (myid == master) print*, "Finished reading momentum fields"
+                    call open_number_density_file(species, tindex)
+                    call read_number_density(tp1)
+                    call close_number_density_file
+                    if (myid == master) print*, "Finished reading number density"
+                else
+                    call read_magnetic_fields(tframe)
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    call read_electric_fields(tframe)
+                    if (myid == master) print*, "Finished reading electric fields"
+                    call read_pressure_tensor(tframe)
+                    if (myid == master) print*, "Finished reading pressure tensor"
+                    call read_vfields(tframe)
+                    if (myid == master) print*, "Finished reading velocity fields"
+                    call read_ufields(tframe)
+                    if (myid == master) print*, "Finished reading momentum fields"
+                    call read_number_density(tframe)
+                    if (myid == master) print*, "Finished reading number density"
+                endif
             endif
             call interp_emf_node
             call shift_pressure_tensor
@@ -323,13 +367,15 @@ program fluid_energization
         call free_tmp_data
         call free_neighbors
 
-        if (output_format == 1) then
-            call close_magnetic_field_files
-            call close_electric_field_files
-            call close_pressure_tensor_files
-            call close_vfield_files
-            call close_ufield_files
-            call close_number_density_file
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call close_magnetic_field_files
+                call close_electric_field_files
+                call close_pressure_tensor_files
+                call close_vfield_files
+                call close_ufield_files
+                call close_number_density_file
+            endif
         endif
 
         call free_para_perp_pressure
@@ -358,13 +404,17 @@ program fluid_energization
             close_electric_field_files, close_ufield_files, close_vfield_files, &
             close_number_density_file, read_magnetic_fields, &
             read_electric_fields, read_ufields, read_vfields, read_number_density, &
-            interp_emf_node, shift_ufields, shift_vfields, shift_number_density
+            interp_emf_node, shift_ufields, shift_vfields, shift_number_density, &
+            open_field_file_h5, open_hydro_files_h5, close_field_file_h5, &
+            close_hydro_files_h5
         use fluid_energization_module, only: init_tmp_data, init_neighbors, &
             free_tmp_data, free_neighbors, get_neighbors, para_perp_energization, &
             fluid_accel_energization
         use pre_post_hydro, only: init_pre_post_u, free_pre_post_u, &
             open_ufield_pre_post, close_ufield_pre_post, read_pre_post_u, &
-            shift_ufield_pre_post
+            shift_ufield_pre_post, open_hydro_files_pre_post_h5, &
+            close_hydro_files_pre_post_h5, init_pre_post_density, &
+            read_pre_post_density, free_pre_post_density
         use saving_flags, only: get_saving_flags
         use configuration_translate, only: output_format
         use parameters, only: tp1, tp2
@@ -384,14 +434,19 @@ program fluid_energization
         call init_vfields(htg%nx, htg%ny, htg%nz)
         call init_number_density(htg%nx, htg%ny, htg%nz)
         call init_pre_post_u(htg%nx, htg%ny, htg%nz)
+        if (use_hdf5_fields) then
+            call init_pre_post_density(htg%nx, htg%ny, htg%nz)
+        endif
 
-        if (output_format == 1) then
-            call open_magnetic_field_files
-            call open_electric_field_files
-            call open_ufield_files(species)
-            call open_vfield_files(species)
-            call open_number_density_file(species)
-            call open_ufield_pre_post(species, separated_pre_post)
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call open_magnetic_field_files
+                call open_electric_field_files
+                call open_ufield_files(species)
+                call open_vfield_files(species)
+                call open_number_density_file(species)
+                call open_ufield_pre_post(species, separated_pre_post)
+            endif
         endif
 
         call init_tmp_data
@@ -430,45 +485,77 @@ program fluid_energization
             endif
             dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
 
-            if (output_format /= 1) then
-                call open_magnetic_field_files(tindex)
-                call read_magnetic_fields(tp1)
-                call close_magnetic_field_files
+            if (use_hdf5_fields) then
+                ! electric and magnetic fields
+                call open_field_file_h5(tindex)
+                call read_magnetic_fields(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading magnetic fields"
-                call open_electric_field_files(tindex)
-                call read_electric_fields(tp1)
-                call close_electric_field_files
+                call read_electric_fields(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading electric fields"
-                call open_ufield_files(species, tindex)
-                call read_ufields(tp1)
-                call close_ufield_files
-                if (myid == master) print*, "Finished reading momentum fields"
-                call open_vfield_files(species, tindex)
-                call read_vfields(tp1)
-                call close_vfield_files
-                if (myid == master) print*, "Finished reading velocity fields"
-                call open_number_density_file(species, tindex)
-                call read_number_density(tp1)
-                call close_number_density_file
+                call close_field_file_h5
+                ! hydro fields
+                ! We need to read in this order: number density, v and u,
+                ! because reading v and u needs number density
+                call open_hydro_files_h5(tindex)
+                call read_number_density(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading number density"
-                call open_ufield_pre_post(species, separated_pre_post, &
-                    tindex, tindex_pre, tindex_pos)
-                call read_pre_post_u(tp1, output_format, separated_pre_post)
-                call close_ufield_pre_post
+                call read_vfields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading velocity fields"
+                call read_ufields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading momentum fields"
+                ! hydro fields at previous and post time steps
+                ! We need to read number density, because reading u needs number density
+                call open_hydro_files_pre_post_h5(species, tindex, tindex_pre, tindex_pos)
+                call read_pre_post_density(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
+                if (myid == master) print*, "Finished pre- and post- number density"
+                call read_pre_post_u(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
                 if (myid == master) print*, "Finished pre- and post- momentum fields"
+                call close_hydro_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
+                ! Close hydro files for current step at last
+                call close_hydro_files_h5
             else
-                call read_magnetic_fields(tframe)
-                if (myid == master) print*, "Finished reading magnetic fields"
-                call read_electric_fields(tframe)
-                if (myid == master) print*, "Finished reading electric fields"
-                call read_ufields(tframe)
-                if (myid == master) print*, "Finished reading momentum fields"
-                call read_vfields(tframe)
-                if (myid == master) print*, "Finished reading velocity fields"
-                call read_number_density(tframe)
-                if (myid == master) print*, "Finished reading number density"
-                call read_pre_post_u(tframe, output_format, separated_pre_post)
-                if (myid == master) print*, "Finished pre- and post- momentum fields"
+                if (output_format /= 1) then
+                    call open_magnetic_field_files(tindex)
+                    call read_magnetic_fields(tp1)
+                    call close_magnetic_field_files
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    call open_electric_field_files(tindex)
+                    call read_electric_fields(tp1)
+                    call close_electric_field_files
+                    if (myid == master) print*, "Finished reading electric fields"
+                    call open_ufield_files(species, tindex)
+                    call read_ufields(tp1)
+                    call close_ufield_files
+                    if (myid == master) print*, "Finished reading momentum fields"
+                    call open_vfield_files(species, tindex)
+                    call read_vfields(tp1)
+                    call close_vfield_files
+                    if (myid == master) print*, "Finished reading velocity fields"
+                    call open_number_density_file(species, tindex)
+                    call read_number_density(tp1)
+                    call close_number_density_file
+                    if (myid == master) print*, "Finished reading number density"
+                    call open_ufield_pre_post(species, separated_pre_post, &
+                        tindex, tindex_pre, tindex_pos)
+                    call read_pre_post_u(tp1, output_format, separated_pre_post)
+                    call close_ufield_pre_post
+                    if (myid == master) print*, "Finished pre- and post- momentum fields"
+                else
+                    call read_magnetic_fields(tframe)
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    call read_electric_fields(tframe)
+                    if (myid == master) print*, "Finished reading electric fields"
+                    call read_ufields(tframe)
+                    if (myid == master) print*, "Finished reading momentum fields"
+                    call read_vfields(tframe)
+                    if (myid == master) print*, "Finished reading velocity fields"
+                    call read_number_density(tframe)
+                    if (myid == master) print*, "Finished reading number density"
+                    call read_pre_post_u(tframe, output_format, separated_pre_post)
+                    if (myid == master) print*, "Finished pre- and post- momentum fields"
+                endif
             endif
             call interp_emf_node
             call shift_ufields
@@ -507,13 +594,15 @@ program fluid_energization
         call free_tmp_data
         call free_neighbors
 
-        if (output_format == 1) then
-            call close_magnetic_field_files
-            call close_electric_field_files
-            call close_ufield_files
-            call close_vfield_files
-            call close_number_density_file
-            call close_ufield_pre_post
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call close_magnetic_field_files
+                call close_electric_field_files
+                call close_ufield_files
+                call close_vfield_files
+                call close_number_density_file
+                call close_ufield_pre_post
+            endif
         endif
 
         call free_pre_post_u
@@ -522,6 +611,9 @@ program fluid_energization
         call free_ufields
         call free_vfields
         call free_number_density
+        if (use_hdf5_fields) then
+            call free_pre_post_density
+        endif
     end subroutine energization_para_perp_acc
 
 end program fluid_energization

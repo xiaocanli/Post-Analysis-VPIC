@@ -37,7 +37,10 @@ program particle_energization_io
     real(fp), allocatable, dimension(:, :, :) :: fbins, fbins_sum
     real(fp), allocatable, dimension(:, :, :) :: faniso, faniso_sum
     real(fp), allocatable, dimension(:) :: alpha_bins
-    real(fp), allocatable, dimension(:, :, :, :) :: fbins_dist, fbins_dist_sum
+    real(fp), allocatable, dimension(:, :, :) :: fbins_dist, fbins_dist_sum
+    real(fp), allocatable, dimension(:, :, :) :: fbins_vkappa_dist, fbins_vkappa_dist_sum
+    real(fp), allocatable, dimension(:, :, :) :: fbins_vkappa_grid_dist
+    real(fp), allocatable, dimension(:, :, :) :: fbins_vkappa_grid_dist_sum
     real(fp), allocatable, dimension(:, :, :, :, :) :: falpha, faniso_3d
     real(fp) :: de_log, emin_log
     real(fp) :: dehigh_log, emin_high_log  ! For high-energy particles
@@ -53,7 +56,7 @@ program particle_energization_io
     ! Particles in HDF5 format
     integer, allocatable, dimension(:) :: np_local
     integer(hsize_t), allocatable, dimension(:) :: offset_local
-    logical :: particle_hdf5, parallel_read, collective_io
+    logical :: particle_hdf5, parallel_read, collective_io, use_hdf5_fields
     integer, parameter :: num_dset = 8
     integer(hid_t), dimension(num_dset) :: dset_ids
     integer(hid_t) :: file_id, group_id
@@ -122,8 +125,12 @@ program particle_energization_io
         allocate(faniso_sum(3, nbins + 1, nbinx))
 
         allocate(alpha_bins(nbins_alpha + 1))
-        allocate(fbins_dist((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
-        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbins + 1, nbinx, nvar - 1))
+        allocate(fbins_dist((nbins_alpha+2)*4, nbins + 1, nvar - 1))
+        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbins + 1, nvar - 1))
+        allocate(fbins_vkappa_dist((nbins_alpha+2)*2, nbins + 1, nvar))
+        allocate(fbins_vkappa_dist_sum((nbins_alpha+2)*2, nbins + 1, nvar))
+        allocate(fbins_vkappa_grid_dist((nbins_alpha+2)*2, nbins + 1, nvar))
+        allocate(fbins_vkappa_grid_dist_sum((nbins_alpha+2)*2, nbins + 1, nvar))
 
         allocate(ebins_high(nbins_high+1))
         allocate(falpha(nbins_high+1, nzonex_local, nzoney_local, nzonez_local, 2*nvar-1))
@@ -161,6 +168,8 @@ program particle_energization_io
         deallocate(ebins, fbins, fbins_sum)
         deallocate(faniso, faniso_sum)
         deallocate(alpha_bins, fbins_dist, fbins_dist_sum)
+        deallocate(fbins_vkappa_dist, fbins_vkappa_dist_sum)
+        deallocate(fbins_vkappa_grid_dist, fbins_vkappa_grid_dist_sum)
         deallocate(ebins_high, falpha)
         deallocate(faniso_3d)
     end subroutine free_dists
@@ -174,6 +183,10 @@ program particle_energization_io
         fbins_sum = 0.0
         fbins_dist = 0.0
         fbins_dist_sum = 0.0
+        fbins_vkappa_dist = 0.0
+        fbins_vkappa_dist_sum = 0.0
+        fbins_vkappa_grid_dist = 0.0
+        fbins_vkappa_grid_dist_sum = 0.0
         faniso = 0.0
         faniso_sum = 0.0
         falpha = 0.0
@@ -218,16 +231,21 @@ program particle_energization_io
             open_velocity_field_files, read_electric_fields, read_magnetic_fields, &
             read_velocity_fields, close_electric_field_files, &
             close_magnetic_field_files, close_velocity_field_files, &
-            interp_emf_node_ghost
+            interp_emf_node_ghost, open_field_file_h5, open_hydro_files_h5, &
+            close_field_file_h5, close_hydro_files_h5, init_number_density, &
+            read_number_density, free_number_density
         use pre_post_emf, only: init_pre_post_bfield, init_pre_post_efield, &
             free_pre_post_bfield, free_pre_post_efield, open_bfield_pre_post, &
             open_efield_pre_post, close_bfield_pre_post, close_efield_pre_post, &
             read_pre_post_bfield, read_pre_post_efield, interp_bfield_node_ghost, &
-            interp_efield_node_ghost
+            interp_efield_node_ghost, open_field_files_pre_post_h5, &
+            close_field_files_pre_post_h5
         use pre_post_hydro, only: init_pre_post_u, init_pre_post_v, &
             free_pre_post_u, free_pre_post_v, open_ufield_pre_post, &
             open_vfield_pre_post, close_ufield_pre_post, close_vfield_pre_post, &
-            read_pre_post_u, read_pre_post_v
+            read_pre_post_u, read_pre_post_v, open_hydro_files_pre_post_h5, &
+            close_hydro_files_pre_post_h5, init_pre_post_density, &
+            read_pre_post_density, free_pre_post_density
         use emf_derivatives, only: init_bfield_derivatives, &
             free_bfield_derivatives, calc_bfield_derivatives, &
             init_absb_derivatives, free_absb_derivatives, &
@@ -291,6 +309,10 @@ program particle_energization_io
             call init_vperp_derivatives(htg%nx, htg%ny, htg%nz)  ! 9 components
             call init_absb_derivatives(htg%nx, htg%ny, htg%nz)   ! 3 components
         endif
+        if (use_hdf5_fields) then
+            call init_number_density(htg%nx, htg%ny, htg%nz)     ! 1 magnitude
+            call init_pre_post_density(htg%nx, htg%ny, htg%nz)   ! 2 magnitude
+        endif
 
         call init_dists
 
@@ -298,15 +320,17 @@ program particle_energization_io
             print '(A)', 'Finished initializing the analysis'
         endif
 
-        if (is_translated_file .and. output_format == 1) then
-            call set_filepath(dir_emf)
-            call open_electric_field_files
-            call open_magnetic_field_files
-            call open_velocity_field_files(species)
-            call open_bfield_pre_post(separated_pre_post)
-            call open_efield_pre_post(separated_pre_post)
-            call open_ufield_pre_post(species, separated_pre_post)
-            call open_vfield_pre_post(species, separated_pre_post)
+        if (.not. use_hdf5_fields) then
+            if (is_translated_file .and. output_format == 1) then
+                call set_filepath(dir_emf)
+                call open_electric_field_files
+                call open_magnetic_field_files
+                call open_velocity_field_files(species)
+                call open_bfield_pre_post(separated_pre_post)
+                call open_efield_pre_post(separated_pre_post)
+                call open_ufield_pre_post(species, separated_pre_post)
+                call open_vfield_pre_post(species, separated_pre_post)
+            endif
         endif
 
         call system_clock(t1, clock_rate, clock_max)
@@ -338,56 +362,97 @@ program particle_energization_io
             endif
             dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
 
-            if (is_translated_file) then
-                if (output_format /= 1) then
-                    call open_electric_field_files(tindex)
-                    call read_electric_fields(tp1)
-                    call close_electric_field_files
-                    if (myid == master) print*, "Finished reading electric fields"
-                    call open_magnetic_field_files(tindex)
-                    call read_magnetic_fields(tp1)
-                    call close_magnetic_field_files
-                    if (myid == master) print*, "Finished reading magnetic fields"
-                    call open_velocity_field_files(species, tindex)
-                    call read_velocity_fields(tp1)
-                    call close_velocity_field_files
-                    if (myid == master) print*, "Finished reading velocity and momentum fields"
-                    call open_bfield_pre_post(separated_pre_post, tindex, &
-                                              tindex_pre, tindex_pos)
-                    call read_pre_post_bfield(tp1, output_format, separated_pre_post)
-                    call close_bfield_pre_post
-                    if (myid == master) print*, "Finished pre- and post- magnetic fields"
-                    call open_efield_pre_post(separated_pre_post, tindex, &
-                                              tindex_pre, tindex_pos)
-                    call read_pre_post_efield(tp1, output_format, separated_pre_post)
-                    call close_efield_pre_post
-                    if (myid == master) print*, "Finished pre- and post- electric fields"
-                    call open_ufield_pre_post(species, separated_pre_post, &
-                                              tindex, tindex_pre, tindex_pos)
-                    call read_pre_post_u(tp1, output_format, separated_pre_post)
-                    call close_ufield_pre_post
-                    if (myid == master) print*, "Finished pre- and post- momentum fields"
-                    call open_vfield_pre_post(species, separated_pre_post, &
-                                              tindex, tindex_pre, tindex_pos)
-                    call read_pre_post_v(tp1, output_format, separated_pre_post)
-                    call close_vfield_pre_post
-                    if (myid == master) print*, "Finished pre- and post- velocity fields"
-                else
-                    ! Fields at all time steps are saved in the same file
-                    call read_electric_fields(tp_emf)
-                    if (myid == master) print*, "Finished reading electric fields"
-                    call read_magnetic_fields(tp_emf)
-                    if (myid == master) print*, "Finished reading magnetic fields"
-                    call read_velocity_fields(tp_emf)
-                    if (myid == master) print*, "Finished reading velocity and momentum fields"
-                    call read_pre_post_bfield(tp_emf, output_format, separated_pre_post)
-                    if (myid == master) print*, "Finished pre- and post- magnetic fields"
-                    call read_pre_post_efield(tp_emf, output_format, separated_pre_post)
-                    if (myid == master) print*, "Finished pre- and post- electric fields"
-                    call read_pre_post_u(tp_emf, output_format, separated_pre_post)
-                    if (myid == master) print*, "Finished pre- and post- momentum fields"
-                    call read_pre_post_v(tp_emf, output_format, separated_pre_post)
-                    if (myid == master) print*, "Finished pre- and post- velocity fields"
+            if (use_hdf5_fields) then
+                ! electric and magnetic fields
+                call open_field_file_h5(tindex)
+                call read_magnetic_fields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading magnetic fields"
+                call read_electric_fields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading electric fields"
+                call open_field_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
+                call read_pre_post_bfield(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
+                if (myid == master) print*, "Finished pre- and post- magnetic fields"
+                call read_pre_post_efield(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
+                if (myid == master) print*, "Finished pre- and post- electric fields"
+                call close_field_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
+                call close_field_file_h5 ! Close hydro files for current step at last
+                ! hydro fields
+                ! We need to read in this order: number density, v and u,
+                ! because reading v and u needs number density
+                call open_hydro_files_h5(tindex)
+                call read_number_density(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading number density"
+                call read_velocity_fields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading velocity and momentum fields"
+                ! hydro fields at previous and post time steps
+                ! We need to read in this order: number density, v and u,
+                ! because reading v and u needs number density
+                call open_hydro_files_pre_post_h5(species, tindex, tindex_pre, tindex_pos)
+                call read_pre_post_density(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
+                if (myid == master) print*, "Finished pre- and post- number density"
+                call read_pre_post_v(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
+                if (myid == master) print*, "Finished pre- and post- velocity fields"
+                call read_pre_post_u(tp1, output_format, separated_pre_post, &
+                    .true., .true.)
+                if (myid == master) print*, "Finished pre- and post- momentum fields"
+                call close_hydro_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
+                call close_hydro_files_h5 ! Close hydro files for current step at last
+            else
+                if (is_translated_file) then
+                    if (output_format /= 1) then
+                        call open_electric_field_files(tindex)
+                        call read_electric_fields(tp1)
+                        call close_electric_field_files
+                        if (myid == master) print*, "Finished reading electric fields"
+                        call open_magnetic_field_files(tindex)
+                        call read_magnetic_fields(tp1)
+                        call close_magnetic_field_files
+                        if (myid == master) print*, "Finished reading magnetic fields"
+                        call open_velocity_field_files(species, tindex)
+                        call read_velocity_fields(tp1)
+                        call close_velocity_field_files
+                        if (myid == master) print*, "Finished reading velocity and momentum fields"
+                        call open_bfield_pre_post(separated_pre_post, tindex, &
+                                                  tindex_pre, tindex_pos)
+                        call read_pre_post_bfield(tp1, output_format, separated_pre_post)
+                        call close_bfield_pre_post
+                        if (myid == master) print*, "Finished pre- and post- magnetic fields"
+                        call open_efield_pre_post(separated_pre_post, tindex, &
+                                                  tindex_pre, tindex_pos)
+                        call read_pre_post_efield(tp1, output_format, separated_pre_post)
+                        call close_efield_pre_post
+                        if (myid == master) print*, "Finished pre- and post- electric fields"
+                        call open_ufield_pre_post(species, separated_pre_post, &
+                                                  tindex, tindex_pre, tindex_pos)
+                        call read_pre_post_u(tp1, output_format, separated_pre_post)
+                        call close_ufield_pre_post
+                        if (myid == master) print*, "Finished pre- and post- momentum fields"
+                        call open_vfield_pre_post(species, separated_pre_post, &
+                                                  tindex, tindex_pre, tindex_pos)
+                        call read_pre_post_v(tp1, output_format, separated_pre_post)
+                        call close_vfield_pre_post
+                        if (myid == master) print*, "Finished pre- and post- velocity fields"
+                    else
+                        ! Fields at all time steps are saved in the same file
+                        call read_electric_fields(tp_emf)
+                        if (myid == master) print*, "Finished reading electric fields"
+                        call read_magnetic_fields(tp_emf)
+                        if (myid == master) print*, "Finished reading magnetic fields"
+                        call read_velocity_fields(tp_emf)
+                        if (myid == master) print*, "Finished reading velocity and momentum fields"
+                        call read_pre_post_bfield(tp_emf, output_format, separated_pre_post)
+                        if (myid == master) print*, "Finished pre- and post- magnetic fields"
+                        call read_pre_post_efield(tp_emf, output_format, separated_pre_post)
+                        if (myid == master) print*, "Finished pre- and post- electric fields"
+                        call read_pre_post_u(tp_emf, output_format, separated_pre_post)
+                        if (myid == master) print*, "Finished pre- and post- momentum fields"
+                        call read_pre_post_v(tp_emf, output_format, separated_pre_post)
+                        if (myid == master) print*, "Finished pre- and post- velocity fields"
+                    endif
                 endif
             endif
             call system_clock(t2, clock_rate, clock_max)
@@ -461,14 +526,16 @@ program particle_energization_io
             t1 = t2
         enddo  ! Time loop
 
-        if (is_translated_file .and. output_format == 1) then
-            call close_electric_field_files
-            call close_magnetic_field_files
-            call close_velocity_field_files
-            call close_bfield_pre_post
-            call close_efield_pre_post
-            call close_ufield_pre_post
-            call close_vfield_pre_post
+        if (.not. use_hdf5_fields) then
+            if (is_translated_file .and. output_format == 1) then
+                call close_electric_field_files
+                call close_magnetic_field_files
+                call close_velocity_field_files
+                call close_bfield_pre_post
+                call close_efield_pre_post
+                call close_ufield_pre_post
+                call close_vfield_pre_post
+            endif
         endif
 
         call free_dists
@@ -488,6 +555,10 @@ program particle_energization_io
             call free_vperp_components
             call free_vperp_derivatives
             call free_absb_derivatives
+        endif
+        if (use_hdf5_fields) then
+            call free_number_density
+            call free_pre_post_density
         endif
         call free_emfields
         call free_emfields_derivatives
@@ -582,8 +653,7 @@ program particle_energization_io
         real(fp) :: polar_ene_time_v, polar_ene_spatial_v
         real(fp) :: param
         real(fp), dimension(18) :: acc_rate
-        real(fp) :: arate_no_weight
-        integer :: ivar, ialpha, ibinx
+        integer :: ivar, ialpha, ibinx, ivkappa_ptl, ivkappa_grid
         integer :: izonex_local, izoney_local, izonez_local
         character(len=16) :: cid
 
@@ -951,33 +1021,25 @@ program particle_energization_io
                 faniso(3, ibin+1, ibinx+1) = faniso(3, ibin+1, ibinx+1) + pperp
 
                 ! The distribution of the acceleration rate
+                ! The bin for acceleration rate due to particle curvature drift
+                call get_ialpha(acc_rate(6), weight, ivkappa_ptl)
+                ! The bin for grid-based vexb_kappa
+                call get_ialpha(acc_rate(6)/(iene*ptl_mass*gama*vpara**2), weight, ivkappa_grid)
+                fbins_vkappa_dist(ivkappa_ptl, ibin+1, 1) = &
+                    fbins_vkappa_dist(ivkappa_ptl, ibin+1, 1) + acc_rate(1)
+                fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, 1) = &
+                    fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, 1) + acc_rate(1)
                 do ivar = 2, nvar
-                    arate_no_weight = acc_rate(ivar) / weight
-                    if (arate_no_weight > 0) then
-                        if (arate_no_weight < alpha_min) then
-                            ialpha = nbins_alpha + 3
-                        else if (arate_no_weight > alpha_max) then
-                            ialpha = (nbins_alpha + 2) * 2
-                        else
-                            ialpha = floor((log10(arate_no_weight) - alpha_min_log) / dalpha_log)
-                            ialpha = nbins_alpha + ialpha + 4
-                        endif
-                    else
-                        if (-arate_no_weight < alpha_min) then
-                            ialpha = 1
-                        else if (-arate_no_weight > alpha_max) then
-                            ialpha = nbins_alpha + 2
-                        else
-                            ialpha = floor((log10(-arate_no_weight) - alpha_min_log) / dalpha_log)
-                            ialpha = ialpha + 2
-                        endif
-                        ialpha = nbins_alpha - ialpha + 3
-                    endif
-                    fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) = &
-                        fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) + acc_rate(1)
+                    call get_ialpha(acc_rate(ivar), weight, ialpha)
+                    fbins_dist(ialpha, ibin+1, ivar-1) = &
+                        fbins_dist(ialpha, ibin+1, ivar-1) + acc_rate(1)
                     ialpha = ialpha + (nbins_alpha + 2) * 2
-                    fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) = &
-                        fbins_dist(ialpha, ibin+1, ibinx+1, ivar-1) + acc_rate(ivar)
+                    fbins_dist(ialpha, ibin+1, ivar-1) = &
+                        fbins_dist(ialpha, ibin+1, ivar-1) + acc_rate(ivar)
+                    fbins_vkappa_dist(ivkappa_ptl, ibin+1, ivar) = &
+                        fbins_vkappa_dist(ivkappa_ptl, ibin+1, ivar) + acc_rate(ivar)
+                    fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, ivar) = &
+                        fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, ivar) + acc_rate(ivar)
                 enddo
             endif
 
@@ -1010,6 +1072,37 @@ program particle_energization_io
         enddo
         deallocate(ptls)
     end subroutine calc_particle_energization_single
+
+    !<--------------------------------------------------------------------------
+    !< Get the bin for particle acceleration rate
+    !<--------------------------------------------------------------------------
+    subroutine get_ialpha(acc_rate, weight, ialpha)
+        implicit none
+        real(fp), intent(in) :: acc_rate, weight
+        integer, intent(out) :: ialpha
+        real(fp) :: arate_no_weight
+        arate_no_weight = acc_rate / weight
+        if (arate_no_weight > 0) then
+            if (arate_no_weight < alpha_min) then
+                ialpha = nbins_alpha + 3
+            else if (arate_no_weight > alpha_max) then
+                ialpha = (nbins_alpha + 2) * 2
+            else
+                ialpha = floor((log10(arate_no_weight) - alpha_min_log) / dalpha_log)
+                ialpha = nbins_alpha + ialpha + 4
+            endif
+        else
+            if (-arate_no_weight < alpha_min) then
+                ialpha = 1
+            else if (-arate_no_weight > alpha_max) then
+                ialpha = nbins_alpha + 2
+            else
+                ialpha = floor((log10(-arate_no_weight) - alpha_min_log) / dalpha_log)
+                ialpha = ialpha + 2
+            endif
+            ialpha = nbins_alpha - ialpha + 3
+        endif
+    end subroutine get_ialpha
 
     !<--------------------------------------------------------------------------
     !< Save particle energization due to parallel and perpendicular electric field.
@@ -1106,14 +1199,14 @@ program particle_energization_io
         character(len=256) :: fname
         logical :: dir_e
         call MPI_REDUCE(fbins_dist, fbins_dist_sum, &
-            4*(nbins_alpha+2) * (nbins+1) * nbinx * (nvar-1), &
+            4*(nbins_alpha+2) * (nbins+1) * (nvar-1), &
             MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
             if (.not. dir_e) then
                 call system('mkdir -p ./data/particle_interp/')
             endif
-            print*, "Saving the distribution of particle accelerate rate..."
+            print*, "Saving dists of particle accelerate rate..."
 
             fh1 = 67
 
@@ -1127,8 +1220,6 @@ program particle_energization_io
             posf = posf + 4
             write(fh1, pos=posf) nbins + 1.0
             posf = posf + 4
-            write(fh1, pos=posf) nbinx + 0.0
-            posf = posf + 4
             write(fh1, pos=posf) nvar - 1.0
             posf = posf + 4
             write(fh1, pos=posf) ebins
@@ -1136,6 +1227,72 @@ program particle_energization_io
             write(fh1, pos=posf) alpha_bins
             posf = posf + (nbins_alpha + 1) * 4
             write(fh1, pos=posf) fbins_dist_sum
+            close(fh1)
+        endif
+
+        ! Accelerate rate distributions binned by rate due to curvature drift
+        call MPI_REDUCE(fbins_vkappa_dist, fbins_vkappa_dist_sum, &
+            2*(nbins_alpha+2) * (nbins+1) * nvar, &
+            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (myid == master) then
+            inquire(file='./data/particle_interp/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir -p ./data/particle_interp/')
+            endif
+            print*, "Saving dists of particle accelerate rate binned by vdot_kappa..."
+
+            fh1 = 67
+
+            write(tindex_str, "(I0)") tindex
+            fname = 'data/particle_interp/'//trim(var_name)//'_vkappa_'//species
+            fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
+            open(unit=fh1, file=fname, access='stream', status='unknown', &
+                form='unformatted', action='write')
+            posf = 1
+            write(fh1, pos=posf) nbins_alpha + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nbins + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nvar - 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) ebins
+            posf = posf + (nbins + 1) * 4
+            write(fh1, pos=posf) alpha_bins
+            posf = posf + (nbins_alpha + 1) * 4
+            write(fh1, pos=posf) fbins_vkappa_dist_sum
+            close(fh1)
+        endif
+
+        ! Accelerate rate distributions binned grid-based vexb_kappa
+        call MPI_REDUCE(fbins_vkappa_grid_dist, fbins_vkappa_grid_dist_sum, &
+            2*(nbins_alpha+2) * (nbins+1) * nvar, &
+            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (myid == master) then
+            inquire(file='./data/particle_interp/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir -p ./data/particle_interp/')
+            endif
+            print*, "Saving dists of particle accelerate rate binned by grid-based vdot_kappa..."
+
+            fh1 = 67
+
+            write(tindex_str, "(I0)") tindex
+            fname = 'data/particle_interp/'//trim(var_name)//'_vkappa_grid_'//species
+            fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
+            open(unit=fh1, file=fname, access='stream', status='unknown', &
+                form='unformatted', action='write')
+            posf = 1
+            write(fh1, pos=posf) nbins_alpha + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nbins + 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) nvar - 1.0
+            posf = posf + 4
+            write(fh1, pos=posf) ebins
+            posf = posf + (nbins + 1) * 4
+            write(fh1, pos=posf) alpha_bins
+            posf = posf + (nbins_alpha + 1) * 4
+            write(fh1, pos=posf) fbins_vkappa_grid_dist_sum
             close(fh1)
         endif
     end subroutine save_acceleration_rate_dist
@@ -1245,7 +1402,6 @@ program particle_energization_io
         call h5sclose_f(memspace, error)
         call h5sclose_f(filespace, error)
         call h5fclose_f(file_id, error)
-        call h5close_f(error)
 
         call MPI_INFO_FREE(fileinfo, ierror)
     end subroutine save_spatial_acceleration_rates
@@ -1331,7 +1487,6 @@ program particle_energization_io
         call h5sclose_f(memspace, error)
         call h5sclose_f(filespace, error)
         call h5fclose_f(file_id, error)
-        call h5close_f(error)
 
         call MPI_INFO_FREE(fileinfo, ierror)
     end subroutine save_anisotropy_3d
@@ -1371,7 +1526,9 @@ program particle_energization_io
             call calc_energy_interval
         endif
         call read_configuration
-        call get_total_time_frames(tp2)
+        if (.not. use_hdf5_fields) then
+            call get_total_time_frames(tp2)
+        endif
         call set_topology
         call set_start_stop_cells
         call set_mpi_io
@@ -1383,6 +1540,9 @@ program particle_energization_io
         call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
+        if (use_hdf5_fields) then
+            call h5open_f(ierror)
+        endif
     end subroutine init_analysis
 
     !!--------------------------------------------------------------------------
@@ -1395,6 +1555,7 @@ program particle_energization_io
         use neighbors_module, only: free_neighbors
         use mpi_datatype_fields, only: filetype_ghost, filetype_nghost
         implicit none
+        integer :: ierror
         call free_neighbors
         call free_start_stop_cells
         call MPI_TYPE_FREE(datatype, ierror)
@@ -1941,6 +2102,10 @@ program particle_energization_io
             help='Number of zones along z in each PIC local domain', &
             required=.false., def='80', act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--hdf5_fields', switch_ab='-hf', &
+            help='Whether to use fields saved in HDF5 files', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-tf', val=is_translated_file, error=error)
@@ -1995,6 +2160,8 @@ program particle_energization_io
         if (error/=0) stop
         call cli%get(switch='-zz', val=nzone_z, error=error)
         if (error/=0) stop
+        call cli%get(switch='-hf', val=use_hdf5_fields, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
             print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
@@ -2014,6 +2181,9 @@ program particle_energization_io
                 print '(A)', ' Fields at previous and next time steps are saved separately'
                 print '(A, I0)', ' Frame interval between previous and current step is: ', &
                     fd_tinterval
+            endif
+            if (use_hdf5_fields) then
+                print '(A)', 'Use fields and hydro saved in HDF5 files'
             endif
             if (particle_hdf5) then
                 print '(A)', ' Particles are saved in HDF5 format'

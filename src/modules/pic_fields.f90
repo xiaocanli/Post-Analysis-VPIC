@@ -10,9 +10,13 @@ module pic_fields
     use picinfo, only: domain
     use mpi_topology, only: htg, ht
     use mpi_io_module, only: open_data_mpi_io, read_data_mpi_io
-    use mpi_datatype_fields, only: filetype_ghost, subsizes_ghost
-    use path_info, only: filepath
+    use mpi_datatype_fields, only: filetype_ghost, sizes_ghost, &
+        subsizes_ghost, starts_ghost
+    use particle_info, only: species, ptl_mass, ptl_charge
+    use path_info, only: rootpath, filepath
     use mpi_info_module, only: fileinfo
+    use hdf5_io, only: open_file_h5, close_file_h5, read_data_h5
+    use hdf5
     implicit none
     private
     public init_pic_fields, open_pic_fields, read_pic_fields, &
@@ -23,14 +27,16 @@ module pic_fields
     public open_magnetic_field_files, open_electric_field_files, &
            open_current_density_files, open_pressure_tensor_files, &
            open_velocity_field_files, open_vfield_files, open_ufield_files, &
-           open_number_density_file, open_fraction_eband_file
+           open_number_density_file, open_fraction_eband_file, &
+           open_field_file_h5, open_hydro_files_h5
     public read_magnetic_fields, read_electric_fields, read_current_desities, &
            read_pressure_tensor, read_velocity_fields, read_vfields, &
            read_ufields, read_number_density, read_fraction_eband
     public close_magnetic_field_files, close_electric_field_files, &
            close_current_density_files, close_pressure_tensor_files, &
            close_velocity_field_files, close_vfield_files, close_ufield_files, &
-           close_number_density_file, close_fraction_eband_file
+           close_number_density_file, close_fraction_eband_file, &
+           close_field_file_h5, close_hydro_files_h5
     public free_magnetic_fields, free_electric_fields, free_current_densities, &
            free_pressure_tensor, free_velocity_fields, free_vfields, &
            free_ufields, free_number_density, free_fraction_eband
@@ -49,6 +55,9 @@ module pic_fields
     ! File handlers
     public bfields_fh, efields_fh, pre_fh, vfields_fh, jfields_fh, nrho_fh
     public eband_fh, pre_rel_fh, ufields_fh
+    public field_file_id, field_group_id
+    public ehydro_file_id, ehydro_group_id
+    public Hhydro_file_id, Hhydro_group_id
 
     real(fp), allocatable, dimension(:,:,:) :: bx, by, bz, ex, ey, ez, absB
     real(fp), allocatable, dimension(:,:,:) :: pxx, pxy, pxz, pyy, pyz, pzz
@@ -61,6 +70,9 @@ module pic_fields
     integer, dimension(3) :: efields_fh, vfields_fh, jfields_fh
     integer, dimension(3) :: ufields_fh, pre_rel_fh
     integer, dimension(6) :: pre_fh
+    integer(hid_t) :: field_file_id, field_group_id
+    integer(hid_t) :: ehydro_file_id, ehydro_group_id
+    integer(hid_t) :: Hhydro_file_id, Hhydro_group_id
     integer :: nrho_fh, eband_fh
     logical :: absB_file_exist
 
@@ -272,102 +284,456 @@ module pic_fields
     !---------------------------------------------------------------------------
     ! Read magnetic field.
     !---------------------------------------------------------------------------
-    subroutine read_magnetic_fields(ct)
+    subroutine read_magnetic_fields(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(bfields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, bx)
-        call read_data_mpi_io(bfields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, by)
-        call read_data_mpi_io(bfields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, bz)
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: bx_id, by_id, bz_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            call h5dopen_f(field_group_id, "cbx", bx_id, error)
+            call h5dopen_f(field_group_id, "cby", by_id, error)
+            call h5dopen_f(field_group_id, "cbz", bz_id, error)
+            call read_data_h5(bx_id, dcount, doffset, dset_dims, &
+                bx, .true., use_collective_io)
+            call read_data_h5(by_id, dcount, doffset, dset_dims, &
+                by, .true., use_collective_io)
+            call read_data_h5(bz_id, dcount, doffset, dset_dims, &
+                bz, .true., use_collective_io)
+            bx = reshape(bx, shape(bx), order=[3, 2, 1])
+            by = reshape(by, shape(by), order=[3, 2, 1])
+            bz = reshape(bz, shape(bz), order=[3, 2, 1])
+            call h5dclose_f(bx_id, error)
+            call h5dclose_f(by_id, error)
+            call h5dclose_f(bz_id, error)
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
+            call read_data_mpi_io(bfields_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, bx)
+            call read_data_mpi_io(bfields_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, by)
+            call read_data_mpi_io(bfields_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, bz)
+        endif
         absB = sqrt(bx**2 + by**2 + bz**2)
     end subroutine read_magnetic_fields
 
     !---------------------------------------------------------------------------
     ! Read electric field.
     !---------------------------------------------------------------------------
-    subroutine read_electric_fields(ct)
+    subroutine read_electric_fields(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(efields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, ex)
-        call read_data_mpi_io(efields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, ey)
-        call read_data_mpi_io(efields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, ez)
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: ex_id, ey_id, ez_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            call h5dopen_f(field_group_id, "ex", ex_id, error)
+            call h5dopen_f(field_group_id, "ey", ey_id, error)
+            call h5dopen_f(field_group_id, "ez", ez_id, error)
+            call read_data_h5(ex_id, dcount, doffset, dset_dims, &
+                ex, .true., use_collective_io)
+            call read_data_h5(ey_id, dcount, doffset, dset_dims, &
+                ey, .true., use_collective_io)
+            call read_data_h5(ez_id, dcount, doffset, dset_dims, &
+                ez, .true., use_collective_io)
+            ex = reshape(ex, shape(ex), order=[3, 2, 1])
+            ey = reshape(ey, shape(ey), order=[3, 2, 1])
+            ez = reshape(ez, shape(ez), order=[3, 2, 1])
+            call h5dclose_f(ex_id, error)
+            call h5dclose_f(ey_id, error)
+            call h5dclose_f(ez_id, error)
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
+            call read_data_mpi_io(efields_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, ex)
+            call read_data_mpi_io(efields_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, ey)
+            call read_data_mpi_io(efields_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, ez)
+        endif
     end subroutine read_electric_fields
 
     !---------------------------------------------------------------------------
     ! Read current densities.
     !---------------------------------------------------------------------------
-    subroutine read_current_desities(ct)
+    subroutine read_current_desities(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(jfields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, jx)
-        call read_data_mpi_io(jfields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, jy)
-        call read_data_mpi_io(jfields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, jz)
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: jex_id, jey_id, jez_id
+        integer(hid_t) :: jix_id, jiy_id, jiz_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            ! electron
+            call h5dopen_f(ehydro_group_id, "jx", jex_id, error)
+            call h5dopen_f(ehydro_group_id, "jy", jey_id, error)
+            call h5dopen_f(ehydro_group_id, "jz", jez_id, error)
+            call read_data_h5(jex_id, dcount, doffset, dset_dims, &
+                vx, .true., use_collective_io)
+            call read_data_h5(jey_id, dcount, doffset, dset_dims, &
+                vy, .true., use_collective_io)
+            call read_data_h5(jez_id, dcount, doffset, dset_dims, &
+                vz, .true., use_collective_io)
+            vx = reshape(vx, shape(vx), order=[3, 2, 1])
+            vy = reshape(vy, shape(vy), order=[3, 2, 1])
+            vz = reshape(vz, shape(vz), order=[3, 2, 1])
+            call h5dclose_f(jex_id, error)
+            call h5dclose_f(jey_id, error)
+            call h5dclose_f(jez_id, error)
+
+            ! ion
+            call h5dopen_f(Hhydro_group_id, "jx", jix_id, error)
+            call h5dopen_f(Hhydro_group_id, "jy", jiy_id, error)
+            call h5dopen_f(Hhydro_group_id, "jz", jiz_id, error)
+            call read_data_h5(jix_id, dcount, doffset, dset_dims, &
+                jx, .true., use_collective_io)
+            call read_data_h5(jiy_id, dcount, doffset, dset_dims, &
+                jy, .true., use_collective_io)
+            call read_data_h5(jiz_id, dcount, doffset, dset_dims, &
+                jz, .true., use_collective_io)
+            jx = reshape(jx, shape(jx), order=[3, 2, 1])
+            jy = reshape(jy, shape(jy), order=[3, 2, 1])
+            jz = reshape(jz, shape(jz), order=[3, 2, 1])
+            call h5dclose_f(jix_id, error)
+            call h5dclose_f(jiy_id, error)
+            call h5dclose_f(jiz_id, error)
+
+            jx = jx + vx
+            jy = jy + vy
+            jz = jz + vz
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
+            call read_data_mpi_io(jfields_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, jx)
+            call read_data_mpi_io(jfields_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, jy)
+            call read_data_mpi_io(jfields_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, jz)
+        endif
     end subroutine read_current_desities
 
     !---------------------------------------------------------------------------
     ! Read pressure tensor.
+    ! Note that we assume that when reading from HDF5 files, we have read
+    ! number density, velocity, and momentum fields from the files
     !---------------------------------------------------------------------------
-    subroutine read_pressure_tensor(ct)
+    subroutine read_pressure_tensor(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(pre_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, pxx)
-        call read_data_mpi_io(pre_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, pxy)
-        call read_data_mpi_io(pre_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, pxz)
-        call read_data_mpi_io(pre_fh(4), filetype_ghost, &
-            subsizes_ghost, disp, offset, pyy)
-        call read_data_mpi_io(pre_fh(5), filetype_ghost, &
-            subsizes_ghost, disp, offset, pyz)
-        call read_data_mpi_io(pre_fh(6), filetype_ghost, &
-            subsizes_ghost, disp, offset, pzz)
-        if (is_rel == 1) then
-            call read_data_mpi_io(pre_rel_fh(1), filetype_ghost, &
-                subsizes_ghost, disp, offset, pyx)
-            call read_data_mpi_io(pre_rel_fh(2), filetype_ghost, &
-                subsizes_ghost, disp, offset, pzx)
-            call read_data_mpi_io(pre_rel_fh(3), filetype_ghost, &
-                subsizes_ghost, disp, offset, pzy)
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: txx_id, txy_id, tzx_id
+        integer(hid_t) :: tyy_id, tyz_id, tzz_id
+        integer(hid_t) :: hydro_group_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        if (species .eq. 'e') then
+            hydro_group_id = ehydro_group_id
+        else
+            hydro_group_id = Hhydro_group_id
+        endif
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            call h5dopen_f(hydro_group_id, "txx", txx_id, error)
+            call h5dopen_f(hydro_group_id, "txy", txy_id, error)
+            call h5dopen_f(hydro_group_id, "tzx", tzx_id, error)
+            call h5dopen_f(hydro_group_id, "tyy", tyy_id, error)
+            call h5dopen_f(hydro_group_id, "tyz", tyz_id, error)
+            call h5dopen_f(hydro_group_id, "tzz", tzz_id, error)
+            call read_data_h5(txx_id, dcount, doffset, dset_dims, &
+                pxx, .true., use_collective_io)
+            call read_data_h5(txy_id, dcount, doffset, dset_dims, &
+                pxy, .true., use_collective_io)
+            call read_data_h5(tzx_id, dcount, doffset, dset_dims, &
+                pxz, .true., use_collective_io)
+            call read_data_h5(tyy_id, dcount, doffset, dset_dims, &
+                pyy, .true., use_collective_io)
+            call read_data_h5(tyz_id, dcount, doffset, dset_dims, &
+                pyz, .true., use_collective_io)
+            call read_data_h5(tzz_id, dcount, doffset, dset_dims, &
+                pzz, .true., use_collective_io)
+            pxx = reshape(pxx, shape(pxx), order=[3, 2, 1])
+            pxy = reshape(pxy, shape(pxy), order=[3, 2, 1])
+            pxz = reshape(pxz, shape(pxz), order=[3, 2, 1])
+            pyy = reshape(pyy, shape(pyy), order=[3, 2, 1])
+            pyz = reshape(pyz, shape(pyz), order=[3, 2, 1])
+            pzz = reshape(pzz, shape(pzz), order=[3, 2, 1])
+            call h5dclose_f(txx_id, error)
+            call h5dclose_f(txy_id, error)
+            call h5dclose_f(tzx_id, error)
+            call h5dclose_f(tyy_id, error)
+            call h5dclose_f(tyz_id, error)
+            call h5dclose_f(tzz_id, error)
+            ! We assume that num_rho, v, and u have been loaded from files
+            pxx = (pxx - ptl_mass*num_rho*vx*ux)
+            pyy = (pyy - ptl_mass*num_rho*vy*uy)
+            pzz = (pzz - ptl_mass*num_rho*vz*uz)
+            if (is_rel == 1) then
+                pyx = (pxy - ptl_mass*num_rho*vy*ux)
+                pzx = (pxz - ptl_mass*num_rho*vz*ux)
+                pzy = (pyz - ptl_mass*num_rho*vz*uy)
+            endif
+            pxy = (pxy - ptl_mass*num_rho*vx*uy)
+            pxz = (pxz - ptl_mass*num_rho*vx*uz)
+            pyz = (pyz - ptl_mass*num_rho*vy*uz)
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
+            call read_data_mpi_io(pre_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, pxx)
+            call read_data_mpi_io(pre_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, pxy)
+            call read_data_mpi_io(pre_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, pxz)
+            call read_data_mpi_io(pre_fh(4), filetype_ghost, &
+                subsizes_ghost, disp, offset, pyy)
+            call read_data_mpi_io(pre_fh(5), filetype_ghost, &
+                subsizes_ghost, disp, offset, pyz)
+            call read_data_mpi_io(pre_fh(6), filetype_ghost, &
+                subsizes_ghost, disp, offset, pzz)
+            if (is_rel == 1) then
+                call read_data_mpi_io(pre_rel_fh(1), filetype_ghost, &
+                    subsizes_ghost, disp, offset, pyx)
+                call read_data_mpi_io(pre_rel_fh(2), filetype_ghost, &
+                    subsizes_ghost, disp, offset, pzx)
+                call read_data_mpi_io(pre_rel_fh(3), filetype_ghost, &
+                    subsizes_ghost, disp, offset, pzy)
+            endif
         endif
     end subroutine read_pressure_tensor
 
     !---------------------------------------------------------------------------
-    ! Read velocity field.
+    ! Read velocity field and possible momentum field
     !---------------------------------------------------------------------------
-    subroutine read_velocity_fields(ct)
+    subroutine read_velocity_fields(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
-        integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(vfields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, vx)
-        call read_data_mpi_io(vfields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, vy)
-        call read_data_mpi_io(vfields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, vz)
+        logical, intent(in), optional :: hdf5_flag, collective_io
+        logical :: use_hdf5, use_collective_io
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+        call read_vfields(ct, use_hdf5, use_collective_io)
         if (is_rel == 1) then
+            call read_ufields(ct, use_hdf5, use_collective_io)
+        endif
+    end subroutine read_velocity_fields
+
+    !---------------------------------------------------------------------------
+    ! Read v field.
+    ! Note that we assume that when reading from HDF5 files, we have read
+    ! particle number density from the files
+    !---------------------------------------------------------------------------
+    subroutine read_vfields(ct, hdf5_flag, collective_io)
+        implicit none
+        integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: jx_id, jy_id, jz_id
+        integer(hid_t) :: hydro_group_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        if (species .eq. 'e') then
+            hydro_group_id = ehydro_group_id
+        else
+            hydro_group_id = Hhydro_group_id
+        endif
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            call h5dopen_f(hydro_group_id, "jx", jx_id, error)
+            call h5dopen_f(hydro_group_id, "jy", jy_id, error)
+            call h5dopen_f(hydro_group_id, "jz", jz_id, error)
+            call read_data_h5(jx_id, dcount, doffset, dset_dims, &
+                vx, .true., use_collective_io)
+            call read_data_h5(jy_id, dcount, doffset, dset_dims, &
+                vy, .true., use_collective_io)
+            call read_data_h5(jz_id, dcount, doffset, dset_dims, &
+                vz, .true., use_collective_io)
+            vx = reshape(vx, shape(vx), order=[3, 2, 1])
+            vy = reshape(vy, shape(vy), order=[3, 2, 1])
+            vz = reshape(vz, shape(vz), order=[3, 2, 1])
+            call h5dclose_f(jx_id, error)
+            call h5dclose_f(jy_id, error)
+            call h5dclose_f(jz_id, error)
+            ! We assume that num_rho has been loaded from files
+            where (num_rho > 0.0)
+                vx = (vx/num_rho) * ptl_charge
+                vy = (vy/num_rho) * ptl_charge
+                vz = (vz/num_rho) * ptl_charge
+            elsewhere
+                vx = 0.0
+                vy = 0.0
+                vz = 0.0
+            endwhere
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
+            call read_data_mpi_io(vfields_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, vx)
+            call read_data_mpi_io(vfields_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, vy)
+            call read_data_mpi_io(vfields_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, vz)
+        endif
+    end subroutine read_vfields
+
+    !---------------------------------------------------------------------------
+    ! Read u field.
+    ! Note that we assume that when reading from HDF5 files, we have read
+    ! particle number density from the files
+    !---------------------------------------------------------------------------
+    subroutine read_ufields(ct, hdf5_flag, collective_io)
+        implicit none
+        integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
+        integer(kind=MPI_OFFSET_KIND) :: disp, offset
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: px_id, py_id, pz_id
+        integer(hid_t) :: hydro_group_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        if (species .eq. 'e') then
+            hydro_group_id = ehydro_group_id
+        else
+            hydro_group_id = Hhydro_group_id
+        endif
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            call h5dopen_f(hydro_group_id, "px", px_id, error)
+            call h5dopen_f(hydro_group_id, "py", py_id, error)
+            call h5dopen_f(hydro_group_id, "pz", pz_id, error)
+            call read_data_h5(px_id, dcount, doffset, dset_dims, &
+                ux, .true., use_collective_io)
+            call read_data_h5(py_id, dcount, doffset, dset_dims, &
+                uy, .true., use_collective_io)
+            call read_data_h5(pz_id, dcount, doffset, dset_dims, &
+                uz, .true., use_collective_io)
+            ux = reshape(ux, shape(ux), order=[3, 2, 1])
+            uy = reshape(uy, shape(uy), order=[3, 2, 1])
+            uz = reshape(uz, shape(uz), order=[3, 2, 1])
+            call h5dclose_f(px_id, error)
+            call h5dclose_f(py_id, error)
+            call h5dclose_f(pz_id, error)
+            ! We assume that num_rho has been loaded from files
+            where (num_rho > 0.0)
+                ux = (ux/num_rho) / ptl_mass
+                uy = (uy/num_rho) / ptl_mass
+                uz = (uz/num_rho) / ptl_mass
+            elsewhere
+                ux = 0.0
+                uy = 0.0
+                uz = 0.0
+            endwhere
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
             call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
                 subsizes_ghost, disp, offset, ux)
             call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
@@ -375,53 +741,53 @@ module pic_fields
             call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
                 subsizes_ghost, disp, offset, uz)
         endif
-    end subroutine read_velocity_fields
-
-    !---------------------------------------------------------------------------
-    ! Read v field.
-    !---------------------------------------------------------------------------
-    subroutine read_vfields(ct)
-        implicit none
-        integer, intent(in) :: ct
-        integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(vfields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, vx)
-        call read_data_mpi_io(vfields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, vy)
-        call read_data_mpi_io(vfields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, vz)
-    end subroutine read_vfields
-
-    !---------------------------------------------------------------------------
-    ! Read u field.
-    !---------------------------------------------------------------------------
-    subroutine read_ufields(ct)
-        implicit none
-        integer, intent(in) :: ct
-        integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(ufields_fh(1), filetype_ghost, &
-            subsizes_ghost, disp, offset, ux)
-        call read_data_mpi_io(ufields_fh(2), filetype_ghost, &
-            subsizes_ghost, disp, offset, uy)
-        call read_data_mpi_io(ufields_fh(3), filetype_ghost, &
-            subsizes_ghost, disp, offset, uz)
     end subroutine read_ufields
 
     !---------------------------------------------------------------------------
     ! Read number density.
     !---------------------------------------------------------------------------
-    subroutine read_number_density(ct)
+    subroutine read_number_density(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
+        logical, intent(in), optional :: hdf5_flag, collective_io
         integer(kind=MPI_OFFSET_KIND) :: disp, offset
-        disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
-        offset = 0
-        call read_data_mpi_io(nrho_fh, filetype_ghost, &
-            subsizes_ghost, disp, offset, num_rho)
+        logical :: use_hdf5, use_collective_io
+        integer(hid_t) :: hydro_group_id, rho_id
+        integer(hsize_t), dimension(3) :: dcount, doffset, dset_dims
+        integer :: error
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        if (species .eq. 'e') then
+            hydro_group_id = ehydro_group_id
+        else
+            hydro_group_id = Hhydro_group_id
+        endif
+
+        if (use_hdf5) then
+            dcount = subsizes_ghost(3:1:-1)
+            doffset = starts_ghost(3:1:-1)
+            dset_dims = sizes_ghost(3:1:-1)
+            call h5dopen_f(hydro_group_id, "rho", rho_id, error)
+            call read_data_h5(rho_id, dcount, doffset, dset_dims, &
+                num_rho, .true., use_collective_io)
+            num_rho = reshape(num_rho, shape(num_rho), order=[3, 2, 1])
+            call h5dclose_f(rho_id, error)
+            num_rho = abs(num_rho / ptl_charge)
+        else
+            disp = domain%nx * domain%ny * domain%nz * sizeof(MPI_REAL) * (ct-tp1)
+            offset = 0
+            call read_data_mpi_io(nrho_fh, filetype_ghost, &
+                subsizes_ghost, disp, offset, num_rho)
+        endif
     end subroutine read_number_density
 
     !---------------------------------------------------------------------------
@@ -442,15 +808,28 @@ module pic_fields
     ! Input:
     !   ct: current time point.
     !---------------------------------------------------------------------------
-    subroutine read_pic_fields(ct)
+    subroutine read_pic_fields(ct, hdf5_flag, collective_io)
         implicit none
         integer, intent(in) :: ct
-        call read_magnetic_fields(ct)
-        call read_electric_fields(ct)
-        call read_current_desities(ct)
-        call read_pressure_tensor(ct)
-        call read_velocity_fields(ct)
-        call read_number_density(ct)
+        logical, intent(in), optional :: hdf5_flag, collective_io
+        logical :: use_hdf5, use_collective_io
+        if (.not. present(hdf5_flag)) then
+            use_hdf5 = .false.
+        else
+            use_hdf5 = hdf5_flag
+        endif
+        if (.not. present(collective_io)) then
+            use_collective_io = .false.
+        else
+            use_collective_io = collective_io
+        endif
+
+        call read_magnetic_fields(ct, use_hdf5, use_collective_io)
+        call read_electric_fields(ct, use_hdf5, use_collective_io)
+        call read_current_desities(ct, use_hdf5, use_collective_io)
+        call read_pressure_tensor(ct, use_hdf5, use_collective_io)
+        call read_velocity_fields(ct, use_hdf5, use_collective_io)
+        call read_number_density(ct, use_hdf5, use_collective_io)
     end subroutine read_pic_fields
 
     !<--------------------------------------------------------------------------
@@ -1156,6 +1535,54 @@ module pic_fields
     end subroutine open_pic_fields_multiple
 
     !---------------------------------------------------------------------------
+    ! Open a file containing electric and magnetic fields
+    ! Inputs:
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_field_file_h5(tindex)
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=32) :: gname, cfname
+        integer :: ierror
+
+        write(cfname, "(I0)") tindex
+        fname = trim(adjustl(rootpath))//'field_hdf5/T.'//trim(cfname)//'/'
+        fname = trim(adjustl(fname))//'fields_'//trim(cfname)//'.h5'
+        call open_file_h5(trim(fname), H5F_ACC_RDONLY_F, field_file_id, .true.)
+        gname = "Timestep_"//trim(cfname)
+        call h5gopen_f(field_file_id, trim(gname), field_group_id, ierror)
+    end subroutine open_field_file_h5
+
+    !---------------------------------------------------------------------------
+    ! Open files containing hydro fields for electrons and ions
+    ! Inputs:
+    !   tindex: the time index.
+    !---------------------------------------------------------------------------
+    subroutine open_hydro_files_h5(tindex)
+        implicit none
+        integer, intent(in) :: tindex
+        character(len=256) :: fname
+        character(len=32) :: gname, cfname
+        integer :: ierror
+
+        write(cfname, "(I0)") tindex
+
+        ! electron hydro
+        fname = trim(adjustl(rootpath))//'hydro_hdf5/T.'//trim(cfname)//'/'
+        fname = trim(adjustl(fname))//'hydro_electron_'//trim(cfname)//'.h5'
+        gname = "Timestep_"//trim(cfname)
+        call open_file_h5(trim(fname), H5F_ACC_RDONLY_F, ehydro_file_id, .true.)
+        call h5gopen_f(ehydro_file_id, trim(gname), ehydro_group_id, ierror)
+
+        ! ion hydro
+        fname = trim(adjustl(rootpath))//'hydro_hdf5/T.'//trim(cfname)//'/'
+        fname = trim(adjustl(fname))//'hydro_ion_'//trim(cfname)//'.h5'
+        call open_file_h5(trim(fname), H5F_ACC_RDONLY_F, Hhydro_file_id, .true.)
+        call h5gopen_f(Hhydro_file_id, trim(gname), Hhydro_group_id, ierror)
+    end subroutine open_hydro_files_h5
+
+    !---------------------------------------------------------------------------
     ! Free magnetic fields.
     !---------------------------------------------------------------------------
     subroutine free_magnetic_fields
@@ -1358,6 +1785,28 @@ module pic_fields
         call close_velocity_field_files
         call close_number_density_file
     end subroutine close_pic_fields_file
+
+    !---------------------------------------------------------------------------
+    ! Close a file containing electric and magnetic fields
+    !---------------------------------------------------------------------------
+    subroutine close_field_file_h5
+        implicit none
+        integer :: error
+        call h5gclose_f(field_group_id, error)
+        call h5fclose_f(field_file_id, error)
+    end subroutine close_field_file_h5
+
+    !---------------------------------------------------------------------------
+    ! Open files containing hydro fields for electrons and ions
+    !---------------------------------------------------------------------------
+    subroutine close_hydro_files_h5
+        implicit none
+        integer :: error
+        call h5gclose_f(ehydro_group_id, error)
+        call h5fclose_f(ehydro_file_id, error)
+        call h5gclose_f(Hhydro_group_id, error)
+        call h5fclose_f(Hhydro_file_id, error)
+    end subroutine close_hydro_files_h5
 
     !<--------------------------------------------------------------------------
     !< Linearly interpolate electric field and magnetic field to the node positions.

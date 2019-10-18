@@ -14,6 +14,9 @@ add_library(statistics STATIC statistics.f90)
 
 add_library(mpi_io mpi_io.f90 global.f90)
 
+add_library(hdf5_io hdf5_io.f90 global.f90)
+target_link_libraries(hdf5_io ${HDF5_Fortran_LIBRARIES})
+
 add_library(saving_flags saving_flags.f90)
 target_link_libraries(saving_flags read_config)
 
@@ -46,7 +49,7 @@ target_link_libraries(fieldline_tracing magnetic_field)
 
 add_library(pic_fields pic_fields.f90 global.f90)
 target_link_libraries(pic_fields get_info saving_flags mpi_io mpi_setup
-    get_info mpi_io_fields)
+    get_info mpi_io_fields hdf5_io ${HDF5_Fortran_LIBRARIES})
 
 add_library(usingle usingle.f90 global.f90)
 target_link_libraries(usingle get_info pic_fields)
@@ -58,10 +61,10 @@ target_link_libraries(fields statistics get_info saving_flags pic_fields
     usingle)
 
 add_library(pre_post_hydro STATIC pre_post_hydro.f90)
-target_link_libraries(pre_post_hydro pic_fields)
+target_link_libraries(pre_post_hydro pic_fields hdf5_io)
 
 add_library(pre_post_emf STATIC pre_post_emf.f90)
-target_link_libraries(pre_post_emf pic_fields)
+target_link_libraries(pre_post_emf pic_fields hdf5_io)
 
 add_library(exb_drift exb_drift.f90 neighbors.f90 global.f90)
 target_link_libraries(exb_drift get_info fields file_header)
