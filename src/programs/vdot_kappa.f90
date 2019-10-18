@@ -6,11 +6,12 @@ program vdot_kappa
     use constants, only: fp, dp
     use time_info, only: output_record_initial => output_record
     use particle_info, only: get_ptl_mass_charge, ptl_mass, species
+    use hdf5
     implicit none
     character(len=256) :: rootpath
     real(fp) :: vkappa_min, vkappa_max
     integer :: nbins
-    logical :: with_nrho, with_exb
+    logical :: with_nrho, with_exb, use_hdf5_fields
     real(fp), allocatable, dimension(:, :, :) :: vkappa
     real(fp), allocatable, dimension(:, :, :) :: tmpx, tmpy, tmpz, stmp
     real(fp), allocatable, dimension(:, :, :) :: vsx, vsy, vsz
@@ -115,8 +116,9 @@ program vdot_kappa
             close_magnetic_field_files, close_vfield_files, close_number_density_file, &
             close_electric_field_files, read_magnetic_fields, read_vfields, &
             read_number_density, read_electric_fields, interp_emf_node_ghost, &
-            vfields_fh, nrho_fh
-        use parameters, only: tp1
+            vfields_fh, nrho_fh, open_field_file_h5, open_hydro_files_h5, &
+            close_field_file_h5, close_hydro_files_h5
+        use parameters, only: tp1, tp2
         implicit none
         integer :: tframe, tindex, out_record, tp1_local, tp2_local
         integer, dimension(3) :: vfields_fh_e, vfields_fh_i
@@ -124,74 +126,126 @@ program vdot_kappa
         logical :: dfile
 
         out_record = output_record_initial
-        if (output_format == 1) then
-            call open_magnetic_field_files
-            if (with_exb) then
-                call open_electric_field_files
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call open_magnetic_field_files
+                if (with_exb) then
+                    call open_electric_field_files
+                endif
+                call open_vfield_files('e')
+                call open_number_density_file('e')
+                ! Save file handlers so we open both electron and ion files
+                vfields_fh_e = vfields_fh
+                nrho_fh_e = nrho_fh
+                call open_vfield_files('i')
+                call open_number_density_file('i')
+                vfields_fh_i = vfields_fh
+                nrho_fh_i = nrho_fh
+                call adjust_tp2(tp1_local, tp2_local)
             endif
-            call open_vfield_files('e')
-            call open_number_density_file('e')
-            ! Save file handlers so we open both electron and ion files
-            vfields_fh_e = vfields_fh
-            nrho_fh_e = nrho_fh
-            call open_vfield_files('i')
-            call open_number_density_file('i')
-            vfields_fh_i = vfields_fh
-            nrho_fh_i = nrho_fh
-            call adjust_tp2(tp1_local, tp2_local)
         endif
 
         if (output_format /= 1) then
             dfile= .true.
             tindex = tindex_start
 
-            do while (dfile)
-                if (myid==master) print *, " Time slice: ", tindex
-                call open_magnetic_field_files(tindex)
-                call read_magnetic_fields(tp1)
-                call close_magnetic_field_files
-                if (myid == master) print*, "Finished reading magnetic fields"
-                if (with_exb) then
-                    call open_electric_field_files(tindex)
-                    call read_electric_fields(tp1)
-                    call close_electric_field_files
-                    if (myid == master) print*, "Finished reading electric fields"
-                endif
+            if (use_hdf5_fields) then
+                do tframe = tp1, tp2
+                    ! electric and magnetic fields
+                    call open_field_file_h5(tindex)
+                    call read_magnetic_fields(tp1, .true., .true.)
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    if (with_exb) then
+                        call read_electric_fields(tp1, .true., .true.)
+                        if (myid == master) print*, "Finished reading electric fields"
+                    endif
+                    call close_field_file_h5
+                    ! hydro fields
+                    ! We need to read in this order: number density, v, u, and pressure,
+                    ! tensor, because reading v and u needs number density, and because
+                    ! reading pressure tensor needs number density, v, and u
+                    call open_hydro_files_h5(tindex)
+                    ! Electron
+                    species = 'e'
+                    call get_ptl_mass_charge(species)
+                    call read_number_density(tp1, .true., .true.)
+                    if (myid == master) print*, "Finished reading number density"
+                    call read_vfields(tp1, .true., .true.)
+                    if (myid == master) print*, "Finished reading velocity fields"
+                    if (.not. with_exb) then
+                        call vsingle_tmp
+                    endif
+                    ! Ion
+                    species = 'i'
+                    call get_ptl_mass_charge(species)
+                    call read_number_density(tp1, .true., .true.)
+                    if (myid == master) print*, "Finished reading number density"
+                    call read_vfields(tp1, .true., .true.)
+                    if (myid == master) print*, "Finished reading velocity fields"
+                    call close_hydro_files_h5
+                    if (.not. with_exb) then
+                        call vsingle_final
+                    else
+                        call interp_emf_node_ghost
+                        call calc_vexb
+                    endif
 
-                call open_vfield_files('e', tindex)
-                call open_number_density_file('e', tindex)
-                call read_vfields(tp1)
-                call read_number_density(tp1)
-                call close_vfield_files
-                call close_number_density_file
-                if (myid == master) print*, "Finished reading electron velocity and density fields"
-                if (.not. with_exb) then
-                    call vsingle_tmp
-                endif
+                    call eval_vkappa_single
+                    call write_vkappa(1, 1, tindex)
+                    call get_vkappa_dist
+                    call save_vkappa_dist(tindex)
 
-                call open_vfield_files('i', tindex)
-                call open_number_density_file('i', tindex)
-                call read_vfields(tp1)
-                call read_number_density(tp1)
-                call close_vfield_files
-                call close_number_density_file
-                if (myid == master) print*, "Finished reading ion velocity and density fields"
-                if (.not. with_exb) then
-                    call vsingle_final
-                else
-                    call interp_emf_node_ghost
-                    call calc_vexb
-                endif
+                    tindex = tindex + domain%fields_interval
+                enddo
+            else
+                do while (dfile)
+                    if (myid==master) print *, " Time slice: ", tindex
+                    call open_magnetic_field_files(tindex)
+                    call read_magnetic_fields(tp1)
+                    call close_magnetic_field_files
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    if (with_exb) then
+                        call open_electric_field_files(tindex)
+                        call read_electric_fields(tp1)
+                        call close_electric_field_files
+                        if (myid == master) print*, "Finished reading electric fields"
+                    endif
 
-                call eval_vkappa_single
-                call write_vkappa(1, 1, tindex)
-                call get_vkappa_dist
-                call save_vkappa_dist(tindex)
+                    call open_vfield_files('e', tindex)
+                    call open_number_density_file('e', tindex)
+                    call read_vfields(tp1)
+                    call read_number_density(tp1)
+                    call close_vfield_files
+                    call close_number_density_file
+                    if (myid == master) print*, "Finished reading electron velocity and density fields"
+                    if (.not. with_exb) then
+                        call vsingle_tmp
+                    endif
 
-                tindex = tindex + domain%fields_interval
-                call check_file_existence(tindex, dfile)
-                if (dfile) out_record = out_record + 1
-            enddo
+                    call open_vfield_files('i', tindex)
+                    call open_number_density_file('i', tindex)
+                    call read_vfields(tp1)
+                    call read_number_density(tp1)
+                    call close_vfield_files
+                    call close_number_density_file
+                    if (myid == master) print*, "Finished reading ion velocity and density fields"
+                    if (.not. with_exb) then
+                        call vsingle_final
+                    else
+                        call interp_emf_node_ghost
+                        call calc_vexb
+                    endif
+
+                    call eval_vkappa_single
+                    call write_vkappa(1, 1, tindex)
+                    call get_vkappa_dist
+                    call save_vkappa_dist(tindex)
+
+                    tindex = tindex + domain%fields_interval
+                    call check_file_existence(tindex, dfile)
+                    if (dfile) out_record = out_record + 1
+                enddo
+            endif
         else
             do tframe = tp1_local, tp2_local
                 if (myid==master) print*, tframe
@@ -226,19 +280,21 @@ program vdot_kappa
             enddo
         endif
 
-        if (output_format == 1) then
-            call close_magnetic_field_files
-            if (with_exb) then
-                call close_electric_field_files
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call close_magnetic_field_files
+                if (with_exb) then
+                    call close_electric_field_files
+                endif
+                vfields_fh = vfields_fh_e
+                nrho_fh = nrho_fh_e
+                call close_vfield_files
+                call close_number_density_file
+                vfields_fh = vfields_fh_i
+                nrho_fh = nrho_fh_i
+                call close_vfield_files
+                call close_number_density_file
             endif
-            vfields_fh = vfields_fh_e
-            nrho_fh = nrho_fh_e
-            call close_vfield_files
-            call close_number_density_file
-            vfields_fh = vfields_fh_i
-            nrho_fh = nrho_fh_i
-            call close_vfield_files
-            call close_number_density_file
         endif
     end subroutine eval_vkappa
 
@@ -421,7 +477,9 @@ program vdot_kappa
             call calc_energy_interval
         endif
         call read_configuration
-        call get_total_time_frames(tp2)
+        if (.not. use_hdf5_fields) then
+            call get_total_time_frames(tp2)
+        endif
         call set_topology
         call set_start_stop_cells
         call set_mpi_io
@@ -433,6 +491,9 @@ program vdot_kappa
         call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
+        if (use_hdf5_fields) then
+            call h5open_f(ierror)
+        endif
     end subroutine init_analysis
 
     !<--------------------------------------------------------------------------
@@ -496,6 +557,10 @@ program vdot_kappa
             help='Maximum vkappa', &
             required=.false., def='1E2', act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--hdf5_fields', switch_ab='-hf', &
+            help='Whether to use fields saved in HDF5 files', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-wn', val=with_nrho, error=error)
@@ -510,18 +575,23 @@ program vdot_kappa
         if (error/=0) stop
         call cli%get(switch='-kh', val=vkappa_max, error=error)
         if (error/=0) stop
+        call cli%get(switch='-hf', val=use_hdf5_fields, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,A)', 'Default particle species is: ', species
+            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,A)', ' Default particle species is: ', species
             if (with_nrho) then
-                print '(A)', 'Calculate nv.kappa instead of v.kappa'
+                print '(A)', ' Calculate nv.kappa instead of v.kappa'
             endif
             if (with_exb) then
-                print '(A)', 'Using ExB drift instead of single-fluid velocity'
+                print '(A)', ' Using ExB drift instead of single-fluid velocity'
             endif
             print '(A,I0)', ' Number of bins for vkappa: ', nbins
             print '(A,E,E)', ' Minimum and maximum vdot_kappa: ', vkappa_min, vkappa_max
+            if (use_hdf5_fields) then
+                print '(A)', ' Use fields and hydro saved in HDF5 files'
+            endif
         endif
     end subroutine get_cmd_args
 

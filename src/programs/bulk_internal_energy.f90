@@ -5,8 +5,10 @@ program bulk_flow_energy
     use mpi_module
     use constants, only: fp, dp
     use particle_info, only: species, get_ptl_mass_charge
+    use hdf5
     implicit none
     character(len=256) :: rootpath
+    logical :: use_hdf5_fields
 
     call init_analysis
 
@@ -31,7 +33,8 @@ program bulk_flow_energy
             close_velocity_field_files, close_pressure_tensor_files, &
             open_number_density_file, init_number_density, &
             read_number_density, free_number_density, &
-            close_number_density_file
+            close_number_density_file, open_hydro_files_h5, &
+            close_hydro_files_h5
         use particle_info, only: species, ptl_mass
         use parameters, only: tp1, tp2, is_rel
         use statistics, only: get_average_and_total
@@ -58,31 +61,49 @@ program bulk_flow_energy
         call init_pressure_tensor(htg%nx, htg%ny, htg%nz)
         call init_number_density(htg%nx, htg%ny, htg%nz)
 
-        if (output_format == 1) then
-            call open_velocity_field_files(species)
-            call open_pressure_tensor_files(species)
-            call open_number_density_file(species)
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call open_velocity_field_files(species)
+                call open_pressure_tensor_files(species)
+                call open_number_density_file(species)
+            endif
         endif
 
         do tframe = tp1, tp2
             if (myid == master) then
                 print*, "Time frame: ", tframe
             endif
-            if (output_format /= 1) then
+            if (use_hdf5_fields) then
                 tindex = domain%fields_interval * (tframe - tp1)
-                call open_velocity_field_files(species, tindex)
-                call read_velocity_fields(tp1)
-                call close_number_density_file
-                call open_pressure_tensor_files(species, tindex)
-                call read_pressure_tensor(tp1)
-                call close_pressure_tensor_files
-                call open_number_density_file(species, tindex)
-                call read_number_density(tp1)
-                call close_velocity_field_files
+                ! hydro fields
+                ! We need to read in this order: number density, v, u, and pressure,
+                ! tensor, because reading v and u needs number density, and because
+                ! reading pressure tensor needs number density, v, and u
+                call open_hydro_files_h5(tindex)
+                call read_number_density(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading number density"
+                call read_velocity_fields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading velocity and momentum fields"
+                call read_pressure_tensor(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading pressure tensor"
+                call close_hydro_files_h5
             else
-                call read_velocity_fields(tframe)
-                call read_pressure_tensor(tframe)
-                call read_number_density(tframe)
+                if (output_format /= 1) then
+                    tindex = domain%fields_interval * (tframe - tp1)
+                    call open_velocity_field_files(species, tindex)
+                    call read_velocity_fields(tp1)
+                    call close_number_density_file
+                    call open_pressure_tensor_files(species, tindex)
+                    call read_pressure_tensor(tp1)
+                    call close_pressure_tensor_files
+                    call open_number_density_file(species, tindex)
+                    call read_number_density(tp1)
+                    call close_velocity_field_files
+                else
+                    call read_velocity_fields(tframe)
+                    call read_pressure_tensor(tframe)
+                    call read_number_density(tframe)
+                endif
             endif
 
             call get_average_and_total(0.5*vx*ux*ptl_mass*num_rho, &
@@ -105,10 +126,12 @@ program bulk_flow_energy
             endif
         enddo
 
-        if (output_format == 1) then
-            call close_number_density_file
-            call close_pressure_tensor_files
-            call close_velocity_field_files
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call close_number_density_file
+                call close_pressure_tensor_files
+                call close_velocity_field_files
+            endif
         endif
 
         call free_number_density
@@ -180,7 +203,9 @@ program bulk_flow_energy
             call calc_energy_interval
         endif
         call read_configuration
-        call get_total_time_frames(tp2)
+        if (.not. use_hdf5_fields) then
+            call get_total_time_frames(tp2)
+        endif
         call set_topology
         call set_start_stop_cells
         call set_mpi_io
@@ -192,6 +217,9 @@ program bulk_flow_energy
         call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
+        if (use_hdf5_fields) then
+            call h5open_f(ierror)
+        endif
     end subroutine init_analysis
 
     !<--------------------------------------------------------------------------
@@ -234,14 +262,23 @@ program bulk_flow_energy
             help='particle species', required=.false., act='store', &
             def='e', error=error)
         if (error/=0) stop
+        call cli%add(switch='--hdf5_fields', switch_ab='-hf', &
+            help='Whether to use fields saved in HDF5 files', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
         if (error/=0) stop
+        call cli%get(switch='-hf', val=use_hdf5_fields, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,A)', 'Partical species: ', species
+            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,A)', ' Partical species: ', species
+            if (use_hdf5_fields) then
+                print '(A)', ' Use fields and hydro saved in HDF5 files'
+            endif
         endif
     end subroutine get_cmd_args
 

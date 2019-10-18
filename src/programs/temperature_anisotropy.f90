@@ -5,6 +5,7 @@ program temperature_anisotropy
     use mpi_module
     use constants, only: fp, dp
     use particle_info, only: species, get_ptl_mass_charge
+    use hdf5
     implicit none
     integer :: nbins_temp, nbins_beta, nbins_tratio
     real(fp) :: temp_min, temp_max, beta_min, beta_max, tratio_min, tratio_max
@@ -18,6 +19,7 @@ program temperature_anisotropy
     real(fp), allocatable, dimension(:) :: temp_bins_edge, beta_bins_edge, tratio_bins_edge
     real(fp), allocatable, dimension(:, :) :: ftratio_bpara_local, ftratio_bpara_global
     character(len=256) :: rootpath
+    logical :: use_hdf5_fields
     integer :: ct
 
     ct = 1
@@ -72,7 +74,9 @@ program temperature_anisotropy
             call calc_energy_interval
         endif
         call read_configuration
-        call get_total_time_frames(tp2)
+        if (.not. use_hdf5_fields) then
+            call get_total_time_frames(tp2)
+        endif
         call set_topology
         call set_start_stop_cells
         call set_mpi_io
@@ -84,6 +88,9 @@ program temperature_anisotropy
         call init_neighbors(htg%nx, htg%ny, htg%nz)
         call get_neighbors
 
+        if (use_hdf5_fields) then
+            call h5open_f(ierror)
+        endif
     end subroutine init_analysis
 
     !<--------------------------------------------------------------------------
@@ -250,6 +257,10 @@ program temperature_anisotropy
             help='Minimum temperature ratio for histogram', &
             required=.false., def='100.0', act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--hdf5_fields', switch_ab='-hf', &
+            help='Whether to use fields saved in HDF5 files', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
@@ -272,19 +283,24 @@ program temperature_anisotropy
         if (error/=0) stop
         call cli%get(switch='-rh', val=tratio_max, error=error)
         if (error/=0) stop
+        call cli%get(switch='-hf', val=use_hdf5_fields, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
-            print '(A,A)', 'The simulation rootpath: ', trim(adjustl(rootpath))
-            print '(A,A)', 'Partical species: ', species
-            print '(A, I0)', 'Number of bins for temperature: ', nbins_temp
-            print '(A, 2E10.3)', 'Minimum and maximum temperature: ', &
+            print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
+            print '(A,A)', ' Partical species: ', species
+            print '(A, I0)', ' Number of bins for temperature: ', nbins_temp
+            print '(A, 2E10.3)', ' Minimum and maximum temperature: ', &
                 temp_min, temp_max
-            print '(A, I0)', 'Number of bins for plasma beta: ', nbins_beta
-            print '(A, 2E10.3)', 'Minimum and maximum plasma beta: ', &
+            print '(A, I0)', ' Number of bins for plasma beta: ', nbins_beta
+            print '(A, 2E10.3)', ' Minimum and maximum plasma beta: ', &
                 beta_min, beta_max
-            print '(A, I0)', 'Number of bins for temperature ratio: ', nbins_tratio
-            print '(A, 2E10.3)', 'Minimum and maximum temperature ratio: ', &
+            print '(A, I0)', ' Number of bins for temperature ratio: ', nbins_tratio
+            print '(A, 2E10.3)', ' Minimum and maximum temperature ratio: ', &
                 tratio_min, tratio_max
+            if (use_hdf5_fields) then
+                print '(A)', ' Use fields and hydro saved in HDF5 files'
+            endif
         endif
     end subroutine get_cmd_args
 
@@ -304,7 +320,10 @@ program temperature_anisotropy
             close_magnetic_field_files, close_pressure_tensor_files, &
             close_number_density_file, read_magnetic_fields, &
             read_pressure_tensor, read_number_density, &
-            interp_bfield_node, shift_pressure_tensor, shift_number_density
+            interp_bfield_node, shift_pressure_tensor, shift_number_density, &
+            init_velocity_fields, read_velocity_fields, free_velocity_fields, &
+            open_field_file_h5, open_hydro_files_h5, close_field_file_h5, &
+            close_hydro_files_h5
         use saving_flags, only: get_saving_flags
         use configuration_translate, only: output_format
         use parameters, only: tp1, tp2
@@ -320,36 +339,64 @@ program temperature_anisotropy
         call init_pressure_tensor(htg%nx, htg%ny, htg%nz)
         call init_number_density(htg%nx, htg%ny, htg%nz)
         call init_para_perp_pressure
+        if (use_hdf5_fields) then
+            ! pressure tensor is calculated from stress tensor, so the
+            ! calculation needs velocity and momentum fields
+            call init_velocity_fields(htg%nx, htg%ny, htg%nz)
+        endif
 
-        if (output_format == 1) then
-            call open_magnetic_field_files
-            call open_pressure_tensor_files(species)
-            call open_number_density_file(species)
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call open_magnetic_field_files
+                call open_pressure_tensor_files(species)
+                call open_number_density_file(species)
+            endif
         endif
 
         do tframe = tp1, tp2
             if (myid==master) print*, tframe
-            if (output_format /= 1) then
+            if (use_hdf5_fields) then
                 tindex = domain%fields_interval * (tframe - tp1)
-                call open_magnetic_field_files(tindex)
-                call read_magnetic_fields(tp1)
-                call close_magnetic_field_files
+                ! electric and magnetic fields
+                call open_field_file_h5(tindex)
+                call read_magnetic_fields(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading magnetic fields"
-                call open_pressure_tensor_files(species, tindex)
-                call read_pressure_tensor(tp1)
-                call close_pressure_tensor_files
-                if (myid == master) print*, "Finished reading pressure tensor"
-                call open_number_density_file(species, tindex)
-                call read_number_density(tp1)
-                call close_number_density_file
+                call close_field_file_h5
+                ! hydro fields
+                ! We need to read in this order: number density, v, u, and pressure,
+                ! tensor, because reading v and u needs number density, and because
+                ! reading pressure tensor needs number density, v, and u
+                call open_hydro_files_h5(tindex)
+                call read_number_density(tp1, .true., .true.)
                 if (myid == master) print*, "Finished reading number density"
+                call read_velocity_fields(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading velocity and momentum fields"
+                call read_pressure_tensor(tp1, .true., .true.)
+                if (myid == master) print*, "Finished reading pressure tensor"
+                call close_hydro_files_h5
             else
-                call read_magnetic_fields(tframe)
-                if (myid == master) print*, "Finished reading magnetic fields"
-                call read_pressure_tensor(tframe)
-                if (myid == master) print*, "Finished reading pressure tensor"
-                call read_number_density(tframe)
-                if (myid == master) print*, "Finished reading number density"
+                if (output_format /= 1) then
+                    tindex = domain%fields_interval * (tframe - tp1)
+                    call open_magnetic_field_files(tindex)
+                    call read_magnetic_fields(tp1)
+                    call close_magnetic_field_files
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    call open_pressure_tensor_files(species, tindex)
+                    call read_pressure_tensor(tp1)
+                    call close_pressure_tensor_files
+                    if (myid == master) print*, "Finished reading pressure tensor"
+                    call open_number_density_file(species, tindex)
+                    call read_number_density(tp1)
+                    call close_number_density_file
+                    if (myid == master) print*, "Finished reading number density"
+                else
+                    call read_magnetic_fields(tframe)
+                    if (myid == master) print*, "Finished reading magnetic fields"
+                    call read_pressure_tensor(tframe)
+                    if (myid == master) print*, "Finished reading pressure tensor"
+                    call read_number_density(tframe)
+                    if (myid == master) print*, "Finished reading number density"
+                endif
             endif
             call interp_bfield_node
             call shift_pressure_tensor
@@ -360,16 +407,21 @@ program temperature_anisotropy
             call save_temperature_anisotropy(tframe)
         enddo
 
-        if (output_format == 1) then
-            call close_magnetic_field_files
-            call close_pressure_tensor_files
-            call close_number_density_file
+        if (.not. use_hdf5_fields) then
+            if (output_format == 1) then
+                call close_magnetic_field_files
+                call close_pressure_tensor_files
+                call close_number_density_file
+            endif
         endif
 
         call free_para_perp_pressure
         call free_magnetic_fields
         call free_pressure_tensor
         call free_number_density
+        if (use_hdf5_fields) then
+            call free_velocity_fields
+        endif
     end subroutine calc_temparature_anisotropy
 
     !<--------------------------------------------------------------------------
