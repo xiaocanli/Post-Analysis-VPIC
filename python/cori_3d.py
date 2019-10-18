@@ -299,17 +299,17 @@ def fluid_energization(plot_config, show_plot=True):
     fdir = '../img/cori_3d/fluid_energization/'
     mkdir_p(fdir)
     fname = fdir + 'fluid_ene_' + species + '.pdf'
-    fig1.savefig(fname)
+    # fig1.savefig(fname)
 
     fdir = '../img/cori_3d/fluid_energization/'
     mkdir_p(fdir)
     fname = fdir + 'fluid_drift_' + species + '.pdf'
-    fig2.savefig(fname)
+    # fig2.savefig(fname)
 
     fdir = '../img/cori_3d/fluid_energization/'
     mkdir_p(fdir)
     fname = fdir + 'fluid_comp_shear_' + species + '.pdf'
-    fig3.savefig(fname)
+    # fig3.savefig(fname)
 
     if show_plot:
         plt.show()

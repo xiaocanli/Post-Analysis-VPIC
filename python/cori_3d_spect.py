@@ -661,6 +661,195 @@ def plot_spectrum_pub_23(plot_config, show_plot=True):
     plt.show()
 
 
+def plot_spectrum_compensated(plot_config, show_plot=True):
+    """Plot compensated energy spectrum
+    """
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    root_dir = "/net/scratch3/xiaocanli/reconnection/Cori_runs/"
+    bg = plot_config["bg"]
+    bg_str = str(int(bg * 10)).zfill(2)
+    pic_runs = ["2D-Lx150-bg" + str(bg) + "-150ppc-16KNL"]
+    pic_runs.append("3D-Lx150-bg" + str(bg) + "-150ppc-2048KNL")
+    species = plot_config["species"]
+    tframe = plot_config["tframe"]
+    tstart = plot_config["tstart"]
+    tend = plot_config["tend"]
+    if species == 'e':
+        vth = 0.1
+        sname = 'electron'
+    else:
+        vth = 0.02
+        sname = 'ion'
+    gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+    eth = gama - 1.0
+    emin, emax = 1E-6, 1E4
+    nband = 1000
+    dloge = (math.log10(emax) - math.log10(emin)) / (nband - 1)
+    emin0 = 10**(math.log10(emin) - dloge)
+    ebins = np.logspace(math.log10(emin0), math.log10(emax), nband+1)
+    pbins = np.sqrt((ebins + 1)**2 - 1)
+    pbins /= np.sqrt((eth + 1)**2 - 1)
+    pbins_mid = (pbins[:-1] + pbins[1:]) * 0.5
+    dpbins = np.diff(pbins)
+    ebins /= eth
+    ebins_mid = (ebins[:-1] + ebins[1:]) * 0.5
+    debins = np.diff(ebins)
+
+    power_indices = np.zeros((2, tend - tstart + 1))
+    tframes_23 = [10, 20, 40]
+    lstyles = ['--', '-', ':']
+
+    # Energy indices to get power-law spectra
+    eindices = np.zeros((2, 2), dtype=np.int)
+    eindices[0, 0], ene = find_nearest(ebins_mid, 30)
+    eindices[0, 1], ene = find_nearest(ebins_mid, 100)
+    eindices[1, 0], ene = find_nearest(ebins_mid, 30)
+    eindices[1, 1], ene = find_nearest(ebins_mid, 100)
+    tstart_power = 6  # frame to start fitting power-laws
+    ts_spect, te_spect = 1, 20
+
+    fig = plt.figure(figsize=[3.5, 2.5])
+    rect = [0.16, 0.16, 0.69, 0.8]
+    ax = fig.add_axes(rect)
+    rect1 = [0.25, 0.25, 0.35, 0.35]
+    ax1 = fig.add_axes(rect1)
+
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_runs[1] + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    fnorm = pic_info.ny
+
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    for irun, pic_run in enumerate(pic_runs):
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        iframe = 0
+        for tframe in range(tstart, tend + 1):
+            print("Time frame: %d" % tframe)
+            pic_run_dir = root_dir + pic_run + "/"
+            tindex = pic_info.fields_interval * tframe
+            fname = (pic_run_dir + "spectrum_combined/spectrum_" +
+                     species + "_" + str(tindex) + ".dat")
+            # fname = (pic_run_dir + "spectrum_reconnection_layer/"
+            #          "spectrum_layer_" + sname + "_" + str(tindex) + ".dat")
+            spect = np.fromfile(fname, dtype=np.float32)
+            espect = spect[3:] / debins
+            espect[espect == 0] = np.nan
+            if irun == 1 and tframe >= ts_spect and tframe <= te_spect:
+                nframes = te_spect - ts_spect + 1
+                # color = plt.cm.tab20c_r((tframe - ts_spect + 0.5)/float(nframes), 1)
+                color = plt.cm.plasma_r((tframe - ts_spect + 0.5)/float(nframes), 1)
+                ax.loglog(ebins_mid, espect*ebins_mid**4, linewidth=0.5, color=color)
+            # Power-law fitting
+            if tframe >= tstart_power:
+                ein1, ein2 = eindices[irun, 0], eindices[irun, 1]
+                popt, pcov = curve_fit(fitting_funcs.func_line,
+                                       np.log10(ebins_mid[ein1:ein2]),
+                                       np.log10(espect[ein1:ein2]))
+                fpower = fitting_funcs.func_line(np.log10(ebins_mid), popt[0], popt[1])
+                fpower = 10**fpower
+                power_indices[irun, tframe - tstart] = popt[0]
+                # Plot fitted power-law for one time frame
+                if irun == 1 and tframe == te_spect and species == 'e':
+                    pindex1, ene = find_nearest(ebins_mid, 50)
+                    pnorm = espect[pindex1] / fpower[pindex1] * 3
+                    fpower *= pnorm
+                    pindex1, ene = find_nearest(ebins_mid, 25)
+                    pindex2, ene = find_nearest(ebins_mid, 250)
+                    npoints = pindex2 - pindex1
+                    # ax.loglog(ebins_mid[pindex1:pindex2], np.ones(npoints)*5E14,
+                    #           linewidth=0.5, linestyle='-', color='k')
+                    # power_index = "{%0.1f}" % popt[0]
+                    # pname = r'$\propto \varepsilon^{' + power_index + '}$'
+                    # ax.text(0.68, 0.65, pname, color='k', fontsize=10, rotation=-50,
+                    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                    #         horizontalalignment='left', verticalalignment='center',
+                    #         transform=ax.transAxes)
+            if tframe in tframes_23:
+                lstyle = '-' if irun == 1 else ':'
+                espect[espect == 0] = np.nan
+                ax1.loglog(ebins_mid, espect*ebins_mid**4, linewidth=0.5,
+                           color=COLORS[iframe], linestyle=lstyle)
+                iframe += 1
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
+    ax.set_ylabel(r'$\varepsilon^4f(\varepsilon)$', fontsize=10)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top=False)
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in', left=False)
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlim([1E-1, 1E3])
+    ax.set_ylim([1E7, 5E15])
+    ax.tick_params(labelsize=8)
+    ax.set_yticks(np.logspace(7, 15, num=3))
+
+    # for i in range(3):
+    #     text1 = r"$t\Omega_{ci}=" + str(tframes_23[i]) + "$"
+    #     ax1.loglog([0, 0], [1, 2], linewidth=0.5, color='k',
+    #                linestyle=lstyles[i], label=text1)
+    # ax1.legend(loc=3, prop={'size': 6}, ncol=1,
+    #            shadow=False, fancybox=False, frameon=False)
+    ax1.tick_params(bottom=True, top=True, left=True, right=True)
+    ax1.tick_params(axis='x', which='minor', direction='in', top=False)
+    ax1.tick_params(axis='x', which='major', direction='in')
+    ax1.tick_params(axis='y', which='minor', direction='in', left=False)
+    ax1.tick_params(axis='y', which='major', direction='in')
+    ax1.set_xlim([1E0, 1E3])
+    ax1.set_ylim([1E7, 5E15])
+    ax1.tick_params(labelsize=6)
+    ax1.set_yticks(np.logspace(7, 15, num=3))
+    ax1.text(0.05, 0.53, '3D', color='k', fontsize=6,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+             horizontalalignment='left', verticalalignment='top',
+             transform=ax1.transAxes)
+    ax1.text(0.05, 0.18, '2D', color='k', fontsize=6,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+             horizontalalignment='left', verticalalignment='top',
+             transform=ax1.transAxes)
+    ypos0 = 0.2
+    ax1.text(0.23, ypos0, '$t\Omega_{ci}=$', color='k', fontsize=6,
+             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+             horizontalalignment='left', verticalalignment='center',
+             transform=ax1.transAxes)
+    dtf = math.ceil(pic_info.dt_fields / 0.1) * 0.1
+    for iframe, tframe in enumerate(tframes_23):
+        ypos = ypos0 + (1 - iframe) * 0.12
+        text1 = r"$" + str(int(tframe*dtf)) + "$"
+        ax1.text(0.53, ypos, text1, color=COLORS[iframe], fontsize=6,
+                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                 horizontalalignment='left', verticalalignment='center',
+                 transform=ax1.transAxes)
+
+    # Colorbar
+    rect_cbar = np.copy(rect)
+    rect_cbar[0] = rect[0] + rect[2] + 0.01
+    rect_cbar[2] = 0.02
+    cax = fig.add_axes(rect_cbar)
+    sm = plt.cm.ScalarMappable(cmap=plt.cm.plasma_r,
+                               norm=plt.Normalize(vmin=0.5*dtf,
+                                                  vmax=(te_spect + 0.5) * dtf))
+    cax.tick_params(axis='y', which='major', direction='in')
+    sm._A = []
+    cbar = fig.colorbar(sm, cax=cax, orientation='vertical')
+    cbar.set_label(r'$t\Omega_{ci}$', fontsize=10)
+    ticks = np.linspace(0, te_spect, 6) * dtf
+    ticks = np.concatenate(([10], ticks))
+    cbar.set_ticks(ticks)
+    cax.tick_params(labelrotation=90)
+    # cbar.ax.set_yticklabels(cbar.ax.get_yticklabels(),
+    #                         rotation='vertical')
+    cbar.ax.tick_params(labelsize=8)
+    cax.tick_params(axis='y', which='major', direction='out')
+    cax.yaxis.set_ticks_position('right')
+    cax.yaxis.set_label_position('right')
+
+    fdir = '../img/cori_3d/espect/'
+    mkdir_p(fdir)
+    fname = fdir + "espect_bg" + bg_str + '_' + species + "_compensated.pdf"
+    fig.savefig(fname)
+    plt.show()
+
+
 def plot_spectrum(plot_config):
     """Plot spectrum for all time frames for a single run
 
@@ -1467,7 +1656,11 @@ def absj_local_spect(plot_config):
             dset.read_direct(spect)
         for xindex, ix in enumerate(xcuts):
             fspect_local = spect[zcut, ycut, ix, 3:] / np.gradient(ebins)
-            ax.loglog(ebins, fspect_local, linewidth=1, color=COLORS[xindex])
+            fspect_local[fspect_local==0] = np.nan
+            if plot_config["compensated"]:
+                ax.loglog(ebins, fspect_local*ebins**4, linewidth=1, color=COLORS[xindex])
+            else:
+                ax.loglog(ebins, fspect_local, linewidth=1, color=COLORS[xindex])
         # for yindex, iy in enumerate(ycuts):
         #     fspect_local = spect[zcut, iy, xcut, 3:] / np.gradient(ebins)
         #     ax.loglog(ebins, fspect_local, linewidth=1,
@@ -1479,8 +1672,10 @@ def absj_local_spect(plot_config):
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=0.0),
                 horizontalalignment='left', verticalalignment='bottom',
                 transform=ax.transAxes)
-    ax.loglog(ebins, spect_init[3:], linewidth=0.5, linestyle='--',
-              color='k', label='initial')
+    spect_init[spect_init==0] = np.nan
+    if not plot_config["compensated"]:
+        ax.loglog(ebins, spect_init[3:], linewidth=0.5, linestyle='--',
+                  color='k', label='initial')
     pindex = -4.0
     power_index = "{%0.1f}" % pindex
     pname = r'$\propto \varepsilon^{' + power_index + '}$'
@@ -1490,11 +1685,12 @@ def absj_local_spect(plot_config):
     else:
         es, ee = 438, 538
     if species == 'e':
-        ax.loglog(ebins[es:ee], fpower[es:ee], color='k', linewidth=0.5)
-        ax.text(0.85, 0.58, pname, color='k', fontsize=10, rotation=-65,
-                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
-                horizontalalignment='right', verticalalignment='center',
-                transform=ax.transAxes)
+        if not plot_config["compensated"]:
+            ax.loglog(ebins[es:ee], fpower[es:ee], color='k', linewidth=0.5)
+            ax.text(0.85, 0.58, pname, color='k', fontsize=10, rotation=-65,
+                    bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                    horizontalalignment='right', verticalalignment='center',
+                    transform=ax.transAxes)
         ax.text(0.52, 0.07, "initial", color='k', fontsize=10,
                 bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
                 horizontalalignment='right', verticalalignment='center',
@@ -1504,7 +1700,6 @@ def absj_local_spect(plot_config):
     #                   edgecolor='none', pad=10.0),
     #         horizontalalignment='right', verticalalignment='center',
     #         transform=ax.transAxes)
-    ax.set_yticks(np.logspace(0, 6, num=4))
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
     ax.set_ylabel(r'$f(\varepsilon)$', fontsize=10)
     ax.tick_params(bottom=True, top=True, left=True, right=True)
@@ -1514,11 +1709,19 @@ def absj_local_spect(plot_config):
     ax.tick_params(axis='y', which='major', direction='in')
     ax.tick_params(labelsize=8)
     ax.set_xlim([1E-1, 1E3])
-    ax.set_ylim([1E-1, 2E7])
+    if plot_config["compensated"]:
+        ax.set_ylim([1E2, 2E12])
+        ax.set_yticks(np.logspace(2, 12, num=3))
+    else:
+        ax.set_ylim([1E-1, 2E7])
+        ax.set_yticks(np.logspace(0, 6, num=4))
 
     fdir = '../img/cori_3d/espect/' + pic_run + '/'
     mkdir_p(fdir)
-    fname = fdir + "espect_local_" + species + "_new.pdf"
+    if plot_config["compensated"]:
+        fname = fdir + "espect_local_" + species + "_compensated.pdf"
+    else:
+        fname = fdir + "espect_local_" + species + "_new.pdf"
     fig.savefig(fname)
     plt.show()
 
@@ -1907,7 +2110,7 @@ def compare_spectrum(plot_config):
             ndata, = spect.shape
             spect[3:] /= np.gradient(ebins) * fnorm
             if iframe == len(tframes) - 1:
-                eindex_20, ene = find_nearest(ebins, 20)
+                eindex_20, ene = find_nearest(ebins, 30)
                 nacc, eacc = accumulated_particle_info(ebins, spect[3:])
                 print("Number fraction (E > 20Eth, %s): %0.3f" %
                       (pdim, (nacc[-1] - nacc[eindex_20])/nacc[-1]))
@@ -2128,6 +2331,8 @@ def get_cmd_args():
                         help='ending time frame')
     parser.add_argument('--bg', action="store", default='0.2', type=float,
                         help='Normalized guide field strength')
+    parser.add_argument('--compensated', action="store_true", default=False,
+                        help='whether to plot compensated spectrum')
     parser.add_argument('--whole_spectrum', action="store_true", default=False,
                         help='whether to plot spectrum in the whole box')
     parser.add_argument('--binary', action="store_true", default=False,
@@ -2136,6 +2341,8 @@ def get_cmd_args():
                         help='whether to plot spectrum for publication')
     parser.add_argument('--spectrum_pub_23', action="store_true", default=False,
                         help='whether to plot spectrum for publication')
+    parser.add_argument('--spectrum_compensated', action="store_true", default=False,
+                        help='whether to plot compensated spectrum')
     parser.add_argument('--all_frames', action="store_true", default=False,
                         help='whether to analyze all frames')
     parser.add_argument('--local_spectrum', action="store_true", default=False,
@@ -2185,6 +2392,8 @@ def analysis_single_frames(plot_config, args):
         plot_spectrum_pub(plot_config)
     elif args.spectrum_pub_23:
         plot_spectrum_pub_23(plot_config)
+    elif args.spectrum_compensated:
+        plot_spectrum_compensated(plot_config)
     elif args.local_spectrum:
         plot_local_spectrum(plot_config)
     elif args.local_spectrum2d:
@@ -2237,6 +2446,7 @@ def main():
     plot_config["species"] = args.species
     plot_config["bg"] = args.bg
     plot_config["binary"] = args.binary
+    plot_config["compensated"] = args.compensated
     if args.multi_frames:
         analysis_multi_frames(plot_config, args)
     else:

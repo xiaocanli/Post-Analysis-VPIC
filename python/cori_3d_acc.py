@@ -266,7 +266,7 @@ def acceleration_rate_std(plot_config, show_plot=True):
             ax.tick_params(axis='x', which='major', direction='in', top=True)
             ax.tick_params(axis='y', which='minor', direction='in')
             ax.tick_params(axis='y', which='major', direction='in')
-            ax.set_xlim([1E0, 5E2])
+            # ax.set_xlim([1E0, 5E2])
             axs.append(ax)
     labels = [r'$\boldsymbol{E}_\parallel$', r'$\boldsymbol{E}_\perp$',
               'Compression', 'Shear', 'Curvature', 'Gradient',
@@ -306,12 +306,21 @@ def acceleration_rate_std(plot_config, show_plot=True):
         nbinx = int(fdata[1])
         nvar = int(fdata[2])
         ebins = fdata[3:nbins+3]
+        gamma = ebins + 1
         fbins = np.sum(fdata[nbins+3:].reshape((nvar, nbinx, nbins)), axis=1)
+        pbins = np.sqrt((ebins + 1)**2 - 1)
+        pbins_mid = (pbins[:-1] + pbins[1:]) * 0.5
+        dpbins = np.diff(pbins)
 
         if species == 'i':
             ebins *= pic_info.mime  # ebins are actually gamma
         fbins[1:, :] = div0(fbins[1:, :], fbins[0, :])
         dee = fbins[18:, :] - fbins[1:18, :]**2
+        dgamma = fbins[1:18, :] * ebins
+        dgamma2 = fbins[18:, :] * ebins**2
+        dp = gamma * dgamma / np.sqrt(gamma**2 - 1)
+        dp2 = dgamma2 + 2 * dgamma
+        dpp = (dp2 - dp**2) / pbins**2
 
         # normalized with thermal energy
         if species == 'e':
@@ -331,7 +340,9 @@ def acceleration_rate_std(plot_config, show_plot=True):
         ymax = np.max(dee[:5, es:ee+1])
         for iplot in range(17):
             ax = axs[iplot]
-            ax.loglog(ebins[es:ee+1], dee[iplot, es:ee+1],
+            # ax.loglog(ebins[es:ee+1], dee[iplot, es:ee+1],
+            #           marker='o', markersize=4, linestyle='-', linewidth=1)
+            ax.loglog(pbins, dpp[iplot],
                       marker='o', markersize=4, linestyle='-', linewidth=1)
             ax.grid(True)
 
@@ -352,7 +363,7 @@ def acceleration_rate_std(plot_config, show_plot=True):
                         transform=ax.transAxes)
                 text1 = r'$t\Omega_{ci}=' + str(tframe*10) + '$'
                 ax.set_title(text1, fontsize=20)
-            ax.plot(ax.get_xlim(), [0, 0], color='k', linestyle='--')
+            # ax.plot(ax.get_xlim(), [0, 0], color='k', linestyle='--')
             ax.tick_params(labelsize=10)
         # ax = axs[17]
         # ax.semilogx(ebins[es:ee+1], fbins[1, es:ee+1] + fbins[2, es:ee+1],
@@ -636,18 +647,11 @@ def plot_anisotropy_pub(plot_config, show_plot=True):
     bg = plot_config['bg']
     bg_str = str(int(bg * 10)).zfill(2)
     bg = plot_config["bg"]
-    pic_run = "3D-Lx150-bg" + str(bg) + "-150ppc-2048KNL"
+    pic_runs = ["3D-Lx150-bg" + str(bg) + "-150ppc-2048KNL"]
+    pic_runs.append("2D-Lx150-bg" + str(bg) + "-150ppc-16KNL")
     root_dir = "/net/scratch3/xiaocanli/reconnection/Cori_runs/"
-    pic_run_dir = root_dir + pic_run + '/'
-
-    fnorm = 1E-3
-
-    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
-    dtp = math.ceil(pic_info.dt_particles / 0.1) * 0.1
     tframes = [10, 15, 20]
-    # tframes = np.linspace(10, 20, 6, dtype=int)
-
+    lstyles = ['-', '--', ':']
     fig = plt.figure(figsize=[3.5, 2.5])
     rect = [0.16, 0.16, 0.8, 0.8]
     hgap, vgap = 0.04, 0.02
@@ -655,31 +659,41 @@ def plot_anisotropy_pub(plot_config, show_plot=True):
     COLORS = palettable.tableau.Tableau_10.mpl_colors
     ax.set_prop_cycle('color', COLORS)
 
-    for tframe in tframes:
-        tstep = tframe * pic_info.particle_interval
-        fpath = "../data/particle_interp/" + pic_run + "/"
-        fname = fpath + "anisotropy_" + species + "_" + str(tstep) + ".gda"
-        fdata = np.fromfile(fname, dtype=np.float32)
-        nvar = int(fdata[0])
-        nbins = int(fdata[1])
-        nbinx = int(fdata[2])
-        ebins = fdata[3:nbins+3]
-        fbins = np.sum(fdata[nbins+3:].reshape((nbinx, nbins, nvar)), axis=0).T
+    for irun, pic_run in enumerate(pic_runs):
+        # color = COLORS[1] if irun else COLORS[0]
+        lstyle = lstyles[1] if irun else lstyles[0]
+        pic_run_dir = root_dir + pic_run + '/'
 
-        # normalized with thermal energy
-        if species == 'e':
-            vth = pic_info.vthe
-        else:
-            vth = pic_info.vthi
-        gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
-        eth = gama - 1.0
-        ebins /= eth
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        dtp = math.ceil(pic_info.dt_particles / 0.1) * 0.1
 
-        ax.plot(ebins, div0(fbins[1, :], fbins[2, :]), linewidth=1)
+        for iframe, tframe in enumerate(tframes):
+            tstep = tframe * pic_info.particle_interval
+            fpath = "../data/particle_interp/" + pic_run + "/"
+            fname = fpath + "anisotropy_" + species + "_" + str(tstep) + ".gda"
+            fdata = np.fromfile(fname, dtype=np.float32)
+            nvar = int(fdata[0])
+            nbins = int(fdata[1])
+            nbinx = int(fdata[2])
+            ebins = fdata[3:nbins+3]
+            fbins = np.sum(fdata[nbins+3:].reshape((nbinx, nbins, nvar)), axis=0).T
+
+            # normalized with thermal energy
+            if species == 'e':
+                vth = pic_info.vthe
+            else:
+                vth = pic_info.vthi
+            gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+            eth = gama - 1.0
+            ebins /= eth
+
+            ax.plot(ebins, div0(fbins[1, :], fbins[2, :]), linewidth=1,
+                    linestyle=lstyle, color=COLORS[iframe])
 
     ax.set_xlim([0, 250])
-    ax.set_ylim([0.8, 2.5])
-    ax.plot(ax.get_xlim(), [1, 1], color='k', linewidth=1, linestyle='--')
+    ax.set_ylim([0.8, 3.6])
+    ax.plot(ax.get_xlim(), [1, 1], color='k', linewidth=0.5, linestyle='-')
     ax.tick_params(labelsize=8)
     ax.tick_params(bottom=True, top=True, left=True, right=True)
     ax.tick_params(axis='x', which='minor', direction='in', top=True)
@@ -687,6 +701,45 @@ def plot_anisotropy_pub(plot_config, show_plot=True):
     ax.tick_params(axis='y', which='minor', direction='in', left=True)
     ax.tick_params(axis='y', which='major', direction='in')
     ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=10)
+    ax.set_ylabel('Anisotropy', fontsize=10)
+    # ax.text(0.74, 0.92, "2D", color=COLORS[1], fontsize=10,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform=ax.transAxes)
+    # ax.text(0.90, 0.92, "3D", color=COLORS[0], fontsize=10,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform=ax.transAxes)
+    # ax.text(0.82, 0.92, "vs.", color='k', fontsize=10,
+    #         bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform=ax.transAxes)
+
+    ypos0 = 0.65
+    ax.text(0.20, ypos0, '$t\Omega_{ci}=$', color='k', fontsize=10,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    dtf = math.ceil(pic_info.dt_fields / 0.1) * 0.1
+    for iframe, tframe in enumerate(tframes):
+        ypos = ypos0 + (1 - iframe) * 0.08
+        text1 = r"$" + str(int(tframe*dtf)) + "$"
+        ax.text(0.35, ypos, text1, color=COLORS[iframe], fontsize=10,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=ax.transAxes)
+
+    ax.plot([-10, -1], [0, 0], color='k', linewidth=1,
+            linestyle=lstyles[0], label='3D')
+    ax.plot([-10, -1], [1, 1], color='k', linewidth=1,
+            linestyle=lstyles[1], label='2D')
+    ax.legend(loc=1, prop={'size': 10}, ncol=1,
+              shadow=False, fancybox=True, frameon=True)
+
+    fdir = '../img/cori_3d/'
+    mkdir_p(fdir)
+    fname = fdir + 'anisotropy_' + 'bg' + bg_str + '_' + species + '.pdf'
+    fig.savefig(fname)
 
     if show_plot:
         plt.show()

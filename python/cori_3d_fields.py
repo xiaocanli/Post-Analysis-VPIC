@@ -1229,6 +1229,146 @@ def calc_absj_dist(plot_config):
     jarray.tofile(fname)
 
 
+def calc_ideal_efield(plot_config, tindex):
+    """calculate the ideal electric field
+    """
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    mime = pic_info.mime
+    fname = pic_run_dir + "data-smooth/ne_" + str(tindex) + ".gda"
+    ne = np.fromfile(fname, dtype=np.float32)
+    fname = pic_run_dir + "data-smooth/ni_" + str(tindex) + ".gda"
+    ni = np.fromfile(fname, dtype=np.float32)
+    inrho = 1.0 / (ne + ni * mime)
+    fname = pic_run_dir + "data-smooth/vex_" + str(tindex) + ".gda"
+    vel = np.fromfile(fname, dtype=np.float32)
+    vx = ne * vel
+    fname = pic_run_dir + "data-smooth/vix_" + str(tindex) + ".gda"
+    vel = np.fromfile(fname, dtype=np.float32)
+    vx += ni * vel * mime
+    vx *= inrho
+    fname = pic_run_dir + "data-smooth/vey_" + str(tindex) + ".gda"
+    vel = np.fromfile(fname, dtype=np.float32)
+    vy = ne * vel
+    fname = pic_run_dir + "data-smooth/viy_" + str(tindex) + ".gda"
+    vel = np.fromfile(fname, dtype=np.float32)
+    vy += ni * vel * mime
+    vy *= inrho
+    fname = pic_run_dir + "data-smooth/vez_" + str(tindex) + ".gda"
+    vel = np.fromfile(fname, dtype=np.float32)
+    vz = ne * vel
+    fname = pic_run_dir + "data-smooth/viz_" + str(tindex) + ".gda"
+    vel = np.fromfile(fname, dtype=np.float32)
+    vz += ni * vel * mime
+    vz *= inrho
+    fname = pic_run_dir + "data-smooth/bx_" + str(tindex) + ".gda"
+    bx = np.fromfile(fname, dtype=np.float32)
+    fname = pic_run_dir + "data-smooth/by_" + str(tindex) + ".gda"
+    by = np.fromfile(fname, dtype=np.float32)
+    fname = pic_run_dir + "data-smooth/bz_" + str(tindex) + ".gda"
+    bz = np.fromfile(fname, dtype=np.float32)
+
+    ex = by * vz - bz * vy
+    ey = bz * vx - bx * vz
+    ez = bx * vy - by * vx
+
+    return (ex, ey, ez)
+
+
+def calc_field_mean(plot_config):
+    """calculate the mean value of the fields
+    """
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    species = plot_config["species"]
+    var = plot_config["var"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+
+    dmean = np.zeros(pic_info.ntf)
+
+    for tframe in range(pic_info.ntf):
+        print("Time frame: %d" % tframe)
+        tindex = pic_info.particle_interval * tframe
+        fname = pic_run_dir + "data-smooth/" + var + "_" + str(tindex) + ".gda"
+        fdata = np.fromfile(fname, dtype=np.float32)
+        dmean[tframe] = np.mean(fdata)
+
+    fdir = '../data/cori_3d/field_mean/' + pic_run + '/'
+    mkdir_p(fdir)
+    fname = fdir + var + "_mean.dat"
+    dmean.tofile(fname)
+
+
+def nonideal_efield_mean(plot_config):
+    """calculate the mean value of the non-ideal electric field
+    """
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    species = plot_config["species"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+
+    efield_mean = np.zeros([3, pic_info.ntf])
+
+    for tframe in range(pic_info.ntf):
+        print("Time frame: %d" % tframe)
+        tindex = pic_info.particle_interval * tframe
+        eix, eiy, eiz = calc_ideal_efield(plot_config, tindex)
+        fname = pic_run_dir + "data-smooth/ex_" + str(tindex) + ".gda"
+        ex = np.fromfile(fname, dtype=np.float32)
+        fname = pic_run_dir + "data-smooth/ey_" + str(tindex) + ".gda"
+        ey = np.fromfile(fname, dtype=np.float32)
+        fname = pic_run_dir + "data-smooth/ez_" + str(tindex) + ".gda"
+        ez = np.fromfile(fname, dtype=np.float32)
+        efield_mean[0, tframe] = np.mean(ex - eix)
+        efield_mean[1, tframe] = np.mean(ey - eiy)
+        efield_mean[2, tframe] = np.mean(ez - eiz)
+
+    fdir = '../data/cori_3d/field_mean/' + pic_run + '/'
+    mkdir_p(fdir)
+    fname = fdir + "nonideal_efield_mean.dat"
+    efield_mean.tofile(fname)
+
+
+def comp_jfield_efield(plot_config):
+    """Compare current density and electric field
+    """
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    var = plot_config["var"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    fdir = '../data/cori_3d/field_mean/' + pic_run + '/'
+    fname = fdir + "jx_mean.dat"
+    jx_mean = np.fromfile(fname)
+    fname = fdir + "jy_mean.dat"
+    jy_mean = np.fromfile(fname)
+    fname = fdir + "jz_mean.dat"
+    jz_mean = np.fromfile(fname)
+    fname = fdir + "ex_mean.dat"
+    ex_mean = np.fromfile(fname)
+    fname = fdir + "ey_mean.dat"
+    ey_mean = np.fromfile(fname)
+    fname = fdir + "ez_mean.dat"
+    ez_mean = np.fromfile(fname)
+    fname = fdir + "nonideal_efield_mean.dat"
+    fdata = np.fromfile(fname).reshape([3, -1])
+    einx_mean = fdata[0]
+    einy_mean = fdata[1]
+    einz_mean = fdata[2]
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    ax.plot(jx_mean / einx_mean)
+    ax.plot(jy_mean / einy_mean)
+    ax.plot(jz_mean / einz_mean)
+    # ax.set_ylim([-1, 2])
+    plt.show()
+
+
 def plot_absj_dist(plot_config):
     """plot the current density distribution
     """
@@ -2569,6 +2709,12 @@ def get_cmd_args():
                         "and vdot_kappa")
     parser.add_argument('--profile_2d', action="store_true", default=False,
                         help="whether to plot fields profile in the 2D simulation")
+    parser.add_argument('--field_mean', action="store_true", default=False,
+                        help="whether to the mean value of a field")
+    parser.add_argument('--nonideal_efield_mean', action="store_true", default=False,
+                        help="whether to the mean value of the non-ideal electric field")
+    parser.add_argument('--comp_je', action="store_true", default=False,
+                        help="whether to compare current density and electric field")
     return parser.parse_args()
 
 
@@ -2628,6 +2774,12 @@ def analysis_single_frames(plot_config, args):
         ene_dist_vkappa(plot_config)
     elif args.profile_2d:
         plot_profile_2d(plot_config)
+    elif args.field_mean:
+        calc_field_mean(plot_config)
+    elif args.nonideal_efield_mean:
+        nonideal_efield_mean(plot_config)
+    elif args.comp_je:
+        comp_jfield_efield(plot_config)
 
 
 def process_input(plot_config, args, tframe):
