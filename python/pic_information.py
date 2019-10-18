@@ -33,11 +33,11 @@ def get_pic_info(base_directory, run_name):
     dtwce = pic_initial_info.dtwce
     dtwci = pic_initial_info.dtwci
     dtwpi = dtwpe / math.sqrt(pic_initial_info.mime)
-    ntf = get_fields_frames(base_directory)
     energy_interval = pic_initial_info.energy_interval
     deck_file = get_main_source_filename(base_directory)
     fields_interval, particle_interval, trace_interval = \
             get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file)
+    ntf = get_fields_frames(base_directory, fields_interval)
     dt_fields = fields_interval * dtwci
     dt_particles = particle_interval * dtwci
     ntp = ntf / (particle_interval / fields_interval)
@@ -146,11 +146,12 @@ def read_pic_energies(dte_wci, dte_wpe, base_directory):
     return pic_ene
 
 
-def get_fields_frames(base_directory):
+def get_fields_frames(base_directory, fields_interval):
     """Get the total number of time frames for fields.
 
     Args:
         base_directory: the base directory for different runs.
+        fields_interval: time interval to dump fields
     Returns:
         ntf: the total number of output time frames for fields.
     """
@@ -159,20 +160,15 @@ def get_fields_frames(base_directory):
     ny = pic_initial_info.ny
     nz = pic_initial_info.nz
     fname_fields = base_directory + '/fields/T.1'
+    fname_fields_sub_dir = base_directory + '/fields/0/T.1'
+    fname_fields_h5 = base_directory + '/field_hdf5/T.0'
     fname_ex = base_directory + '/data/ex.gda'
     fname_Ex = base_directory + '/data/Ex.gda'
     fname_bx = base_directory + '/data/bx_0.gda'
     fname_Bx = base_directory + '/data/Bx_0.gda'
     if os.path.isfile(fname_bx) or os.path.isfile(fname_Bx):
-        current_time = 1
-        is_exist = False
-        while (not is_exist):
-            current_time += 1
-            fname1 = base_directory + '/data/bx_' + str(current_time) + '.gda'
-            fname2 = base_directory + '/data/Bx_' + str(current_time) + '.gda'
-            is_exist = os.path.isfile(fname1) or os.path.isfile(fname2)
-        fields_interval = current_time
-        ntf = 1
+        current_time = 0
+        ntf = 0
         is_exist = True
         while (is_exist):
             ntf += 1
@@ -187,19 +183,31 @@ def get_fields_frames(base_directory):
         file_size = os.path.getsize(fname_Ex)
         ntf = int(file_size / (nx * ny * nz * 4))
     elif os.path.isdir(fname_fields):
-        current_time = 1
-        is_exist = False
-        while (not is_exist):
-            current_time += 1
-            fname = base_directory + '/fields/T.' + str(current_time)
-            is_exist = os.path.isdir(fname)
-        fields_interval = current_time
-        ntf = 1
+        current_time = 0
+        ntf = 0
         is_exist = True
         while (is_exist):
             ntf += 1
             current_time += fields_interval
             fname = base_directory + '/fields/T.' + str(current_time)
+            is_exist = os.path.isdir(fname)
+    elif os.path.isdir(fname_fields_sub_dir):
+        current_time = 0
+        ntf = 0
+        is_exist = True
+        while (is_exist):
+            ntf += 1
+            current_time += fields_interval
+            fname = base_directory + '/fields/0/T.' + str(current_time)
+            is_exist = os.path.isdir(fname)
+    elif os.path.isdir(fname_fields_h5):
+        current_time = 0
+        ntf = 0
+        is_exist = True
+        while (is_exist):
+            ntf += 1
+            current_time += fields_interval
+            fname = base_directory + '/field_hdf5/T.' + str(current_time)
             is_exist = os.path.isdir(fname)
     else:
         print('Cannot find the files to calculate the total frames of fields.')
