@@ -342,100 +342,100 @@ program particle_energization_io
             ! Time frame and interval
             tindex = domain%fields_interval * (tp_emf - tp1)
             if (separated_pre_post) then
-                if (tp_emf == tp1) then
+                if (tframe == tp1) then
                     tindex_pre = tindex
-                    tindex_pos = 1
-                ! else if (tp_emf == tp2) then
-                !     tindex_pre = tindex - fd_tinterval
-                !     tindex_pos = tindex
+                    tindex_pos = tindex + fd_tinterval
+                else if (tframe == tp2) then
+                    tindex_pre = tindex - fd_tinterval
+                    tindex_pos = tindex
                 else
                     tindex_pre = tindex - fd_tinterval
                     tindex_pos = tindex + fd_tinterval
                 endif
             else
                 ! Not well tested now
-                ! if (tp_emf == tp1 .or. tp_emf == tp2) then
-                !     dt_fields = domain%dt
-                ! else
-                !     dt_fields = domain%dt * 2.0
-                ! endif
+                if (tp_emf == tp1 .or. tp_emf == tp2) then
+                    dt_fields = domain%dt
+                else
+                    dt_fields = domain%dt * 2.0
+                endif
             endif
             dt_fields = domain%dtwpe * (tindex_pos - tindex_pre)
 
             if (use_hdf5_fields) then
                 ! electric and magnetic fields
                 call open_field_file_h5(tindex)
-                call read_magnetic_fields(tp1, .true., .true.)
+                call read_magnetic_fields(tframe, .true., .true.)
                 if (myid == master) print*, "Finished reading magnetic fields"
-                call read_electric_fields(tp1, .true., .true.)
+                call read_electric_fields(tframe, .true., .true.)
                 if (myid == master) print*, "Finished reading electric fields"
                 call open_field_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
-                call read_pre_post_bfield(tp1, output_format, separated_pre_post, &
+                call read_pre_post_bfield(tframe, 2, separated_pre_post, &
                     .true., .true.)
-                if (myid == master) print*, "Finished pre- and post- magnetic fields"
-                call read_pre_post_efield(tp1, output_format, separated_pre_post, &
+                if (myid == master) print*, "Finished reading pre- and post- magnetic fields"
+                call read_pre_post_efield(tframe, 2, separated_pre_post, &
                     .true., .true.)
-                if (myid == master) print*, "Finished pre- and post- electric fields"
+                if (myid == master) print*, "Finished reading pre- and post- electric fields"
                 call close_field_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
                 call close_field_file_h5 ! Close hydro files for current step at last
                 ! hydro fields
                 ! We need to read in this order: number density, v and u,
                 ! because reading v and u needs number density
                 call open_hydro_files_h5(tindex)
-                call read_number_density(tp1, .true., .true.)
+                call read_number_density(tframe, .true., .true.)
                 if (myid == master) print*, "Finished reading number density"
-                call read_velocity_fields(tp1, .true., .true.)
+                call read_velocity_fields(tframe, .true., .true.)
                 if (myid == master) print*, "Finished reading velocity and momentum fields"
                 ! hydro fields at previous and post time steps
                 ! We need to read in this order: number density, v and u,
                 ! because reading v and u needs number density
                 call open_hydro_files_pre_post_h5(species, tindex, tindex_pre, tindex_pos)
-                call read_pre_post_density(tp1, output_format, separated_pre_post, &
+                call read_pre_post_density(tframe, 2, separated_pre_post, &
                     .true., .true.)
-                if (myid == master) print*, "Finished pre- and post- number density"
-                call read_pre_post_v(tp1, output_format, separated_pre_post, &
+                if (myid == master) print*, "Finished reading pre- and post- number density"
+                call read_pre_post_v(tframe, 2, separated_pre_post, &
                     .true., .true.)
-                if (myid == master) print*, "Finished pre- and post- velocity fields"
-                call read_pre_post_u(tp1, output_format, separated_pre_post, &
+                if (myid == master) print*, "Finished reading pre- and post- velocity fields"
+                call read_pre_post_u(tframe, 2, separated_pre_post, &
                     .true., .true.)
-                if (myid == master) print*, "Finished pre- and post- momentum fields"
+                if (myid == master) print*, "Finished reading pre- and post- momentum fields"
                 call close_hydro_files_pre_post_h5(tindex, tindex_pre, tindex_pos)
                 call close_hydro_files_h5 ! Close hydro files for current step at last
             else
                 if (is_translated_file) then
                     if (output_format /= 1) then
                         call open_electric_field_files(tindex)
-                        call read_electric_fields(tp1)
+                        call read_electric_fields(tframe)
                         call close_electric_field_files
                         if (myid == master) print*, "Finished reading electric fields"
                         call open_magnetic_field_files(tindex)
-                        call read_magnetic_fields(tp1)
+                        call read_magnetic_fields(tframe)
                         call close_magnetic_field_files
                         if (myid == master) print*, "Finished reading magnetic fields"
                         call open_velocity_field_files(species, tindex)
-                        call read_velocity_fields(tp1)
+                        call read_velocity_fields(tframe)
                         call close_velocity_field_files
                         if (myid == master) print*, "Finished reading velocity and momentum fields"
                         call open_bfield_pre_post(separated_pre_post, tindex, &
                                                   tindex_pre, tindex_pos)
-                        call read_pre_post_bfield(tp1, output_format, separated_pre_post)
+                        call read_pre_post_bfield(tframe, output_format, separated_pre_post)
                         call close_bfield_pre_post
-                        if (myid == master) print*, "Finished pre- and post- magnetic fields"
+                        if (myid == master) print*, "Finished reading pre- and post- magnetic fields"
                         call open_efield_pre_post(separated_pre_post, tindex, &
                                                   tindex_pre, tindex_pos)
-                        call read_pre_post_efield(tp1, output_format, separated_pre_post)
+                        call read_pre_post_efield(tframe, output_format, separated_pre_post)
                         call close_efield_pre_post
-                        if (myid == master) print*, "Finished pre- and post- electric fields"
+                        if (myid == master) print*, "Finished reading pre- and post- electric fields"
                         call open_ufield_pre_post(species, separated_pre_post, &
                                                   tindex, tindex_pre, tindex_pos)
-                        call read_pre_post_u(tp1, output_format, separated_pre_post)
+                        call read_pre_post_u(tframe, output_format, separated_pre_post)
                         call close_ufield_pre_post
-                        if (myid == master) print*, "Finished pre- and post- momentum fields"
+                        if (myid == master) print*, "Finished reading pre- and post- momentum fields"
                         call open_vfield_pre_post(species, separated_pre_post, &
                                                   tindex, tindex_pre, tindex_pos)
-                        call read_pre_post_v(tp1, output_format, separated_pre_post)
+                        call read_pre_post_v(tframe, output_format, separated_pre_post)
                         call close_vfield_pre_post
-                        if (myid == master) print*, "Finished pre- and post- velocity fields"
+                        if (myid == master) print*, "Finished reading pre- and post- velocity fields"
                     else
                         ! Fields at all time steps are saved in the same file
                         call read_electric_fields(tp_emf)
@@ -445,13 +445,13 @@ program particle_energization_io
                         call read_velocity_fields(tp_emf)
                         if (myid == master) print*, "Finished reading velocity and momentum fields"
                         call read_pre_post_bfield(tp_emf, output_format, separated_pre_post)
-                        if (myid == master) print*, "Finished pre- and post- magnetic fields"
+                        if (myid == master) print*, "Finished reading pre- and post- magnetic fields"
                         call read_pre_post_efield(tp_emf, output_format, separated_pre_post)
-                        if (myid == master) print*, "Finished pre- and post- electric fields"
+                        if (myid == master) print*, "Finished reading pre- and post- electric fields"
                         call read_pre_post_u(tp_emf, output_format, separated_pre_post)
-                        if (myid == master) print*, "Finished pre- and post- momentum fields"
+                        if (myid == master) print*, "Finished reading pre- and post- momentum fields"
                         call read_pre_post_v(tp_emf, output_format, separated_pre_post)
-                        if (myid == master) print*, "Finished pre- and post- velocity fields"
+                        if (myid == master) print*, "Finished reading pre- and post- velocity fields"
                     endif
                 endif
             endif

@@ -629,106 +629,92 @@ module pre_post_hydro
 
         offset = 0
         disp0 = domain%nx * domain%ny * domain%nz * sizeof(fp)
-        if ((tframe >= tp1) .and. (tframe < tp2)) then
-            if (use_hdf5) then
-                call h5dopen_f(hydro_group_post_id, "px", px_id, error)
-                call h5dopen_f(hydro_group_post_id, "py", py_id, error)
-                call h5dopen_f(hydro_group_post_id, "pz", pz_id, error)
-                call read_data_h5(px_id, dcount, doffset, dset_dims, &
-                    udx2, .true., use_collective_io)
-                call read_data_h5(py_id, dcount, doffset, dset_dims, &
-                    udy2, .true., use_collective_io)
-                call read_data_h5(pz_id, dcount, doffset, dset_dims, &
-                    udz2, .true., use_collective_io)
-                udx2 = reshape(udx2, shape(udx2), order=[3, 2, 1])
-                udy2 = reshape(udy2, shape(udy2), order=[3, 2, 1])
-                udz2 = reshape(udz2, shape(udz2), order=[3, 2, 1])
-                call h5dclose_f(px_id, error)
-                call h5dclose_f(py_id, error)
-                call h5dclose_f(pz_id, error)
-                ! We assume that num_rho has been loaded from files
-                where (nrho2 > 0.0)
-                    udx2 = (udx2/nrho2) / ptl_mass
-                    udy2 = (udy2/nrho2) / ptl_mass
-                    udz2 = (udz2/nrho2) / ptl_mass
-                elsewhere
-                    udx2 = 0.0
-                    udy2 = 0.0
-                    udz2 = 0.0
-                endwhere
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1+1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(ufields_post_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, udx2)
-                call read_data_mpi_io(ufields_post_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, udy2)
-                call read_data_mpi_io(ufields_post_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, udz2)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(hydro_group_post_id, "px", px_id, error)
+            call h5dopen_f(hydro_group_post_id, "py", py_id, error)
+            call h5dopen_f(hydro_group_post_id, "pz", pz_id, error)
+            call read_data_h5(px_id, dcount, doffset, dset_dims, &
+                udx2, .true., use_collective_io)
+            call read_data_h5(py_id, dcount, doffset, dset_dims, &
+                udy2, .true., use_collective_io)
+            call read_data_h5(pz_id, dcount, doffset, dset_dims, &
+                udz2, .true., use_collective_io)
+            udx2 = reshape(udx2, shape(udx2), order=[3, 2, 1])
+            udy2 = reshape(udy2, shape(udy2), order=[3, 2, 1])
+            udz2 = reshape(udz2, shape(udz2), order=[3, 2, 1])
+            call h5dclose_f(px_id, error)
+            call h5dclose_f(py_id, error)
+            call h5dclose_f(pz_id, error)
+            ! We assume that num_rho has been loaded from files
+            where (nrho2 > 0.0)
+                udx2 = (udx2/nrho2) / ptl_mass
+                udy2 = (udy2/nrho2) / ptl_mass
+                udz2 = (udz2/nrho2) / ptl_mass
+            elsewhere
+                udx2 = 0.0
+                udy2 = 0.0
+                udz2 = 0.0
+            endwhere
         else
-            ! tframe = tp2, last time frame.
-            udx2 = ux
-            udy2 = uy
-            udz2 = uz
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1+1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(ufields_post_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, udx2)
+            call read_data_mpi_io(ufields_post_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, udy2)
+            call read_data_mpi_io(ufields_post_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, udz2)
         endif
 
-        if ((tframe <= tp2) .and. (tframe > tp1)) then
-            if (use_hdf5) then
-                call h5dopen_f(hydro_group_pre_id, "px", px_id, error)
-                call h5dopen_f(hydro_group_pre_id, "py", py_id, error)
-                call h5dopen_f(hydro_group_pre_id, "pz", pz_id, error)
-                call read_data_h5(px_id, dcount, doffset, dset_dims, &
-                    udx1, .true., use_collective_io)
-                call read_data_h5(py_id, dcount, doffset, dset_dims, &
-                    udy1, .true., use_collective_io)
-                call read_data_h5(pz_id, dcount, doffset, dset_dims, &
-                    udz1, .true., use_collective_io)
-                udx1 = reshape(udx1, shape(udx1), order=[3, 2, 1])
-                udy1 = reshape(udy1, shape(udy1), order=[3, 2, 1])
-                udz1 = reshape(udz1, shape(udz1), order=[3, 2, 1])
-                call h5dclose_f(px_id, error)
-                call h5dclose_f(py_id, error)
-                call h5dclose_f(pz_id, error)
-                ! We assume that num_rho has been loaded from files
-                where (nrho1 > 0.0)
-                    udx1 = (udx1/nrho1) / ptl_mass
-                    udy1 = (udy1/nrho1) / ptl_mass
-                    udz1 = (udz1/nrho1) / ptl_mass
-                elsewhere
-                    udx1 = 0.0
-                    udy1 = 0.0
-                    udz1 = 0.0
-                endwhere
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1-1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(ufields_pre_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, udx1)
-                call read_data_mpi_io(ufields_pre_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, udy1)
-                call read_data_mpi_io(ufields_pre_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, udz1)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(hydro_group_pre_id, "px", px_id, error)
+            call h5dopen_f(hydro_group_pre_id, "py", py_id, error)
+            call h5dopen_f(hydro_group_pre_id, "pz", pz_id, error)
+            call read_data_h5(px_id, dcount, doffset, dset_dims, &
+                udx1, .true., use_collective_io)
+            call read_data_h5(py_id, dcount, doffset, dset_dims, &
+                udy1, .true., use_collective_io)
+            call read_data_h5(pz_id, dcount, doffset, dset_dims, &
+                udz1, .true., use_collective_io)
+            udx1 = reshape(udx1, shape(udx1), order=[3, 2, 1])
+            udy1 = reshape(udy1, shape(udy1), order=[3, 2, 1])
+            udz1 = reshape(udz1, shape(udz1), order=[3, 2, 1])
+            call h5dclose_f(px_id, error)
+            call h5dclose_f(py_id, error)
+            call h5dclose_f(pz_id, error)
+            ! We assume that num_rho has been loaded from files
+            where (nrho1 > 0.0)
+                udx1 = (udx1/nrho1) / ptl_mass
+                udy1 = (udy1/nrho1) / ptl_mass
+                udz1 = (udz1/nrho1) / ptl_mass
+            elsewhere
+                udx1 = 0.0
+                udy1 = 0.0
+                udz1 = 0.0
+            endwhere
         else
-            ! tframe = tp1, The first time frame.
-            udx1 = ux
-            udy1 = uy
-            udz1 = uz
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1-1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(ufields_pre_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, udx1)
+            call read_data_mpi_io(ufields_pre_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, udy1)
+            call read_data_mpi_io(ufields_pre_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, udz1)
         endif
     end subroutine read_pre_post_u
 
@@ -777,106 +763,92 @@ module pre_post_hydro
 
         offset = 0
         disp0 = domain%nx * domain%ny * domain%nz * sizeof(fp)
-        if ((tframe >= tp1) .and. (tframe < tp2)) then
-            if (use_hdf5) then
-                call h5dopen_f(hydro_group_post_id, "jx", jx_id, error)
-                call h5dopen_f(hydro_group_post_id, "jy", jy_id, error)
-                call h5dopen_f(hydro_group_post_id, "jz", jz_id, error)
-                call read_data_h5(jx_id, dcount, doffset, dset_dims, &
-                    vdx2, .true., use_collective_io)
-                call read_data_h5(jy_id, dcount, doffset, dset_dims, &
-                    vdy2, .true., use_collective_io)
-                call read_data_h5(jz_id, dcount, doffset, dset_dims, &
-                    vdz2, .true., use_collective_io)
-                vdx2 = reshape(vdx2, shape(vdx2), order=[3, 2, 1])
-                vdy2 = reshape(vdy2, shape(vdy2), order=[3, 2, 1])
-                vdz2 = reshape(vdz2, shape(vdz2), order=[3, 2, 1])
-                call h5dclose_f(jx_id, error)
-                call h5dclose_f(jy_id, error)
-                call h5dclose_f(jz_id, error)
-                ! We assume that num_rho has been loaded from files
-                where (nrho2 > 0.0)
-                    vdx2 = (vdx2/nrho2) * ptl_charge
-                    vdy2 = (vdy2/nrho2) * ptl_charge
-                    vdz2 = (vdz2/nrho2) * ptl_charge
-                elsewhere
-                    vdx2 = 0.0
-                    vdy2 = 0.0
-                    vdz2 = 0.0
-                endwhere
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1+1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(vfields_post_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, vdx2)
-                call read_data_mpi_io(vfields_post_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, vdy2)
-                call read_data_mpi_io(vfields_post_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, vdz2)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(hydro_group_post_id, "jx", jx_id, error)
+            call h5dopen_f(hydro_group_post_id, "jy", jy_id, error)
+            call h5dopen_f(hydro_group_post_id, "jz", jz_id, error)
+            call read_data_h5(jx_id, dcount, doffset, dset_dims, &
+                vdx2, .true., use_collective_io)
+            call read_data_h5(jy_id, dcount, doffset, dset_dims, &
+                vdy2, .true., use_collective_io)
+            call read_data_h5(jz_id, dcount, doffset, dset_dims, &
+                vdz2, .true., use_collective_io)
+            vdx2 = reshape(vdx2, shape(vdx2), order=[3, 2, 1])
+            vdy2 = reshape(vdy2, shape(vdy2), order=[3, 2, 1])
+            vdz2 = reshape(vdz2, shape(vdz2), order=[3, 2, 1])
+            call h5dclose_f(jx_id, error)
+            call h5dclose_f(jy_id, error)
+            call h5dclose_f(jz_id, error)
+            ! We assume that num_rho has been loaded from files
+            where (nrho2 > 0.0)
+                vdx2 = (vdx2/nrho2) * ptl_charge
+                vdy2 = (vdy2/nrho2) * ptl_charge
+                vdz2 = (vdz2/nrho2) * ptl_charge
+            elsewhere
+                vdx2 = 0.0
+                vdy2 = 0.0
+                vdz2 = 0.0
+            endwhere
         else
-            ! tframe = tp2, last time frame.
-            vdx2 = vx
-            vdy2 = vy
-            vdz2 = vz
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1+1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(vfields_post_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdx2)
+            call read_data_mpi_io(vfields_post_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdy2)
+            call read_data_mpi_io(vfields_post_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdz2)
         endif
 
-        if ((tframe <= tp2) .and. (tframe > tp1)) then
-            if (use_hdf5) then
-                call h5dopen_f(hydro_group_pre_id, "jx", jx_id, error)
-                call h5dopen_f(hydro_group_pre_id, "jy", jy_id, error)
-                call h5dopen_f(hydro_group_pre_id, "jz", jz_id, error)
-                call read_data_h5(jx_id, dcount, doffset, dset_dims, &
-                    vdx1, .true., use_collective_io)
-                call read_data_h5(jy_id, dcount, doffset, dset_dims, &
-                    vdy1, .true., use_collective_io)
-                call read_data_h5(jz_id, dcount, doffset, dset_dims, &
-                    vdz1, .true., use_collective_io)
-                vdx1 = reshape(vdx1, shape(vdx1), order=[3, 2, 1])
-                vdy1 = reshape(vdy1, shape(vdy1), order=[3, 2, 1])
-                vdz1 = reshape(vdz1, shape(vdz1), order=[3, 2, 1])
-                call h5dclose_f(jx_id, error)
-                call h5dclose_f(jy_id, error)
-                call h5dclose_f(jz_id, error)
-                ! We assume that num_rho has been loaded from files
-                where (nrho1 > 0.0)
-                    vdx1 = (vdx1/nrho1) * ptl_charge
-                    vdy1 = (vdy1/nrho1) * ptl_charge
-                    vdz1 = (vdz1/nrho1) * ptl_charge
-                elsewhere
-                    vdx1 = 0.0
-                    vdy1 = 0.0
-                    vdz1 = 0.0
-                endwhere
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1-1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(vfields_pre_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, vdx1)
-                call read_data_mpi_io(vfields_pre_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, vdy1)
-                call read_data_mpi_io(vfields_pre_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, vdz1)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(hydro_group_pre_id, "jx", jx_id, error)
+            call h5dopen_f(hydro_group_pre_id, "jy", jy_id, error)
+            call h5dopen_f(hydro_group_pre_id, "jz", jz_id, error)
+            call read_data_h5(jx_id, dcount, doffset, dset_dims, &
+                vdx1, .true., use_collective_io)
+            call read_data_h5(jy_id, dcount, doffset, dset_dims, &
+                vdy1, .true., use_collective_io)
+            call read_data_h5(jz_id, dcount, doffset, dset_dims, &
+                vdz1, .true., use_collective_io)
+            vdx1 = reshape(vdx1, shape(vdx1), order=[3, 2, 1])
+            vdy1 = reshape(vdy1, shape(vdy1), order=[3, 2, 1])
+            vdz1 = reshape(vdz1, shape(vdz1), order=[3, 2, 1])
+            call h5dclose_f(jx_id, error)
+            call h5dclose_f(jy_id, error)
+            call h5dclose_f(jz_id, error)
+            ! We assume that num_rho has been loaded from files
+            where (nrho1 > 0.0)
+                vdx1 = (vdx1/nrho1) * ptl_charge
+                vdy1 = (vdy1/nrho1) * ptl_charge
+                vdz1 = (vdz1/nrho1) * ptl_charge
+            elsewhere
+                vdx1 = 0.0
+                vdy1 = 0.0
+                vdz1 = 0.0
+            endwhere
         else
-            ! tframe = tp1, The first time frame.
-            vdx1 = vx
-            vdy1 = vy
-            vdz1 = vz
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1-1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(vfields_pre_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdx1)
+            call read_data_mpi_io(vfields_pre_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdy1)
+            call read_data_mpi_io(vfields_pre_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, vdz1)
         endif
     end subroutine read_pre_post_v
 
@@ -923,54 +895,46 @@ module pre_post_hydro
 
         offset = 0
         disp0 = domain%nx * domain%ny * domain%nz * sizeof(fp)
-        if ((tframe >= tp1) .and. (tframe < tp2)) then
-            if (use_hdf5) then
-                call h5dopen_f(hydro_group_post_id, "rho", nrho_id, error)
-                call read_data_h5(nrho_id, dcount, doffset, dset_dims, &
-                    nrho2, .true., use_collective_io)
-                nrho2 = reshape(nrho2, shape(nrho2), order=[3, 2, 1])
-                call h5dclose_f(nrho_id, error)
-                nrho2 = abs(nrho2 / ptl_charge)
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1+1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(nrho_post_fh, filetype_ghost, &
-                    subsizes_ghost, disp, offset, nrho2)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(hydro_group_post_id, "rho", nrho_id, error)
+            call read_data_h5(nrho_id, dcount, doffset, dset_dims, &
+                nrho2, .true., use_collective_io)
+            nrho2 = reshape(nrho2, shape(nrho2), order=[3, 2, 1])
+            call h5dclose_f(nrho_id, error)
+            nrho2 = abs(nrho2 / ptl_charge)
         else
-            nrho2 = num_rho ! tframe = tp2, last time frame.
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1+1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(nrho_post_fh, filetype_ghost, &
+                subsizes_ghost, disp, offset, nrho2)
         endif
 
-        if ((tframe <= tp2) .and. (tframe > tp1)) then
-            if (use_hdf5) then
-                call h5dopen_f(hydro_group_pre_id, "rho", nrho_id, error)
-                call read_data_h5(nrho_id, dcount, doffset, dset_dims, &
-                    nrho1, .true., use_collective_io)
-                nrho1 = reshape(nrho1, shape(nrho1), order=[3, 2, 1])
-                call h5dclose_f(nrho_id, error)
-                nrho1 = abs(nrho1 / ptl_charge)
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1-1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(nrho_pre_fh, filetype_ghost, &
-                    subsizes_ghost, disp, offset, nrho1)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(hydro_group_pre_id, "rho", nrho_id, error)
+            call read_data_h5(nrho_id, dcount, doffset, dset_dims, &
+                nrho1, .true., use_collective_io)
+            nrho1 = reshape(nrho1, shape(nrho1), order=[3, 2, 1])
+            call h5dclose_f(nrho_id, error)
+            nrho1 = abs(nrho1 / ptl_charge)
         else
-            nrho1 = num_rho ! tframe = tp1, The first time frame.
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1-1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(nrho_pre_fh, filetype_ghost, &
+                subsizes_ghost, disp, offset, nrho1)
         endif
     end subroutine read_pre_post_number_density
 

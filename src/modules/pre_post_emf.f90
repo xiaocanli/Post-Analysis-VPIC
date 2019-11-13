@@ -328,86 +328,72 @@ module pre_post_emf
 
         offset = 0
         disp0 = domain%nx * domain%ny * domain%nz * sizeof(fp)
-        if ((tframe >= tp1) .and. (tframe < tp2)) then
-            if (use_hdf5) then
-                call h5dopen_f(field_group_post_id, "ex", ex_id, error)
-                call h5dopen_f(field_group_post_id, "ey", ey_id, error)
-                call h5dopen_f(field_group_post_id, "ez", ez_id, error)
-                call read_data_h5(ex_id, dcount, doffset, dset_dims, &
-                    ex2, .true., use_collective_io)
-                call read_data_h5(ey_id, dcount, doffset, dset_dims, &
-                    ey2, .true., use_collective_io)
-                call read_data_h5(ez_id, dcount, doffset, dset_dims, &
-                    ez2, .true., use_collective_io)
-                ex2 = reshape(ex2, shape(ex2), order=[3, 2, 1])
-                ey2 = reshape(ey2, shape(ey2), order=[3, 2, 1])
-                ez2 = reshape(ez2, shape(ez2), order=[3, 2, 1])
-                call h5dclose_f(ex_id, error)
-                call h5dclose_f(ey_id, error)
-                call h5dclose_f(ez_id, error)
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp =  disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1+1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(efields_post_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, ex2)
-                call read_data_mpi_io(efields_post_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, ey2)
-                call read_data_mpi_io(efields_post_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, ez2)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(field_group_post_id, "ex", ex_id, error)
+            call h5dopen_f(field_group_post_id, "ey", ey_id, error)
+            call h5dopen_f(field_group_post_id, "ez", ez_id, error)
+            call read_data_h5(ex_id, dcount, doffset, dset_dims, &
+                ex2, .true., use_collective_io)
+            call read_data_h5(ey_id, dcount, doffset, dset_dims, &
+                ey2, .true., use_collective_io)
+            call read_data_h5(ez_id, dcount, doffset, dset_dims, &
+                ez2, .true., use_collective_io)
+            ex2 = reshape(ex2, shape(ex2), order=[3, 2, 1])
+            ey2 = reshape(ey2, shape(ey2), order=[3, 2, 1])
+            ez2 = reshape(ez2, shape(ez2), order=[3, 2, 1])
+            call h5dclose_f(ex_id, error)
+            call h5dclose_f(ey_id, error)
+            call h5dclose_f(ez_id, error)
         else
-            ! tframe = tp2, last time frame.
-            ex2 = ex
-            ey2 = ey
-            ez2 = ez
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp =  disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1+1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(efields_post_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, ex2)
+            call read_data_mpi_io(efields_post_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, ey2)
+            call read_data_mpi_io(efields_post_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, ez2)
         endif
 
-        if ((tframe <= tp2) .and. (tframe > tp1)) then
-            if (use_hdf5) then
-                call h5dopen_f(field_group_pre_id, "ex", ex_id, error)
-                call h5dopen_f(field_group_pre_id, "ey", ey_id, error)
-                call h5dopen_f(field_group_pre_id, "ez", ez_id, error)
-                call read_data_h5(ex_id, dcount, doffset, dset_dims, &
-                    ex1, .true., use_collective_io)
-                call read_data_h5(ey_id, dcount, doffset, dset_dims, &
-                    ey1, .true., use_collective_io)
-                call read_data_h5(ez_id, dcount, doffset, dset_dims, &
-                    ez1, .true., use_collective_io)
-                ex1 = reshape(ex1, shape(ex1), order=[3, 2, 1])
-                ey1 = reshape(ey1, shape(ey1), order=[3, 2, 1])
-                ez1 = reshape(ez1, shape(ez1), order=[3, 2, 1])
-                call h5dclose_f(ex_id, error)
-                call h5dclose_f(ey_id, error)
-                call h5dclose_f(ez_id, error)
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1-1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(efields_pre_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, ex1)
-                call read_data_mpi_io(efields_pre_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, ey1)
-                call read_data_mpi_io(efields_pre_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, ez1)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(field_group_pre_id, "ex", ex_id, error)
+            call h5dopen_f(field_group_pre_id, "ey", ey_id, error)
+            call h5dopen_f(field_group_pre_id, "ez", ez_id, error)
+            call read_data_h5(ex_id, dcount, doffset, dset_dims, &
+                ex1, .true., use_collective_io)
+            call read_data_h5(ey_id, dcount, doffset, dset_dims, &
+                ey1, .true., use_collective_io)
+            call read_data_h5(ez_id, dcount, doffset, dset_dims, &
+                ez1, .true., use_collective_io)
+            ex1 = reshape(ex1, shape(ex1), order=[3, 2, 1])
+            ey1 = reshape(ey1, shape(ey1), order=[3, 2, 1])
+            ez1 = reshape(ez1, shape(ez1), order=[3, 2, 1])
+            call h5dclose_f(ex_id, error)
+            call h5dclose_f(ey_id, error)
+            call h5dclose_f(ez_id, error)
         else
-            ! tframe = tp1, The first time frame.
-            ex1 = ex
-            ey1 = ey
-            ez1 = ez
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1-1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(efields_pre_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, ex1)
+            call read_data_mpi_io(efields_pre_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, ey1)
+            call read_data_mpi_io(efields_pre_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, ez1)
         endif
 
         absE1 = sqrt(ex1**2 + ey1**2 + ez1**2)
@@ -575,86 +561,72 @@ module pre_post_emf
 
         offset = 0
         disp0 = domain%nx * domain%ny * domain%nz * sizeof(fp)
-        if ((tframe >= tp1) .and. (tframe < tp2)) then
-            if (use_hdf5) then
-                call h5dopen_f(field_group_post_id, "cbx", bx_id, error)
-                call h5dopen_f(field_group_post_id, "cby", by_id, error)
-                call h5dopen_f(field_group_post_id, "cbz", bz_id, error)
-                call read_data_h5(bx_id, dcount, doffset, dset_dims, &
-                    bx2, .true., use_collective_io)
-                call read_data_h5(by_id, dcount, doffset, dset_dims, &
-                    by2, .true., use_collective_io)
-                call read_data_h5(bz_id, dcount, doffset, dset_dims, &
-                    bz2, .true., use_collective_io)
-                bx2 = reshape(bx2, shape(bx2), order=[3, 2, 1])
-                by2 = reshape(by2, shape(by2), order=[3, 2, 1])
-                bz2 = reshape(bz2, shape(bz2), order=[3, 2, 1])
-                call h5dclose_f(bx_id, error)
-                call h5dclose_f(by_id, error)
-                call h5dclose_f(bz_id, error)
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1+1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(bfields_post_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, bx2)
-                call read_data_mpi_io(bfields_post_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, by2)
-                call read_data_mpi_io(bfields_post_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, bz2)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(field_group_post_id, "cbx", bx_id, error)
+            call h5dopen_f(field_group_post_id, "cby", by_id, error)
+            call h5dopen_f(field_group_post_id, "cbz", bz_id, error)
+            call read_data_h5(bx_id, dcount, doffset, dset_dims, &
+                bx2, .true., use_collective_io)
+            call read_data_h5(by_id, dcount, doffset, dset_dims, &
+                by2, .true., use_collective_io)
+            call read_data_h5(bz_id, dcount, doffset, dset_dims, &
+                bz2, .true., use_collective_io)
+            bx2 = reshape(bx2, shape(bx2), order=[3, 2, 1])
+            by2 = reshape(by2, shape(by2), order=[3, 2, 1])
+            bz2 = reshape(bz2, shape(bz2), order=[3, 2, 1])
+            call h5dclose_f(bx_id, error)
+            call h5dclose_f(by_id, error)
+            call h5dclose_f(bz_id, error)
         else
-            ! tframe = tp2, last time frame.
-            bx2 = bx
-            by2 = by
-            bz2 = bz
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1+1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(bfields_post_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, bx2)
+            call read_data_mpi_io(bfields_post_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, by2)
+            call read_data_mpi_io(bfields_post_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, bz2)
         endif
 
-        if ((tframe <= tp2) .and. (tframe > tp1)) then
-            if (use_hdf5) then
-                call h5dopen_f(field_group_pre_id, "cbx", bx_id, error)
-                call h5dopen_f(field_group_pre_id, "cby", by_id, error)
-                call h5dopen_f(field_group_pre_id, "cbz", bz_id, error)
-                call read_data_h5(bx_id, dcount, doffset, dset_dims, &
-                    bx1, .true., use_collective_io)
-                call read_data_h5(by_id, dcount, doffset, dset_dims, &
-                    by1, .true., use_collective_io)
-                call read_data_h5(bz_id, dcount, doffset, dset_dims, &
-                    bz1, .true., use_collective_io)
-                bx1 = reshape(bx1, shape(bx1), order=[3, 2, 1])
-                by1 = reshape(by1, shape(by1), order=[3, 2, 1])
-                bz1 = reshape(bz1, shape(bz1), order=[3, 2, 1])
-                call h5dclose_f(bx_id, error)
-                call h5dclose_f(by_id, error)
-                call h5dclose_f(bz_id, error)
-            else
-                if (output_format == 1) then
-                    if (separated_pre_post == 1) then
-                        disp = disp0 * (tframe-tp1)
-                    else
-                        disp = disp0 * (tframe-tp1-1)
-                    endif
-                else
-                    disp = 0
-                endif
-                call read_data_mpi_io(bfields_pre_fh(1), filetype_ghost, &
-                    subsizes_ghost, disp, offset, bx1)
-                call read_data_mpi_io(bfields_pre_fh(2), filetype_ghost, &
-                    subsizes_ghost, disp, offset, by1)
-                call read_data_mpi_io(bfields_pre_fh(3), filetype_ghost, &
-                    subsizes_ghost, disp, offset, bz1)
-            endif
+        if (use_hdf5) then
+            call h5dopen_f(field_group_pre_id, "cbx", bx_id, error)
+            call h5dopen_f(field_group_pre_id, "cby", by_id, error)
+            call h5dopen_f(field_group_pre_id, "cbz", bz_id, error)
+            call read_data_h5(bx_id, dcount, doffset, dset_dims, &
+                bx1, .true., use_collective_io)
+            call read_data_h5(by_id, dcount, doffset, dset_dims, &
+                by1, .true., use_collective_io)
+            call read_data_h5(bz_id, dcount, doffset, dset_dims, &
+                bz1, .true., use_collective_io)
+            bx1 = reshape(bx1, shape(bx1), order=[3, 2, 1])
+            by1 = reshape(by1, shape(by1), order=[3, 2, 1])
+            bz1 = reshape(bz1, shape(bz1), order=[3, 2, 1])
+            call h5dclose_f(bx_id, error)
+            call h5dclose_f(by_id, error)
+            call h5dclose_f(bz_id, error)
         else
-            ! tframe = tp1, The first time frame.
-            bx1 = bx
-            by1 = by
-            bz1 = bz
+            if (output_format == 1) then
+                if (separated_pre_post == 1) then
+                    disp = disp0 * (tframe-tp1)
+                else
+                    disp = disp0 * (tframe-tp1-1)
+                endif
+            else
+                disp = 0
+            endif
+            call read_data_mpi_io(bfields_pre_fh(1), filetype_ghost, &
+                subsizes_ghost, disp, offset, bx1)
+            call read_data_mpi_io(bfields_pre_fh(2), filetype_ghost, &
+                subsizes_ghost, disp, offset, by1)
+            call read_data_mpi_io(bfields_pre_fh(3), filetype_ghost, &
+                subsizes_ghost, disp, offset, bz1)
         endif
 
         absB1 = sqrt(bx1**2 + by1**2 + bz1**2)
