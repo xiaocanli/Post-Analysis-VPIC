@@ -16,6 +16,7 @@ program combine_spectrum_hdf5
     integer(hsize_t) :: pic_mpi_size
     integer :: nzones, ndata
     character(len=32) :: species
+    logical :: single_h5
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -62,7 +63,7 @@ program combine_spectrum_hdf5
         integer, intent(in) :: tframe
         integer(hsize_t), dimension(1), intent(in) :: dcount, doffset
         character(len=256) :: fname
-        character(len=16) :: groupname, dataset_name
+        character(len=32) :: groupname, dataset_name
         character(len=8) :: tframe_char
         integer(hid_t) :: file_id, group_id, plist_id
         integer(hid_t) :: filespace, memspace, dataset_id
@@ -72,8 +73,14 @@ program combine_spectrum_hdf5
 
         write(tframe_char, "(I0)") tframe
         fname = trim(adjustl(rootpath))//"/spectrum/T."//trim(tframe_char)
-        fname = trim(fname)//"/spectrum_"//trim(species)//"_"
-        fname = trim(fname)//trim(tframe_char)//".h5part"
+        if (single_h5) then
+            fname = trim(fname)//"/spectrum_"//trim(tframe_char)//".h5part"
+            dataset_name = 'spectrum_'//trim(species)
+        else
+            fname = trim(fname)//"/spectrum_"//trim(species)//"_"
+            fname = trim(fname)//trim(tframe_char)//".h5part"
+            dataset_name = 'spectrum'
+        endif
         groupname = "/"
         call MPI_INFO_CREATE(fileinfo, ierror)
         call h5open_f(error)
@@ -91,7 +98,7 @@ program combine_spectrum_hdf5
         call h5pclose_f(plist_id, error)
         call h5gopen_f(file_id, groupname, group_id, error)
 
-        call h5dopen_f(group_id, "spectrum", dataset_id, error)
+        call h5dopen_f(group_id, trim(dataset_name), dataset_id, error)
         call h5dget_type_f(dataset_id, datatype_id, error)
 
         ! Create property list for collective dataset write
@@ -191,6 +198,10 @@ program combine_spectrum_hdf5
         call cli%add(switch='--tinterval', switch_ab='-ti', help='Time interval', &
             required=.true., act='store', error=error)
         if (error/=0) stop
+        call cli%add(switch='--single_h5', switch_ab='-sh', &
+            help='whether spectra of all species are saved in the same HDF5 file', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-sp', val=species, error=error)
@@ -207,6 +218,8 @@ program combine_spectrum_hdf5
         if (error/=0) stop
         call cli%get(switch='-ti', val=tinterval, error=error)
         if (error/=0) stop
+        call cli%get(switch='-sh', val=single_h5, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
             print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
@@ -216,6 +229,11 @@ program combine_spectrum_hdf5
             print '(A,I0)', ' MPI size of the PIC simulation: ', pic_mpi_size
             print '(A,I0)', ' Number of zones in each PIC MPI rank: ', nzones
             print '(A,I0)', ' Number of data points ine each spectrum: ', ndata
+            if (single_h5) then
+                print '(A)', ' Spectra of all species are saved in the same HDF5 file'
+            else
+                print '(A)', ' Spectrum of different species are saved in different HDF5 file'
+            endif
         endif
     end subroutine get_cmd_args
 
