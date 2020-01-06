@@ -367,7 +367,10 @@ def read_pic_info(base_directory):
     f.close()
     nlines = len(content)
     current_line = 0
+    sigmae_c, current_line = get_variable_value('sigma', current_line, content)
     ti_te, current_line = get_variable_value('Ti/Te', current_line, content)
+    te, current_line = get_variable_value('Te', current_line, content, match_name=True)
+    ti, current_line = get_variable_value('Ti', current_line, content, match_name=True)
     wpe_wce, current_line = get_variable_value('wpe/wce', current_line, content)
     mime, current_line = get_variable_value('mi/me', current_line, content)
     lx, current_line = get_variable_value('Lx/di', current_line, content)
@@ -404,6 +407,7 @@ def read_pic_info(base_directory):
     dx_rhoi, current_line = get_variable_value('dx/rhoi', current_line, content)
     dx_rhoe, current_line = get_variable_value('dx/rhoe', current_line, content)
     dx_debye, current_line = get_variable_value('dx/debye', current_line, content)
+    n0, current_line = get_variable_value('n0', current_line, content)
     if any('vthi/c' in s for s in content):
         vthi, current_line = get_variable_value('vthi/c', current_line,
                                                 content)
@@ -456,7 +460,8 @@ def read_pic_info(base_directory):
                                                             current_line, content, int)
 
     pic_init_info = collections.namedtuple('pic_init_info',
-                                           ['ti_te', 'wpe_wce', 'mime',
+                                           ['sigmae_c', 'ti_te', 'Ti', 'Te',
+                                            'wpe_wce', 'mime',
                                             'lx_di', 'ly_di', 'lz_di',
                                             'nx', 'ny', 'nz',
                                             'courant', 'nproc',
@@ -465,6 +470,7 @@ def read_pic_info(base_directory):
                                             'dx_di', 'dy_di', 'dz_di',
                                             'x_di', 'y_di', 'z_di',
                                             'dx_rhoi', 'dx_rhoe', 'dx_debye',
+                                            'n0',
                                             'restart_interval',
                                             'fields_interval_info',
                                             'ehydro_interval',
@@ -486,13 +492,14 @@ def read_pic_info(base_directory):
                                             'nx_zone', 'ny_zone', 'nz_zone',
                                             'stride_particle_dump',
                                             'vthi', 'vthe'])
-    pic_info = pic_init_info(ti_te=ti_te, wpe_wce=wpe_wce, mime=mime,
+    pic_info = pic_init_info(sigmae_c=sigmae_c, ti_te=ti_te, Te=te, Ti=ti,
+                             wpe_wce=wpe_wce, mime=mime,
                              lx_di=lx, ly_di=ly, lz_di=lz,
                              nx=nx, ny=ny, nz=nz,
                              courant=courant, nproc=nproc,
                              nppc=nppc, b0=b0, ne=ne,
                              dtwpe=dtwpe, dtwce=dtwce, dtwci=dtwci,
-                             dx_di=dxdi, dy_di=dydi, dz_di=dzdi,
+                             dx_di=dxdi, dy_di=dydi, dz_di=dzdi, n0=n0,
                              x_di=x, y_di=y, z_di=z,
                              dx_rhoi=dx_rhoi, dx_rhoe=dx_rhoe, dx_debye=dx_debye,
                              restart_interval=restart_interval,
@@ -521,7 +528,8 @@ def read_pic_info(base_directory):
     return pic_info
 
 
-def get_variable_value(variable_name, current_line, content, data_type=float):
+def get_variable_value(variable_name, current_line, content,
+                       data_type=float, match_name=False):
     """
     Get the value of one variable from the content of the information file.
 
@@ -530,18 +538,35 @@ def get_variable_value(variable_name, current_line, content, data_type=float):
         current_line: current line number.
         content: the content of the information file.
         data_type: data type (float, int, ...)
+        match_name: whether to match the variable name
     Returns:
         variable_value: the value of the variable.
         line_number: current line number after the operations.
     """
     line_number = current_line
     nlines = len(content)
-    cond1 = not variable_name in content[line_number]
+    single_line = content[line_number]
+    cond1 = not variable_name in single_line
     cond2 = line_number < nlines
+    if match_name and (not cond1):
+        if "=" in single_line:
+            line_splits = single_line.split("=")
+        elif ":" in single_line:
+            line_splits = single_line.split(":")
+        if line_splits[0].strip() != variable_name:
+            cond1 = True
     while cond1 and cond2:
         line_number += 1
-        cond1 = not variable_name in content[line_number]
+        single_line = content[line_number]
+        cond1 = not variable_name in single_line
         cond2 = line_number < nlines
+        if match_name and (not cond1):
+            if "=" in single_line:
+                line_splits = single_line.split("=")
+            elif ":" in single_line:
+                line_splits = single_line.split(":")
+            if line_splits[0].strip() != variable_name:
+                cond1 = True
     if cond1 and (not cond2):  # no such variable_name
         variable_name = 0.0
         line_number = current_line
