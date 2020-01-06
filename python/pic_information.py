@@ -557,9 +557,12 @@ def get_variable_value(variable_name, current_line, content,
             cond1 = True
     while cond1 and cond2:
         line_number += 1
-        single_line = content[line_number]
-        cond1 = not variable_name in single_line
         cond2 = line_number < nlines
+        if cond2:
+            single_line = content[line_number]
+            cond1 = not variable_name in single_line
+        else:
+            cond1 = True
         if match_name and (not cond1):
             if "=" in single_line:
                 line_splits = single_line.split("=")
@@ -568,7 +571,7 @@ def get_variable_value(variable_name, current_line, content,
             if line_splits[0].strip() != variable_name:
                 cond1 = True
     if cond1 and (not cond2):  # no such variable_name
-        variable_name = 0.0
+        variable_value = 0.0
         line_number = current_line
     else:
         single_line = content[line_number]
