@@ -19,32 +19,34 @@ program particle_energization_io
     integer :: tstart, tend, tinterval, tframe, fields_interval, fd_tinterval
     integer :: nbins        ! Number of particle bins
     integer :: nbins_high   ! Number of bins for high-energy particles
-    real(fp) :: emin, emax  ! Minimum and maximum particle Lorentz factor
-    real(fp) :: emin_high   ! Minimum Lorentz factor for high-energy particles
-    real(fp) :: emax_high   ! Maximum Lorentz factor for high-energy particles
+    real(dp) :: emin, emax  ! Minimum and maximum particle Lorentz factor
+    real(dp) :: emin_high   ! Minimum Lorentz factor for high-energy particles
+    real(dp) :: emax_high   ! Maximum Lorentz factor for high-energy particles
     integer :: nbins_alpha  ! Number of bins for acceleration rate alpha at each energy bin
     integer :: nzone_x, nzone_y, nzone_z ! Number of zones in each PIC local domain
     ! Minimum and maximum of acceleration rate. Note that alpha can be possible
     ! and negative. Here, alpha_min and alpha_max are positive values.
     ! The negative part is just symmetric to the positive part.
-    real(fp) :: alpha_min, alpha_max
+    real(dp) :: alpha_min, alpha_max
     integer :: nbinx          ! Number of bins along x
     integer :: npic_domain_x  ! Number PIC domains along x in each bin
     integer, parameter :: nvar = 18
     integer :: separated_pre_post
-    real(fp), allocatable, dimension(:) :: ebins
-    real(fp), allocatable, dimension(:) :: ebins_high  ! For high-energy particles
-    real(fp), allocatable, dimension(:, :, :) :: fbins, fbins_sum
-    real(fp), allocatable, dimension(:, :, :) :: faniso, faniso_sum
-    real(fp), allocatable, dimension(:) :: alpha_bins
-    real(fp), allocatable, dimension(:, :, :) :: fbins_dist, fbins_dist_sum
-    real(fp), allocatable, dimension(:, :, :) :: fbins_vkappa_dist, fbins_vkappa_dist_sum
-    real(fp), allocatable, dimension(:, :, :) :: fbins_vkappa_grid_dist
-    real(fp), allocatable, dimension(:, :, :) :: fbins_vkappa_grid_dist_sum
-    real(fp), allocatable, dimension(:, :, :, :, :) :: falpha, faniso_3d
-    real(fp) :: de_log, emin_log
-    real(fp) :: dehigh_log, emin_high_log  ! For high-energy particles
-    real(fp) :: dalpha_log, alpha_min_log
+    real(dp), allocatable, dimension(:) :: ebins
+    real(dp), allocatable, dimension(:) :: ebins_high  ! For high-energy particles
+    real(dp), allocatable, dimension(:, :, :) :: fbins, fbins_sum
+    real(dp), allocatable, dimension(:, :, :) :: faniso, faniso_sum
+    real(dp), allocatable, dimension(:) :: alpha_bins
+    real(dp), allocatable, dimension(:, :, :) :: fbins_dist, fbins_dist_sum
+    real(dp), allocatable, dimension(:, :, :) :: fbins_vkappa_dist, fbins_vkappa_dist_sum
+    real(dp), allocatable, dimension(:, :, :) :: fbins_vkappa_grid_dist
+    real(dp), allocatable, dimension(:, :, :) :: fbins_vkappa_grid_dist_sum
+    real(dp), allocatable, dimension(:, :, :) :: fbins_vfluid_dote_dist
+    real(dp), allocatable, dimension(:, :, :) :: fbins_vfluid_dote_dist_sum
+    real(dp), allocatable, dimension(:, :, :, :, :) :: falpha, faniso_3d
+    real(dp) :: de_log, emin_log
+    real(dp) :: dehigh_log, emin_high_log  ! For high-energy particles
+    real(dp) :: dalpha_log, alpha_min_log
     integer :: i, tp_emf, tp_hydro
     logical :: is_translated_file
     type(particle), allocatable, dimension(:) :: ptls
@@ -125,12 +127,14 @@ program particle_energization_io
         allocate(faniso_sum(3, nbins + 1, nbinx))
 
         allocate(alpha_bins(nbins_alpha + 1))
-        allocate(fbins_dist((nbins_alpha+2)*4, nbins + 1, nvar - 1))
-        allocate(fbins_dist_sum((nbins_alpha+2)*4, nbins + 1, nvar - 1))
-        allocate(fbins_vkappa_dist((nbins_alpha+2)*2, nbins + 1, nvar))
-        allocate(fbins_vkappa_dist_sum((nbins_alpha+2)*2, nbins + 1, nvar))
-        allocate(fbins_vkappa_grid_dist((nbins_alpha+2)*2, nbins + 1, nvar))
-        allocate(fbins_vkappa_grid_dist_sum((nbins_alpha+2)*2, nbins + 1, nvar))
+        allocate(fbins_dist((nbins_alpha+2)*6, nbins + 1, nvar - 1))
+        allocate(fbins_dist_sum((nbins_alpha+2)*6, nbins + 1, nvar - 1))
+        allocate(fbins_vkappa_dist((nbins_alpha+2)*4, nbins + 1, nvar))
+        allocate(fbins_vkappa_dist_sum((nbins_alpha+2)*4, nbins + 1, nvar))
+        allocate(fbins_vkappa_grid_dist((nbins_alpha+2)*4, nbins + 1, nvar))
+        allocate(fbins_vkappa_grid_dist_sum((nbins_alpha+2)*4, nbins + 1, nvar))
+        allocate(fbins_vfluid_dote_dist((nbins_alpha+2)*4, nbins + 1, nvar))
+        allocate(fbins_vfluid_dote_dist_sum((nbins_alpha+2)*4, nbins + 1, nvar))
 
         allocate(ebins_high(nbins_high+1))
         allocate(falpha(nbins_high+1, nzonex_local, nzoney_local, nzonez_local, 2*nvar-1))
@@ -170,6 +174,7 @@ program particle_energization_io
         deallocate(alpha_bins, fbins_dist, fbins_dist_sum)
         deallocate(fbins_vkappa_dist, fbins_vkappa_dist_sum)
         deallocate(fbins_vkappa_grid_dist, fbins_vkappa_grid_dist_sum)
+        deallocate(fbins_vfluid_dote_dist, fbins_vfluid_dote_dist_sum)
         deallocate(ebins_high, falpha)
         deallocate(faniso_3d)
     end subroutine free_dists
@@ -187,6 +192,8 @@ program particle_energization_io
         fbins_vkappa_dist_sum = 0.0
         fbins_vkappa_grid_dist = 0.0
         fbins_vkappa_grid_dist_sum = 0.0
+        fbins_vfluid_dote_dist = 0.0
+        fbins_vfluid_dote_dist_sum = 0.0
         faniso = 0.0
         faniso_sum = 0.0
         falpha = 0.0
@@ -279,7 +286,7 @@ program particle_energization_io
         integer :: dom_x, dom_y, dom_z
         integer :: tindex, tindex_pre, tindex_pos
         integer :: t1, t2, t3, t4, clock_rate, clock_max
-        real(fp) :: dt_fields
+        real(dp) :: dt_fields
 
         call init_emfields
         call init_emfields_derivatives
@@ -615,46 +622,47 @@ program particle_energization_io
         use file_header, only: pheader
         implicit none
         integer, intent(in) :: tindex, dom_x, dom_y, dom_z
-        real(fp), intent(in) :: dt_fields
+        real(dp), intent(in) :: dt_fields
         type(particle) :: ptl
         integer :: ino, jno, kno   ! w.r.t the node
         real(fp) :: dnx, dny, dnz
         integer :: nxg, nyg, nzg, icell
         integer :: ibin, n, ibin_high
         integer :: iptl, nptl
-        real(fp) :: gama, igama, iene, ux, uy, uz, vx, vy, vz
-        real(fp) :: vpara, vperp, vparax, vparay, vparaz
-        real(fp) :: vperpx, vperpy, vperpz, tmp
-        real(fp) :: bxn, byn, bzn, absB0, ib2, ib, edotb
-        real(fp) :: bxx, byy, bzz, bxy, bxz, byz
-        real(fp) :: dke_para, dke_perp, weight
-        real(fp) :: pxx, pxy, pxz, pyx, pyy, pyz, pzx, pzy, pzz
-        real(fp) :: pscalar, ppara, pperp, bbsigma, divv0, divv0_3
-        real(fp) :: pdivv, pshear, ptensor_ene
-        real(fp) :: curv_ene, grad_ene, parad_ene
-        real(fp) :: vcx, vcy, vcz, kappax, kappay, kappaz
-        real(fp) :: mag_moment, vgx, vgy, vgz, dBdx, dBdy, dBdz
-        real(fp) :: vdotB, vperpx0, vperpy0, vperpz0
-        real(fp) :: udotB, uperpx0, uperpy0, uperpz0
-        real(fp) :: vexb_x, vexb_y, vexb_z
-        real(fp) :: vpara_dx, vpara_dy, vpara_dz, vpara_d  ! Parallel drift
-        real(fp) :: idt, dene_m
-        real(fp) :: vexbx1, vexby1, vexbz1
-        real(fp) :: vexbx2, vexby2, vexbz2
-        real(fp) :: vpx, vpy, vpz, polar_ene_time
-        real(fp) :: dvxdt, dvydt, dvzdt
-        real(fp) :: absB1_0, absB2_0, ib2_1, ib2_2, ib_1, ib_2
-        real(fp) :: dbxdt, dbydt, dbzdt, init_ene_time
-        real(fp) :: vpx0, vpy0, vpz0
-        real(fp) :: polar_ene_spatial, init_ene_spatial
-        real(fp) :: polar_fluid_time, polar_fluid_spatial
-        real(fp) :: vperpx1, vperpy1, vperpz1
-        real(fp) :: vperpx2, vperpy2, vperpz2
-        real(fp) :: polar_ene_time_v, polar_ene_spatial_v
-        real(fp) :: param
-        real(fp), dimension(18) :: acc_rate
-        integer :: ivar, ialpha, ibinx, ivkappa_ptl, ivkappa_grid
+        real(dp) :: gama, igama, iene, ux, uy, uz, vx, vy, vz
+        real(dp) :: vpara, vperp, vparax, vparay, vparaz
+        real(dp) :: vperpx, vperpy, vperpz, tmp
+        real(dp) :: bxn, byn, bzn, absB0, ib2, ib, edotb
+        real(dp) :: bxx, byy, bzz, bxy, bxz, byz
+        real(dp) :: dke_para, dke_perp, weight
+        real(dp) :: pxx, pxy, pxz, pyx, pyy, pyz, pzx, pzy, pzz
+        real(dp) :: pscalar, ppara, pperp, bbsigma, divv0, divv0_3
+        real(dp) :: pdivv, pshear, ptensor_ene
+        real(dp) :: curv_ene, grad_ene, parad_ene
+        real(dp) :: vcx, vcy, vcz, kappax, kappay, kappaz
+        real(dp) :: mag_moment, vgx, vgy, vgz, dBdx, dBdy, dBdz
+        real(dp) :: vdotB, vperpx0, vperpy0, vperpz0
+        real(dp) :: udotB, uperpx0, uperpy0, uperpz0
+        real(dp) :: vexb_x, vexb_y, vexb_z
+        real(dp) :: vpara_dx, vpara_dy, vpara_dz, vpara_d  ! Parallel drift
+        real(dp) :: idt, dene_m
+        real(dp) :: vexbx1, vexby1, vexbz1
+        real(dp) :: vexbx2, vexby2, vexbz2
+        real(dp) :: vpx, vpy, vpz, polar_ene_time
+        real(dp) :: dvxdt, dvydt, dvzdt
+        real(dp) :: absB1_0, absB2_0, ib2_1, ib2_2, ib_1, ib_2
+        real(dp) :: dbxdt, dbydt, dbzdt, init_ene_time
+        real(dp) :: vpx0, vpy0, vpz0
+        real(dp) :: polar_ene_spatial, init_ene_spatial
+        real(dp) :: polar_fluid_time, polar_fluid_spatial
+        real(dp) :: vperpx1, vperpy1, vperpz1
+        real(dp) :: vperpx2, vperpy2, vperpz2
+        real(dp) :: polar_ene_time_v, polar_ene_spatial_v
+        real(dp) :: param, qvfluid_dote, arate_sq
+        real(dp), dimension(18) :: acc_rate
+        integer :: ivar, ialpha, ibinx, ivkappa_ptl, ivkappa_grid, ivdote
         integer :: izonex_local, izoney_local, izonez_local
+        integer :: alpha_offset
         character(len=16) :: cid
 
         call index_to_rank(dom_x, dom_y, dom_z, domain%pic_tx, &
@@ -1025,21 +1033,44 @@ program particle_energization_io
                 call get_ialpha(acc_rate(6), weight, ivkappa_ptl)
                 ! The bin for grid-based vexb_kappa
                 call get_ialpha(acc_rate(6)/(iene*ptl_mass*gama*vpara**2), weight, ivkappa_grid)
+                qvfluid_dote = ptl_charge * weight * (vx0 * ex0 + vy0 * ey0 + vz0 * ez0) * iene
+                call get_ialpha(qvfluid_dote, weight, ivdote)
+                alpha_offset = (nbins_alpha+2)*2
                 fbins_vkappa_dist(ivkappa_ptl, ibin+1, 1) = &
                     fbins_vkappa_dist(ivkappa_ptl, ibin+1, 1) + acc_rate(1)
                 fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, 1) = &
                     fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, 1) + acc_rate(1)
+                fbins_vfluid_dote_dist(ivdote, ibin+1, 1) = &
+                    fbins_vfluid_dote_dist(ivdote, ibin+1, 1) + acc_rate(1)
+                fbins_vkappa_dist(ivkappa_ptl+alpha_offset, ibin+1, 1) = &
+                    fbins_vkappa_dist(ivkappa_ptl+alpha_offset, ibin+1, 1) + acc_rate(1)
+                fbins_vkappa_grid_dist(ivkappa_grid+alpha_offset, ibin+1, 1) = &
+                    fbins_vkappa_grid_dist(ivkappa_grid+alpha_offset, ibin+1, 1) + acc_rate(1)
+                fbins_vfluid_dote_dist(ivdote+alpha_offset, ibin+1, 1) = &
+                    fbins_vfluid_dote_dist(ivdote+alpha_offset, ibin+1, 1) + acc_rate(1)
                 do ivar = 2, nvar
                     call get_ialpha(acc_rate(ivar), weight, ialpha)
                     fbins_dist(ialpha, ibin+1, ivar-1) = &
                         fbins_dist(ialpha, ibin+1, ivar-1) + acc_rate(1)
-                    ialpha = ialpha + (nbins_alpha + 2) * 2
+                    ialpha = ialpha + alpha_offset
                     fbins_dist(ialpha, ibin+1, ivar-1) = &
                         fbins_dist(ialpha, ibin+1, ivar-1) + acc_rate(ivar)
+                    ialpha = ialpha + alpha_offset
+                    arate_sq = acc_rate(ivar)**2
+                    fbins_dist(ialpha, ibin+1, ivar-1) = &
+                        fbins_dist(ialpha, ibin+1, ivar-1) + arate_sq
                     fbins_vkappa_dist(ivkappa_ptl, ibin+1, ivar) = &
                         fbins_vkappa_dist(ivkappa_ptl, ibin+1, ivar) + acc_rate(ivar)
                     fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, ivar) = &
                         fbins_vkappa_grid_dist(ivkappa_grid, ibin+1, ivar) + acc_rate(ivar)
+                    fbins_vfluid_dote_dist(ivdote, ibin+1, ivar) = &
+                        fbins_vfluid_dote_dist(ivdote, ibin+1, ivar) + acc_rate(ivar)
+                    fbins_vkappa_dist(ivkappa_ptl+alpha_offset, ibin+1, ivar) = &
+                        fbins_vkappa_dist(ivkappa_ptl+alpha_offset, ibin+1, ivar) + arate_sq
+                    fbins_vkappa_grid_dist(ivkappa_grid+alpha_offset, ibin+1, ivar) = &
+                        fbins_vkappa_grid_dist(ivkappa_grid+alpha_offset, ibin+1, ivar) + arate_sq
+                    fbins_vfluid_dote_dist(ivdote+alpha_offset, ibin+1, ivar) = &
+                        fbins_vfluid_dote_dist(ivdote+alpha_offset, ibin+1, ivar) + arate_sq
                 enddo
             endif
 
@@ -1078,9 +1109,9 @@ program particle_energization_io
     !<--------------------------------------------------------------------------
     subroutine get_ialpha(acc_rate, weight, ialpha)
         implicit none
-        real(fp), intent(in) :: acc_rate, weight
+        real(dp), intent(in) :: acc_rate, weight
         integer, intent(out) :: ialpha
-        real(fp) :: arate_no_weight
+        real(dp) :: arate_no_weight
         arate_no_weight = acc_rate / weight
         if (arate_no_weight > 0) then
             if (arate_no_weight < alpha_min) then
@@ -1116,7 +1147,7 @@ program particle_energization_io
         character(len=256) :: fname
         logical :: dir_e
         call MPI_REDUCE(fbins, fbins_sum, (nbins+1)*nbinx*(2*nvar-1), &
-                MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+                MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
             if (.not. dir_e) then
@@ -1132,14 +1163,14 @@ program particle_energization_io
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
-            write(fh1, pos=posf) (nbins + 1.0)
-            posf = posf + 4
-            write(fh1, pos=posf) (nbinx + 0.0)
-            posf = posf + 4
-            write(fh1, pos=posf) (2*nvar - 1.0)
-            posf = posf + 4
+            write(fh1, pos=posf) (nbins + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nbinx + 0.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (2*nvar - 1.0d0)
+            posf = posf + 8
             write(fh1, pos=posf) ebins
-            posf = posf + (nbins + 1) * 4
+            posf = posf + (nbins + 1) * 8
             write(fh1, pos=posf) fbins_sum
             close(fh1)
         endif
@@ -1157,7 +1188,7 @@ program particle_energization_io
         character(len=256) :: fname
         logical :: dir_e
         call MPI_REDUCE(faniso, faniso_sum, (nbins+1)*nbinx*3, &
-                MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+                MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
             if (.not. dir_e) then
@@ -1173,14 +1204,14 @@ program particle_energization_io
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
-            write(fh1, pos=posf) 3.0
-            posf = posf + 4
-            write(fh1, pos=posf) (nbins + 1.0)
-            posf = posf + 4
-            write(fh1, pos=posf) (nbinx + 0.0)
-            posf = posf + 4
+            write(fh1, pos=posf) 3.0d0
+            posf = posf + 8
+            write(fh1, pos=posf) (nbins + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nbinx + 0.0d0)
+            posf = posf + 8
             write(fh1, pos=posf) ebins
-            posf = posf + (nbins + 1) * 4
+            posf = posf + (nbins + 1) * 8
             write(fh1, pos=posf) faniso_sum
             close(fh1)
         endif
@@ -1199,8 +1230,8 @@ program particle_energization_io
         character(len=256) :: fname
         logical :: dir_e
         call MPI_REDUCE(fbins_dist, fbins_dist_sum, &
-            4*(nbins_alpha+2) * (nbins+1) * (nvar-1), &
-            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            6*(nbins_alpha+2) * (nbins+1) * (nvar-1), &
+            MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
             if (.not. dir_e) then
@@ -1216,24 +1247,24 @@ program particle_energization_io
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
-            write(fh1, pos=posf) nbins_alpha + 1.0
-            posf = posf + 4
-            write(fh1, pos=posf) nbins + 1.0
-            posf = posf + 4
-            write(fh1, pos=posf) nvar - 1.0
-            posf = posf + 4
+            write(fh1, pos=posf) (nbins_alpha + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nbins + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nvar - 1.0d0)
+            posf = posf + 8
             write(fh1, pos=posf) ebins
-            posf = posf + (nbins + 1) * 4
+            posf = posf + (nbins + 1) * 8
             write(fh1, pos=posf) alpha_bins
-            posf = posf + (nbins_alpha + 1) * 4
+            posf = posf + (nbins_alpha + 1) * 8
             write(fh1, pos=posf) fbins_dist_sum
             close(fh1)
         endif
 
         ! Accelerate rate distributions binned by rate due to curvature drift
         call MPI_REDUCE(fbins_vkappa_dist, fbins_vkappa_dist_sum, &
-            2*(nbins_alpha+2) * (nbins+1) * nvar, &
-            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            4*(nbins_alpha+2) * (nbins+1) * nvar, &
+            MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
             if (.not. dir_e) then
@@ -1249,24 +1280,24 @@ program particle_energization_io
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
-            write(fh1, pos=posf) nbins_alpha + 1.0
-            posf = posf + 4
-            write(fh1, pos=posf) nbins + 1.0
-            posf = posf + 4
-            write(fh1, pos=posf) nvar - 1.0
-            posf = posf + 4
+            write(fh1, pos=posf) (nbins_alpha + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nbins + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nvar - 1.0d0)
+            posf = posf + 8
             write(fh1, pos=posf) ebins
-            posf = posf + (nbins + 1) * 4
+            posf = posf + (nbins + 1) * 8
             write(fh1, pos=posf) alpha_bins
-            posf = posf + (nbins_alpha + 1) * 4
+            posf = posf + (nbins_alpha + 1) * 8
             write(fh1, pos=posf) fbins_vkappa_dist_sum
             close(fh1)
         endif
 
         ! Accelerate rate distributions binned grid-based vexb_kappa
         call MPI_REDUCE(fbins_vkappa_grid_dist, fbins_vkappa_grid_dist_sum, &
-            2*(nbins_alpha+2) * (nbins+1) * nvar, &
-            MPI_REAL, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+            4*(nbins_alpha+2) * (nbins+1) * nvar, &
+            MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
         if (myid == master) then
             inquire(file='./data/particle_interp/.', exist=dir_e)
             if (.not. dir_e) then
@@ -1282,17 +1313,50 @@ program particle_energization_io
             open(unit=fh1, file=fname, access='stream', status='unknown', &
                 form='unformatted', action='write')
             posf = 1
-            write(fh1, pos=posf) nbins_alpha + 1.0
-            posf = posf + 4
-            write(fh1, pos=posf) nbins + 1.0
-            posf = posf + 4
-            write(fh1, pos=posf) nvar - 1.0
-            posf = posf + 4
+            write(fh1, pos=posf) (nbins_alpha + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nbins + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nvar - 1.0d0)
+            posf = posf + 8
             write(fh1, pos=posf) ebins
-            posf = posf + (nbins + 1) * 4
+            posf = posf + (nbins + 1) * 8
             write(fh1, pos=posf) alpha_bins
-            posf = posf + (nbins_alpha + 1) * 4
+            posf = posf + (nbins_alpha + 1) * 8
             write(fh1, pos=posf) fbins_vkappa_grid_dist_sum
+            close(fh1)
+        endif
+
+        ! Accelerate rate distributions binned grid-based fluid velocity dot electric field
+        call MPI_REDUCE(fbins_vfluid_dote_dist, fbins_vfluid_dote_dist_sum, &
+            4*(nbins_alpha+2) * (nbins+1) * nvar, &
+            MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD, ierr)
+        if (myid == master) then
+            inquire(file='./data/particle_interp/.', exist=dir_e)
+            if (.not. dir_e) then
+                call system('mkdir -p ./data/particle_interp/')
+            endif
+            print*, "Saving dists of particle accelerate rate binned by qvfluid_dotE..."
+
+            fh1 = 67
+
+            write(tindex_str, "(I0)") tindex
+            fname = 'data/particle_interp/'//trim(var_name)//'_vfluid_dote_'//species
+            fname = trim(fname)//"_"//trim(tindex_str)//'.gda'
+            open(unit=fh1, file=fname, access='stream', status='unknown', &
+                form='unformatted', action='write')
+            posf = 1
+            write(fh1, pos=posf) (nbins_alpha + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nbins + 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) (nvar - 1.0d0)
+            posf = posf + 8
+            write(fh1, pos=posf) ebins
+            posf = posf + (nbins + 1) * 8
+            write(fh1, pos=posf) alpha_bins
+            posf = posf + (nbins_alpha + 1) * 8
+            write(fh1, pos=posf) fbins_vfluid_dote_dist_sum
             close(fh1)
         endif
     end subroutine save_acceleration_rate_dist
@@ -1367,9 +1431,9 @@ program particle_energization_io
         call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F, error)
 
         ! Particle distribution
-        call h5dcreate_f(file_id, 'particle_distribution', H5T_NATIVE_REAL, &
+        call h5dcreate_f(file_id, 'particle_distribution', H5T_NATIVE_DOUBLE, &
             filespace, dataset_id, error)
-        call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, falpha(:, :, :, :, 1), &
+        call h5dwrite_f(dataset_id, H5T_NATIVE_DOUBLE, falpha(:, :, :, :, 1), &
             dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
             xfer_prp=plist_id)
         call h5dclose_f(dataset_id, error)
@@ -1377,9 +1441,9 @@ program particle_energization_io
         ! Accelerates rates
         call h5gcreate_f(file_id, 'acc_rates', group_id, error)
         do ivar = 1, nvar-1
-            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_REAL, &
+            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_DOUBLE, &
                 filespace, dataset_id, error)
-            call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, falpha(:, :, :, :, ivar+1), &
+            call h5dwrite_f(dataset_id, H5T_NATIVE_DOUBLE, falpha(:, :, :, :, ivar+1), &
                 dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             call h5dclose_f(dataset_id, error)
@@ -1389,9 +1453,9 @@ program particle_energization_io
         ! Square of reconnection rates
         call h5gcreate_f(file_id, 'acc_rates_square', group_id, error)
         do ivar = 1, nvar-1
-            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_REAL, &
+            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_DOUBLE, &
                 filespace, dataset_id, error)
-            call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, falpha(:, :, :, :, ivar+nvar), &
+            call h5dwrite_f(dataset_id, H5T_NATIVE_DOUBLE, falpha(:, :, :, :, ivar+nvar), &
                 dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             call h5dclose_f(dataset_id, error)
@@ -1474,9 +1538,9 @@ program particle_energization_io
         ! Accelerates rates
         call h5gcreate_f(file_id, 'anisotropy', group_id, error)
         do ivar = 1, 3
-            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_REAL, &
+            call h5dcreate_f(group_id, trim(var_names(ivar)), H5T_NATIVE_DOUBLE, &
                 filespace, dataset_id, error)
-            call h5dwrite_f(dataset_id, H5T_NATIVE_REAL, faniso_3d(:, :, :, :, ivar), &
+            call h5dwrite_f(dataset_id, H5T_NATIVE_DOUBLE, faniso_3d(:, :, :, :, ivar), &
                 dset_dims, error, file_space_id=filespace, mem_space_id=memspace, &
                 xfer_prp=plist_id)
             call h5dclose_f(dataset_id, error)
