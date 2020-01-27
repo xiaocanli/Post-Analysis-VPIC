@@ -111,7 +111,7 @@ def plot_spectrum_multi(plot_config):
                      transform=ax1.transAxes)
 
         ax1.tick_params(bottom=True, top=True, left=True, right=True)
-        ax1.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax1.tick_params(axis='x', which='minor', direction='in', top=True)
         ax1.tick_params(axis='x', which='major', direction='in')
         ax1.tick_params(axis='y', which='minor', direction='in')
         ax1.tick_params(axis='y', which='major', direction='in')
@@ -120,11 +120,11 @@ def plot_spectrum_multi(plot_config):
             ax1.set_ylim([1E-1, 1E9])
         else:
             ax1.set_ylim([1E-1, 1E13])
-        ax1.tick_params(axis='x', labelbottom='off')
+        ax1.tick_params(axis='x', labelbottom=False)
         if irun == 0:
             ax1.set_ylabel(r'$f(\varepsilon)$', fontsize=12)
         else:
-            ax1.tick_params(axis='y', labelleft='off')
+            ax1.tick_params(axis='y', labelleft=False)
         ax1.tick_params(labelsize=10)
         rect_cbar = np.copy(rect_cbar0)
         rect_cbar[0] += (rect[2] + hgap) * irun
@@ -183,15 +183,15 @@ def plot_spectrum_multi(plot_config):
         else:
             ax2.set_ylim([1E-1, 1E13])
         ax2.tick_params(bottom=True, top=True, left=True, right=True)
-        ax2.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax2.tick_params(axis='x', which='minor', direction='in', top=True)
         ax2.tick_params(axis='x', which='major', direction='in')
-        ax2.tick_params(axis='y', which='minor', direction='in', left='on')
+        ax2.tick_params(axis='y', which='minor', direction='in', left=True)
         ax2.tick_params(axis='y', which='major', direction='in')
 
         if irun == 0:
             ax2.set_ylabel(r'$f(\varepsilon)$', fontsize=12)
         else:
-            ax2.tick_params(axis='y', labelleft='off')
+            ax2.tick_params(axis='y', labelleft=False)
         ax2.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=12)
         ax2.tick_params(labelsize=10)
         rect_cbar[1] -= rect[3] + vgap
@@ -270,9 +270,9 @@ def plot_spectrum_single(plot_config, show_plot=True):
         ax.legend(loc=3, prop={'size': 16}, ncol=1,
                   shadow=False, fancybox=False, frameon=False)
         ax.tick_params(bottom=True, top=True, left=True, right=True)
-        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='minor', direction='in', top=True)
         ax.tick_params(axis='x', which='major', direction='in')
-        ax.tick_params(axis='y', which='minor', direction='in', left='on')
+        ax.tick_params(axis='y', which='minor', direction='in', left=True)
         ax.tick_params(axis='y', which='major', direction='in')
         ax.set_xlim([1E-1, 2E3])
         ax.set_ylim([1E-4, 1E9])
@@ -864,7 +864,7 @@ def plot_spectrum(plot_config):
     species = plot_config["species"]
     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    if species == 'e':
+    if species in ['e', 'electron']:
         vth = pic_info.vthe
     else:
         vth = pic_info.vthi
@@ -900,9 +900,9 @@ def plot_spectrum(plot_config):
                       color = plt.cm.Spectral_r((tframe - tstart_plot)/float(nframes_plot), 1))
         ax.grid(True)
         ax.tick_params(bottom=True, top=True, left=True, right=True)
-        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='minor', direction='in', top=True)
         ax.tick_params(axis='x', which='major', direction='in')
-        ax.tick_params(axis='y', which='minor', direction='in', left='on')
+        ax.tick_params(axis='y', which='minor', direction='in', left=True)
         ax.tick_params(axis='y', which='major', direction='in')
         if species in ['e', 'electron']:
             ax.set_xlim([1E-1, 2E3])
@@ -1090,9 +1090,9 @@ def plot_spectrum_both(plot_config, show_plot=True):
     ax.legend(loc=3, prop={'size': 10}, ncol=1,
               shadow=False, fancybox=False, frameon=False)
     ax.tick_params(bottom=True, top=True, left=True, right=True)
-    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
     ax.tick_params(axis='x', which='major', direction='in')
-    ax.tick_params(axis='y', which='minor', direction='in', left='on')
+    ax.tick_params(axis='y', which='minor', direction='in', left=True)
     ax.tick_params(axis='y', which='major', direction='in')
     ax.set_xlim([1E-1, 2E3])
     ax.set_ylim([1E-1, 2E12])
@@ -1200,9 +1200,9 @@ def plot_local_spectrum(plot_config):
     ax.legend(loc=3, prop={'size': 16}, ncol=1,
               shadow=False, fancybox=False, frameon=False)
     ax.tick_params(bottom=True, top=True, left=True, right=True)
-    ax.tick_params(axis='x', which='minor', direction='in', top='on')
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
     ax.tick_params(axis='x', which='major', direction='in')
-    ax.tick_params(axis='y', which='minor', direction='in', left='on')
+    ax.tick_params(axis='y', which='minor', direction='in', left=True)
     ax.tick_params(axis='y', which='major', direction='in')
     ax.set_xlim([1E-1, 2E3])
     ax.set_ylim([1E-1, 2E7])
@@ -1456,9 +1456,9 @@ def plot_local_spectrum2d(plot_config):
         # ax.legend(loc=3, prop={'size': 16}, ncol=1,
         #           shadow=False, fancybox=False, frameon=False)
         ax.tick_params(bottom=True, top=True, left=True, right=True)
-        ax.tick_params(axis='x', which='minor', direction='in', top='on')
+        ax.tick_params(axis='x', which='minor', direction='in', top=True)
         ax.tick_params(axis='x', which='major', direction='in')
-        ax.tick_params(axis='y', which='minor', direction='in', left='on')
+        ax.tick_params(axis='y', which='minor', direction='in', left=True)
         ax.tick_params(axis='y', which='major', direction='in')
         ax.set_xlim([1E-1, 5E2])
         ax.set_ylim([1E0, 2E6])
@@ -1934,15 +1934,15 @@ def plot_momentum_spectrum_multi(plot_config, show_plot=True):
                               linewidth=0.5, linestyle='--', color='k')
             if i == 0:
                 if irun == 0:
-                    ax.tick_params(axis='x', labelbottom='off')
+                    ax.tick_params(axis='x', labelbottom=False)
                 else:
                     ax.set_xlabel(r'$p/p_\text{th}$', fontsize=10)
                 ax.set_ylabel(r'$f(p)$', fontsize=10)
             else:
-                ax.tick_params(axis='x', labelbottom='off')
-                ax.tick_params(axis='y', labelleft='off')
+                ax.tick_params(axis='x', labelbottom=False)
+                ax.tick_params(axis='y', labelleft=False)
             ax.tick_params(bottom=True, top=True, left=True, right=True)
-            ax.tick_params(axis='x', which='minor', direction='in', top='on')
+            ax.tick_params(axis='x', which='minor', direction='in', top=True)
             ax.tick_params(axis='x', which='major', direction='in')
             ax.tick_params(axis='y', which='minor', direction='in')
             ax.tick_params(axis='y', which='major', direction='in')
@@ -2234,6 +2234,82 @@ def compare_spectrum(plot_config):
     plt.show()
 
 
+def compare_spectrum_bg(plot_config):
+    """Compare spectra for 3D runs with different guide field
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    root_dir = "/net/scratch3/xiaocanli/reconnection/Cori_runs/"
+    bgs = [0.2, 0.4, 0.6, 1.0]
+    fig = plt.figure(figsize=[5, 3.5])
+    rect = [0.14, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    colors = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for irun, bg in enumerate(bgs):
+        pic_run = "3D-Lx150-bg" + str(bg) + "-150ppc-2048KNL"
+        pic_run_dir = root_dir + pic_run + "/"
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        if species in ['e', 'electron']:
+            vth = pic_info.vthe
+        else:
+            vth = pic_info.vthi
+        if bg in [0.4, 0.6]:
+            if species in ['e', 'electron']:
+                species = 'electron'
+            else:
+                species = 'ion'
+        else:
+            if species in ['e', 'electron']:
+                species = 'e'
+            else:
+                species = 'i'
+        gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+        eth = gama - 1.0
+        ebins = np.logspace(-6, 4, 1000)
+        ebins /= eth
+
+        tinterval = pic_info.particle_interval
+        dtf = math.ceil(pic_info.dt_fields / 0.1) * 0.1
+        tframe = 28
+        tindex = tinterval * tframe
+        fname = (pic_run_dir + "spectrum_combined/spectrum_" +
+                 species + "_" + str(tindex) + ".dat")
+        spect = np.fromfile(fname, dtype=np.float32)
+        ndata, = spect.shape
+        spect[3:] /= np.gradient(ebins)
+        spect[spect == 0] = np.nan
+        ax.loglog(ebins, spect[3:]*ebins, linewidth=2, linestyle='-',
+                  label=r'$b_g=' + str(bg) + '$')
+
+    ax.legend(loc=3, prop={'size': 12}, ncol=1,
+              shadow=False, fancybox=True, frameon=True)
+    ax.grid(True)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in', left=True)
+    ax.tick_params(axis='y', which='major', direction='in')
+    if species in ['e', 'electron']:
+        ax.set_xlim([5E0, 2E3])
+    else:
+        ax.set_xlim([1E-1, 2E3])
+
+    ax.set_xlabel(r'$\varepsilon/\varepsilon_\text{th}$', fontsize=16)
+    ax.set_ylabel(r'$\varepsilon f(\varepsilon)$', fontsize=16)
+    ax.tick_params(labelsize=12)
+
+    fdir = '../img/cori_3d/spectrum/'
+    mkdir_p(fdir)
+    # fname = fdir + species + 'spect_32_bg' + str(int(bg*10)).zfill(2) + '.pdf'
+    # fig.savefig(fname)
+
+    plt.show()
+
+
 def spectrum_along_x(plot_config):
     """plot spectrum along x
 
@@ -2365,6 +2441,8 @@ def get_cmd_args():
                         help='whether to plot spectra only in reconnection layer')
     parser.add_argument('--absj_local_spect', action="store_true", default=False,
                         help='whether to plot current density with local spectrum')
+    parser.add_argument('--compare_spectrum_bg', action="store_true", default=False,
+                        help='whether to compare spectra for different guide field')
     return parser.parse_args()
 
 
@@ -2382,6 +2460,8 @@ def analysis_single_frames(plot_config, args):
                 plot_spectrum_single(plot_config, args.show_plot)
     elif args.compare_spectrum:
         compare_spectrum(plot_config)
+    elif args.compare_spectrum_bg:
+        compare_spectrum_bg(plot_config)
     elif args.mom_spectrum:
         if args.single_run:
             plot_momentum_spectrum(plot_config)

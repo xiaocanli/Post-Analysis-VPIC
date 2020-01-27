@@ -1805,7 +1805,7 @@ def plot_absj_tri(plot_config, show_plot=True):
 def get_cmd_args():
     """Get command line arguments
     """
-    default_pic_run = 'test_2d'
+    default_pic_run = 'mime1_sigmae100_vthe04_db1_1024de'
     default_pic_run_dir = ('/net/scratch4/xiaocanli/relativistic_turbulence/' +
                            default_pic_run + '/')
     parser = argparse.ArgumentParser(description='Analysis for relativistic turbulence runs')
