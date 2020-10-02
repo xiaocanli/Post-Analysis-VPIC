@@ -2015,18 +2015,19 @@ def fit_thermal_core(ene, f):
         fthermal: thermal part of the particle distribution.
     """
     print('Fitting to get the thermal core of the particle distribution')
-    estart = 0
+    estart = 1
+    fnorm = 1E8
     ng = 3
     kernel = np.ones(ng) / float(ng)
-    fnew = np.convolve(f, kernel, 'same')
-    nshift = 10  # grids shift for fitting thermal core.
+    fnew = np.convolve(f, kernel, 'same') / fnorm
+    nshift = 100  # grids shift for fitting thermal core.
     eend = np.argmax(fnew) + nshift
     popt, pcov = curve_fit(fitting_funcs.func_maxwellian,
-                           ene[estart:eend], f[estart:eend])
+                           ene[estart:eend], fnew[estart:eend])
     fthermal = fitting_funcs.func_maxwellian(ene, popt[0], popt[1])
-    print('Energy with maximum flux: %f' % ene[eend - 10])
+    print('Energy with maximum flux: %f' % ene[eend - nshift])
     print('Energy with maximum flux in fitted thermal core: %f' % (0.5 / popt[1]))
-    return fthermal
+    return fthermal * fnorm
 
 
 def accumulated_particle_info(ene, f):
@@ -2279,8 +2280,21 @@ def compare_spectrum_bg(plot_config):
         fname = (pic_run_dir + "spectrum_combined/spectrum_" +
                  species + "_" + str(tindex) + ".dat")
         spect = np.fromfile(fname, dtype=np.float32)
-        ndata, = spect.shape
         spect[3:] /= np.gradient(ebins)
+        fthermal = fit_thermal_core(ebins, spect[3:])
+        fnonthermal = spect[3:] - fthermal
+        eindex, _ = find_nearest(ebins, 20)
+        nacc, eacc = accumulated_particle_info(ebins, fnonthermal)
+        print("Number fraction (E > 20Eth (Bg=%f)): %0.3f%%" %
+              (bg, (nacc[-1] - nacc[eindex])*100/nacc[-1]))
+        print("Energy fraction (E > 20Eth (Bg=%f)): %0.3f%%" %
+              (bg, (eacc[-1] - eacc[eindex])*100/eacc[-1]))
+        eindex, _ = find_nearest(ebins, 100)
+        nacc, eacc = accumulated_particle_info(ebins, fnonthermal)
+        print("Number fraction (E > 100Eth (Bg=%f)): %0.3f%%" %
+              (bg, (nacc[-1] - nacc[eindex])*100/nacc[-1]))
+        print("Energy fraction (E > 100Eth (Bg=%f)): %0.3f%%" %
+              (bg, (eacc[-1] - eacc[eindex])*100/eacc[-1]))
         spect[spect == 0] = np.nan
         ax.loglog(ebins, spect[3:]*ebins, linewidth=2, linestyle='-',
                   label=r'$b_g=' + str(bg) + '$')
@@ -2294,7 +2308,7 @@ def compare_spectrum_bg(plot_config):
     ax.tick_params(axis='y', which='minor', direction='in', left=True)
     ax.tick_params(axis='y', which='major', direction='in')
     if species in ['e', 'electron']:
-        ax.set_xlim([5E0, 2E3])
+        ax.set_xlim([1E0, 2E3])
     else:
         ax.set_xlim([1E-1, 2E3])
 
@@ -2304,8 +2318,8 @@ def compare_spectrum_bg(plot_config):
 
     fdir = '../img/cori_3d/spectrum/'
     mkdir_p(fdir)
-    # fname = fdir + species + 'spect_32_bg' + str(int(bg*10)).zfill(2) + '.pdf'
-    # fig.savefig(fname)
+    fname = fdir + species + 'spect_bgs.pdf'
+    fig.savefig(fname)
 
     plt.show()
 

@@ -650,7 +650,10 @@ def plot_anisotropy_pub(plot_config, show_plot=True):
     pic_runs = ["3D-Lx150-bg" + str(bg) + "-150ppc-2048KNL"]
     pic_runs.append("2D-Lx150-bg" + str(bg) + "-150ppc-16KNL")
     root_dir = "/net/scratch3/xiaocanli/reconnection/Cori_runs/"
-    tframes = [10, 15, 20]
+    if bg_str == "02":
+        tframes = [10, 15, 20]
+    elif bg_str == "10":
+        tframes = [10, 22, 40]
     lstyles = ['-', '--', ':']
     fig = plt.figure(figsize=[3.5, 2.5])
     rect = [0.16, 0.16, 0.8, 0.8]
@@ -692,7 +695,7 @@ def plot_anisotropy_pub(plot_config, show_plot=True):
                     linestyle=lstyle, color=COLORS[iframe])
 
     ax.set_xlim([0, 250])
-    ax.set_ylim([0.8, 3.6])
+    # ax.set_ylim([0.8, 3.6])
     ax.plot(ax.get_xlim(), [1, 1], color='k', linewidth=0.5, linestyle='-')
     ax.tick_params(labelsize=8)
     ax.tick_params(bottom=True, top=True, left=True, right=True)

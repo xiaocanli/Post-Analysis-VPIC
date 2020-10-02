@@ -9,6 +9,7 @@ import itertools
 import json
 import math
 import multiprocessing
+import os
 
 import h5py
 import matplotlib as mpl
@@ -1391,11 +1392,98 @@ def piecewise_trajectory_cross(plot_config):
                             "gamma": pdata[7, ts:te]})
 
 
+def get_unique_tracers(plot_config, show_plot=True):
+    """
+    Get unique tracer particles for all time steps
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+
+    tracer_dir = pic_run_dir + 'tracer/tracer2/'
+    tracer_out_dir = pic_run_dir + 'tracer/tracer1/'
+    nfiles = len(os.listdir(tracer_dir))
+    file_list = os.listdir(tracer_dir)
+    tframes = []
+    for file_name in file_list:
+        fsplit = file_name.split(".")
+        tindex = int(fsplit[-1])
+        tframes.append(tindex)
+    tframes = np.sort(np.asarray(tframes))
+    tinterval = tframes[1] - tframes[0]
+
+    if species in ["e", "electron"]:
+        sname = "electron"
+        pmass = 1.0
+        pcharge = -1.0
+    else:
+        sname = "H"
+        pmass = pic_info.mime
+        pcharge = 1.0
+
+    # Particle tags at the initial time step
+    fname = tracer_dir + 'T.0' + '/tracers.h5p'
+    with h5py.File(fname, 'r') as fh:
+        group = fh['Step#0']
+        subgroup = group['electron_tracer']
+        dset = subgroup['q']
+        qinit = np.zeros(dset.shape, dtype=dset.dtype)
+        dset.read_direct(qinit)
+
+    nptl, = qinit.shape
+    mask = np.ones(nptl, dtype=bool)
+
+    # Get particle tags in all time steps
+    for tframe in tframes:
+        print("Time frame: %d" % tframe)
+        fname = tracer_dir + 'T.' + str(tframe) + '/tracers.h5p'
+        with h5py.File(fname, 'r') as fh:
+            group = fh['Step#' + str(tframe)]
+            subgroup = group['electron_tracer']
+            dset = subgroup['q']
+            qtag = np.zeros(dset.shape, dtype=dset.dtype)
+            dset.read_direct(qtag)
+            mask = np.logical_and(mask, np.in1d(qinit, qtag))
+    qunique = qinit[mask]
+
+    # Get these tracers and save them to new files
+    ofile_name = 'electron_tracer_qtag_sorted.h5p'
+    for tframe in tframes:
+        print("Time frame: %d" % tframe)
+        fname = tracer_dir + 'T.' + str(tframe) + '/tracers.h5p'
+        ptl = {}
+        with h5py.File(fname, 'r') as fh:
+            group = fh['Step#' + str(tframe)]
+            subgroup = group["electron_tracer"]
+            for dset_name in subgroup:
+                dset = subgroup[dset_name]
+                ptl[dset_name] = np.zeros(dset.shape, dtype=dset.dtype)
+                dset.read_direct(ptl[dset_name])
+        mask = np.in1d(ptl['q'], qunique)
+        nptl_new = np.sum(mask)
+        ptl_new = {}
+        for key in ptl:
+            ptl_new[key] = ptl[key][mask]
+        out_dir = tracer_out_dir + 'T.' + str(tframe) + '/'
+        mkdir_p(out_dir)
+        fname = out_dir + ofile_name
+        with h5py.File(fname, 'w') as fh:
+            group = fh.create_group('Step#' + str(tframe))
+            for key in ptl_new:
+                group.create_dataset(key, (nptl_new, ), data=ptl_new[key])
+
+
 def get_cmd_args():
     """Get command line arguments
     """
     default_pic_run = '3D-Lx150-bg0.2-150ppc-2048KNL-tracking'
-    default_pic_run_dir = ('/net/scratch3/xiaocanli/reconnection/Cori_runs/' +
+    default_pic_run_dir = ('/net/scratch3/xiaocan/reconnection/Cori_runs/' +
                            default_pic_run + '/')
     parser = argparse.ArgumentParser(description='Analysis for Cori 3D runs')
     parser.add_argument('--pic_run', action="store",
@@ -1449,6 +1537,8 @@ def get_cmd_args():
                         help="whether to get piecewise trajectory")
     parser.add_argument('--piecewise_traj_cross', action="store_true", default=False,
                         help="whether to get piecewise trajectory for boundary-cross case")
+    parser.add_argument('--unique_tracers', action="store_true", default=False,
+                        help="whether to get unique tracer particles")
     return parser.parse_args()
 
 
@@ -1490,6 +1580,8 @@ def analysis_single_frames(plot_config, args):
         piecewise_trajectory(plot_config)
     elif args.piecewise_traj_cross:
         piecewise_trajectory_cross(plot_config)
+    elif args.unique_tracers:
+        get_unique_tracers(plot_config)
 
 
 def process_input(plot_config, args, tframe):
