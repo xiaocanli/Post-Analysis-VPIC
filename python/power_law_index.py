@@ -14,11 +14,14 @@ import os
 import h5py
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import matplotlib.font_manager
 import numpy as np
 import palettable
+from matplotlib.collections import LineCollection
 from matplotlib.colors import LogNorm
+from matplotlib.patches import PathPatch, Path
 from scipy.optimize import curve_fit
-from scipy import signal
+from scipy import signal, stats
 
 import fitting_funcs
 import pic_information
@@ -29,11 +32,11 @@ from shell_functions import mkdir_p
 
 plt.style.use("seaborn-deep")
 mpl.rc('text', usetex=True)
-mpl.rcParams['text.latex.preamble'] = \
-[r"\usepackage{amsmath, bm}",
- r"\DeclareMathAlphabet{\mathsfit}{\encodingdefault}{\sfdefault}{m}{sl}",
- r"\SetMathAlphabet{\mathsfit}{bold}{\encodingdefault}{\sfdefault}{bx}{sl}",
- r"\newcommand{\tensorsym}[1]{\bm{\mathsfit{#1}}}"]
+mpl.rcParams["text.latex.preamble"] = \
+        (r"\usepackage{amsmath, bm}" +
+         r"\DeclareMathAlphabet{\mathsfit}{\encodingdefault}{\sfdefault}{m}{sl}" +
+         r"\SetMathAlphabet{\mathsfit}{bold}{\encodingdefault}{\sfdefault}{bx}{sl}" +
+         r"\newcommand{\tensorsym}[1]{\bm{\mathsfit{#1}}}")
 COLORS = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 
 
@@ -54,6 +57,107 @@ def div0(a, b):
         c = np.true_divide(a, b)
         c[~np.isfinite(c)] = 0  # -inf inf NaN
     return c
+
+
+def CurlyBrace(x, y, width=1/8, height=1., curliness=1/np.e, pointing='left', **patch_kw):
+    '''Source: https://github.com/bensondaled/curly_brace
+    Create a matplotlib patch corresponding to a curly brace (i.e. this thing: "{")
+    Parameters
+    ----------
+    x : float
+        x position of left edge of patch
+    y : float
+        y position of bottom edge of patch
+    width : float
+        horizontal span of patch
+    height : float
+        vertical span of patch
+    curliness : float
+        positive value indicating extent of curliness; default (1/e) tends to look nice
+    pointing : str
+        direction in which the curly brace points (currently supports 'left' and 'right')
+    **patch_kw : any keyword args accepted by matplotlib's Patch
+    Returns
+    -------
+    matplotlib PathPatch corresponding to curly brace
+
+    Notes
+    -----
+    It is useful to supply the `transform` parameter to specify the coordinate system for the Patch.
+    To add to Axes `ax`:
+    cb = CurlyBrace(x, y)
+    ax.add_artist(cb)
+    This has been written as a function that returns a Patch
+    because I saw no use in making it a class, though one could extend matplotlib's
+    Patch as an alternate implementation.
+
+    Thanks to:
+    https://graphicdesign.stackexchange.com/questions/86334/inkscape-easy-way-to-create-curly-brace-bracket
+    http://www.inkscapeforum.com/viewtopic.php?t=11228
+    https://css-tricks.com/svg-path-syntax-illustrated-guide/
+    https://matplotlib.org/users/path_tutorial.html
+    Ben Deverett, 2018.
+    Examples
+    --------
+    >>>from curly_brace_patch import CurlyBrace
+    >>>import matplotlib.pyplot as pl
+    >>>fig,ax = pl.subplots()
+    >>>brace = CurlyBrace(x=.4, y=.2, width=.2, height=.6, pointing='right', transform=ax.transAxes, color='magenta')
+    >>>ax.add_artist(brace)
+    '''
+
+    verts = np.array([[width,0],
+                      [0,0],
+                      [width, curliness],
+                      [0,.5],
+                      [width, 1-curliness],
+                      [0,1],
+                      [width,1]])
+
+    if pointing == 'left':
+        pass
+    elif pointing == 'right':
+        verts[:,0] = width - verts[:,0]
+
+    verts[:,1] *= height
+
+    verts[:,0] += x
+    verts[:,1] += y
+
+    codes = [Path.MOVETO,
+             Path.CURVE4,
+             Path.CURVE4,
+             Path.CURVE4,
+             Path.CURVE4,
+             Path.CURVE4,
+             Path.CURVE4,
+             ]
+
+    path = Path(verts, codes)
+
+    # convert `color` parameter to `edgecolor`, since that's the assumed intention
+    patch_kw['edgecolor'] = patch_kw.pop('color', 'black')
+
+    pp = PathPatch(path, facecolor='none', **patch_kw)
+    return pp
+
+
+def get_vpic_info(pic_run_dir):
+    """Get information of the VPIC simulation
+    """
+    with open(pic_run_dir + '/info') as f:
+        content = f.readlines()
+    f.close()
+    vpic_info = {}
+    for line in content[1:]:
+        if "=" in line:
+            line_splits = line.split("=")
+        elif ":" in line:
+            line_splits = line.split(":")
+
+        tail = line_splits[1].split("\n")
+        vpic_info[line_splits[0].strip()] = float(tail[0])
+    return vpic_info
 
 
 def get_spect_params(pic_run="sigma01_bg005_4000de_triggered"):
@@ -85,10 +189,10 @@ def get_spect_params(pic_run="sigma01_bg005_4000de_triggered"):
         spect_params["energy_range"] = [20, 200]
         spect_params["emax"] = 1E3
         spect_params["norm"] = 3.0
-    if pic_run == "sigma01_bg01_4000de_triggered":
+    elif pic_run == "sigma01_bg01_4000de_triggered":
         spect_params["power_index"] = -4.5
         spect_params["energy_range"] = [70, 400]
-        spect_params["emax"] = 1E3
+        spect_params["emax"] = 2E3
         spect_params["norm"] = 3.0
     elif pic_run == "sigma04_bg01_4000de_triggered":
         spect_params["power_index"] = -3.0
@@ -185,32 +289,144 @@ def get_spect_params(pic_run="sigma01_bg005_4000de_triggered"):
         spect_params["energy_range"] = [20, 100]
         spect_params["emax"] = 1E3
         spect_params["norm"] = 3.0
-    elif pic_run == "sigmae6_bg005_800de_triggered":
+    elif pic_run == "sigmae25-4_bg00_800de_triggered":
         spect_params["power_index"] = -4.3
         spect_params["energy_range"] = [20, 100]
-        spect_params["emax"] = 2E2
+        spect_params["emax"] = 5E2
         spect_params["norm"] = 3.0
-    elif pic_run == "sigmae25_bg005_800de_triggered":
+    elif pic_run == "sigmae25_bg00_800de_triggered":
         spect_params["power_index"] = -2.8
         spect_params["energy_range"] = [30, 200]
         spect_params["emax"] = 1E3
         spect_params["norm"] = 3.0
-    elif pic_run == "sigmae100_bg005_800de_triggered":
-        spect_params["power_index"] = -1.6
+    elif pic_run == "sigmae100_bg00_800de_triggered":
+        spect_params["power_index"] = -1.3
         spect_params["energy_range"] = [20, 300]
         spect_params["emax"] = 5E3
         spect_params["norm"] = 3.0
-    elif pic_run == "sigmae400_bg005_800de_triggered":
-        spect_params["power_index"] = -1.4
-        spect_params["energy_range"] = [50, 1000]
-        spect_params["emax"] = 1E4
+    elif pic_run == "sigmae400_bg00_800de_triggered":
+        spect_params["power_index"] = -1.3
+        spect_params["energy_range"] = [10, 1000]
+        spect_params["emax"] = 2E4
         spect_params["norm"] = 3.0
     elif pic_run == "more_dump_test":
         spect_params["power_index"] = -1.7
         spect_params["energy_range"] = [20, 200]
         spect_params["emax"] = 1E3
         spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae100_vthe04_db025_1024de":
+        spect_params["power_index"] = -3.5
+        spect_params["energy_range"] = [100, 600]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae100_vthe04_db05_1024de":
+        spect_params["power_index"] = -2.8
+        spect_params["energy_range"] = [100, 800]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae100_vthe04_db1_1024de":
+        spect_params["power_index"] = -2.6
+        spect_params["energy_range"] = [250, 2500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae100_vthe04_db4_1024de":
+        spect_params["power_index"] = -2.0
+        spect_params["energy_range"] = [500, 2500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae100_vthe04_db16_1024de":
+        spect_params["power_index"] = -1.0
+        spect_params["energy_range"] = [1000, 3000]
+        spect_params["emax"] = 5E4
+        spect_params["norm"] = 2.0
+    elif pic_run == "mime1_sigmae40_vthe04_db025_1024de":
+        spect_params["power_index"] = -2.6
+        spect_params["energy_range"] = [250, 2500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae40_vthe04_db05_1024de":
+        spect_params["power_index"] = -3.1
+        spect_params["energy_range"] = [50, 500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae40_vthe04_db1_1024de":
+        spect_params["power_index"] = -2.7
+        spect_params["energy_range"] = [100, 2000]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae40_vthe04_db4_1024de":
+        spect_params["power_index"] = -2.0
+        spect_params["energy_range"] = [250, 2000]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae40_vthe04_db16_1024de":
+        spect_params["power_index"] = -1.2
+        spect_params["energy_range"] = [400, 2000]
+        spect_params["emax"] = 5E4
+        spect_params["norm"] = 2.0
+    elif pic_run == "mime1_sigmae10_vthe04_db025_1024de":
+        spect_params["power_index"] = -2.6
+        spect_params["energy_range"] = [250, 2500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae10_vthe04_db05_1024de":
+        spect_params["power_index"] = -3.2
+        spect_params["energy_range"] = [40, 400]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae10_vthe04_db1_1024de":
+        spect_params["power_index"] = -3.0
+        spect_params["energy_range"] = [30, 500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae10_vthe04_db4_1024de":
+        spect_params["power_index"] = -2.4
+        spect_params["energy_range"] = [100, 1000]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae10_vthe04_db16_1024de":
+        spect_params["power_index"] = -1.7
+        spect_params["energy_range"] = [200, 1000]
+        spect_params["emax"] = 5E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "turbulent-sheet3D-mixing-sigma100":
+        spect_params["power_index"] = -1.8
+        spect_params["energy_range"] = [20, 200]
+        spect_params["emax"] = 5E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "3D_mime1_sigmae100_vthe04_db1_1024de":
+        spect_params["power_index"] = -2.6
+        spect_params["energy_range"] = [250, 2500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1_sigmae100_vthe04_db1_256de":
+        spect_params["power_index"] = -2.6
+        spect_params["energy_range"] = [250, 2500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    else:
+        spect_params["power_index"] = -1.2
+        spect_params["energy_range"] = [200, 1000]
+        spect_params["emax"] = 5E4
+        spect_params["norm"] = 3.0
+
     return spect_params
+
+
+def get_time_interval(pic_run="sigma01_bg005_4000de_triggered"):
+    """Time interval for calculating rates for different runs
+    """
+    tinterval = 100
+    if "4000de_triggered" in pic_run:
+        tinterval = 100
+    elif "sigmae" in pic_run:
+        tinterval = 1000
+    elif "3D-Lx150" in pic_run:
+        tinterval = 20
+    elif "mime1_" in pic_run:
+        tinterval = 1000
+
+    return tinterval
 
 
 def plot_spectrum_multi(plot_config, show_plot=True):
@@ -221,27 +437,34 @@ def plot_spectrum_multi(plot_config, show_plot=True):
     """
     species = plot_config["species"]
     pic_run = plot_config["pic_run"]
-    root_dir = "/net/scratch4/xiaocanli/reconnection/power_law_index/"
-    pic_run_dir = root_dir + pic_run + '/'
     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
     pic_info = read_data_from_json(picinfo_fname)
-    ntf = pic_info.ntf
-    emin, emax = 1E-4, 1E6
-    nbins = 1000
+    pic_run_dir = pic_info.run_dir
+    vpic_info = get_vpic_info(pic_run_dir)
+    emin = vpic_info["emin_spect"]
+    emax = vpic_info["emax_spect"]
+    nbins = int(vpic_info["nbins"])
     dloge = (math.log10(emax) - math.log10(emin)) / (nbins - 1)
     emin0 = 10**(math.log10(emin) - dloge)
     ebins = np.logspace(math.log10(emin0), math.log10(emax), nbins+1)
     ebins_mid = (ebins[:-1] + ebins[1:]) * 0.5
     debins = np.diff(ebins)
     nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    dtwpe_fields = math.ceil(pic_info.fields_interval * pic_info.dtwpe / 0.1) * 0.1
+    lx_de = pic_info.lx_di * math.sqrt(pic_info.mime)
 
-    tframes = range(ntf)
-    nframes = len(tframes)
+    ntf = len(os.listdir(pic_run_dir + "spectrum/"))
+    # # Set it to 3 light crossing time
+    # nframes = int(lx_de * 3 / dtwpe_fields)
+    # if ntf < nframes:
+    #     nframes = ntf
+    nframes = ntf
+    tframes = range(nframes)
     flogs = np.zeros((nframes, nbins))
     if species in ["e", "electron"]:
         sname = "electron"
     else:
-        sname = "Ion"
+        sname = "ion"
     temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
     print("Particle initial temperature (Lorentz factor): %f" % temp)
 
@@ -250,7 +473,7 @@ def plot_spectrum_multi(plot_config, show_plot=True):
     ax = fig.add_axes(rect)
     for iframe, tframe in enumerate(tframes):
         print("Time frame: %d" % tframe)
-        tindex = tframe * pic_info.fields_interval
+        tindex = tframe * int(vpic_info["spectrum_interval"])
         fdir = pic_run_dir + '/spectrum_combined/'
         fname = fdir + 'spectrum_' + sname + '_' + str(tindex) + '.dat'
         ebins_mid_run = ebins_mid / temp
@@ -258,7 +481,7 @@ def plot_spectrum_multi(plot_config, show_plot=True):
         if os.path.isfile(fname):
             flog = np.fromfile(fname, dtype=np.float32)
             espect = flog[3:] / debins_run / nptot  # the first 3 are magnetic field
-            color = plt.cm.jet(tframe/float(ntf), 1)
+            color = plt.cm.jet(tframe/float(nframes), 1)
             flogs[iframe, :] = espect
             ax.loglog(ebins_mid_run, espect, linewidth=1, color=color)
 
@@ -297,7 +520,6 @@ def plot_spectrum_multi(plot_config, show_plot=True):
     rect_cbar[0] += rect[2] + 0.02
     rect_cbar[2] = 0.02
     cax = fig.add_axes(rect_cbar)
-    dtwpe_fields = math.ceil(pic_info.fields_interval * pic_info.dtwpe / 0.1) * 0.1
     ts = tframes[0] * dtwpe_fields
     te = tframes[-1] * dtwpe_fields
     sm = plt.cm.ScalarMappable(cmap=plt.cm.jet,
@@ -314,39 +536,40 @@ def plot_spectrum_multi(plot_config, show_plot=True):
     fname = fdir + 'spectrum_' + pic_run + species + '.pdf'
     fig.savefig(fname)
 
-    tratio = pic_info.particle_interval // pic_info.fields_interval
-    dflogs = np.gradient(flogs, axis=0)
-    dflogs[dflogs<=0] = np.nan
-    fig = plt.figure(figsize=[7, 5])
-    rect = [0.14, 0.16, 0.82, 0.8]
-    ax = fig.add_axes(rect)
-    p1, = ax.loglog(ebins_mid_run, flogs[tratio] - flogs[0],
-                    color='k', nonposy='mask')
-    ax.loglog(ebins_mid_run[es:ee], fpower[es:ee]*5E-3, linewidth=1, color='r')
-    if species == 'e':
-        ax.set_xlim([1E0, 2E4])
-        ax.set_ylim([1E-9, 1E0])
-    else:
-        ax.set_xlim([1E-1, 2E3])
-        ax.set_ylim([1E-9, 1E0])
-    ax.tick_params(bottom=True, top=True, left=True, right=False)
-    ax.tick_params(axis='x', which='minor', direction='in')
-    ax.tick_params(axis='x', which='major', direction='in')
-    ax.tick_params(axis='y', which='minor', direction='in')
-    ax.tick_params(axis='y', which='major', direction='in')
-    ax.set_xlabel(r'$\gamma - 1$', fontsize=16)
-    ax.set_ylabel(r'$f(\gamma - 1)$', fontsize=16)
-    ax.tick_params(labelsize=12)
-    fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
-    mkdir_p(fdir)
-    for iframe, tframe in enumerate(tframes[tratio::tratio]):
-        print("Time frame: %d" % tframe)
-        p1.set_ydata(flogs[tframe] - flogs[tframe-tratio])
-        fig.canvas.draw()
-        fname = fdir + 'diff_spectrum_' + species + '_' + str(tframe) + '.pdf'
-        fig.savefig(fname)
-        fig.canvas.flush_events()
-    plt.close()
+    # # tratio = pic_info.particle_interval // pic_info.fields_interval
+    # tratio = 10
+    # dflogs = np.gradient(flogs, axis=0)
+    # dflogs[dflogs<=0] = np.nan
+    # fig = plt.figure(figsize=[7, 5])
+    # rect = [0.14, 0.16, 0.82, 0.8]
+    # ax = fig.add_axes(rect)
+    # p1, = ax.loglog(ebins_mid_run, flogs[tratio] - flogs[0],
+    #                 color='k', nonposy='mask')
+    # ax.loglog(ebins_mid_run[es:ee], fpower[es:ee]*5E-3, linewidth=1, color='r')
+    # if species == 'e':
+    #     ax.set_xlim([1E0, 2E4])
+    #     ax.set_ylim([1E-9, 1E0])
+    # else:
+    #     ax.set_xlim([1E-1, 2E3])
+    #     ax.set_ylim([1E-9, 1E0])
+    # ax.tick_params(bottom=True, top=True, left=True, right=False)
+    # ax.tick_params(axis='x', which='minor', direction='in')
+    # ax.tick_params(axis='x', which='major', direction='in')
+    # ax.tick_params(axis='y', which='minor', direction='in')
+    # ax.tick_params(axis='y', which='major', direction='in')
+    # ax.set_xlabel(r'$\gamma - 1$', fontsize=16)
+    # ax.set_ylabel(r'$f(\gamma - 1)$', fontsize=16)
+    # ax.tick_params(labelsize=12)
+    # fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
+    # mkdir_p(fdir)
+    # for iframe, tframe in enumerate(tframes[tratio::tratio]):
+    #     print("Time frame: %d" % tframe)
+    #     p1.set_ydata(flogs[tframe] - flogs[tframe-tratio])
+    #     fig.canvas.draw()
+    #     fname = fdir + 'diff_spectrum_' + species + '_' + str(tframe) + '.pdf'
+    #     fig.savefig(fname)
+    #     fig.canvas.flush_events()
+    # plt.close()
 
     if show_plot:
         plt.show()
@@ -537,6 +760,81 @@ def plot_spectrum_bg(plot_config, show_plot=True):
     plt.show()
 
 
+def number_rate_high_energy(plot_config, show_plot=True):
+    """Plot the change rate of the number of high-energy particles
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    pic_run = plot_config["pic_run"]
+    root_dir = "/net/scratch4/xiaocanli/reconnection/power_law_index/"
+    pic_run_dir = root_dir + pic_run + '/'
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    ntf = pic_info.ntf
+    emin, emax = 1E-4, 1E6
+    nbins = 1000
+    dloge = (math.log10(emax) - math.log10(emin)) / (nbins - 1)
+    emin0 = 10**(math.log10(emin) - dloge)
+    ebins = np.logspace(math.log10(emin0), math.log10(emax), nbins+1)
+    ebins_mid = (ebins[:-1] + ebins[1:]) * 0.5
+    debins = np.diff(ebins)
+    temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+    ebins_mid_run = ebins_mid / temp
+    spect_params = get_spect_params(pic_run)
+    emin, emax = spect_params["energy_range"]
+    es, _ = find_nearest(ebins_mid_run, emin)
+    ee, _ = find_nearest(ebins_mid_run, emax)
+
+    tframes = range(ntf)
+    nframes = len(tframes)
+    nhigh = np.zeros((nframes))
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "Ion"
+
+    for iframe, tframe in enumerate(tframes):
+        print("Time frame: %d" % tframe)
+        tindex = tframe * pic_info.fields_interval
+        fdir = pic_run_dir + '/spectrum_combined/'
+        fname = fdir + 'spectrum_' + sname + '_' + str(tindex) + '.dat'
+        debins_run = debins / temp
+        if os.path.isfile(fname):
+            flog = np.fromfile(fname, dtype=np.float32)[3:]
+            nhigh[iframe] = np.sum(flog[es:]) / nptot
+
+    vpic_info = get_vpic_info(pic_run_dir)
+    dt_spectrum = vpic_info["spectrum_interval"] * vpic_info["dt*wpe"]
+    twpe = np.asarray(tframes) * dt_spectrum
+    dnhigh = np.gradient(nhigh) / dt_spectrum
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.2, 0.14, 0.72, 0.8]
+    ax = fig.add_axes(rect)
+    ax.plot(twpe, dnhigh, linewidth=2)
+    ax.plot([0, twpe[-1]], [0, 0], linewidth=1, linestyle='--', color='k')
+    ax.set_xlim([0, twpe[-1]])
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
+    ax.set_ylabel(r'$dN_\text{high}/dt$', fontsize=16)
+    ax.tick_params(labelsize=12)
+    fdir = '../img/power_law_index/nhigh_rate/'
+    mkdir_p(fdir)
+    fname = fdir + 'nhigh_rate_' + pic_run + '.pdf'
+    fig.savefig(fname)
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
 def energy_conversion_all_runs(plot_config, show_plot=True):
     """Plot energy conversion for all runs
 
@@ -560,19 +858,17 @@ def energy_conversion_all_runs(plot_config, show_plot=True):
     root_dir = "/net/scratch4/xiaocanli/reconnection/power_law_index/"
     pic_runs, labels = get_all_runs(root_dir)
 
-    fig = plt.figure(figsize=[7, 5])
-    rect = [0.14, 0.16, 0.82, 0.8]
-    ax = fig.add_axes(rect)
-    COLORS = palettable.tableau.Tableau_10.mpl_colors
-    ax.set_prop_cycle('color', COLORS)
     runs, rune = 0, 9
     for irun, pic_run in enumerate(pic_runs[runs:rune]):
+    # for irun, pic_run in enumerate(pic_runs[0:1]):
         print("PIC run name: %s" % pic_run)
         pic_run_dir = root_dir + pic_run
         picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
         pic_info = read_data_from_json(picinfo_fname)
         tenergy = pic_info.tenergy
         enorm = pic_info.ene_magnetic[0]
+        dt_ene = pic_info.dtwpe * pic_info.energy_interval
+        tenergy *= pic_info.dtwpe / pic_info.dtwci
 
         ene_bx = pic_info.ene_bx
         ene_by = pic_info.ene_by
@@ -591,31 +887,41 @@ def energy_conversion_all_runs(plot_config, show_plot=True):
         ene_by /= enorm
         ene_bz /= enorm
         ene_magnetic /= enorm
+        ene_electric /= enorm
         kene_e /= enorm
         kene_i /= enorm
 
-    ax.legend(loc=3, prop={'size': 12}, ncol=1,
-             shadow=False, fancybox=False, frameon=False)
-    # if species == 'e':
-    #     ax.set_xlim([1E-1, 1E4])
-    #     ax.set_ylim([1E-9, 1E0])
-    # else:
-    #     ax.set_xlim([1E-1, 2E3])
-    #     ax.set_ylim([1E-9, 1E0])
-    # ax.tick_params(bottom=True, top=True, left=True, right=False)
-    # ax.tick_params(axis='x', which='minor', direction='in')
-    # ax.tick_params(axis='x', which='major', direction='in')
-    # ax.tick_params(axis='y', which='minor', direction='in')
-    # ax.tick_params(axis='y', which='major', direction='in')
-    # ax.set_xlabel(r'$\gamma - 1$', fontsize=16)
-    # ax.set_ylabel(r'$f(\gamma - 1)$', fontsize=16)
-    # ax.tick_params(labelsize=12)
-    # ename = 'electron' if species == 'e' else 'ion'
-    # # fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
-    # # mkdir_p(fdir)
-    # # fname = fdir + 'spectrum_' + species + '.pdf'
-    # # fig.savefig(fname)
-    plt.show()
+        dene_magnetic = np.gradient(ene_magnetic) / dt_ene
+        dene_electric = np.gradient(ene_electric) / dt_ene
+        dkene_e = np.gradient(kene_e) / dt_ene
+        dkene_i = np.gradient(kene_i) / dt_ene
+
+        fig = plt.figure(figsize=[7, 5])
+        rect = [0.15, 0.15, 0.8, 0.8]
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        ax.plot(tenergy, -dene_magnetic, label="-magnetic")
+        ax.plot(tenergy, dene_electric, label="electric")
+        ax.plot(tenergy, dkene_e, label="electron")
+        ax.plot(tenergy, dkene_i, label="ion")
+
+        ax.legend(loc=2, prop={'size': 16}, ncol=1,
+                 shadow=False, fancybox=False, frameon=False)
+        ax.set_xlim([0, tenergy[-1]])
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
+        ax.set_ylabel('Energy conversion rate', fontsize=16)
+        ax.tick_params(labelsize=12)
+        fdir = '../img/power_law_index/econv/'
+        mkdir_p(fdir)
+        fname = fdir + 'econv_' + pic_run + '.pdf'
+        fig.savefig(fname)
+        plt.close()
+        # plt.show()
 
 
 def check_density(plot_config, show_plot=True):
@@ -719,7 +1025,19 @@ def fluid_energization(plot_config, show_plot=True):
     acc_drift_dote[-1] = acc_drift_dote[-2]
 
     jperp_dote = curv_drift_dote + grad_drift_dote + magnetization_dote
-    jagy_dote = ptensor_ene - jperp_dote
+    jagy_dote = ptensor_ene - pgyro_ene
+    etot_ene = epara_ene + eperp_ene
+    etot = np.sum(etot_ene)
+
+    print("Eparallel contributes %0.2f" % (np.sum(epara_ene)/etot))
+    print("Eperp contributes %0.2f" % (np.sum(eperp_ene)/etot))
+    print("Gyrotropic pressure contributes %0.2f" % (np.sum(pgyro_ene)/etot))
+    print("Non-gyrotropic pressure contributes %0.2f" % (np.sum(jagy_dote)/etot))
+    print("Curvature drift contributes %0.2f" % (np.sum(curv_drift_dote)/etot))
+    print("Gard-B drift contributes %0.2f" % (np.sum(grad_drift_dote)/etot))
+    print("Compression contributes %0.2f" % (np.sum(comp_ene)/etot))
+    print("Shear contributes %0.2f" % (np.sum(shear_ene)/etot))
+
     if species == 'e':
         dkene = pic_info.dkene_e
     else:
@@ -2057,8 +2375,10 @@ def acc_esc_rate(plot_config, show_plot=True):
     # btmp = -(npre + 0.5 * dndt_inj * dtwpe_particle)
     # ctmp = npre + dndt_inj * dtwpe_particle - nhigh_acc_t
     # esc_rate = div0(-btmp - np.sqrt(btmp**2 - 4 * atmp * ctmp), npre) / (dtwpe_particle)
-    acc_rate = div0(arate_acc_t[0, :] + arate_acc_t[1, :], nhigh_acc_t)
+    # acc_rate = div0(arate_acc_t[0, :] + arate_acc_t[1, :], nhigh_acc_t)
+    acc_rate = div0(arate_acc_t[1, :], nhigh_acc_t)
     acc_rate1 = div0(arate_acc_t[4, :], nhigh_acc_t)
+    acc_rate = acc_rate1
     acc_rate_esc = div0(arate_esc_t[0, :] + arate_esc_t[1, :], nhigh_esc_t)
     acc_rate_esc_mid = np.copy(acc_rate_esc)
     acc_rate_esc_mid[1:] = 0.5 * (acc_rate_esc[1:] + acc_rate_esc[:-1])
@@ -2538,7 +2858,7 @@ def rates_based_vkappa(plot_config, show_plot=True):
     # ctmp = npre + dndt_inj * dtwpe_particle - nhigh_acc_t
     # esc_rate = div0(-btmp - np.sqrt(btmp**2 - 4 * atmp * ctmp), npre) / (dtwpe_particle)
     acc_rate = arate_acc_t[0, :] + arate_acc_t[1, :]
-    acc_rate1 = div0(arate_acc_t[4, :], nhigh_acc_t)
+    acc_rate1 = arate_acc_t[4, :]
     acc_rate_esc = arate_esc_t[0, :] + arate_esc_t[1, :]
     acc_rate_esc_mid = np.copy(acc_rate_esc)
     acc_rate_esc_mid[1:] = 0.5 * (acc_rate_esc[1:] + acc_rate_esc[:-1])
@@ -2825,11 +3145,393 @@ def plot_sigma_power(plot_config, show_plot=True):
     else:
         sname = "Ion"
 
+    # root_dir = "/net/scratch4/xiaocanli/reconnection/power_law_index/"
+    # pic_runs, labels = get_all_runs(root_dir)
+    pic_runs = []
+    bg_runs = []
+    binplane = []
+    sigmas = ["01", "04", "16", "64"]
+    bgs = ["005", "01", "02", "04", "10"]
+    bgs_float = [0.05, 0.1, 0.2, 0.4, 1.0]
+    nsigma = len(sigmas)
+    nbg = len(bgs)
+    for sigma in sigmas:
+        for ibg, bg in enumerate(bgs):
+            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+            picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            pic_runs.append(pic_run)
+            bg_runs.append(bgs_float[ibg])
+            binplane.append(pic_info.b0)
+    nruns_1836 = len(pic_runs)
+    sigmaes = ["100", "40", "10"]
+    db2s = ["05", "1", "4"]
+    bgs_float = [1/math.sqrt(0.5), 1.0, 0.5]
+    nsigmae = len(sigmaes)
+    ndb = len(db2s)
+    for sigmae in sigmaes:
+        for ibg, db2 in enumerate(db2s):
+            pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+            picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            pic_runs.append(pic_run)
+            bg_runs.append(bgs_float[ibg])
+            binplane.append(pic_info.b0 / bgs_float[ibg] / (2 * math.sqrt(2.0)))
+    pic_run = "sigmae400_bg00_800de_triggered"
+    pic_runs.append(pic_run)
+    bg_runs.append(0.0)
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    binplane.append(pic_info.b0)
+    nruns = len(pic_runs)
+
+    runs, rune = 0, nruns
+    sigma = np.zeros(rune - runs)
+    sigma_c = np.zeros(rune - runs)
+    sigmae_c = np.zeros(rune - runs)
+    sigmai_c = np.zeros(rune - runs)
+    sigmae_h = np.zeros(rune - runs)
+    sigmai_h = np.zeros(rune - runs)
+    beta_e = np.zeros(rune - runs)
+    pindex = np.zeros(rune - runs)
+    va4 = np.zeros(rune - runs)  # four Alfven speed
+    pindex_pred = np.zeros(rune - runs)
+    for irun, pic_run in enumerate(pic_runs[runs:rune]):
+        print("PIC run name: %s" % pic_run)
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        mime = pic_info.mime
+        n0 = pic_info.n0
+        gamma_e = 4.0/3 if pic_info.Te > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+        print("Particle initial temperature (Lorentz factor): %f" % temp)
+        # In typical VPIC simulation, me=1, c=1
+        enthalpy_e =  n0 * (1 + pic_info.Te * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + pic_info.Ti * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        b0 = binplane[irun]
+        sigma[irun] = b0**2 / enthalpy
+        sigma_c[irun] = b0**2 / (n0 * (1 + mime))
+        sigmae_c[irun] = b0**2 / n0
+        sigmai_c[irun] = b0**2 / (n0 * mime)
+        sigmae_h[irun] = b0**2 / enthalpy_e
+        sigmai_h[irun] = b0**2 / enthalpy_i
+        beta_e[irun] = 2 * n0 * pic_info.Te / b0**2
+        spect_params = get_spect_params(pic_run)
+        pindex[irun] = -spect_params["power_index"]
+        va = math.sqrt(sigma[irun] / (sigma[irun] + 1))
+        va4[irun] = va / math.sqrt(1 - va**2)
+        pindex_pred[irun] = 1 + 2*va / (va*0.5 + 2*va**2)
+        gamma_the = pic_info.Te + 1
+        vthe = math.sqrt(gamma_the**2 - 1) / gamma_the
+        gamma_va = 1.0 / math.sqrt(1 - va**2)
+        factor = gamma_va**2
+        # factor = gamma_va**2 * va**2 / 3 + 1
+        btot = math.sqrt(1 + bg_runs[irun]**2)
+        ctheta = 1.0 / btot
+        pindex_va = 1 + 8.0 * va / (factor * (1 + 2*va*ctheta + va**2) - 1)
+        pindex_pred[irun] = pindex_va
+        print("va, gamma_va, pindex_va: %0.2f, %0.2f, %0.2f" %
+              (va, gamma_va, pindex_va))
+
+    fdata = [sigma, sigma_c, sigmae_c, sigmae_h,
+             sigmai_c, sigmai_h, beta_e, pindex_pred]
+    labels = [r"$\sigma$", r"$\sigma_c$",
+              r"$\sigma_{e, c}$", r"$\sigma_{e, h}$",
+              r"$\sigma_{i, c}$", r"$\sigma_{i, h}$",
+              r"$\beta_e$", r"$\gamma v_A$",
+              r"$1 + 2v_A/(4v_A/3 + 2v_A^2)$"]
+    npanels = len(fdata)
+    fig = plt.figure(figsize=[12, 12])
+    nrows, ncols = 4, 2
+    rect0 = [0.07, 0.78, 0.42, 0.19]
+    hgap, vgap = 0.05, 0.05
+    axs = []
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    for ipanel in range(npanels):
+        col = ipanel // nrows
+        row = ipanel % nrows
+        rect = np.copy(rect0)
+        rect[0] = rect0[0] + col * (rect0[2] + hgap)
+        rect[1] = rect0[1] - row * (rect0[3] + vgap)
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        axs.append(ax)
+        COLORS = palettable.tableau.Tableau_10.mpl_colors
+        ax.set_prop_cycle('color', COLORS)
+        if ipanel == npanels - 1:
+            ax.plot(fdata[ipanel][:nruns_1836], pindex[:nruns_1836],
+                    linestyle='none', marker='o', markersize=10)
+            ax.plot(fdata[ipanel][nruns_1836:], pindex[nruns_1836:],
+                    linestyle='none', marker='o', markersize=10)
+        else:
+            ax.semilogx(fdata[ipanel][:nruns_1836], pindex[:nruns_1836],
+                        linestyle='none', marker='o', markersize=10)
+            ax.semilogx(fdata[ipanel][nruns_1836:], pindex[nruns_1836:],
+                        linestyle='none', marker='o', markersize=10)
+        ax.set_ylim([0, 5])
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.set_xlabel(labels[ipanel], fontsize=16)
+        ax.set_ylabel(r'$p$', fontsize=16)
+        ax.tick_params(labelsize=12)
+        rect[1] -= rect[3] + vgap
+
+    axs[0].text(0.7, 0.95, r"$m_i/m_e=1836$",
+                color=COLORS[0], fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='top',
+                transform=axs[0].transAxes)
+    axs[0].text(0.7, 0.85, r"$m_i/m_e=1$",
+                color=COLORS[1], fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='top',
+                transform=axs[0].transAxes)
+    ename = 'electron' if species == 'e' else 'ion'
+    # fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
+    # mkdir_p(fdir)
+    # fname = fdir + 'spectrum_' + species + '.pdf'
+    # fig.savefig(fname)
+    plt.show()
+
+
+def pindex_bg_sigma(plot_config, show_plot=True):
+    """Compare power-law indices in model and simulations for all runs
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "Ion"
+
+    pic_runs = []
+    bg_runs = []
+    binplane = []
+    sigmas = ["01", "04", "16", "64"]
+    bgs = ["005", "01", "02", "04", "10"]
+    bgs_float = [0.05, 0.1, 0.2, 0.4, 1.0]
+    nsigma = len(sigmas)
+    nbg = len(bgs)
+    for sigma in sigmas:
+        for ibg, bg in enumerate(bgs):
+            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+            picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            pic_runs.append(pic_run)
+            bg_runs.append(bgs_float[ibg])
+            binplane.append(pic_info.b0)
+    nruns_1836 = len(pic_runs)
+    sigmaes = ["100", "40", "10"]
+    db2s = ["05", "1", "4"]
+    bgs_float = [1/math.sqrt(0.5), 1.0, 0.5]
+    nsigmae = len(sigmaes)
+    ndb = len(db2s)
+    for sigmae in sigmaes:
+        for ibg, db2 in enumerate(db2s):
+            pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+            picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            pic_runs.append(pic_run)
+            bg_runs.append(bgs_float[ibg])
+            binplane.append(pic_info.b0 / bgs_float[ibg] / (2 * math.sqrt(2.0)))
+    pic_run = "sigmae400_bg00_800de_triggered"
+    pic_runs.append(pic_run)
+    bg_runs.append(0.0)
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    binplane.append(pic_info.b0)
+    nruns = len(pic_runs)
+
+    runs, rune = 0, nruns
+    sigma = np.zeros(rune - runs)
+    sigma_c = np.zeros(rune - runs)
+    sigmae_c = np.zeros(rune - runs)
+    sigmai_c = np.zeros(rune - runs)
+    sigmae_h = np.zeros(rune - runs)
+    sigmai_h = np.zeros(rune - runs)
+    beta_e = np.zeros(rune - runs)
+    pindex = np.zeros(rune - runs)
+    va4 = np.zeros(rune - runs)  # four Alfven speed
+    ps = np.zeros((2, rune - runs))
+    for irun, pic_run in enumerate(pic_runs[runs:rune]):
+        print("PIC run name: %s" % pic_run)
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        mime = pic_info.mime
+        n0 = pic_info.n0
+        gamma_e = 4.0/3 if pic_info.Te > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+        print("Particle initial temperature (Lorentz factor): %f" % temp)
+        # In typical VPIC simulation, me=1, c=1
+        enthalpy_e =  n0 * (1 + pic_info.Te * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + pic_info.Ti * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        b0 = binplane[irun]
+        sigma[irun] = b0**2 / enthalpy
+        sigma_c[irun] = b0**2 / (n0 * (1 + mime))
+        sigmae_c[irun] = b0**2 / n0
+        sigmai_c[irun] = b0**2 / (n0 * mime)
+        sigmae_h[irun] = b0**2 / enthalpy_e
+        sigmai_h[irun] = b0**2 / enthalpy_i
+        beta_e[irun] = 2 * n0 * pic_info.Te / b0**2
+        spect_params = get_spect_params(pic_run)
+        pindex[irun] = -spect_params["power_index"]
+        va = math.sqrt(sigma[irun] / (sigma[irun]*(1+bg_runs[irun]**2) + 1))
+        va4[irun] = va / math.sqrt(1 - va**2)
+        # ps[1, irun] = 1 + 2*va / (va*0.5 + 2*va**2)
+        gamma_the = pic_info.Te + 1
+        vthe = math.sqrt(gamma_the**2 - 1) / gamma_the
+        gamma_va = 1.0 / math.sqrt(1 - va**2)
+        factor = gamma_va**2
+        # factor = gamma_va**2 * va**2 / 3 + 1
+        # factor = (gamma_va**2 + gamma_va + 1) / 3
+        factor1 = (gamma_va**2 + gamma_va + 1) / 3
+        factor2 = (gamma_va+1)**(3/2) * (gamma_va-1)**(1/2) / 3
+        factor3 = factor1 - 1
+        btot = math.sqrt(1 + bg_runs[irun]**2)
+        ctheta = 1.0 / btot
+        pindex_va = 1 + 8.0 * va / (factor * (1 + 2*va*ctheta + va**2) - 1)
+        # pindex_va = 1 + 8.0 * va / (factor1 + 2*factor2*ctheta + factor3 - 1)
+        ps[1, irun] = pindex[irun]
+        ps[0, irun] = pindex_va
+        print("va, gamma_va, pindex_va: %0.2f, %0.2f, %0.2f" %
+              (va, gamma_va, pindex_va))
+
+    fig = plt.figure(figsize=[7, 7])
+    rect = [0.11, 0.12, 0.85, 0.85]
+    hgap, vgap = 0.07, 0.04
+    ax = fig.add_axes(rect)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    n1 = nsigma * nbg + nsigmae * ndb
+    ltext = r"$\sigma_e=400, m_i/m_e=1$"
+    p3 = ax.scatter(ps[1, n1], ps[0, n1], marker='X', label=ltext, s=100)
+    plots_rec = [p3]
+    for i in range(nsigma):
+        sigma = str(int(sigmas[i]) / 10)
+        ltext = r"$\sigma_i=" + sigma + "$"
+        alphas = np.linspace(0.2, 1, nbg)
+        rgba_colors = np.zeros((nbg,4))
+        rgba_colors[:,0] = COLORS[i+1][0]
+        rgba_colors[:,1] = COLORS[i+1][1]
+        rgba_colors[:,2] = COLORS[i+1][2]
+        # the fourth column needs to be your alphas
+        rgba_colors[:, 3] = alphas
+        rs, re = i*nbg, (i+1)*nbg
+        ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+                   marker='o', s=100)
+        p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
+                        label=ltext, color=COLORS[i+1],
+                        marker='o', s=100)
+        plots_rec.append(p1)
+    # Turbulence run
+    shift = nsigma * nbg
+    plots_turb = []
+    for i in range(nsigmae):
+        ltext = r"$\sigma_e=" + sigmaes[i] + "$"
+        ndb = len(db2s)
+        alphas = np.linspace(0.2, 1, ndb)
+        rgba_colors = np.zeros((ndb,4))
+        rgba_colors[:,0] = COLORS[i+nsigma+1][0]
+        rgba_colors[:,1] = COLORS[i+nsigma+1][1]
+        rgba_colors[:,2] = COLORS[i+nsigma+1][2]
+        # the fourth column needs to be your alphas
+        rgba_colors[:, 3] = alphas
+        rs, re = i*ndb+shift, (i+1)*ndb+shift
+        ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+                   marker='d', s=100)
+        p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
+                        label=ltext, color=COLORS[i+nsigma+1],
+                        marker='d', s=100)
+        plots_turb.append(p1)
+
+    leg1 = ax.legend(loc=2, handles=plots_rec, prop={'size': 16}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False,
+                     title="Reconnection", title_fontsize=16)
+
+    leg2 = ax.legend(loc=4, handles=plots_turb, prop={'size': 16}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False,
+                     title="Turbulence", title_fontsize=16)
+    ax.add_artist(leg1)
+    brace = CurlyBrace(x=0.28, y=0.665, width=0.05, height=.2, pointing='right',
+                       transform=ax.transAxes, color='k')
+    ax.add_artist(brace)
+    text1 = r"$m_i/m_e=1836$"
+    ax.text(0.34, 0.765, text1, color='k', fontsize=16, rotation=0,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(ps[1], ps[0])
+    # print(slope, intercept, r_value, p_value, std_err)
+
+    pmodel = np.linspace(1, 5, 10)
+    ax.plot(pmodel, intercept + slope*pmodel, color='k',
+            alpha=0.5, label='fitted line', zorder=0)
+
+    # text1 = (r"$p_m=" + (r"%0.3f" % slope) + r"p_s" + (r"%0.3f" % intercept) + r"$")
+    # ax.text(0.77, 0.87, text1, color='k', fontsize=12, rotation=47.11,
+    #         bbox=dict(facecolor='none', alpha=1.0,
+    #                   edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform=ax.transAxes)
+    # text2 = (r"$R^2=" + (r"%0.3f" % r_value) + r"$")
+    # ax.text(0.75, 0.9, text2, color='k', fontsize=12, rotation=47.11,
+    #         bbox=dict(facecolor='none', alpha=1.0,
+    #                   edgecolor='none', pad=10.0),
+    #         horizontalalignment='center', verticalalignment='center',
+    #         transform=ax.transAxes)
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'Power-law index $p_s$ (simulation)', fontsize=20)
+    ax.set_ylabel(r'Power-law index $p_m$ (model)', fontsize=20)
+    ax.tick_params(labelsize=12)
+
+    ax.plot([1, 5.0], [1, 5.0], linewidth=1, linestyle='--', color='k')
+    ax.set_xlim([1, 5.0])
+    ax.set_ylim([1, 5.0])
+    ax.set_xticks(range(1, 6))
+    ax.set_yticks(range(1, 6))
+    # fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
+    # mkdir_p(fdir)
+    # fname = fdir + 'spectrum_' + species + '.pdf'
+    # fig.savefig(fname)
+    plt.show()
+
+
+def analytical_power_index(plot_config, show_plot=True):
+    """Plot analytical power-law index
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "Ion"
+
     root_dir = "/net/scratch4/xiaocanli/reconnection/power_law_index/"
     pic_runs, labels = get_all_runs(root_dir)
     nruns = len(pic_runs)
 
-    runs, rune = 0, nruns
+    runs, rune = 0, 5
     sigma = np.zeros(rune - runs)
     sigma_c = np.zeros(rune - runs)
     sigmae_c = np.zeros(rune - runs)
@@ -2864,71 +3566,39 @@ def plot_sigma_power(plot_config, show_plot=True):
         pindex[irun] = -spect_params["power_index"]
         va = math.sqrt(sigma[irun] / (sigma[irun] + 1))
         va4[irun] = va / math.sqrt(1 - va**2)
-        pindex_pred[irun] = 1 + 2*va / (va*0.5 + 2*va**2)
+        # pindex_pred[irun] = 1 + 2*va / (va*0.5 + 2*va**2)
+        gamma_the = pic_info.Te + 1
+        vthe = math.sqrt(gamma_the**2 - 1) / gamma_the
+        gamma_va = 1.0 / math.sqrt(1 - va**2)
+        factor = gamma_va**2
+        # factor = gamma_va**2 * va**2 / 3 + 1
+        pindex_va = 1 + 8.0 * va / (factor * (1 + va + va**2) - 1)
+        pindex_pred[irun] = pindex_va
+        print("va, gamma_va, pindex_va: %0.2f, %0.2f, %0.2f" %
+              (va, gamma_va, pindex_va))
 
-    fdata = [sigma, sigma_c, sigmae_c, sigmae_h,
-             sigmai_c, sigmai_h, beta_e, va4]
-    labels = [r"$\sigma$", r"$\sigma_c$",
-              r"$\sigma_{e, c}$", r"$\sigma_{e, h}$",
-              r"$\sigma_{i, c}$", r"$\sigma_{i, h}$",
-              r"$\beta_e$", r"$\gamma v_A$",
-              r"$1 + 2v_A/(4v_A/3 + 2v_A^2)$"]
-    npanels = len(fdata)
-    fig = plt.figure(figsize=[12, 12])
-    nrows, ncols = 4, 2
-    rect0 = [0.07, 0.78, 0.42, 0.19]
-    hgap, vgap = 0.05, 0.05
-    axs = []
-    COLORS = palettable.tableau.Tableau_10.mpl_colors
-    for ipanel in range(npanels):
-        col = ipanel // nrows
-        row = ipanel % nrows
-        rect = np.copy(rect0)
-        rect[0] = rect0[0] + col * (rect0[2] + hgap)
-        rect[1] = rect0[1] - row * (rect0[3] + vgap)
-        ax = fig.add_axes(rect)
-        ax.set_prop_cycle('color', COLORS)
-        axs.append(ax)
-        COLORS = palettable.tableau.Tableau_10.mpl_colors
-        ax.set_prop_cycle('color', COLORS)
-        if ipanel == npanels - 1:
-            ax.plot(fdata[ipanel][:5], pindex[:5], linestyle='none',
-                    marker='o', markersize=10)
-            ax.plot(fdata[ipanel][5:], pindex[5:], linestyle='none',
-                    marker='o', markersize=10)
-        else:
-            ax.semilogx(fdata[ipanel][:5], pindex[:5], linestyle='none',
-                        marker='o', markersize=10)
-            ax.semilogx(fdata[ipanel][5:], pindex[5:], linestyle='none',
-                        marker='o', markersize=10)
-        ax.set_ylim([0, 5])
-        ax.tick_params(bottom=True, top=True, left=True, right=False)
-        ax.tick_params(axis='x', which='minor', direction='in')
-        ax.tick_params(axis='x', which='major', direction='in')
-        ax.tick_params(axis='y', which='minor', direction='in')
-        ax.tick_params(axis='y', which='major', direction='in')
-        ax.set_xlabel(labels[ipanel], fontsize=16)
-        ax.set_ylabel(r'$p$', fontsize=16)
-        ax.tick_params(labelsize=12)
-        rect[1] -= rect[3] + vgap
-
-    axs[0].text(0.7, 0.95, r"$m_i/m_e=1836$",
-                color=COLORS[0], fontsize=16,
-                bbox=dict(facecolor='none', alpha=1.0,
-                          edgecolor='none', pad=10.0),
-                horizontalalignment='left', verticalalignment='top',
-                transform=axs[0].transAxes)
-    axs[0].text(0.7, 0.85, r"$m_i/m_e=1$",
-                color=COLORS[1], fontsize=16,
-                bbox=dict(facecolor='none', alpha=1.0,
-                          edgecolor='none', pad=10.0),
-                horizontalalignment='left', verticalalignment='top',
-                transform=axs[0].transAxes)
-    ename = 'electron' if species == 'e' else 'ion'
-    # fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
-    # mkdir_p(fdir)
-    # fname = fdir + 'spectrum_' + species + '.pdf'
-    # fig.savefig(fname)
+    sigma_array = np.logspace(-1, 2, 300)
+    va = np.sqrt(sigma_array / (sigma_array + 1))
+    gamma_va = 1.0 / np.sqrt(1 - va**2)
+    factor = gamma_va**2
+    pindex_array = 1 + 8.0 * va / (factor * (1 + va + va**2) - 1)
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.16, 0.82, 0.8]
+    ax = fig.add_axes(rect)
+    ax.semilogx(sigma_array, pindex_array, linestyle='-', linewidth=2,
+                label='prediction')
+    ax.semilogx(sigma, pindex, linestyle='none',
+                marker='o', markersize=10, label='simulation')
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+             shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.set_xlabel(r"$\sigma$", fontsize=20)
+    ax.set_ylabel(r'$p$', fontsize=20)
+    ax.tick_params(labelsize=16)
+    fdir = '../img/power_law_index/'
+    mkdir_p(fdir)
+    fname = fdir + 'spect_pred_simul_' + species + '.pdf'
+    fig.savefig(fname)
     plt.show()
 
 
@@ -3409,7 +4079,7 @@ def plot_trajectory(plot_config, show_plot=True):
     species = plot_config["species"]
     pic_run = plot_config["pic_run"]
     pic_run_dir = plot_config["pic_run_dir"]
-    tracer_dir = "/net/scratch3/xiaocanli/vpic-sorter/data/power_law_index/"
+    tracer_dir = "/net/scratch3/xiaocan/vpic-sorter/data/power_law_index/"
     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
@@ -3430,6 +4100,9 @@ def plot_trajectory(plot_config, show_plot=True):
     gamma0 = 1.0 / np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
     ttracer = np.arange(0, nframes) * dtwpe_tracer
     tmin, tmax = ttracer[0], ttracer[-1]
+    smime = math.sqrt(pic_info.mime)
+    lx_de = smime * pic_info.lx_di
+    lz_de = smime * pic_info.lz_di
 
     img_dir = '../img/power_law_index/tracer_traj/' + pic_run + '/'
     mkdir_p(img_dir)
@@ -3442,14 +4115,15 @@ def plot_trajectory(plot_config, show_plot=True):
     kernel = np.ones(ng) / float(ng)
 
     # for iptl in range(nptl):
-    for iptl in range(0, 2):
+    for iptl in range(9, 10):
         print("Particle: %d of %d" % (iptl, nptl))
         group = fh[particle_tags[iptl]]
         for dset_name in group:
             dset = group[dset_name]
             dset.read_direct(ptl[str(dset_name)])
         gamma = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
-        dgamma = gamma - gamma0
+        tesc = np.argmax(gamma > 0.9*gamma[-1])
+        dgamma = gamma - gamma[0]
         igamma = 1.0 / gamma
         vx = ptl["Ux"] * igamma
         vy = ptl["Uy"] * igamma
@@ -3465,13 +4139,12 @@ def plot_trajectory(plot_config, show_plot=True):
         bz = ptl["Bz"]
         edotb = ex*bx + ey*by + ez*bz
         ib2 = 1.0 / (bx**2 + by**2 + bz**2)
-        # if flow_frame:
-        #     vdx = (ey*bz - ez*by) * ib2
-        #     vdy = (ez*bx - ex*bz) * ib2
-        #     vdz = (ex*by - ey*bx) * ib2
-        #     vd = np.sqrt(vdx**2 + vdy**2 + vdz**2)
-        #     gvd = 1.0 / np.sqrt(1 - vd**2)
-        #     gamma_p = gvd * gamma * (1.0 - vdx*vx - vdy*vy - vdz*vz)
+        # vdx = (ey*bz - ez*by) * ib2
+        # vdy = (ez*bx - ex*bz) * ib2
+        # vdz = (ex*by - ey*bx) * ib2
+        # vd = np.sqrt(vdx**2 + vdy**2 + vdz**2)
+        # gvd = 1.0 / np.sqrt(1 - vd**2)
+        # gamma_p = gvd * gamma * (1.0 - vdx*vx - vdy*vy - vdz*vz)
         # gamma_smooth = signal.convolve(gamma, kernel, mode='same')
         eparax = edotb * bx * ib2
         eparay = edotb * by * ib2
@@ -3479,8 +4152,10 @@ def plot_trajectory(plot_config, show_plot=True):
         wtot = np.cumsum(-(ex*vx + ey*vy + ez*vz)) * dtwpe_tracer
         wpara = np.cumsum(-(eparax * vx + eparay * vy + eparaz * vz)) * dtwpe_tracer
         wperp = wtot - wpara
-        fig = plt.figure(figsize=[5, 3.5])
-        rect = [0.15, 0.16, 0.82, 0.8]
+        fig = plt.figure(figsize=[13, 7])
+        rect0 = [0.07, 0.56, 0.3, 0.4]
+        rect = np.copy(rect0)
+        hgap, vgap = 0.07, 0.08
         ax = fig.add_axes(rect)
         COLORS = palettable.tableau.Tableau_10.mpl_colors
         ax.set_prop_cycle('color', COLORS)
@@ -3488,9 +4163,13 @@ def plot_trajectory(plot_config, show_plot=True):
         ax.plot(ttracer, wperp, linewidth=2, label=r'$W_\perp$')
         # ax.plot(ttracer, wpara + wperp, linewidth=2,
         #         label=r'$W_\parallel + $' + r'$W_\perp$')
-        ax.plot(ttracer, dgamma, linewidth=2, label=r'$\Delta\gamma$')
+        ax.plot(ttracer, gamma, linewidth=2, label=r'$\Delta\gamma$')
         # ax.plot(ttracer, gamma_smooth-gamma0, linewidth=2, label=r'$\Delta\gamma^\prime$')
+        ylim = ax.get_ylim()
+        ax.plot([ttracer[tesc], ttracer[tesc]], ylim, color='k',
+                linewidth=1, linestyle='--')
         ax.set_xlim([tmin, tmax])
+        ax.set_ylim(ylim)
         ax.tick_params(bottom=True, top=True, left=True, right=True)
         ax.tick_params(axis='x', which='minor', direction='in')
         ax.tick_params(axis='x', which='major', direction='in')
@@ -3499,9 +4178,90 @@ def plot_trajectory(plot_config, show_plot=True):
         ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
         ax.set_ylabel('Energy change', fontsize=16)
         ax.tick_params(labelsize=12)
-        ax.set_xlim([0, 1.5E4])
         ax.legend(loc=6, prop={'size': 12}, ncol=1,
                  shadow=False, fancybox=False, frameon=False)
+
+        rect[0] += rect[2] + hgap
+        rect[2] = 0.5
+        gamma_norm = gamma / gamma[0]
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        points = np.array([x, z]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        # Create a continuous norm to map from data points to colors
+        norm = plt.Normalize(gamma_norm.min(), gamma_norm.max())
+        lc = LineCollection(segments, cmap='jet', norm=norm)
+        # Set the values used for colormapping
+        lc.set_array(gamma_norm)
+        lc.set_linewidth(2)
+        ax.add_collection(lc)
+        ax.plot([x[tesc]], [z[tesc]], marker='o', markersize=7, color="k")
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.set_xlabel(r'$x$', fontsize=16)
+        ax.set_ylabel(r'$z$', fontsize=16)
+        ax.tick_params(labelsize=12)
+        ax.set_xlim([0, lx_de])
+        ax.set_ylim([-0.5*lz_de, 0.5*lz_de])
+        # Colorbar
+        rect_cbar = np.copy(rect)
+        rect_cbar[0] = rect[0] + rect[2] + 0.01
+        rect_cbar[2] = 0.01
+        cax = fig.add_axes(rect_cbar)
+        print("min and max of energy/thermal energy: %f, %f" %
+              (gamma_norm.min(), gamma_norm.max()))
+        sm = plt.cm.ScalarMappable(cmap=plt.cm.jet,
+                                   norm=plt.Normalize(vmin=gamma_norm.min(),
+                                                      vmax=gamma_norm.max()))
+        cax.tick_params(axis='y', which='major', direction='in')
+        sm._A = []
+        cbar = fig.colorbar(sm, cax=cax, orientation='vertical')
+        cax.tick_params(labelrotation=90)
+        cbar.set_label(r'$(\gamma-1)/\varepsilon_\text{th}$',
+                       fontsize=16, labelpad=1)
+        # ticks = np.linspace(0, te_spect, 6) * dtf
+        # ticks = np.concatenate(([10], ticks))
+        # cbar.set_ticks(ticks)
+        # cax.tick_params(labelrotation=90)
+        # # cbar.ax.set_yticklabels(cbar.ax.get_yticklabels(),
+        # #                         rotation='vertical')
+        cbar.ax.tick_params(labelsize=12)
+        cax.yaxis.set_ticks_position('right')
+        cax.yaxis.set_label_position('right')
+
+        rect = np.copy(rect0)
+        rect[1] -= rect[3] + vgap
+        rect[2] = 0.25
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        ax.plot(x, dgamma, linewidth=2)
+        ax.plot([x[tesc]], [gamma[tesc]], marker='o', markersize=7, color="k")
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.set_xlabel(r'$x$', fontsize=16)
+        ax.set_ylabel(r'$\Delta\gamma$', fontsize=16)
+        ax.tick_params(labelsize=12)
+
+        rect[0] += rect[2] + hgap
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        ax.plot(ttracer, x, linewidth=2)
+        ax.plot([ttracer[tesc]], [x[tesc]], marker='o', markersize=7, color="k")
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
+        ax.set_ylabel(r'$x$', fontsize=16)
+        ax.tick_params(labelsize=12)
+
         fname = img_dir + sname + "_tracer_" + str(iptl) + ".pdf"
         fig.savefig(fname)
 
@@ -3509,6 +4269,385 @@ def plot_trajectory(plot_config, show_plot=True):
         plt.show()
 
     fh.close()
+
+
+def adjust_pos(pos, length):
+    """Adjust position for periodic boundary conditions
+
+    Args:
+        pos: the position along one axis
+        length: the box size along that axis
+    """
+    crossings = []
+    offsets = []
+    offset = 0
+    nt, = pos.shape
+    pos_b = np.zeros(nt)
+    pos_b = np.copy(pos)
+    for i in range(nt - 1):
+        if (pos[i] - pos[i + 1] > 0.1 * length):
+            crossings.append(i)
+            offset += length
+            offsets.append(offset)
+        if (pos[i] - pos[i + 1] < -0.1 * length):
+            crossings.append(i)
+            offset -= length
+            offsets.append(offset)
+    nc = len(crossings)
+    if nc > 0:
+        crossings = np.asarray(crossings)
+        offsets = np.asarray(offsets)
+        for i in range(nc - 1):
+            pos_b[crossings[i] + 1:crossings[i + 1] + 1] += offsets[i]
+        pos_b[crossings[nc - 1] + 1:] += offsets[nc - 1]
+    return pos_b
+
+
+def plot_trajectory_j(plot_config, show_plot=True):
+    """Plot particle trajectory with current density
+    """
+    species = plot_config["species"]
+    pic_run = "sigma64_bg005_4000de_triggered"
+    tracer_dir = "/net/scratch3/xiaocan/vpic-sorter/data/power_law_index/"
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
+    dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+    wce_wpe = pic_info.dtwce / pic_info.dtwpe
+    smime = math.sqrt(pic_info.mime)
+    lx_de = smime * pic_info.lx_di
+    lz_de = smime * pic_info.lz_di
+    vpic_info = get_vpic_info(pic_run_dir)
+    fields_interval = int(vpic_info["fields_interval"])
+    tracer_interval = int(vpic_info["tracer_interval"])
+    fname = tracer_dir + pic_run + "/electrons_ntraj500_1emax.h5p"
+    ticksize = 16
+    labelsize = 20
+    temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+    with h5py.File(fname, 'r') as fh:
+        particle_tags = list(fh.keys())
+        nptl = len(particle_tags)
+        print("Total number of particles: %d" % nptl)
+        group = fh[particle_tags[0]]
+        dset = group['dX']
+        nframes, = dset.shape
+        ptl = {}
+        for dset_name in group:
+            dset = group[dset_name]
+            ptl[str(dset_name)] = np.zeros(dset.shape, dset.dtype)
+            dset.read_direct(ptl[str(dset_name)])
+        gamma0 = 1.0 / np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+        ttracer = np.arange(0, nframes) * dtwpe_tracer
+        tmin, tmax = ttracer[0], ttracer[-1]
+
+        iptl = 268
+        print("Particle: %d of %d" % (iptl, nptl))
+        group = fh[particle_tags[iptl]]
+        for dset_name in group:
+            dset = group[dset_name]
+            dset.read_direct(ptl[str(dset_name)])
+    gamma = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+    tesc = np.argmax(gamma > 0.9*gamma[-1])
+    tesc_field = int(tesc * tracer_interval // fields_interval) + 1
+    dgamma = gamma - gamma[0]
+    igamma = 1.0 / gamma
+    vx = ptl["Ux"] * igamma
+    vy = ptl["Uy"] * igamma
+    vz = ptl["Uz"] * igamma
+    smime = math.sqrt(pic_info.mime)
+    x = adjust_pos(ptl['dX'], pic_info.lx_di * smime)
+    y = adjust_pos(ptl['dY'], pic_info.ly_di * smime)
+    z = adjust_pos(ptl['dZ'], pic_info.lz_di * smime)
+    ex = ptl["Ex"]
+    ey = ptl["Ey"]
+    ez = ptl["Ez"]
+    bx = ptl["Bx"]
+    by = ptl["By"]
+    bz = ptl["Bz"]
+    edotb = ex*bx + ey*by + ez*bz
+    ib2 = 1.0 / (bx**2 + by**2 + bz**2)
+    eparax = edotb * bx * ib2
+    eparay = edotb * by * ib2
+    eparaz = edotb * bz * ib2
+    wtot = np.cumsum(-(ex*vx + ey*vy + ez*vz)) * dtwpe_tracer
+    wpara = np.cumsum(-(eparax * vx + eparay * vy + eparaz * vz)) * dtwpe_tracer
+    wperp = wtot - wpara
+
+    fig = plt.figure(figsize=[6, 8])
+    rect0 = [0.16, 0.7, 0.70, 0.2625]
+    hgap, vgap = 0.04, 0.06
+    rect = np.copy(rect0)
+    tindex = tesc_field * fields_interval
+    kwargs = {"current_time": tesc_field,
+              "xl": 0, "xr": pic_info.lx_di,
+              "zb": -pic_info.lz_di*0.5, "zt": pic_info.lz_di*0.5}
+    fname = pic_run_dir + "data/absJ.gda"
+    xgrid, zgrid, absj = read_2d_fields(pic_info, fname, **kwargs)
+    nz, nx = absj.shape
+    gamma_norm = gamma / temp
+    ax = fig.add_axes(rect)
+    nxl = nx*10//32
+    fdata = np.roll(absj, nxl, axis=1)
+    im1 = ax.imshow(fdata[:, :],
+                    extent=[-lx_de*nxl/nx, lx_de-lx_de*nxl/nx,
+                            -0.5*lz_de, 0.5*lz_de],
+                    vmin=0, vmax=2.5,
+                    cmap=plt.cm.Greys, aspect='auto',
+                    origin='lower', interpolation='bicubic')
+    points = np.array([x, z]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    # Create a continuous norm to map from data points to colors
+    norm = plt.Normalize(gamma.min(), gamma.max())
+    lc = LineCollection(segments, cmap='viridis', norm=norm)
+    # Set the values used for colormapping
+    lc.set_array(gamma)
+    lc.set_linewidth(2)
+    ax.add_collection(lc)
+    ax.plot([x[tesc]], [z[tesc]], marker='o', markersize=7, color="k")
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    # ax.set_xlabel(r'$x/d_e$', fontsize=labelsize)
+    ax.set_ylabel(r'$z/d_e$', fontsize=labelsize)
+    ax.tick_params(labelsize=ticksize)
+    ax.set_xlim([-lx_de*nxl/nx, lx_de-lx_de*nxl/nx])
+    ax.set_ylim([-0.5*lz_de, 0.5*lz_de])
+    # Colorbar
+    rect_cbar = np.copy(rect)
+    rect_cbar[0] = rect[0] + rect[2] + 0.02
+    rect_cbar[2] = 0.02
+    rect_cbar[1] = rect[1] + rect[3] / 8
+    rect_cbar[3] = rect[3] * 0.75
+    cax = fig.add_axes(rect_cbar)
+    print("min and max of energy/thermal energy: %f, %f" %
+          (gamma_norm.min(), gamma_norm.max()))
+    sm = plt.cm.ScalarMappable(cmap=plt.cm.viridis,
+                               norm=plt.Normalize(vmin=gamma_norm.min(),
+                                                  vmax=gamma_norm.max()))
+    cax.tick_params(axis='y', which='major', direction='in')
+    sm._A = []
+    cbar = fig.colorbar(sm, cax=cax, orientation='vertical')
+    cax.tick_params(labelrotation=90)
+    cbar.set_label(r'$\gamma/T_e$',
+                   fontsize=labelsize, labelpad=1)
+    cbar.ax.tick_params(labelsize=ticksize)
+    cax.yaxis.set_ticks_position('right')
+    cax.yaxis.set_label_position('right')
+
+    ax.text(-0.2, 0.9, "(a)",
+            color='k', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+
+    rect[0] += rect[2] * 0.67
+    rect[1] += rect[3] * 0.45
+    rect[2] *= 0.3
+    rect[3] *= 0.5
+    ax = fig.add_axes(rect)
+    ax.patch.set_alpha(0.8)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    ax.plot(ttracer, gamma_norm, linewidth=1,
+            label=r'$\gamma/T_e$')
+    ylim = ax.get_ylim()
+    ax.plot([ttracer[tesc], ttracer[tesc]], ylim, color='k',
+            linewidth=1, linestyle='--')
+    ax.set_xlim([tmin, tmax])
+    ax.set_ylim(ylim)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
+    ax.set_ylabel(r'$\gamma/T_e$', fontsize=16)
+    ax.tick_params(labelsize=12)
+
+    rect = np.copy(rect0)
+    rect = np.copy(rect0)
+    rect[3] = 0.525
+    rect[1] -= rect[3] + vgap
+    pic_run = "mime1_sigmae100_vthe04_db1_1024de"
+    tracer_dir = '../data/power_law_index/trajectory/' + pic_run + '/'
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
+    dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+    wce_wpe = pic_info.dtwce / pic_info.dtwpe
+    smime = math.sqrt(pic_info.mime)
+    lx_de = smime * pic_info.lx_di
+    lz_de = smime * pic_info.lz_di
+    vpic_info = get_vpic_info(pic_run_dir)
+    fields_interval = int(vpic_info["fields_interval"])
+    tracer_interval = int(vpic_info["tracer_interval"])
+    fname = tracer_dir + 'electron_traj_band0.h5'
+    temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+    with h5py.File(fname, 'r') as fh:
+        particle_tags = list(fh.keys())
+        nptl = len(particle_tags)
+        print("Total number of particles: %d" % nptl)
+        group = fh[particle_tags[0]]
+        dset = group['dX']
+        nframes, = dset.shape
+        ptl = {}
+        for dset_name in group:
+            dset = group[dset_name]
+            ptl[str(dset_name)] = np.zeros(dset.shape, dset.dtype)
+            dset.read_direct(ptl[str(dset_name)])
+        gamma0 = 1.0 / np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+        ttracer = np.arange(0, nframes) * dtwpe_tracer
+        tmin, tmax = ttracer[0], ttracer[-1]
+
+        iptl = 91
+        print("Particle: %d of %d" % (iptl, nptl))
+        group = fh[particle_tags[iptl]]
+        for dset_name in group:
+            dset = group[dset_name]
+            dset.read_direct(ptl[str(dset_name)])
+    gamma = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+    tesc = np.argmax(gamma > 0.9*gamma[-1])
+    tesc_field = int(tesc * tracer_interval // fields_interval) + 1
+    dgamma = gamma - gamma[0]
+    igamma = 1.0 / gamma
+    vx = ptl["Ux"] * igamma
+    vy = ptl["Uy"] * igamma
+    vz = ptl["Uz"] * igamma
+    x = ptl["dX"]
+    y = ptl["dY"]
+    z = ptl["dZ"]
+    ex = ptl["Ex"]
+    ey = ptl["Ey"]
+    ez = ptl["Ez"]
+    bx = ptl["Bx"]
+    by = ptl["By"]
+    bz = ptl["Bz"]
+    edotb = ex*bx + ey*by + ez*bz
+    ib2 = 1.0 / (bx**2 + by**2 + bz**2)
+    eparax = edotb * bx * ib2
+    eparay = edotb * by * ib2
+    eparaz = edotb * bz * ib2
+    wtot = np.cumsum(-(ex*vx + ey*vy + ez*vz)) * dtwpe_tracer
+    wpara = np.cumsum(-(eparax * vx + eparay * vy + eparaz * vz)) * dtwpe_tracer
+    wperp = wtot - wpara
+
+    tindex = tesc_field * fields_interval
+    fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+             "/hydro_electron_" + str(tindex) + ".h5")
+    je = {}
+    with h5py.File(fname, 'r') as fh:
+        group = fh["Timestep_" + str(tindex)]
+        for var in ["jx", "jy", "jz"]:
+            dset = group[var]
+            je[var] = np.zeros(dset.shape, dtype=dset.dtype)
+            dset.read_direct(je[var])
+    fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+             "/hydro_ion_" + str(tindex) + ".h5")
+    ji = {}
+    with h5py.File(fname, 'r') as fh:
+        group = fh["Timestep_" + str(tindex)]
+        for var in ["jx", "jy", "jz"]:
+            dset = group[var]
+            ji[var] = np.zeros(dset.shape, dtype=dset.dtype)
+            dset.read_direct(ji[var])
+
+    absj = np.squeeze(np.sqrt((je["jx"] + ji["jx"])**2 +
+                              (je["jy"] + ji["jy"])**2 +
+                              (je["jz"] + ji["jz"])**2))
+    jy = np.squeeze(je["jy"] + ji["jy"])
+    nz, nx = absj.shape
+    gamma_norm = gamma / temp
+    ax = fig.add_axes(rect)
+    im1 = ax.imshow(absj[:nx//2, nz//2:].T,
+                    extent=[0, 0.5*lx_de, 0, 0.5*lz_de],
+                    vmin=0.5, vmax=2.5,
+                    cmap=plt.cm.Greys, aspect='auto',
+                    origin='lower', interpolation='bicubic')
+    points = np.array([x, z]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    # Create a continuous norm to map from data points to colors
+    norm = plt.Normalize(gamma.min(), gamma.max())
+    lc = LineCollection(segments, cmap='viridis', norm=norm)
+    # Set the values used for colormapping
+    lc.set_array(gamma)
+    lc.set_linewidth(2)
+    ax.add_collection(lc)
+    ax.plot([x[tesc]], [z[tesc]], marker='o', markersize=7, color="k")
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$x/d_e$', fontsize=labelsize)
+    ax.set_ylabel(r'$z/d_e$', fontsize=labelsize)
+    ax.tick_params(labelsize=ticksize)
+    ax.set_xlim([0, 0.5*lx_de])
+    ax.set_ylim([0, 0.5*lz_de])
+    # Colorbar
+    rect_cbar = np.copy(rect)
+    rect_cbar[0] = rect[0] + rect[2] + 0.02
+    rect_cbar[2] = 0.02
+    rect_cbar[1] = rect[1] + rect[3] / 8
+    rect_cbar[3] = rect[3] * 0.75
+    cax = fig.add_axes(rect_cbar)
+    print("min and max of energy/thermal energy: %f, %f" %
+          (gamma_norm.min(), gamma_norm.max()))
+    sm = plt.cm.ScalarMappable(cmap=plt.cm.viridis,
+                               norm=plt.Normalize(vmin=gamma_norm.min(),
+                                                  vmax=gamma_norm.max()))
+    cax.tick_params(axis='y', which='major', direction='in')
+    sm._A = []
+    cbar = fig.colorbar(sm, cax=cax, orientation='vertical')
+    cax.tick_params(labelrotation=90)
+    cbar.set_label(r'$\gamma/T_e$',
+                   fontsize=labelsize, labelpad=1)
+    cbar.ax.tick_params(labelsize=ticksize)
+    cax.yaxis.set_ticks_position('right')
+    cax.yaxis.set_label_position('right')
+
+    ax.text(-0.2, 0.9, "(b)",
+            color='k', fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='bottom',
+            transform=ax.transAxes)
+
+    rect[0] += rect[2] * 0.67
+    rect[1] += rect[3] * 0.13
+    rect[2] *= 0.3
+    rect[3] *= 0.25
+    ax = fig.add_axes(rect)
+    ax.patch.set_alpha(0.8)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    ax.plot(ttracer, gamma_norm, linewidth=1, label=r'$\Delta\gamma$')
+    ylim = ax.get_ylim()
+    ax.plot([ttracer[tesc], ttracer[tesc]], ylim, color='k',
+            linewidth=1, linestyle='--')
+    ax.set_xlim([tmin, tmax])
+    ax.set_ylim(ylim)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
+    ax.set_ylabel(r'$\gamma/T_e$', fontsize=16)
+    ax.tick_params(labelsize=12)
+
+    img_dir = '../img/power_law_index/tracer_traj/'
+    mkdir_p(img_dir)
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "Ion"
+    fname = img_dir + sname + "_traj_runs_2" + ".pdf"
+    fig.savefig(fname)
+
+    plt.show()
 
 
 def read_var(group, dset_name, sz):
@@ -3534,20 +4673,50 @@ def calc_rates_tracer(plot_config, show_plot=True):
     """
     species = plot_config["species"]
     pic_run = plot_config["pic_run"]
-    pic_run_dir = plot_config["pic_run_dir"]
-    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
-    pic_info = read_data_from_json(picinfo_fname)
-    dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        dtwpe = 9.866826e-02
+        dtwpe_tracer = dtwpe * 80
+        pic_run_dir = "/net/scratch3/guofan/trinity/turbulent-sheet3D-mixing-sigma100/"
+        tracer_dir = pic_run_dir + 'tracer/'
+    else:
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        if "3D-Lx150" in pic_run:
+            pic_run_dir = "/net/scratch3/xiaocan/reconnection/Cori_runs/" + pic_run + "/"
+        else:
+            pic_run_dir = pic_info.run_dir
+        dtwpe = pic_info.dtwpe
+        dtwpe_tracer = dtwpe * pic_info.tracer_interval
+        tracer_dir = pic_run_dir + 'tracer/tracer1/'
 
-    tracer_dir = pic_run_dir + 'tracer/tracer1/'
-    nframes = len(os.listdir(tracer_dir))
     file_list = os.listdir(tracer_dir)
     tframes = []
-    for file_name in file_list:
-        fsplit = file_name.split(".")
-        tindex = int(fsplit[-1])
-        tframes.append(tindex)
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        fname = tracer_dir + 'T.0/electron_tracer_sorted.h5p'
+        with h5py.File(fname, 'r') as fh:
+            group = fh["Step#0"]
+            dataset = group["dX"]
+            nptl0, = dataset.shape
+        for file_name in file_list:
+            if "T." in file_name:
+                fsplit = file_name.split(".")
+                tindex = int(fsplit[-1])
+                fname = tracer_dir + 'T.' + str(tindex) + '/electron_tracer_sorted.h5p'
+                if os.path.isfile(fname):
+                    with h5py.File(fname, 'r') as fh:
+                        group = fh["Step#" + str(tindex)]
+                        nkeys = len(group.keys())
+                        dataset = group["dX"]
+                        nptl, = dataset.shape
+                        if nptl == nptl0 and nkeys == 17:
+                            tframes.append(tindex)
+    else:
+        for file_name in file_list:
+            fsplit = file_name.split(".")
+            tindex = int(fsplit[-1])
+            tframes.append(tindex)
     tframes = np.sort(np.asarray(tframes))
+    nfiles = len(tframes)
 
     if species in ["e", "electron"]:
         sname = "electron"
@@ -3555,12 +4724,40 @@ def calc_rates_tracer(plot_config, show_plot=True):
         pcharge = -1.0
     else:
         sname = "H"
-        pmass = pic_info.mime
         pcharge = 1.0
+        if pic_run == "turbulent-sheet3D-mixing-sigma100":
+            pmass = 1.0
+        else:
+            pmass = pic_info.mime
 
-    tmax = tframes[-1]
-    fname = tracer_dir + 'T.' + str(tmax) + '/electron_tracer_qtag_sorted.h5p'
+    # Check how many steps in each file
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        fname = tracer_dir + 'T.0/electron_tracer_sorted.h5p'
+    else:
+        fname = tracer_dir + 'T.0/electron_tracer_qtag_sorted.h5p'
     with h5py.File(fname, 'r') as fh:
+        groups = list(fh.keys())
+        nsteps_file = len(groups)
+        tsteps = [int(group[5:]) for group in groups]
+        tsteps.sort()
+    if len(tsteps) > 1:
+        tinterval = tsteps[1] - tsteps[0]
+    else:
+        nsteps_file = 1
+        tinterval = tframes[1] - tframes[0]
+        tinterval_file = tinterval
+
+    # Last time step
+    tmax_dir = tframes[-1]
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        fname = tracer_dir + 'T.' + str(tmax_dir) + '/electron_tracer_sorted.h5p'
+    else:
+        fname = tracer_dir + 'T.' + str(tmax_dir) + '/electron_tracer_qtag_sorted.h5p'
+    with h5py.File(fname, 'r') as fh:
+        groups = list(fh.keys())
+        tsteps = [int(group[5:]) for group in groups]
+        tsteps.sort()
+        tmax = tsteps[-1]
         group = fh['Step#' + str(tmax)]
         dset = group['dX']
         nptl, = dset.shape
@@ -3568,53 +4765,143 @@ def calc_rates_tracer(plot_config, show_plot=True):
         for dset in group:
             dset = str(dset)
             ptl[str(dset)] = read_var(group, dset, nptl)
-    gamma_final = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+    ene_final = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2) - 1
     spect_params = get_spect_params(pic_run)
     emin, emax = spect_params["energy_range"]
-    temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
-    cond_energetic_final = gamma_final > (emin * temp)
+    if "3D-Lx150" in pic_run:
+        vthe = pic_info.vthe
+        gama = 1.0 / math.sqrt(1.0 - 3 * vthe**2)
+        temp = gama - 1.0
+    elif pic_run == "turbulent-sheet3D-mixing-sigma100":
+        temp = 1.0
+    else:
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+    # cond_energetic_final = ene_final > (emin * temp)
 
-    escaped_high = np.zeros(nptl, dtype=bool)
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        nframes = len(tframes)
+    else:
+        nframes = tmax // tinterval + 1
+
+    escaped_all = np.zeros(nptl, dtype=bool)
     acc_high = np.zeros(nptl, dtype=bool)
     threshold = 0.9  # we treat particles to escape when reaching this*final_gamma
     dset_names = ['Ux', 'Uy', 'Uz', 'Ex', 'Ey', 'Ez']
-    acc_rate_sum = np.zeros(nframes)
-    nptl_acc = np.zeros(nframes)
-    nptl_esc = np.zeros(nframes)
+    if "3D-Lx150" in pic_run:
+        nbins = 16
+    else:
+        nbins = 20
+    acc_rate_sum = np.zeros([nframes, nbins])
+    acc_rate_esc = np.zeros([nframes, nbins])
+    nptl_acc = np.zeros([nframes, nbins])
+    nptl_esc = np.zeros([nframes, nbins])
+    dnptl_esc = np.zeros([nframes, nbins])
+    ebins = np.logspace(math.log10(emin*temp/2), math.log10(emax*temp*2), nbins+1)
 
-    for tframe in range(nframes):
-        print("Time frame %d of %d" % (tframe, nframes))
-        tindex = tframe * pic_info.tracer_interval
-        fname = tracer_dir + 'T.' + str(tindex) + '/' + sname + '_tracer_qtag_sorted.h5p'
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        tracer_interval = 10
+    else:
+        tracer_interval = pic_info.tracer_interval
+    dee_interval = get_time_interval(pic_run)
+    for ifile, tindex_file in enumerate(tframes):
+        print("File %d of %d" % (ifile, nfiles))
+        if pic_run == "turbulent-sheet3D-mixing-sigma100":
+            fname = tracer_dir + 'T.' + str(tindex_file) + '/' + sname + '_tracer_sorted.h5p'
+        else:
+            fname = tracer_dir + 'T.' + str(tindex_file) + '/' + sname + '_tracer_qtag_sorted.h5p'
         with h5py.File(fname, 'r') as fh:
-            gname = 'Step#' + str(tindex)
-            group = fh[gname]
-            for dset_name in dset_names:
-                dset = group[dset_name]
-                dset.read_direct(ptl[dset_name])
-            gamma = np.sqrt(1.0 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
-            cond_escape = gamma > (gamma_final * threshold)  # Close to final energy
-            # Particle should be energetic in the end
-            cond_escape = np.logical_and(cond_escape, cond_energetic_final)
-            escaped_high = np.logical_or(cond_escape, escaped_high)
-            # Particle in acceleration regions should be energetic.
-            # They cannot not be escaped particles at the same time.
-            cond_energetic = gamma > (emin * temp)  # Energetic enough
-            cond_energetic = np.logical_and(cond_energetic, cond_energetic_final)
-            acc_high = np.logical_and(cond_energetic, np.logical_not(escaped_high))
-            nptl_esc[tframe] = np.sum(escaped_high)
-            nptl_acc[tframe] = np.sum(acc_high)
-            dene = ptl["Ux"] * ptl["Ex"] + ptl["Uy"] * ptl["Ey"] + ptl["Uz"] * ptl["Ez"]
-            acc_rate_sum[tframe] = np.sum(dene[acc_high] / gamma[acc_high]**2) * pcharge
+            for istep in range(nsteps_file):
+                tindex = tindex_file + istep * tracer_interval
+                tframe = ifile * nsteps_file + istep
+                if tindex > tmax:
+                    break
+                gname = 'Step#' + str(tindex)
+                group = fh[gname]
+                for dset_name in dset_names:
+                    dset = group[dset_name]
+                    dset.read_direct(ptl[dset_name])
+                gamma = np.sqrt(1.0 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+                ene = gamma - 1
+                cond_escape = ene > (ene_final * threshold)  # Close to final energy
+                # Particle should be energetic in the end
+                # cond_escape = np.logical_and(cond_escape, cond_energetic_final)
+                escaped_new = np.logical_and(cond_escape, np.logical_not(escaped_all))
+                escaped_all = np.logical_or(cond_escape, escaped_all)
+                # Particle in acceleration regions should be energetic.
+                # They cannot not be escaped particles at the same time.
+                cond_energetic = ene > (emin * temp/2)  # Energetic enough
+                # cond_energetic = np.logical_and(cond_energetic, cond_energetic_final)
+                acc_high = np.logical_and(cond_energetic, np.logical_not(escaped_all))
+                dene = ptl["Ux"] * ptl["Ex"] + ptl["Uy"] * ptl["Ey"] + ptl["Uz"] * ptl["Ez"]
+                dene /= gamma
+                for ibin in range(nbins):
+                    cond_bin = np.logical_and(ene > ebins[ibin], ene <= ebins[ibin+1])
+                    cond = np.logical_and(escaped_new, cond_bin)
+                    dnptl_esc[tframe, ibin] = np.sum(cond)
+                    cond = np.logical_and(escaped_all, cond_bin)
+                    nptl_esc[tframe, ibin] = np.sum(cond)
+                    acc_rate_esc[tframe, ibin] = np.sum(dene[cond] / ene[cond]) * pcharge
+                    cond = np.logical_and(acc_high, cond_bin)
+                    nptl_acc[tframe, ibin] = np.sum(cond)
+                    acc_rate_sum[tframe, ibin] = np.sum(dene[cond] / ene[cond]) * pcharge
+
+                # High-energy particles for calculating energy diffusion
+                if tframe % dee_interval == 0:
+                    ibin_max = -1
+                    ptl_indices = np.zeros((nbins, nptl), dtype=bool)
+                    for ibin in range(nbins):
+                        ptl_indices[ibin] = np.logical_and(ene > ebins[ibin],
+                                                           ene < ebins[ibin+1])
+                        if np.sum(ptl_indices[ibin]) > 0:
+                            ibin_max = ibin
+                    tstart = tframe
+                    gamma_avg = np.zeros([nbins, dee_interval])
+                    dgamma = np.zeros([nbins, dee_interval])
+                for ibin in range(0, ibin_max+1):
+                    # cond = np.logical_and(np.logical_not(escaped_all), ptl_indices[ibin])
+                    # gamma_selected = gamma[cond]
+                    # if np.sum(cond) > 0:
+                    gamma_selected = gamma[ptl_indices[ibin]]
+                    if len(gamma_selected) > 0:
+                        gamma_avg[ibin, tframe-tstart] = np.mean(gamma_selected)
+                        if len(gamma_selected) == 1:
+                            dgamma[ibin, tframe-tstart] = 0.0
+                        else:
+                            dtmp = np.mean(gamma_selected**2) - gamma_avg[ibin, tframe-tstart]**2
+                            if dtmp > 0:
+                                dgamma[ibin, tframe-tstart] = math.sqrt(dtmp)
+                            else:
+                                dgamma[ibin, tframe-tstart] = 0.0
+
+                if (tframe + 1) % dee_interval == 0 or tindex == tmax:
+                    fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+                    mkdir_p(fdir)
+                    fname = fdir + 'gamma_avg_' + str(tframe//dee_interval) + '.dat'
+                    gamma_avg.tofile(fname)
+                    fname = fdir + 'dgamma_' + str(tframe//dee_interval) + '.dat'
+                    dgamma.tofile(fname)
 
     fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
     mkdir_p(fdir)
     fname = fdir + 'nptl_esc.dat'
     nptl_esc.tofile(fname)
+    fname = fdir + 'dnptl_esc.dat'
+    dnptl_esc.tofile(fname)
     fname = fdir + 'nptl_acc.dat'
     nptl_acc.tofile(fname)
     fname = fdir + 'acc_rate_sum.dat'
     acc_rate_sum.tofile(fname)
+    fname = fdir + 'acc_rate_esc.dat'
+    acc_rate_esc.tofile(fname)
+    fname = fdir + 'ebins.dat'
+    ebins.tofile(fname)
+    twpe = tframes * dtwpe
+    fname = fdir + 'twpe.dat'
+    twpe.tofile(fname)
+
+
+def reject_outliers(data, m=2):
+    return data[abs(data - np.mean(data)) < m * np.std(data)]
 
 
 def plot_rates_tracer(plot_config, show_plot=True):
@@ -3624,34 +4911,272 @@ def plot_rates_tracer(plot_config, show_plot=True):
     """
     species = plot_config["species"]
     pic_run = plot_config["pic_run"]
-    pic_run_dir = plot_config["pic_run_dir"]
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        dtwpe_tracer = 9.866826e-02 * 80
+        pic_run_dir = "/net/scratch3/guofan/trinity/turbulent-sheet3D-mixing-sigma100/"
+        tracer_dir = pic_run_dir + 'tracer/'
+    else:
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        if "3D-Lx150" in pic_run:
+            pic_run_dir = "/net/scratch3/xiaocan/reconnection/Cori_runs/" + pic_run + "/"
+        else:
+            pic_run_dir = pic_info.run_dir
+        dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+        tracer_dir = pic_run_dir + 'tracer/tracer1/'
+
+    if "3D-Lx150" in pic_run:
+        vthe = pic_info.vthe
+        gama = 1.0 / math.sqrt(1.0 - 3 * vthe**2)
+        temp = gama - 1.0
+    elif pic_run == "turbulent-sheet3D-mixing-sigma100":
+        temp = 1.0
+    else:
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+
+    fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+    fname = fdir + 'ebins.dat'
+    ebins = np.fromfile(fname)
+    ebins /= temp
+    ebins_mid = 0.5 * (ebins[1:] + ebins[:-1])
+    nbins, = ebins.shape
+    fname = fdir + 'nptl_esc.dat'
+    nptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+    fname = fdir + 'dnptl_esc.dat'
+    dnptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+    fname = fdir + 'nptl_acc.dat'
+    nptl_acc = np.fromfile(fname).reshape([-1, nbins-1])
+    fname = fdir + 'acc_rate_sum.dat'
+    acc_rate_sum = np.fromfile(fname).reshape([-1, nbins-1])
+    fname = fdir + 'acc_rate_esc.dat'
+    acc_rate_esc = np.fromfile(fname).reshape([-1, nbins-1])
+    spect_params = get_spect_params(pic_run)
+    power_index = spect_params["power_index"]
+
+    rfactor = get_time_interval(pic_run)
+    nframes, _ = acc_rate_sum.shape
+    n1 = (nframes // rfactor) * rfactor
+    nfr = n1 // rfactor
+
+#     acc_rate_sum_r = np.mean(acc_rate_sum[:n1].reshape([nfr, rfactor, -1]), axis=1)
+#     acc_rate_esc_r = np.mean(acc_rate_esc[:n1].reshape([nfr, rfactor, -1]), axis=1)
+#     nptl_acc_r = np.mean(nptl_acc[:n1].reshape([nfr, rfactor, -1]), axis=1)
+#     nptl_esc_r = np.mean(nptl_esc[:n1].reshape([nfr, rfactor, -1]), axis=1)
+#     dnptl_esc_r = np.mean(dnptl_esc[:n1].reshape([nfr, rfactor, -1]), axis=1)
+#     acc_rate_r = div0(acc_rate_sum_r, nptl_acc_r)
+#     acc_esc_r = div0(acc_rate_sum_r, nptl_esc_r)
+#     esc_rate_r = div0(np.gradient(nptl_esc_r, axis=0), nptl_acc_r) / dtwpe_tracer / rfactor
+#     esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dtwpe_tracer
+
+    eend = nframes
+    acc_rate_sum_r = np.mean(acc_rate_sum[:eend], axis=0)
+    acc_rate_esc_r = np.mean(acc_rate_esc[:eend], axis=0)
+    nptl_acc_r = np.mean(nptl_acc[:eend], axis=0)
+    nptl_esc_r = np.mean(nptl_esc[:eend], axis=0)
+    dnptl_esc_r = np.mean(dnptl_esc[:eend], axis=0)
+    acc_rate_r = div0(acc_rate_sum_r, nptl_acc_r)
+    acc_esc_r = div0(acc_rate_sum_r, nptl_esc_r)
+    if pic_run == "turbulent-sheet3D-mixing-sigma100":
+        esc_rate = div0(dnptl_esc, nptl_acc)
+        fname = fdir + 'twpe.dat'
+        twpe = np.fromfile(fname)
+        for ibin in range(nbins-1):
+            esc_rate[1:, ibin] /= np.diff(twpe)
+        esc_rate2_r = np.mean(esc_rate[:eend], axis=0)
+    else:
+        esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dtwpe_tracer
+    fig = plt.figure(figsize=[7, 8])
+    rect = [0.15, 0.55, 0.8, 0.43]
+    vgap = 0.02
+    ax = fig.add_axes(rect)
+    ax.set_prop_cycle('color', COLORS)
+    ax.semilogx(ebins_mid, acc_rate_r, label=r"$\alpha_\text{acc}$")
+    fdata = (-power_index - 1) * acc_rate_r
+    ax.semilogx(ebins_mid, fdata, linewidth=2, label=r"$(p-1)\alpha_\text{acc}$")
+    ax.semilogx(ebins_mid, esc_rate2_r, linewidth=2, label=r"$\alpha_\text{esc}$")
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.set_xlim(ebins[0], ebins[-1])
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_ylabel('Rates', fontsize=20)
+    ax.tick_params(axis='x', labelbottom=False)
+    ax.tick_params(labelsize=16)
+
+    rect[1] -= rect[3] + vgap
+    ax = fig.add_axes(rect)
+    colors1 = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', colors1)
+    pindex = 1 + div0(esc_rate2_r, acc_rate_r)
+    label = r"$1+(\alpha_\text{esc}/\alpha)$"
+    ax.semilogx(ebins_mid, pindex, linewidth=2, label=label)
+    pindex += (np.gradient(np.log(acc_rate_r)) /
+               (math.log(ebins[1]) - math.log(ebins[0])))
+    pindex -= (np.gradient(np.log(esc_rate2_r)) /
+               (math.log(ebins[1]) - math.log(ebins[0])))
+    label = (r"$1+(\alpha_\text{esc}/\alpha_\text{acc})+" +
+             r"\partial\ln\alpha_\text{acc}/\partial\ln E-" +
+             r"\partial\ln\alpha_\text{esc}/\partial\ln E$")
+    ax.semilogx(ebins_mid, pindex, linewidth=2, label=label)
+    emin, emax = spect_params["energy_range"]
+    es, _ = find_nearest(ebins_mid, emin)
+    ee, _ = find_nearest(ebins_mid, emax)
+    pindex_avg = np.mean(pindex[es:ee])
+    ax.semilogx([ebins[0], ebins[-1]], [pindex_avg, pindex_avg],
+                linewidth=1, linestyle='--', color='k')
+    ylim = ax.get_ylim()
+    ax.plot([emin, emin], ylim, color='k', linewidth=0.5,
+            linestyle='--')
+    ax.plot([emax, emax], ylim, color='k', linewidth=0.5,
+            linestyle='--')
+    ax.set_ylim(ylim)
+    pname = "{%0.2f}" % pindex_avg
+    ylim = ax.get_ylim()
+    ypos = (pindex_avg - ylim[0]) / (ylim[1] - ylim[0])
+    ax.text(0.95, ypos, pname, color='k', fontsize=12,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='bottom',
+            transform=ax.transAxes)
+    ax.set_xlim(ebins[0], ebins[-1])
+    ax.legend(loc=2, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=16)
+    ax.set_xlabel(r'$\gamma/T_e$', fontsize=20)
+    ax.set_ylabel('Power-law index', fontsize=20)
+    img_dir = '../img/power_law_index/power_index_tracer_overall/'
+    mkdir_p(img_dir)
+    fname = img_dir + "pindex_tracer_" + pic_run + ".pdf"
+    fig.savefig(fname)
+
+    fdir = '../data/power_law_index/power_index_tracer_overall/'
+    mkdir_p(fdir)
+    fdata = np.asarray([pindex_avg])
+    fname = fdir + "pindex_tracer_" + pic_run + ".dat"
+    fdata.tofile(fname)
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+    # acc_rate_bins = div0(acc_rate_sum, nptl_acc)
+    # acc_esc_bins = div0(acc_rate_esc, nptl_esc)
+    # acc_rate_r = np.mean(acc_rate_bins[:n1].reshape([nfr, rfactor, -1]), axis=1)
+    # acc_rate_std = np.std(acc_rate_bins[:n1].reshape([nfr, rfactor, -1]), axis=1)
+    # acc_esc_r = np.mean(acc_esc_bins[:n1].reshape([nfr, rfactor, -1]), axis=1)
+    # fdata = np.gradient(nptl_esc, axis=0)
+    # fdata -= (1-np.exp(acc_esc_bins*dtwpe_tracer)**-0.7) * nptl_esc
+    # esc_rate_bins = div0(fdata, nptl_acc) / dtwpe_tracer
+    # esc_rate_r = np.mean(esc_rate_bins[:n1].reshape([nfr, rfactor, -1]), axis=1)
+    # esc_rate2_bins = div0(dnptl_esc, nptl_acc) / dtwpe_tracer
+    # fdata = esc_rate2_bins[:n1].reshape([nfr, rfactor, -1])
+    # esc_rate2_r = np.zeros([nfr, nbins-1])
+    # esc_rate_std = np.zeros([nfr, nbins-1])
+    # tdata = dnptl_esc[:n1].reshape([nfr, rfactor, -1])
+    # esc_rate2_r = np.mean(esc_rate2_bins[:n1].reshape([nfr, rfactor, -1]), axis=1)
+    # esc_rate_std = np.std(esc_rate2_bins[:n1].reshape([nfr, rfactor, -1]), axis=1)
+
+    # dtfr = rfactor * dtwpe_tracer
+    # for tframe in range(7, nfr):
+    #     print("Frame %d of %d" % (tframe, nfr))
+    #     fig = plt.figure(figsize=[7, 8])
+    #     rect = [0.15, 0.55, 0.8, 0.43]
+    #     vgap = 0.02
+    #     ax = fig.add_axes(rect)
+    #     ax.set_prop_cycle('color', COLORS)
+    #     ax.semilogx(ebins_mid, acc_rate_r[tframe], label=r"$\alpha_\text{acc}$")
+    #     fdata = (-power_index - 1) * acc_rate_r[tframe]
+    #     ax.semilogx(ebins_mid, fdata, linewidth=2,
+    #                 label=r"$(p-1)\alpha_\text{acc}$")
+    #     ax.semilogx(ebins_mid, esc_rate2_r[tframe], linewidth=2,
+    #                 label=r"$\alpha_\text{esc}$")
+    #     ax.legend(loc=1, prop={'size': 16}, ncol=1,
+    #               shadow=False, fancybox=False, frameon=False)
+    #     ax.set_xlim(ebins[0], ebins[-1])
+    #     ax.tick_params(bottom=True, top=True, left=True, right=False)
+    #     ax.tick_params(axis='x', which='minor', direction='in')
+    #     ax.tick_params(axis='x', which='major', direction='in')
+    #     ax.tick_params(axis='y', which='minor', direction='in')
+    #     ax.tick_params(axis='y', which='major', direction='in')
+    #     ax.set_ylabel('Rates', fontsize=20)
+    #     ax.tick_params(axis='x', labelbottom=False)
+    #     ax.tick_params(labelsize=16)
+
+    #     rect[1] -= rect[3] + vgap
+    #     ax = fig.add_axes(rect)
+    #     colors1 = palettable.tableau.Tableau_10.mpl_colors
+    #     ax.set_prop_cycle('color', colors1)
+    #     pindex = 1 + div0(esc_rate2_r[tframe], acc_rate_r[tframe])
+    #     label = r"$1+(\alpha_\text{esc}/\alpha)$"
+    #     ax.semilogx(ebins_mid, pindex, linewidth=2, label=label)
+    #     pindex += (np.gradient(np.log(acc_rate_r[tframe])) /
+    #                (math.log(ebins[1]) - math.log(ebins[0])))
+    #     pindex -= (np.gradient(np.log(esc_rate2_r[tframe])) /
+    #                (math.log(ebins[1]) - math.log(ebins[0])))
+    #     label = (r"$1+(\alpha_\text{esc}/\alpha)+" +
+    #              r"\partial\ln\alpha_\text{acc}/\partial\ln E-" +
+    #              r"\partial\ln\alpha_\text{esc}/\partial\ln E$")
+    #     ax.semilogx(ebins_mid, pindex, linewidth=2, label=label)
+    #     ax.semilogx([ebins[0], ebins[-1]], [-power_index, -power_index],
+    #                 linewidth=1, linestyle='--', color='k')
+    #     ax.set_xlim(ebins[0], ebins[-1])
+    #     ax.legend(loc=2, prop={'size': 16}, ncol=1,
+    #               shadow=False, fancybox=False, frameon=False)
+    #     ax.tick_params(bottom=True, top=True, left=True, right=False)
+    #     ax.tick_params(axis='x', which='minor', direction='in')
+    #     ax.tick_params(axis='x', which='major', direction='in')
+    #     ax.tick_params(axis='y', which='minor', direction='in')
+    #     ax.tick_params(axis='y', which='major', direction='in')
+    #     ax.tick_params(labelsize=16)
+    #     ax.set_xlabel(r'$\gamma/T_e$', fontsize=20)
+    #     ax.set_ylabel('Power-law index', fontsize=20)
+    #     img_dir = '../img/power_law_index/power_index_tracer/' + pic_run + '/'
+    #     mkdir_p(img_dir)
+    #     fname = img_dir + "pindex_tracer_" + str(tframe) + ".pdf"
+    #     fig.savefig(fname)
+    #     if show_plot:
+    #         plt.show()
+    #     else:
+    #         plt.close()
+
+
+def plot_dee_tracer(plot_config, show_plot=True):
+    """plot energy diffusion coefficients calculated from tracers
+    """
+    species = plot_config["species"]
+    pic_run = plot_config["pic_run"]
     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
     pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
     dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
-    fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
-    fname = fdir + 'nptl_esc.dat'
-    nptl_esc = np.fromfile(fname)
-    fname = fdir + 'nptl_acc.dat'
-    nptl_acc = np.fromfile(fname)
-    fname = fdir + 'acc_rate_sum.dat'
-    acc_rate_sum = np.fromfile(fname)
 
-    acc_rate = div0(acc_rate_sum, nptl_acc)
-    esc_rate = div0(np.gradient(nptl_esc), nptl_acc) / dtwpe_tracer
-    # plt.plot(nptl_esc)
-    # plt.plot(nptl_acc)
-    ng = 5
-    kernel = np.ones(ng) / float(ng)
-    acc_rate = signal.convolve(acc_rate, kernel, mode='same')
-    esc_rate = signal.convolve(esc_rate, kernel, mode='same')
-    # plt.plot(acc_rate)
-    # plt.plot(esc_rate)
-    # plt.scatter(acc_rate, esc_rate)
-    pindex = 1 + div0(esc_rate, acc_rate)
-    pindex = signal.convolve(pindex, kernel, mode='same')
-    plt.plot(pindex)
-    plt.ylim([1, 5])
-    plt.show()
+    dee_interval = get_time_interval(pic_run)
+    fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+    file_list = os.listdir(fdir)
+    nfiles = 0
+    for fname in file_list:
+        if "gamma_avg" in fname:
+            nfiles += 1
+
+    for tframe in range(nfiles):
+        fname = fdir + 'gamma_avg_' + str(tframe) + '.dat'
+        gamma_avg = np.fromfile(fname).reshape([-1, dee_interval])
+        fname = fdir + 'dgamma_' + str(tframe) + '.dat'
+        dgamma = np.fromfile(fname).reshape([-1, dee_interval])
+        nbins, _ = dgamma.shape
+        fdata = dgamma**2
+        for ibin in range(nbins):
+            color = plt.cm.jet(ibin/float(nbins), 1)
+            plt.plot(fdata[ibin], color=color)
+        plt.show()
 
 
 def get_trajectory(plot_config, show_plot=True):
@@ -3662,13 +5187,13 @@ def get_trajectory(plot_config, show_plot=True):
     """
     species = plot_config["species"]
     pic_run = plot_config["pic_run"]
-    pic_run_dir = plot_config["pic_run_dir"]
     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
     pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
     dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
 
     tracer_dir = pic_run_dir + 'tracer/tracer1/'
-    nframes = len(os.listdir(tracer_dir))
+    nfiles = len(os.listdir(tracer_dir))
     file_list = os.listdir(tracer_dir)
     tframes = []
     for file_name in file_list:
@@ -3686,10 +5211,28 @@ def get_trajectory(plot_config, show_plot=True):
         pmass = pic_info.mime
         pcharge = 1.0
 
-    # Select tracers from the last time step
-    tmax = tframes[-1]
-    fname = tracer_dir + 'T.' + str(tmax) + '/electron_tracer_qtag_sorted.h5p'
+    # Check how many steps in each file
+    fname = tracer_dir + 'T.0/electron_tracer_qtag_sorted.h5p'
     with h5py.File(fname, 'r') as fh:
+        groups = list(fh.keys())
+        nsteps_file = len(groups)
+        tsteps = [int(group[5:]) for group in groups]
+        tsteps.sort()
+    if len(tsteps) > 1:
+        tinterval = tsteps[1] - tsteps[0]
+    else:
+        nsteps_file = 1
+        tinterval = tframes[1] - tframes[0]
+        tinterval_file = tinterval
+
+    # Select tracers from the last time step
+    tmax_dir = tframes[-1]
+    fname = tracer_dir + 'T.' + str(tmax_dir) + '/electron_tracer_qtag_sorted.h5p'
+    with h5py.File(fname, 'r') as fh:
+        groups = list(fh.keys())
+        tsteps = [int(group[5:]) for group in groups]
+        tsteps.sort()
+        tmax = tsteps[-1]
         group = fh['Step#' + str(tmax)]
         dset = group['dX']
         nptl, = dset.shape
@@ -3715,21 +5258,29 @@ def get_trajectory(plot_config, show_plot=True):
     ptl_selected = np.sort(ptl_selected, axis=1)
     tags = ptl["q"][ptl_selected]
 
+    nframes = tmax // tinterval + 1
+
     ptls = np.zeros([nbands, nptl, nframes, nkeys], dtype=np.float32)
 
-    for tframe in range(nframes):
-        print("Time frame %d of %d" % (tframe, nframes))
-        tindex = tframe * pic_info.tracer_interval
-        fname = tracer_dir + 'T.' + str(tindex) + '/' + sname + '_tracer_qtag_sorted.h5p'
+    tracer_interval = pic_info.tracer_interval
+    for ifile in range(nfiles):
+        print("File %d of %d" % (ifile, nfiles))
+        tindex_file = ifile * nsteps_file * tracer_interval
+        fname = tracer_dir + 'T.' + str(tindex_file) + '/' + sname + '_tracer_qtag_sorted.h5p'
         with h5py.File(fname, 'r') as fh:
-            gname = 'Step#' + str(tindex)
-            group = fh[gname]
-            for dset_name in group:
-                dset = group[dset_name]
-                dset.read_direct(ptl[dset_name])
-        for ikey, key in enumerate(ptl.keys()):
-            for iband in range(nbands):
-                ptls[iband, :, tframe, ikey] = ptl[key][ptl_selected[iband, :]]
+            for istep in range(nsteps_file):
+                tindex = tindex_file + istep * tracer_interval
+                tframe = ifile * nsteps_file + istep
+                if tindex > tmax:
+                    break
+                gname = 'Step#' + str(tindex)
+                group = fh[gname]
+                for dset_name in group:
+                    dset = group[dset_name]
+                    dset.read_direct(ptl[dset_name])
+                for ikey, key in enumerate(ptl.keys()):
+                    for iband in range(nbands):
+                        ptls[iband, :, tframe, ikey] = ptl[key][ptl_selected[iband, :]]
     for iband in range(nbands):
         fdir = '../data/power_law_index/trajectory/' + pic_run + '/'
         mkdir_p(fdir)
@@ -3754,6 +5305,9 @@ def plot_trajectory_band(plot_config, show_plot=True):
     pic_info = read_data_from_json(picinfo_fname)
     dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
     wce_wpe = pic_info.dtwce / pic_info.dtwpe
+    smime = math.sqrt(pic_info.mime)
+    xmin, xmax = 0, pic_info.lx_di * smime
+    zmin, zmax = -0.5*pic_info.lz_di*smime, 0.5*pic_info.lz_di*smime
 
     if species in ["e", "electron"]:
         sname = "electron"
@@ -3792,7 +5346,9 @@ def plot_trajectory_band(plot_config, show_plot=True):
                     dset.read_direct(ptl[str(dset_name)])
 
                 gamma = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
+                tesc = np.argmax(gamma > 0.9*gamma[-1])
                 dgamma = gamma - gamma[0]
+                gamma_norm = gamma / gamma[0]
                 igamma = 1.0 / gamma
                 vx = ptl["Ux"] * igamma
                 vy = ptl["Uy"] * igamma
@@ -3814,18 +5370,22 @@ def plot_trajectory_band(plot_config, show_plot=True):
                 wtot = np.cumsum(-(ex*vx + ey*vy + ez*vz)) * dtwpe_tracer
                 wpara = np.cumsum(-(eparax * vx + eparay * vy + eparaz * vz)) * dtwpe_tracer
                 wperp = wtot - wpara
-                fig = plt.figure(figsize=[5, 3.5])
-                rect = [0.15, 0.16, 0.82, 0.8]
+                wpara_norm = wpara / gamma[0]
+                wperp_norm = wperp / gamma[0]
+                fig = plt.figure(figsize=[5, 7])
+                rect = [0.15, 0.56, 0.72, 0.4]
+                hgap, vgap = 0.03, 0.08
                 ax = fig.add_axes(rect)
                 COLORS = palettable.tableau.Tableau_10.mpl_colors
                 ax.set_prop_cycle('color', COLORS)
                 ax.plot(ttracer, wpara, linewidth=2, label=r'$W_\parallel$')
                 ax.plot(ttracer, wperp, linewidth=2, label=r'$W_\perp$')
-                # ax.plot(ttracer, wpara + wperp, linewidth=2,
-                #         label=r'$W_\parallel + $' + r'$W_\perp$')
-                ax.plot(ttracer, dgamma, linewidth=2, label=r'$\Delta\gamma$')
-                # ax.plot(ttracer, gamma_smooth-gamma0, linewidth=2, label=r'$\Delta\gamma^\prime$')
+                ax.plot(ttracer, gamma, linewidth=2, label=r'$\gamma$')
+                ylim = ax.get_ylim()
+                ax.plot([ttracer[tesc], ttracer[tesc]], ylim, color='k',
+                        linewidth=1, linestyle='--')
                 ax.set_xlim([tmin, tmax])
+                ax.set_ylim(ylim)
                 ax.tick_params(bottom=True, top=True, left=True, right=True)
                 ax.tick_params(axis='x', which='minor', direction='in')
                 ax.tick_params(axis='x', which='major', direction='in')
@@ -3834,9 +5394,54 @@ def plot_trajectory_band(plot_config, show_plot=True):
                 ax.set_xlabel(r'$t\omega_{pe}$', fontsize=16)
                 ax.set_ylabel('Energy change', fontsize=16)
                 ax.tick_params(labelsize=12)
-                ax.set_xlim([0, 1.5E4])
                 ax.legend(loc=6, prop={'size': 12}, ncol=1,
                          shadow=False, fancybox=False, frameon=False)
+
+                rect[1] -= rect[3] + vgap
+                gamma_norm = gamma / gamma[0]
+                ax = fig.add_axes(rect)
+                ax.set_prop_cycle('color', COLORS)
+                points = np.array([x, z]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
+                # Create a continuous norm to map from data points to colors
+                norm = plt.Normalize(gamma.min(), gamma.max())
+                lc = LineCollection(segments, cmap='jet', norm=norm)
+                # Set the values used for colormapping
+                lc.set_array(gamma)
+                lc.set_linewidth(2)
+                ax.add_collection(lc)
+                ax.plot([x[tesc]], [z[tesc]], marker='o', markersize=7, color="k")
+                ax.tick_params(bottom=True, top=True, left=True, right=True)
+                ax.tick_params(axis='x', which='minor', direction='in')
+                ax.tick_params(axis='x', which='major', direction='in')
+                ax.tick_params(axis='y', which='minor', direction='in')
+                ax.tick_params(axis='y', which='major', direction='in')
+                ax.set_xlabel(r'$x$', fontsize=16)
+                ax.set_ylabel(r'$z$', fontsize=16)
+                ax.tick_params(labelsize=12)
+                ax.set_xlim([xmin, xmax])
+                ax.set_ylim([zmin, zmax])
+                # Colorbar
+                rect_cbar = np.copy(rect)
+                rect_cbar[0] = rect[0] + rect[2] + 0.01
+                rect_cbar[2] = 0.02
+
+                cax = fig.add_axes(rect_cbar)
+                print("min and max of energy: %f, %f" %
+                      (gamma.min(), gamma.max()))
+                sm = plt.cm.ScalarMappable(cmap=plt.cm.jet,
+                                           norm=plt.Normalize(vmin=gamma.min(),
+                                                              vmax=gamma.max()))
+                cax.tick_params(axis='y', which='major', direction='in')
+                sm._A = []
+                cbar = fig.colorbar(sm, cax=cax, orientation='vertical')
+                cax.tick_params(labelrotation=90)
+                cbar.set_label(r'$(\gamma-1)/\varepsilon_\text{th}$',
+                               fontsize=16, labelpad=1)
+                cbar.ax.tick_params(labelsize=12)
+                cax.yaxis.set_ticks_position('right')
+                cax.yaxis.set_label_position('right')
+
                 fname = img_dir + sname + "_tracer_" + str(iptl) + ".pdf"
                 fig.savefig(fname)
 
@@ -3878,7 +5483,7 @@ def calc_dee_tracer(plot_config, show_plot=True):
         pcharge = 1.0
 
     # Select tracers from the last time step
-    tstart = 1500
+    tstart = 1000
     tshift = 200
     tindex = tinterval * tstart
     fname = tracer_dir + 'T.' + str(tindex) + '/electron_tracer_qtag_sorted.h5p'
@@ -3893,8 +5498,10 @@ def calc_dee_tracer(plot_config, show_plot=True):
     nkeys = len(ptl.keys())
     gamma = np.sqrt(1 + ptl["Ux"]**2 + ptl["Uy"]**2 + ptl["Uz"]**2)
     temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
-    emin, emax = 1, 1E3
-    nbins = 30
+    # emin, emax = 1, 1E3
+    spect_params = get_spect_params(pic_run)
+    emin, emax = spect_params["energy_range"]
+    nbins = 20
     emin *= temp
     emax *= temp
     dloge = (math.log10(emax) - math.log10(emin)) / (nbins - 1)
@@ -3944,13 +5551,25 @@ def calc_dee_tracer(plot_config, show_plot=True):
     #     fig = plt.figure(figsize=[7, 5])
     #     rect = [0.12, 0.16, 0.72, 0.8]
     #     ax = fig.add_axes(rect)
-    #     for iframe in range(tshift):
-    #         color = plt.cm.jet(iframe/float(tshift), 1)
-    #         ax.loglog(ebins_mid, spectra[ibin, iframe, :], color=color)
-    #     fname = img_dir + 'ibin_' + str(ibin) + '.pdf'
+    #     # for iframe in range(tshift):
+    #     #     color = plt.cm.jet(iframe/float(tshift), 1)
+    #     #     ax.loglog(ebins_mid, spectra[ibin, iframe, :], color=color)
+    #     # fname = img_dir + 'ibin_' + str(ibin) + '.pdf'
+    #     # fig.savefig(fname)
+    #     # plt.close()
+    #     ax.plot(ttracer, gamma_avg[ibin] - gamma_avg[ibin, 0])
+    #     fname = img_dir + 'gamma_avg_' + str(ibin) + '.pdf'
     #     fig.savefig(fname)
     #     plt.close()
-    # plt.plot((gamma_avg.T/gamma_avg[:, 0]))
+
+    #     fig = plt.figure(figsize=[7, 5])
+    #     rect = [0.12, 0.16, 0.72, 0.8]
+    #     ax = fig.add_axes(rect)
+    #     ax.plot(ttracer, dgamma[ibin])
+    #     fname = img_dir + 'dgamma_' + str(ibin) + '.pdf'
+    #     fig.savefig(fname)
+    #     plt.close()
+
     # fig = plt.figure(figsize=[7, 5])
     # rect = [0.12, 0.16, 0.72, 0.8]
     # ax = fig.add_axes(rect)
@@ -3958,25 +5577,794 @@ def calc_dee_tracer(plot_config, show_plot=True):
     #     color = plt.cm.jet(ibin/float(nbins), 1)
     #     ax.loglog(ttracer, dgamma[ibin, :], color=color)
     # plt.show()
+
     de = np.zeros(nbins)
     dee = np.zeros(nbins)
     for ibin in range(nbins):
-        de[ibin] = gamma_avg[ibin, -1] - gamma_avg[ibin, 0]
-        dee[ibin] = np.mean(dgamma[ibin, 50:] / np.sqrt(ttracer[50:]))**2
+        de[ibin] = gamma_avg[ibin, -10] - gamma_avg[ibin, 20]
+        de[ibin] /= ttracer[-10] - ttracer[20]
+        dee[ibin] = np.mean(dgamma[ibin, 20:] / np.sqrt(ttracer[20:]))**2
 
-    plt.loglog(ebins_mid, dee*ebins_mid**0.5)
-    plt.loglog(ebins_mid, ebins_mid**2/300)
-    # plt.loglog(ebins_mid, de*ebins_mid**0.25)
-    # plt.loglog(ebins_mid, ebins_mid/2)
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.16, 0.72, 0.8]
+    ax = fig.add_axes(rect)
+    ax.loglog(ebins_mid, dee*ebins_mid**0.75)
+    ax.loglog(ebins_mid, ebins_mid**2/5)
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.16, 0.72, 0.8]
+    ax = fig.add_axes(rect)
+    ax.loglog(ebins_mid, de*ebins_mid**0.5)
+    ax.loglog(ebins_mid, ebins_mid*10)
     plt.show()
+
+
+def get_uout_max(plot_config):
+    """Get the maximum of the outflow 4-velocity
+    """
+    tframe = plot_config["tframe"]
+    pic_run = plot_config["pic_run"]
+    pic_run_dir = plot_config["pic_run_dir"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_topox = pic_info.topology_x
+    pic_topoy = pic_info.topology_y
+    pic_topoz = pic_info.topology_z
+    nx, ny, nz = pic_info.nx, pic_info.ny, pic_info.nz
+    xmin, xmax = 0, pic_info.lx_di
+    zmin, zmax = -pic_info.lz_di * 0.125, pic_info.lz_di * 0.125
+    mime = pic_info.mime
+    smime = math.sqrt(mime)
+    dx_de = pic_info.dx_di * smime
+    dy_de = pic_info.dy_di * smime
+    dz_de = pic_info.dz_di * smime
+    kwargs = {"current_time": tframe,
+              "xl": xmin, "xr": xmax,
+              "zb": zmin, "zt": zmax}
+    fname = pic_run_dir + "data/uex.gda"
+    x, z, uex = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_run_dir + "data/uix.gda"
+    x, z, uix = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_run_dir + "data/ne.gda"
+    x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
+    fname = pic_run_dir + "data/ni.gda"
+    x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
+    ux = (uex * ne + uix * ni * mime) / (ne + ni * mime)
+    nzr, nxr = ux.shape
+    gamma = np.sqrt(ux[nzr//2, :]**2 + 1)
+    plt.plot(ux[nzr//2, :] / gamma)
+    plt.show()
+
+
+def plot_spectrum_four_runs(plot_config, show_plot=True):
+    """Plot particle energy spectrum for 4 different runs
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    pic_runs = ["sigmae400_bg00_800de_triggered",
+                "sigma64_bg005_4000de_triggered",
+                "mime1_sigmae100_vthe04_db1_1024de",
+                "sigma01_bg01_4000de_triggered"]
+    labels = ["R1", "R2", "T1", "R3"]
+    xpos = [0.5, 0.55, 0.67, 0.63]
+    ypos = [0.75, 0.8, 0.73, 0.63]
+    fig = plt.figure(figsize=[7, 5])
+    rect0 = [0.14, 0.58, 0.32, 0.38]
+    hgap, vgap = 0.06, 0.06
+    for irun, pic_run in enumerate(pic_runs):
+        row = irun // 2
+        col = irun % 2
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        if pic_run == "3D-Lx150-bg0.2-150ppc-2048KNL-tracking":
+            pic_run_dir = "/net/scratch3/xiaocan/reconnection/Cori_runs/" + pic_run + "/"
+        else:
+            pic_run_dir = pic_info.run_dir
+        vpic_info = get_vpic_info(pic_run_dir)
+        emin = vpic_info["emin_spect"]
+        emax = vpic_info["emax_spect"]
+        nbins = int(vpic_info["nbins"])
+        dloge = (math.log10(emax) - math.log10(emin)) / (nbins - 1)
+        emin0 = 10**(math.log10(emin) - dloge)
+        ebins = np.logspace(math.log10(emin0), math.log10(emax), nbins+1)
+        ebins_mid = (ebins[:-1] + ebins[1:]) * 0.5
+        debins = np.diff(ebins)
+        nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+
+        ntf = pic_info.ntf
+        spect_dir = pic_run_dir + "spectrum/"
+        if os.path.isdir(spect_dir):
+            nts = len(os.listdir(spect_dir))
+        else:
+            nts = ntf
+        if pic_run == "3D-Lx150-bg0.2-150ppc-2048KNL-tracking":
+            tframes = range(nts)
+        else:
+            tframes = range(0, nts, 10)
+        tframes = list(tframes)
+        if tframes[-1] < nts - 1:
+            tframes.append(nts - 1)
+        nframes = len(tframes)
+        flogs = np.zeros((nframes, nbins))
+        if species in ["e", "electron"]:
+            if pic_run == "3D-Lx150-bg0.2-150ppc-2048KNL-tracking":
+                sname = "e"
+            else:
+                sname = "electron"
+        else:
+            sname = "ion"
+        if pic_run == "3D-Lx150-bg0.2-150ppc-2048KNL-tracking":
+            if species == 'e':
+                vth = pic_info.vthe
+            else:
+                vth = pic_info.vthi
+            gama = 1.0 / math.sqrt(1.0 - 3 * vth**2)
+            temp = gama - 1.0
+            spectrum_interval = pic_info.fields_interval
+        else:
+            temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+            spectrum_interval = vpic_info["spectrum_interval"]
+        print("Particle initial temperature (Lorentz factor): %f" % temp)
+
+        rect = np.copy(rect0)
+        rect[0] = rect0[0] + (rect0[2] + hgap) * col
+        rect[1] = rect0[1] - (rect0[3] + vgap) * row
+        ax = fig.add_axes(rect)
+        for iframe, tframe in enumerate(tframes):
+            # print("Time frame: %d" % tframe)
+            tindex = tframe * int(spectrum_interval)
+            fdir = pic_run_dir + '/spectrum_combined/'
+            fname = fdir + 'spectrum_' + sname + '_' + str(tindex) + '.dat'
+            ebins_mid_run = ebins_mid / temp
+            debins_run = debins / temp
+            if os.path.isfile(fname):
+                flog = np.fromfile(fname, dtype=np.float32)
+                espect = flog[3:] / debins_run / nptot  # the first 3 are magnetic field
+                color = plt.cm.plasma_r(tframe/float(nts), 1)
+                flogs[iframe, :] = espect
+                ax.loglog(ebins_mid_run, espect, linewidth=0.5, color=color,
+                          nonpositive='clip')
+
+        spect_params = get_spect_params(pic_run)
+        pindex = spect_params["power_index"]
+        emin, emax = spect_params["energy_range"]
+        fpower = ebins_mid_run**pindex
+        es, _ = find_nearest(ebins_mid_run, emin)
+        ee, _ = find_nearest(ebins_mid_run, emax)
+        fnorm = (espect[es] / fpower[es]) * spect_params["norm"]
+        fpower *= fnorm
+        power_index = "{%0.1f}" % -pindex
+        pname = r'$\propto (\gamma - 1)^{' + power_index + '}$'
+        ax.loglog(ebins_mid_run[es:ee], fpower[es:ee], linewidth=1,
+                  linestyle='--', color='k', label=pname)
+        # ax.legend(loc=1, prop={'size': 12}, ncol=1,
+        #          shadow=False, fancybox=False, frameon=False)
+        pname = r'$p=' + power_index + '$'
+        ax.text(xpos[irun], ypos[irun], pname, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+        ax.set_xlim([1E0, spect_params["emax"]])
+        ax.set_ylim([1E-10, 1E0])
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='out', bottom=False)
+        ax.tick_params(axis='x', which='major', direction='out')
+        ax.tick_params(axis='y', which='minor', direction='out')
+        ax.tick_params(axis='y', which='major', direction='out')
+        if row == 1:
+            ax.set_xlabel(r'$(\gamma - 1)/T_' + species + '$', fontsize=20)
+        else:
+            ax.tick_params(axis='x', labelbottom=False)
+        if col == 0:
+            ax.set_ylabel(r'$f(\gamma - 1)$', fontsize=20)
+        else:
+            ax.tick_params(axis='y', labelleft=False)
+        ax.tick_params(labelsize=16)
+        dtwpe_spect = math.ceil(spectrum_interval * pic_info.dtwpe / 0.1) * 0.1
+        if pic_run == "3D-Lx150-bg0.2-150ppc-2048KNL-tracking":
+            n0 = 1.0
+        else:
+            n0 = pic_info.n0
+        mime = pic_info.mime
+        gamma_e = 4.0/3 if temp > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        enthalpy_e =  n0 * (1 + temp * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + temp * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        sigma = pic_info.b0**2 / enthalpy
+        va = math.sqrt(sigma / (sigma + 1))
+        taua = pic_info.lx_di * math.sqrt(mime) / va
+        ts = tframes[0] * dtwpe_spect / taua
+        te = tframes[-1] * dtwpe_spect / taua
+        # print(te)
+        ax.text(0.03, 0.03, labels[irun],
+                color='k', fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+
+        # tenergy = pic_info.tenergy
+        # enorm = pic_info.ene_magnetic[0]
+        # ene_magnetic = pic_info.ene_magnetic
+        # ene_electric = pic_info.ene_electric
+        # kene_e = pic_info.kene_e
+        # kene_i = pic_info.kene_i
+        # ene_magnetic /= enorm
+        # kene_e /= enorm
+        # kene_i /= enorm
+
+        # rect1 = np.copy(rect)
+        # rect1[0] += 0.08
+        # rect1[1] += 0.05
+        # rect1[2] = 0.4 * rect[2]
+        # rect1[3] = 0.3 * rect[3]
+        # ax = fig.add_axes(rect1)
+        # ax.plot(tenergy, ene_magnetic, linewidth=1, linestyle='--', color=color)
+        # ax.plot(tenergy, kene_e, linewidth=1, linestyle='-', color=color)
+        # ax.tick_params(bottom=True, top=True, left=True, right=True)
+        # ax.tick_params(axis='x', which='minor', direction='in', bottom=False)
+        # ax.tick_params(axis='x', which='major', direction='in')
+        # ax.tick_params(axis='y', which='minor', direction='in')
+        # ax.tick_params(axis='y', which='major', direction='in')
+        # ax.tick_params(labelsize=12)
+
+    rect_cbar = np.copy(rect)
+    rect_cbar[0] += rect[2] + 0.02
+    rect_cbar[2] = 0.015
+    rect_cbar[1] += (rect[3] + vgap) * 0.5
+    cax = fig.add_axes(rect_cbar)
+    sm = plt.cm.ScalarMappable(cmap=plt.cm.plasma_r,
+                               norm=plt.Normalize(vmin=0, vmax=1))
+    cax.tick_params(axis='x', which='major', direction='in')
+    # fake up the array of the scalar mappable. Urgh...
+    sm._A = []
+    cbar = fig.colorbar(sm, cax=cax)
+    cbar.set_label(r'$t/t_\text{max}$', fontsize=20)
+    cbar.ax.tick_params(labelsize=16)
+
+    fdir = '../img/power_law_index/'
+    mkdir_p(fdir)
+    fname = fdir + 'spectra_runs_' + species + '.pdf'
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def func_power(xvar, pindex, const):
+    """Function for fitting with power-law expression.
+    """
+    return const * np.power(xvar, pindex)
+
+
+def find_nearest(array, value):
+    """Find nearest value in an array
+    """
+    idx = (np.abs(array-value)).argmin()
+    return (idx, array[idx])
+
+
+def solve_sde(plot_config, show_plot=True):
+    """Solve an stochastic differential equation
+    """
+    acc_rate = 0.01
+    esc_rate = 0.015
+    dee_rate = 0.005
+    nsteps = 1000
+    nptls = 100000
+    dt = 1.0
+    ptl = np.zeros(nptls)
+    ptl[:] = 1.0
+    for i in range(nsteps):
+        print("Step: %d" % i)
+        esc_cond = np.random.choice(a=[False, True], size=nptls,
+                                    p=[1-esc_rate, esc_rate])
+        ptl[esc_cond] = 1.0
+        dwt = np.random.normal(0, math.sqrt(dt), nptls)
+        cond = ptl > 0
+        ptl += acc_rate * ptl * dt
+        ptl += np.sqrt(2*dee_rate*ptl**2) * dwt
+
+    nbins = 100
+    bins = np.logspace(-1, 2, nbins+1)
+    bins_mid = 0.5 * (bins[:-1] + bins[1:])
+    hist, _ = np.histogram(ptl, bins=bins)
+    espect = hist/np.diff(bins)
+    es, _ = find_nearest(bins_mid, 2.0)
+    ee, _ = find_nearest(bins_mid, 50.0)
+    popt, _ = curve_fit(func_power, bins_mid[es:ee], espect[es:ee])
+    pindex = popt[0]
+
+    fpower = bins_mid[es:ee]**pindex
+    fpower *= espect[es] * 3 / fpower[0]
+    power_index = "{%0.2f}" % pindex
+    pname = r'$\propto \varepsilon^{' + power_index + '}$'
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.15, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    ax.loglog(bins_mid, espect)
+    ax.loglog(bins_mid[es:ee], fpower, label=pname, linestyle='--',
+              color='k')
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
+    ax.tick_params(axis='x', which='major', direction='in', top=True)
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$\varepsilon$', fontsize=16)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontsize=16)
+    ax.tick_params(labelsize=16)
+
+    a = dee_rate
+    b = acc_rate - 3*dee_rate
+    c = 2*dee_rate - acc_rate - esc_rate
+    pmodel = (-b + math.sqrt(b**2 - 4*a*c)) / (2 * a)
+    print("Simulated power-law index: %f" % -pindex)
+    print("Modeled power-law index: %f" % pmodel)
+
+    dee_rate_array = np.logspace(-4, 4, 800) * acc_rate
+    a = dee_rate_array
+    b = acc_rate - 3*dee_rate_array
+    c = 2*dee_rate_array - acc_rate - esc_rate
+    pmodel = (-b + np.sqrt(b**2 - 4*a*c)) / (2 * a)
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.15, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    x = dee_rate_array/acc_rate
+    ax.semilogx(x, pmodel)
+    ax.plot(ax.get_xlim(), [-pindex, -pindex], linestyle='--', color='k')
+    ax.set_xlim([x.min(), x.max()])
+    ax.grid()
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
+    ax.tick_params(axis='x', which='major', direction='in', top=True)
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$D_{pp0}/r_\text{acc}$', fontsize=16)
+    ax.set_ylabel('Power-law index', fontsize=16)
+    ax.tick_params(labelsize=16)
+
+    plt.show()
+
+
+def power_index_model(plot_config, show_plot=True):
+    """
+    Plot power-law index calculated from model
+
+    """
+    species = plot_config["species"]
+    fig = plt.figure(figsize=[7, 5])
+    rect0 = [0.14, 0.57, 0.38, 0.4]
+    hgap, vgap = 0.07, 0.04
+
+    pic_runs = ["mime1_sigmae100_vthe04_db1_1024de",
+                "sigma64_bg005_4000de_triggered"]
+
+    for irun, pic_run in enumerate(pic_runs):
+        pic_run_dir = plot_config["pic_run_dir"]
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        vpic_info = get_vpic_info(pic_run_dir)
+        dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+        fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+        fname = fdir + 'ebins.dat'
+        ebins = np.fromfile(fname)
+        ebins /= temp
+        ebins_mid = 0.5 * (ebins[1:] + ebins[:-1])
+        nbins, = ebins.shape
+        ebins_new = np.logspace(math.log10(ebins.min()),
+                                math.log10(ebins.max()),
+                                nbins*10)
+        fname = fdir + 'nptl_esc.dat'
+        nptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'dnptl_esc.dat'
+        dnptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'nptl_acc.dat'
+        nptl_acc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'acc_rate_sum.dat'
+        acc_rate_sum = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'acc_rate_esc.dat'
+        acc_rate_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        spect_params = get_spect_params(pic_run)
+        power_index = spect_params["power_index"]
+        emin, emax = spect_params["energy_range"]
+        if irun == 0:
+            emax = 2E3
+        else:
+            emax = 1E2
+        nframes, _ = acc_rate_esc.shape
+
+        # eend = int(nframes * 0.9)
+        eend = nframes
+        acc_rate_sum_r = np.mean(acc_rate_sum[:eend], axis=0)
+        acc_rate_esc_r = np.mean(acc_rate_esc[:eend], axis=0)
+        nptl_acc_r = np.mean(nptl_acc[:eend], axis=0)
+        nptl_esc_r = np.mean(nptl_esc[:eend], axis=0)
+        dnptl_esc_r = np.mean(dnptl_esc[:eend], axis=0)
+        acc_rate_r = div0(acc_rate_sum_r, nptl_acc_r)
+        acc_esc_r = div0(acc_rate_sum_r, nptl_esc_r)
+        esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dtwpe_tracer
+        rect = np.copy(rect0)
+        rect[0] += (rect[2] + hgap) * irun
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        # print(np.asarray(COLORS[0])*256)
+        # print(np.asarray(COLORS[1])*256)
+        # print(np.asarray(COLORS[2])*256)
+        ax.semilogx(ebins_mid, acc_rate_r*1E3, linewidth=2,
+                    # marker='o', markersize=5,
+                    label=r"$10^3\alpha_\text{acc}$")
+        ax.semilogx(ebins_mid, esc_rate2_r*1E3, linewidth=2,
+                    # marker='o', markersize=5,
+                    label=r"$10^3\alpha_\text{esc}$")
+        ylim = ax.get_ylim()
+        # ax.plot([emin, emin], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        # ax.plot([emax, emax], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        ax.fill_betweenx(ylim, emin, emax, alpha=0.2, color='grey')
+        ax.set_ylim(ylim)
+
+        ax.text(0.35, 0.05, r"$\alpha_\text{acc}$",
+                color=COLORS[0], fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+        ax.text(0.35, 0.15, r"$\alpha_\text{esc}$",
+                color=COLORS[1], fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+        ax.set_xlim(ebins[0], ebins[-1])
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='out')
+        ax.tick_params(axis='x', which='major', direction='out')
+        ax.tick_params(axis='y', which='minor', direction='out')
+        ax.tick_params(axis='y', which='major', direction='out')
+        if irun == 0:
+            ax.set_ylabel(r'$10^3$Rates$/\omega_{pe}$', fontsize=20)
+        ax.tick_params(axis='x', labelbottom=False)
+        ax.tick_params(labelsize=16)
+
+        text1 = "(a)" if irun == 0 else "(c)"
+        ax.text(0.03, 0.85, text1,
+                color='k', fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+
+        rect[1] -= rect[3] + vgap
+        ax = fig.add_axes(rect)
+        pindex = 1 + div0(esc_rate2_r, acc_rate_r)
+        label = r"$1+(\alpha_\text{esc}/\alpha)$"
+        # ax.semilogx(ebins_mid, pindex, linewidth=1, label=label,
+        #             color='k', linestyle=':')
+        pindex += (np.gradient(np.log(acc_rate_r)) /
+                   (math.log(ebins[1]) - math.log(ebins[0])))
+        pindex -= (np.gradient(np.log(esc_rate2_r)) /
+                   (math.log(ebins[1]) - math.log(ebins[0])))
+        label = (r"$1+(\alpha_\text{esc}/\alpha_\text{acc})+" +
+                 r"\partial\ln\alpha_\text{acc}/\partial\ln E-" +
+                 r"\partial\ln\alpha_\text{esc}/\partial\ln E$")
+        ax.semilogx(ebins_mid, pindex, linewidth=2, color='k',
+                    # marker='o', markersize=5,
+                    label=label)
+        es, _ = find_nearest(ebins_mid, emin)
+        ee, _ = find_nearest(ebins_mid, emax)
+        pindex_avg = np.mean(pindex[es:ee+1])
+        ax.semilogx([ebins[0], ebins[-1]], [pindex_avg, pindex_avg],
+                    linewidth=1, linestyle='--', color='k')
+        pname = "{%0.2f}" % pindex_avg
+        ylim = ax.get_ylim()
+        ypos = (pindex_avg - ylim[0]) / (ylim[1] - ylim[0])
+        ax.text(0.95, ypos, pname, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='right', verticalalignment='bottom',
+                transform=ax.transAxes)
+
+        ylim = ax.get_ylim()
+        # ax.plot([emin, emin], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        # ax.plot([emax, emax], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        ax.fill_betweenx(ylim, emin, emax, alpha=0.2, color='grey')
+        ax.set_ylim(ylim)
+
+        ax.set_xlim(ebins[0], ebins[-1])
+        # if irun == 0:
+        #     ax.set_ylim([2, 4])
+        # else:
+        #     ax.set_ylim([1, 3])
+        # ax.legend(loc=2, prop={'size': 16}, ncol=1,
+        #           shadow=False, fancybox=False, frameon=False)
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='out')
+        ax.tick_params(axis='x', which='major', direction='out')
+        ax.tick_params(axis='y', which='minor', direction='out')
+        ax.tick_params(axis='y', which='major', direction='out')
+        ax.tick_params(labelsize=16)
+        ax.set_xlabel(r'$(\gamma-1)/T_e$', fontsize=20)
+        if irun == 0:
+            ax.set_ylabel('Power-law index', fontsize=20)
+
+        text1 = "(b)" if irun == 0 else "(d)"
+        ax.text(0.03, 0.85, text1,
+                color='k', fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+    img_dir = '../img/power_law_index/power_index_tracer/'
+    mkdir_p(img_dir)
+    fname = img_dir + "pindex_model.pdf"
+    fig.savefig(fname)
+    plt.show()
+
+
+def power_law_scaling(plot_config, args):
+    """Analysis for multiple runs
+    """
+    pic_runs = []
+    sigmas = ["01", "04", "16", "64"]
+    bgs = ["005", "01", "02", "04", "10"]
+    nsigma = len(sigmas)
+    nbg = len(bgs)
+    for sigma in sigmas:
+        for bg in bgs:
+            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+            pic_runs.append(pic_run)
+    sigmaes = ["100", "40", "10"]
+    db2s = ["05", "1", "4"]
+    nsigmae = len(sigmaes)
+    ndb = len(db2s)
+    for sigmae in sigmaes:
+        for db2 in db2s:
+            pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+            pic_runs.append(pic_run)
+    pic_runs.append("sigmae400_bg00_800de_triggered")
+    # pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
+    nruns = len(pic_runs)
+    ps = np.zeros((2, nruns))
+    for irun, pic_run in enumerate(pic_runs):
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        print(pic_info.nx, pic_info.nz)
+        if "3D-Lx150" in pic_run:
+            n0 = 1.0
+            vthe = pic_info.vthe
+            gama = 1.0 / math.sqrt(1.0 - 3 * vthe**2)
+            te = gama - 1.0
+        else:
+            n0 = pic_info.n0
+            te = pic_info.Te
+        ti = pic_info.ti_te * te
+        mime = pic_info.mime
+        gamma_e = 4.0/3 if te > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        enthalpy_e =  n0 * (1 + te * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + ti * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        sigma = pic_info.b0**2 / enthalpy
+        va = math.sqrt(sigma / (sigma + 1))
+        gva = va / math.sqrt(1 - va**2)
+        print("Alfven 4-velocity: %f" % gva)
+        fdir = '../data/power_law_index/power_index_tracer_overall/'
+        fname = fdir + "pindex_tracer_" + pic_run + ".dat"
+        fdata = np.fromfile(fname)
+        ps[0, irun] = fdata[0]
+        spect_params = get_spect_params(pic_run)
+        pindex = spect_params["power_index"]
+        ps[1, irun] = -pindex
+    fig = plt.figure(figsize=[7, 7])
+    rect = [0.11, 0.12, 0.85, 0.85]
+    hgap, vgap = 0.07, 0.04
+    ax = fig.add_axes(rect)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    n1 = nsigma * nbg + nsigmae * ndb
+    # ltext = r"3D Reconnection, $m_i/m_e=25, \beta_e=0.02$"
+    # p1 = ax.scatter(ps[0, n1+1], ps[1, n1+1], marker='*', label=ltext, s=100)
+    # ltext = r"2D Turbulence, $m_i/m_e=1, \sigma_e=100$"
+    # p2 = ax.scatter(ps[0, n1], ps[1, n1], marker='D', label=ltext, s=100)
+    ltext = r"$\sigma_e=400, m_i/m_e=1$"
+    p3 = ax.scatter(ps[1, n1], ps[0, n1], marker='X', label=ltext, s=100)
+    plots_rec = [p3]
+    for i in range(nsigma):
+        sigma = str(int(sigmas[i]) / 10)
+        ltext = r"$\sigma_i=" + sigma + "$"
+        alphas = np.linspace(0.2, 1, nbg)
+        rgba_colors = np.zeros((nbg,4))
+        rgba_colors[:,0] = COLORS[i+1][0]
+        rgba_colors[:,1] = COLORS[i+1][1]
+        rgba_colors[:,2] = COLORS[i+1][2]
+        # the fourth column needs to be your alphas
+        rgba_colors[:, 3] = alphas
+        rs, re = i*nbg, (i+1)*nbg
+        ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+                   marker='o', s=100)
+        p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
+                        label=ltext, color=COLORS[i+1],
+                        marker='o', s=100)
+        plots_rec.append(p1)
+    # Turbulence run
+    shift = nsigma * nbg
+    plots_turb = []
+    for i in range(nsigmae):
+        ltext = r"$\sigma_e=" + sigmaes[i] + "$"
+        ndb = len(db2s)
+        alphas = np.linspace(0.2, 1, ndb)
+        rgba_colors = np.zeros((ndb,4))
+        rgba_colors[:,0] = COLORS[i+nsigma+1][0]
+        rgba_colors[:,1] = COLORS[i+nsigma+1][1]
+        rgba_colors[:,2] = COLORS[i+nsigma+1][2]
+        # the fourth column needs to be your alphas
+        rgba_colors[:, 3] = alphas
+        rs, re = i*ndb+shift, (i+1)*ndb+shift
+        ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+                   marker='d', s=100)
+        p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
+                        label=ltext, color=COLORS[i+nsigma+1],
+                        marker='d', s=100)
+        plots_turb.append(p1)
+
+    leg1 = ax.legend(loc=2, handles=plots_rec, prop={'size': 16}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False,
+                     title="Reconnection", title_fontsize=16)
+
+    leg2 = ax.legend(loc=4, handles=plots_turb, prop={'size': 16}, ncol=1,
+                     shadow=False, fancybox=False, frameon=False,
+                     title="Turbulence", title_fontsize=16)
+    ax.add_artist(leg1)
+    brace = CurlyBrace(x=0.28, y=0.665, width=0.05, height=.2, pointing='right',
+                       transform=ax.transAxes, color='k')
+    ax.add_artist(brace)
+    text1 = r"$m_i/m_e=1836$"
+    ax.text(0.34, 0.765, text1, color='k', fontsize=16, rotation=0,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+
+    slope, intercept, r_value, p_value, std_err = stats.linregress(ps[1], ps[0])
+    # print(slope, intercept, r_value, p_value, std_err)
+
+    pmodel = np.linspace(1, 5, 10)
+    ax.plot(pmodel, intercept + slope*pmodel, color='k',
+            alpha=0.5, label='fitted line', zorder=0)
+
+    text1 = (r"$p_m=" + (r"%0.3f" % slope) + r"p_s" + (r"%0.3f" % intercept) + r"$")
+    ax.text(0.77, 0.87, text1, color='k', fontsize=12, rotation=47.11,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform=ax.transAxes)
+    text2 = (r"$R^2=" + (r"%0.3f" % r_value) + r"$")
+    ax.text(0.75, 0.9, text2, color='k', fontsize=12, rotation=47.11,
+            bbox=dict(facecolor='none', alpha=1.0,
+                      edgecolor='none', pad=10.0),
+            horizontalalignment='center', verticalalignment='center',
+            transform=ax.transAxes)
+
+    ax.plot([1, 5.0], [1, 5.0], linewidth=1, linestyle='--', color='k')
+    ax.set_xlim([1, 5.0])
+    ax.set_ylim([1, 5.0])
+    ax.set_xticks(range(1, 6))
+    ax.set_yticks(range(1, 6))
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'Power-law index $p_s$ (simulation)', fontsize=20)
+    ax.set_ylabel(r'Power-law index $p_m$ (model)', fontsize=20)
+    ax.tick_params(labelsize=16)
+    img_dir = '../img/power_law_index/power_index_tracer/'
+    mkdir_p(img_dir)
+    fname = img_dir + "pindex_scaling.pdf"
+    fig.savefig(fname)
+    plt.show()
+
+
+def plot_nacc_nesc(plot_config, args):
+    """Plot the number of accelerating particles and escaped particles
+    """
+    pic_runs = []
+    sigmas = ["01", "04", "16", "64"]
+    bgs = ["005", "01", "02", "04", "10"]
+    nsigma = len(sigmas)
+    nbg = len(bgs)
+    for sigma in sigmas:
+        for bg in bgs:
+            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+            pic_runs.append(pic_run)
+    sigmaes = ["100", "40", "10"]
+    db2s = ["05", "1", "4"]
+    nsigmae = len(sigmaes)
+    ndb = len(db2s)
+    for sigmae in sigmaes:
+        for db2 in db2s:
+            pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+            pic_runs.append(pic_run)
+    pic_runs.append("sigmae400_bg00_800de_triggered")
+    # pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
+    nruns = len(pic_runs)
+    ps = np.zeros((2, nruns))
+    for irun, pic_run in enumerate(pic_runs):
+        print(pic_run)
+        fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+        fname = fdir + 'ebins.dat'
+        ebins = np.fromfile(fname)
+        ebins_mid = 0.5 * (ebins[1:] + ebins[:-1])
+        nbins, = ebins.shape
+        fname = fdir + 'nptl_esc.dat'
+        nptl_esc = np.sum(np.fromfile(fname).reshape([-1, nbins-1]), axis=1)
+        fname = fdir + 'nptl_acc.dat'
+        nptl_acc = np.sum(np.fromfile(fname).reshape([-1, nbins-1]), axis=1)
+        nptl_tot = nptl_acc + nptl_esc
+        fig = plt.figure(figsize=[7, 5])
+        rect = [0.11, 0.12, 0.85, 0.85]
+        hgap, vgap = 0.07, 0.04
+        ax = fig.add_axes(rect)
+        COLORS = palettable.tableau.Tableau_10.mpl_colors
+        ax.set_prop_cycle('color', COLORS)
+        ax.plot(nptl_acc / nptl_tot)
+        ax.plot(nptl_esc / nptl_tot)
+        ax.grid()
+
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.tick_params(labelsize=16)
+        img_dir = '../img/power_law_index/nacc_nesc/'
+        mkdir_p(img_dir)
+        fname = img_dir + "nacc_nesc_" + pic_run + ".pdf"
+        fig.savefig(fname)
+        plt.close()
+        # plt.show()
+
+
+def process_run(plot_config, args, pic_run):
+    """process one run"""
+    plot_config["pic_run"] = pic_run
+    if args.rates_tracer:
+        calc_rates_tracer(plot_config, args.show_plot)
+
+
+def analysis_multi_runs(plot_config, args):
+    """Analysis for multiple runs
+    """
+    pic_runs = []
+    sigmas = ["01", "04", "16", "64"]
+    bgs = ["005", "01", "02", "04", "10"]
+    for sigma in sigmas:
+        for bg in bgs:
+            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+            pic_runs.append(pic_run)
+    pic_runs.append("mime1_sigmae100_vthe04_db1_1024de")
+    pic_runs.append("sigmae400_bg00_800de_triggered")
+    pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
+    ncores = multiprocessing.cpu_count()
+    # ncores = 18
+    Parallel(n_jobs=ncores)(delayed(process_run)(plot_config, args, pic_run)
+                            for pic_run in pic_runs)
 
 
 def get_cmd_args():
     """Get command line arguments
     """
     # default_pic_run = 'sigmae100_bg005_800de_triggered'
-    default_pic_run = 'sigma04_bg005_4000de_triggered'
-    # default_pic_run = 'more_dump_test'
+    default_pic_run = 'sigma64_bg005_4000de_triggered'
     default_pic_run_dir = ('/net/scratch4/xiaocanli/reconnection/power_law_index/' +
                            default_pic_run + '/')
     parser = argparse.ArgumentParser(description='Analysis for runs to determine power-law indices')
@@ -3996,6 +6384,8 @@ def get_cmd_args():
                         help='starting time frame')
     parser.add_argument('--tend', action="store", default='40', type=int,
                         help='ending time frame')
+    parser.add_argument('--multi_runs', action="store_true", default=False,
+                        help='whether to analyze multiple runs')
     parser.add_argument('--vkappa_threshold', action="store", default='4E-2',
                         type=float, help='the threshold for vexb_dot_kappa')
     parser.add_argument('--all_frames', action="store_true", default=False,
@@ -4043,6 +6433,8 @@ def get_cmd_args():
                         help='whether to plot energy conversion')
     parser.add_argument('--sigma_power', action="store_true", default=False,
                         help='whether to plot sigma parameters versus power-law index')
+    parser.add_argument('--ana_power', action="store_true", default=False,
+                        help='whether to plot analytical power-law index')
     parser.add_argument('--acc_rate', action="store_true", default=False,
                         help='whether to plot acceleration rate')
     parser.add_argument('--calc_flow_acc', action="store_true", default=False,
@@ -4061,6 +6453,8 @@ def get_cmd_args():
                         help='whether to calculate particle acceleration rate')
     parser.add_argument('--plot_traj', action="store_true", default=False,
                         help='whether to plot tracer particle trajectory')
+    parser.add_argument('--plot_traj_j', action="store_true", default=False,
+                        help='whether to plot tracer particle trajectory with current density')
     parser.add_argument('--rates_tracer', action="store_true", default=False,
                         help='whether to calculate rates using tracer')
     parser.add_argument('--plot_rates_tracer', action="store_true", default=False,
@@ -4071,6 +6465,22 @@ def get_cmd_args():
                         help='whether to plot tracer particle trajectory in different band')
     parser.add_argument('--dee_tracer', action="store_true", default=False,
                         help='whether to calculate energy diffusion using tracer files')
+    parser.add_argument('--plot_dee_tracer', action="store_true", default=False,
+                        help='whether to plot energy diffusion using tracer files')
+    parser.add_argument('--uout_max', action="store_true", default=False,
+                        help='whether to get the maximum of the reconnection outflow')
+    parser.add_argument('--high_rate', action="store_true", default=False,
+                        help='whether to plot the change rate of the number of high-energy particles')
+    parser.add_argument('--spect_four', action="store_true", default=False,
+                        help='whether to plot spectra for four runs')
+    parser.add_argument('--solve_sde', action="store_true", default=False,
+                        help='whether to solve the SDE')
+    parser.add_argument('--pindex_model', action="store_true", default=False,
+                        help='whether to plot power-law index from the model')
+    parser.add_argument('--pindex_scaling', action="store_true", default=False,
+                        help='whether to plot the scaling of the power-law indices')
+    parser.add_argument('--nacc_nesc', action="store_true", default=False,
+                        help='plot the number of accelerating and escaped particles')
     return parser.parse_args()
 
 
@@ -4089,7 +6499,7 @@ def analysis_single_frames(plot_config, args):
     elif args.check_density:
         check_density(plot_config)
     elif args.fluid_ene:
-        fluid_energization(plot_config, show_plot=False)
+        fluid_energization(plot_config, show_plot=args.show_plot)
     elif args.fluid_ene_frac:
         fluid_ene_fraction(plot_config, show_plot=False)
     elif args.particle_ene:
@@ -4119,6 +6529,8 @@ def analysis_single_frames(plot_config, args):
         rates_based_vkappa(plot_config, args.show_plot)
     elif args.sigma_power:
         plot_sigma_power(plot_config, args.show_plot)
+    elif args.ana_power:
+        analytical_power_index(plot_config, args.show_plot)
     if args.acc_rate:
         acceleration_rate(plot_config, show_plot=True)
     if args.calc_flow_acc:
@@ -4133,16 +6545,38 @@ def analysis_single_frames(plot_config, args):
         calc_acc_rate(plot_config, show_plot=True)
     elif args.plot_traj:
         plot_trajectory(plot_config, args.show_plot)
+    elif args.plot_traj_j:
+        plot_trajectory_j(plot_config, args.show_plot)
     elif args.rates_tracer:
-        calc_rates_tracer(plot_config, args.show_plot)
+        if args.multi_runs:
+            analysis_multi_runs(plot_config, args)
+        else:
+            calc_rates_tracer(plot_config, args.show_plot)
     elif args.plot_rates_tracer:
         plot_rates_tracer(plot_config, args.show_plot)
+    elif args.plot_dee_tracer:
+        plot_dee_tracer(plot_config, args.show_plot)
     elif args.get_traj:
         get_trajectory(plot_config, args.show_plot)
     elif args.traj_band:
         plot_trajectory_band(plot_config, args.show_plot)
     elif args.dee_tracer:
         calc_dee_tracer(plot_config, args.show_plot)
+    elif args.uout_max:
+        get_uout_max(plot_config)
+    elif args.high_rate:
+        number_rate_high_energy(plot_config, args.show_plot)
+    elif args.spect_four:
+        plot_spectrum_four_runs(plot_config, args.show_plot)
+    elif args.solve_sde:
+        solve_sde(plot_config, args.show_plot)
+    elif args.pindex_model:
+        # power_index_model(plot_config, args.show_plot)
+        pindex_bg_sigma(plot_config, args.show_plot)
+    elif args.pindex_scaling:
+        power_law_scaling(plot_config, args.show_plot)
+    elif args.nacc_nesc:
+        plot_nacc_nesc(plot_config, args.show_plot)
 
 
 def process_input(plot_config, args, tframe):

@@ -223,7 +223,7 @@ def plot_spectrum_multi(plot_config, show_plot=True):
         flogs[iframe, :] = espect
         ax.loglog(ebins_mid, espect, linewidth=1, color=color)
 
-    pindex = -2.7
+    pindex = -2.6
     es, _ = find_nearest(ebins_mid, 40)
     ee, _ = find_nearest(ebins_mid, 400)
     fpower = ebins_mid**pindex
@@ -238,7 +238,7 @@ def plot_spectrum_multi(plot_config, show_plot=True):
             transform=ax.transAxes)
 
     if species == 'e':
-        ax.set_xlim([1E-2, 1E3])
+        ax.set_xlim([1E-2, 2E3])
         ax.set_ylim([1E-8, 1E1])
     else:
         ax.set_xlim([1E-5, 5E0])
@@ -1668,7 +1668,7 @@ def plot_absj(plot_config, show_plot=True):
     ax = fig.add_axes(rect)
     im1 = ax.imshow(absj.T,
                     extent=[xmin, xmax, zmin, zmax],
-                    vmin=0, vmax=5,
+                    vmin=0, vmax=1.5,
                     cmap=plt.cm.viridis, aspect='auto',
                     origin='lower', interpolation='bicubic')
     ax.tick_params(bottom=True, top=True, left=True, right=True)
@@ -1805,8 +1805,8 @@ def plot_absj_tri(plot_config, show_plot=True):
 def get_cmd_args():
     """Get command line arguments
     """
-    default_pic_run = 'mime1_sigmae100_vthe04_db1_1024de'
-    default_pic_run_dir = ('/net/scratch4/xiaocanli/relativistic_turbulence/' +
+    default_pic_run = 'mime1836_thetai4_beta4-3_db1_2048de'
+    default_pic_run_dir = ('/net/scratch4/xiaocan/relativistic_turbulence/' +
                            default_pic_run + '/')
     parser = argparse.ArgumentParser(description='Analysis for relativistic turbulence runs')
     parser.add_argument('--pic_run', action="store",
