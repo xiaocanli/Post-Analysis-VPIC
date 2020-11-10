@@ -615,8 +615,14 @@ def get_pic_topology(base_directory, deck_file):
         f.close()
         nlines = len(content)
         current_line = 0
-        while not 'double topology_x =' in content[current_line]:
+        cond1 = not 'double topology_x =' in content[current_line]
+        line_trim = content[current_line].strip()
+        cond2 = line_trim[:2] in ["//", "/*"]
+        while cond1 or cond2:
             current_line += 1
+            cond1 = not 'double topology_x =' in content[current_line]
+            line_trim = content[current_line].strip()
+            cond2 = line_trim[:2] in ["//", "/*"]
         single_line = content[current_line]
         line_splits = single_line.split("=")
         word_splits = line_splits[1].split(";")
