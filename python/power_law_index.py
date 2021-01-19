@@ -22,6 +22,8 @@ from matplotlib.colors import LogNorm
 from matplotlib.patches import PathPatch, Path
 from scipy.optimize import curve_fit
 from scipy import signal, stats
+from scipy.ndimage.filters import gaussian_filter
+from scipy.special import kv
 
 import fitting_funcs
 import pic_information
@@ -404,6 +406,76 @@ def get_spect_params(pic_run="sigma01_bg005_4000de_triggered"):
         spect_params["energy_range"] = [250, 2500]
         spect_params["emax"] = 2E4
         spect_params["norm"] = 3.0
+    elif pic_run == "3D_mime1_sigmae100_vthe04_db1_256de":
+        spect_params["power_index"] = -2.5
+        spect_params["energy_range"] = [50, 500]
+        spect_params["emax"] = 2E4
+        spect_params["norm"] = 3.0
+    elif pic_run == "3D-Lx150-bg0.2-150ppc-2048KNL-tracking":
+        spect_params["power_index"] = -4.0
+        spect_params["energy_range"] = [25, 250]
+        spect_params["emax"] = 1E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic001_bg00":
+        spect_params["power_index"] = -3.1
+        spect_params["energy_range"] = [40, 200]
+        spect_params["emax"] = 1E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic004_bg00":
+        spect_params["power_index"] = -3.4
+        spect_params["energy_range"] = [40, 300]
+        spect_params["emax"] = 2E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic016_bg00":
+        spect_params["power_index"] = -3.2
+        spect_params["energy_range"] = [40, 500]
+        spect_params["emax"] = 2E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic016_bg00_new":
+        spect_params["power_index"] = -3.2
+        spect_params["energy_range"] = [40, 500]
+        spect_params["emax"] = 2E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic064_bg00":
+        spect_params["power_index"] = -2.7
+        spect_params["energy_range"] = [40, 600]
+        spect_params["emax"] = 5E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic256_bg00":
+        spect_params["power_index"] = -2.5
+        spect_params["energy_range"] = [40, 600]
+        spect_params["emax"] = 5E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic001_bg05":
+        spect_params["power_index"] = -3.4
+        spect_params["energy_range"] = [30, 300]
+        spect_params["emax"] = 1E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic004_bg05":
+        spect_params["power_index"] = -3.4
+        spect_params["energy_range"] = [40, 300]
+        spect_params["emax"] = 2E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic016_bg05":
+        spect_params["power_index"] = -3.2
+        spect_params["energy_range"] = [40, 500]
+        spect_params["emax"] = 2E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic064_bg05":
+        spect_params["power_index"] = -2.7
+        spect_params["energy_range"] = [40, 600]
+        spect_params["emax"] = 5E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic256_bg05":
+        spect_params["power_index"] = -2.5
+        spect_params["energy_range"] = [40, 600]
+        spect_params["emax"] = 5E3
+        spect_params["norm"] = 3.0
+    elif pic_run == "mime1836_sigmaic001_bg20":
+        spect_params["power_index"] = -3.1
+        spect_params["energy_range"] = [40, 200]
+        spect_params["emax"] = 1E3
+        spect_params["norm"] = 3.0
     else:
         spect_params["power_index"] = -1.2
         spect_params["energy_range"] = [200, 1000]
@@ -505,8 +577,12 @@ def plot_spectrum_multi(plot_config, show_plot=True):
                       edgecolor='none', pad=10.0),
             horizontalalignment='left', verticalalignment='bottom',
             transform=ax.transAxes)
-    ax.set_xlim([1E0, spect_params["emax"]])
-    ax.set_ylim([1E-9, 1E0])
+    if species == "e":
+        ax.set_xlim([1E0, spect_params["emax"]])
+        ax.set_ylim([1E-9, 1E0])
+    else:
+        ax.set_xlim([1E-4, 4*spect_params["emax"]/pic_info.mime])
+        ax.set_ylim([1E-7, 1E3])
     ax.tick_params(bottom=True, top=True, left=True, right=False)
     ax.tick_params(axis='x', which='minor', direction='in')
     ax.tick_params(axis='x', which='major', direction='in')
@@ -575,6 +651,142 @@ def plot_spectrum_multi(plot_config, show_plot=True):
         plt.show()
     else:
         plt.close()
+
+
+def func_double_maxwell_juttner(gamma, theta1, theta2, f1, f2):
+    """
+    Function for fitting with double Maxwell-Juttner distribution
+
+    Args:
+        gamma: Lorentz factor the particle
+        theta1: lower thermal temperature / m_ec^2
+        theta2: higher thermal temperature / m_ec^2
+        f1: normalization for the lower thermal core
+        f2: normalization for the higher thermal core
+    """
+    beta = np.sqrt(1 - 1.0 / gamma**2)
+    return (f1 * (gamma**2 * beta/(theta1*kv(2.0, 1/theta1))) * np.exp(-gamma/theta1) +
+            f2 * (gamma**2 * beta/(theta2*kv(2.0, 1/theta2))) * np.exp(-gamma/theta2))
+
+
+def fit_thermal_core(gamma, f):
+    """
+    """
+    estart = 0
+    ng = 3
+    kernel = np.ones(ng) / float(ng)
+    # fnew = gaussian_filter(f, 5)
+    # fnew = np.convolve(f, kernel, 'same')
+    es = np.argmax(f) - 150
+    ee = np.argmax(f) + 150
+    popt, pcov = curve_fit(func_double_maxwell_juttner, gamma[:ee], f[:ee])
+    fth = func_double_maxwell_juttner(gamma, popt[0], popt[1], popt[2], popt[3])
+    print('Energy with maximum flux: ', gamma[np.argmax(f)])
+    print('Temperature for the lower thermal core: ', popt[0])
+    print('Temperature for the higher thermal core: ', popt[1])
+    plt.loglog(gamma-1, f)
+    plt.loglog(gamma-1, fth)
+    plt.loglog(gamma-1, f - fth)
+    # plt.loglog(gamma[es:ee], f[es:ee])
+    # plt.loglog(gamma, f - fth)
+    plt.ylim([1E-10, 1E-1])
+    plt.show()
+    return (fth, popt)
+
+
+def spectrum_sigma_bg(plot_config, show_plot=True):
+    """Plot particle energy spectrum for runs with different sigma and Bg
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "ion"
+
+    root_dir = "/net/scratch4/xiaocanli/reconnection/power_law_index/"
+    # bgs = ["00", "05", "10", "20", "10"]
+    # labels = [r"$b_g=0.0$", r"$b_g=0.5$", r"$b_g=1.0$", r"$b_g=2.0$"]
+    # bgs = ["00", "05", "10", "20", "10"]
+    # labels = [r"$b_g=0.0$", r"$b_g=0.5$", r"$b_g=1.0$", r"$b_g=2.0$"]
+    # sigmas = ["001", "004", "016", "064", "256"]
+    sigmas = ["256"]
+    labels = [r"$\sigma_{ic}=0.1$", r"$\sigma_{ic}=0.4$", r"$\sigma_{ic}=1.6$",
+              r"$\sigma_{ic}=6.4$", r"$\sigma_{ic}=25.6$"]
+    pic_runs = ["mime1836_sigmaic" + sigma + "_bg05" for sigma in sigmas]
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.14, 0.16, 0.82, 0.8]
+    ax = fig.add_axes(rect)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        print("PIC run name: %s" % pic_run)
+        if "sigmaic256" in pic_run and "bg00" not in pic_run:
+            emin, emax = 1E-3, 1E7
+        else:
+            emin, emax = 1E-4, 1E6
+        nbins = 1000
+        dloge = (math.log10(emax) - math.log10(emin)) / (nbins - 1)
+        emin0 = 10**(math.log10(emin) - dloge)
+        ebins = np.logspace(math.log10(emin0), math.log10(emax), nbins+1)
+        ebins_mid = (ebins[:-1] + ebins[1:]) * 0.5
+        debins = np.diff(ebins)
+
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        ntf = len(os.listdir(pic_run_dir + "spectrum/"))
+        nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+        tframe = ntf - 1
+        tindex = tframe * int(pic_info.fields_interval)
+        fdir = pic_run_dir + 'spectrum_combined/'
+        fname = fdir + 'spectrum_' + sname + '_' + str(tindex) + '.dat'
+        if species in ['e', 'electron']:
+            ebins_mid_run = ebins_mid / pic_info.Te
+            debins_run = debins / pic_info.Te
+        else:
+            ebins_mid_run = ebins_mid / pic_info.Ti
+            debins_run = debins / pic_info.Ti
+        pmass = 1.0 if species in ["e", "electron"] else pic_info.mime
+        if os.path.isfile(fname):
+            flog = np.fromfile(fname, dtype=np.float32)
+            espect = flog[3:] / debins_run / nptot  # the first 3 are magnetic field
+        gamma = ebins_mid + 1.0
+        fth_l, popt = fit_thermal_core(gamma, espect)
+        # fnth = espect - fth_l
+        # imax = np.argmax(fnth)
+        # ns = imax - 50
+        # fth_h, popt = fit_thermal_core(gamma[ns:], fnth[ns:])
+        # ax.loglog(ebins_mid_run*pmass, espect, linewidth=2,
+        #           label=labels[irun])
+        # ax.loglog(ebins_mid_run*pmass, fth_l, linewidth=2)
+
+    # ax.legend(loc=3, prop={'size': 16}, ncol=1,
+        #      shadow=False, fancybox=False, frameon=False)
+
+    # if species == 'e':
+        # ax.set_xlim([1E-1, 1E4])
+        # ax.set_ylim([1E-10, 1E-1])
+    # else:
+        # ax.set_xlim([1E-1, 1E4])
+        # ax.set_ylim([1E-8, 1E0])
+    # ax.tick_params(bottom=True, top=True, left=True, right=False)
+    # ax.tick_params(axis='x', which='minor', direction='in')
+    # ax.tick_params(axis='x', which='major', direction='in')
+    # ax.tick_params(axis='y', which='minor', direction='in')
+    # ax.tick_params(axis='y', which='major', direction='in')
+    # ax.set_xlabel(r'$(\gamma - 1)m_' + species + 'c^2/T_' + species + '$', fontsize=16)
+    # ax.set_ylabel(r'$(\gamma - 1)f(\gamma - 1)$', fontsize=16)
+    # ax.tick_params(labelsize=12)
+    # ename = 'electron' if species == 'e' else 'ion'
+    # # fdir = '../img/power_law_index/spectrum_bg/'
+    # # mkdir_p(fdir)
+    # # fname = fdir + 'spectrum_bg_' + sigma_type + '_' + species + '.pdf'
+    # # fig.savefig(fname)
+    # plt.show()
 
 
 def get_all_runs(root_dir):
@@ -1605,6 +1817,231 @@ def calc_vexb_kappa(plot_config):
             fh[dname].write_direct(vexb_kappa)
         else:
             grp = fh.create_dataset(dname, (nz, nx), data=vexb_kappa)
+
+
+def vexb_kappa_dist(plot_config, show_plot=True):
+    """Get 2D histogram vexb_kappa and kappa
+    """
+    pic_run = plot_config["pic_run"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
+    ntf = pic_info.ntf
+    kmin, kmax = 1E-6, 1E2
+    nbins = 80
+    kbins = np.logspace(math.log10(kmin), math.log10(kmax), nbins+1)
+    kbins_mid = 0.5 * (kbins[1:] + kbins[:-1])
+
+    vkmin, vkmax = 1E-5, 1E-1
+    nbins = 40
+    vkbins = np.zeros(2*nbins+3)
+    fbins = np.logspace(math.log10(vkmin), math.log10(vkmax), nbins+1)
+    vkbins[:nbins+1] = -fbins[::-1]
+    vkbins[nbins+2:]= fbins
+    vkbins_mid = 0.5 * (vkbins[1:] + vkbins[:-1])
+    fdir = '../data/power_law_index/kappa_dist/'
+    mkdir_p(fdir)
+    oname = fdir + "kappa_dist_" + pic_run + ".h5"
+    with h5py.File(oname, "w") as fh:
+        fh.create_dataset("kappa_bins", kbins.shape, data=kbins)
+        fh.create_dataset("vkappa_bins", vkbins.shape, data=vkbins)
+        grp = fh.create_group("dist")
+    for tframe in range(ntf):
+        print("%d of %d" % (tframe, ntf))
+        pic_topox = pic_info.topology_x
+        pic_topoy = pic_info.topology_y
+        pic_topoz = pic_info.topology_z
+        nx, ny, nz = pic_info.nx, pic_info.ny, pic_info.nz
+        xmin, xmax = 0, pic_info.lx_di
+        ymin, ymax = -pic_info.ly_di * 0.5, pic_info.ly_di * 0.5
+        zmin, zmax = -pic_info.lz_di * 0.5, pic_info.lz_di * 0.5
+        smime = math.sqrt(pic_info.mime)
+        dx_de = pic_info.dx_di * smime
+        dy_de = pic_info.dy_di * smime
+        dz_de = pic_info.dz_di * smime
+        if "bg005" in pic_run:
+            kwargs = {"current_time": tframe,
+                      "xl": 0, "xr": pic_info.lx_di,
+                      "zb": -pic_info.lz_di, "zt": pic_info.lz_di}
+            fname = pic_run_dir + "data/bx.gda"
+            x, z, bx = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/by.gda"
+            x, z, by = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/bz.gda"
+            x, z, bz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/ex.gda"
+            x, z, ex = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/ey.gda"
+            x, z, ey = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/ez.gda"
+            x, z, ez = read_2d_fields(pic_info, fname, **kwargs)
+        else:
+            fields_interval = int(pic_info.fields_interval)
+            tindex = fields_interval * tframe
+            fname = (pic_run_dir + "field_hdf5/T." + str(tindex) +
+                     "/fields_" + str(tindex) + ".h5")
+            emf = {}
+            with h5py.File(fname, 'r') as fh:
+                group = fh["Timestep_" + str(tindex)]
+                for var in group:
+                    dset = group[var]
+                    emf[var]= dset[:, 0, :]
+                bx = emf["cbx"]
+                by = emf["cby"]
+                bz = emf["cbz"]
+                ex = emf["ex"]
+                ey = emf["ey"]
+                ez = emf["ez"]
+
+        ib = 1.0/np.sqrt(bx**2 + by**2 + bz**2)
+        bx = bx * ib
+        by = by * ib
+        bz = bz * ib
+        kappax = (bx * np.gradient(bx, axis=1) / dx_de +
+                  bz * np.gradient(bx, axis=0) / dz_de)
+        kappay = (bx * np.gradient(by, axis=1) / dx_de +
+                  bz * np.gradient(by, axis=0) / dz_de)
+        kappaz = (bx * np.gradient(bz, axis=1) / dx_de +
+                  bz * np.gradient(bz, axis=0) / dz_de)
+        kappa = np.sqrt(kappax**2 + kappay**2 + kappaz**2)
+        vexb_x = (ey * bz - ez * by) * ib
+        vexb_y = (ez * bx - ex * bz) * ib
+        vexb_z = (ex * by - ey * bx) * ib
+        vexb_kappa = vexb_x * kappax + vexb_y * kappay + vexb_z * kappaz
+
+        hist_xy, _, _ = np.histogram2d(kappa.flatten(), vexb_kappa.flatten(),
+                                       bins=[kbins, vkbins])
+        with h5py.File(oname, "a") as fh:
+            grp = fh["dist"]
+            dname = "Frame#" + str(tframe)
+            grp.create_dataset(dname, hist_xy.shape, data=hist_xy)
+
+    # fig = plt.figure(figsize=[7, 5])
+    # rect = [0.15, 0.15, 0.8, 0.8]
+    # ax = fig.add_axes(rect)
+    # vmin, vmax = 1, 5E5
+    # kappa_dist = np.sum(hist_xy, axis=1) / np.diff(kbins)
+    # ik1 = np.argmax(kappa_dist)
+    # ik2 = np.max(np.nonzero(kappa_dist))
+    # fpowerh = kbins_mid[ik1:ik2]**-3.5
+    # fpowerl = kbins_mid[:ik1]**0.5
+    # fnormh = kappa_dist[ik1] / fpowerh[0] * 5
+    # fnorml = kappa_dist[ik1] / fpowerl[-1] * 2
+    # ax.loglog(kbins_mid, kappa_dist)
+    # ax.loglog(kbins_mid[ik1:ik2], fpowerh*fnormh)
+    # ax.loglog(kbins_mid[:ik1], fpowerl*fnorml)
+    # # nbins = vkbins_mid.shape[0]
+    # # vkappa_dist = np.sum(hist_xy, axis=0)
+    # # ax.loglog(vkbins_mid[nbins//2:], vkappa_dist[nbins//2:0:-1])
+    # # ax.loglog(vkbins_mid[nbins//2:], vkappa_dist[nbins//2:])
+    # # print(hist_xy.min(), hist_xy.max())
+    # # p2 = ax.imshow(hist_xy, extent=[xmin, xmax, zmin, zmax],
+    # #                norm = LogNorm(vmin=vmin, vmax=vmax),
+    # #                cmap=plt.cm.plasma, aspect='auto',
+    # #                origin='lower', interpolation='none')
+    # plt.show()
+
+
+def velocity_dist(plot_config, show_plot=True):
+    """Get the distributions of velocity field
+    """
+    pic_run = plot_config["pic_run"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
+    ntf = pic_info.ntf
+
+    umin, umax = 1E-3, 1E1
+    nbins = 40
+    ubins = np.zeros(2*nbins+3)
+    fbins = np.logspace(math.log10(umin), math.log10(umax), nbins+1)
+    ubins[:nbins+1] = -fbins[::-1]
+    ubins[nbins+2:]= fbins
+    ubins_mid = 0.5 * (ubins[1:] + ubins[:-1])
+    fdir = '../data/power_law_index/vel_dist/'
+    mkdir_p(fdir)
+    oname = fdir + "kappa_dist_" + pic_run + ".h5"
+    with h5py.File(oname, "w") as fh:
+        fh.create_dataset("ubins", ubins.shape, data=ubins)
+        grp = fh.create_group("ux_dist")
+        grp = fh.create_group("uy_dist")
+        grp = fh.create_group("uz_dist")
+    for tframe in range(ntf):
+        print("%d of %d" % (tframe, ntf))
+        pic_topox = pic_info.topology_x
+        pic_topoy = pic_info.topology_y
+        pic_topoz = pic_info.topology_z
+        nx, ny, nz = pic_info.nx, pic_info.ny, pic_info.nz
+        xmin, xmax = 0, pic_info.lx_di
+        ymin, ymax = -pic_info.ly_di * 0.5, pic_info.ly_di * 0.5
+        zmin, zmax = -pic_info.lz_di * 0.5, pic_info.lz_di * 0.5
+        smime = math.sqrt(pic_info.mime)
+        dx_de = pic_info.dx_di * smime
+        dy_de = pic_info.dy_di * smime
+        dz_de = pic_info.dz_di * smime
+        if "bg005" in pic_run:
+            kwargs = {"current_time": tframe,
+                      "xl": xmin, "xr": xmax,
+                      "zb": zmin, "zt": zmax}
+            fname = pic_run_dir + "data/uex.gda"
+            x, z, uex = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/uey.gda"
+            x, z, uey = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/uez.gda"
+            x, z, uez = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/uix.gda"
+            x, z, uix = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/uiy.gda"
+            x, z, uiy = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/uiz.gda"
+            x, z, uiz = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/ne.gda"
+            x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
+            fname = pic_run_dir + "data/ni.gda"
+            x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
+            irho = 1.0 / (ne + ni * mime)
+            ux = (uex * ne + uix * ni * mime) * irho
+            uy = (uey * ne + uiy * ni * mime) * irho
+            uz = (uez * ne + uiz * ni * mime) * irho
+        else:
+            fields_interval = pic_info.fields_interval
+            tindex = fields_interval * tframe
+            xs, xe = 0, pic_info.nx
+            zs, ze = 0, pic_info.nz
+            vels = {}
+            for species in ["e", "i"]:
+                sname = "electron" if species == 'e' else "ion"
+                fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                         "/hydro_" + sname + "_" + str(tindex) + ".h5")
+                hydro = {}
+                with h5py.File(fname, 'r') as fh:
+                    group = fh["Timestep_" + str(tindex)]
+                    for var in ["rho", "px", "py", "pz"]:
+                        dset = group[var]
+                        hydro[var]= dset[xs:xe, 0, zs:ze].T
+
+                vels["n" + species] = hydro["rho"]
+                vels["p" + species + "x"] = hydro["px"]
+                vels["p" + species + "y"] = hydro["py"]
+                vels["p" + species + "z"] = hydro["pz"]
+            irho =  1.0 / (vels["ne"] + vels["ni"] * mime)
+            ux = (vels["pex"] + vels["pix"]) * irho
+            uy = (vels["pey"] + vels["piy"]) * irho
+            uz = (vels["pez"] + vels["piz"]) * irho
+
+        histx, _ = np.histogram(ux.flatten(), bins=ubins)
+        histy, _ = np.histogram(uy.flatten(), bins=ubins)
+        histz, _ = np.histogram(uz.flatten(), bins=ubins)
+        with h5py.File(oname, "a") as fh:
+            grp = fh["ux_dist"]
+            dname = "Frame#" + str(tframe)
+            grp.create_dataset(dname, histx.shape, data=histx)
+            grp = fh["uy_dist"]
+            dname = "Frame#" + str(tframe)
+            grp.create_dataset(dname, histy.shape, data=histy)
+            grp = fh["uz_dist"]
+            dname = "Frame#" + str(tframe)
+            grp.create_dataset(dname, histz.shape, data=histz)
 
 
 def calc_curvature_radius(plot_config):
@@ -3302,8 +3739,8 @@ def plot_sigma_power(plot_config, show_plot=True):
     plt.show()
 
 
-def pindex_bg_sigma(plot_config, show_plot=True):
-    """Compare power-law indices in model and simulations for all runs
+def pindex_sde(plot_config, show_plot=True):
+    """Calculate power-law index using SDE
 
     Args:
         plot_config: plotting configuration
@@ -3322,15 +3759,15 @@ def pindex_bg_sigma(plot_config, show_plot=True):
     bgs_float = [0.05, 0.1, 0.2, 0.4, 1.0]
     nsigma = len(sigmas)
     nbg = len(bgs)
-    for sigma in sigmas:
-        for ibg, bg in enumerate(bgs):
-            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
-            picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
-            pic_info = read_data_from_json(picinfo_fname)
-            pic_runs.append(pic_run)
-            bg_runs.append(bgs_float[ibg])
-            binplane.append(pic_info.b0)
-    nruns_1836 = len(pic_runs)
+    # for sigma in sigmas:
+    #     for ibg, bg in enumerate(bgs):
+    #         pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+    #         picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    #         pic_info = read_data_from_json(picinfo_fname)
+    #         pic_runs.append(pic_run)
+    #         bg_runs.append(bgs_float[ibg])
+    #         binplane.append(pic_info.b0)
+    # nruns_1836 = len(pic_runs)
     sigmaes = ["100", "40", "10"]
     db2s = ["05", "1", "4"]
     bgs_float = [1/math.sqrt(0.5), 1.0, 0.5]
@@ -3341,9 +3778,11 @@ def pindex_bg_sigma(plot_config, show_plot=True):
             pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
             picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
             pic_info = read_data_from_json(picinfo_fname)
+            print(pic_info.ene_bx[0], pic_info.ene_by[0], pic_info.ene_bz[0])
             pic_runs.append(pic_run)
             bg_runs.append(bgs_float[ibg])
-            binplane.append(pic_info.b0 / bgs_float[ibg] / (2 * math.sqrt(2.0)))
+            # binplane.append(pic_info.b0 / bgs_float[ibg] / (2 * math.sqrt(2.0)))
+            binplane.append(pic_info.b0 / bgs_float[ibg])
     pic_run = "sigmae400_bg00_800de_triggered"
     pic_runs.append(pic_run)
     bg_runs.append(0.0)
@@ -3363,6 +3802,7 @@ def pindex_bg_sigma(plot_config, show_plot=True):
     pindex = np.zeros(rune - runs)
     va4 = np.zeros(rune - runs)  # four Alfven speed
     ps = np.zeros((2, rune - runs))
+    pindices = []
     for irun, pic_run in enumerate(pic_runs[runs:rune]):
         print("PIC run name: %s" % pic_run)
         picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
@@ -3379,7 +3819,9 @@ def pindex_bg_sigma(plot_config, show_plot=True):
         enthalpy_i =  n0 * (mime + pic_info.Ti * gamma_i / (gamma_i - 1))
         enthalpy = enthalpy_e + enthalpy_i
         b0 = binplane[irun]
+        br = b0 * 0.5
         sigma[irun] = b0**2 / enthalpy
+        sigma_r = br**2 / enthalpy
         sigma_c[irun] = b0**2 / (n0 * (1 + mime))
         sigmae_c[irun] = b0**2 / n0
         sigmai_c[irun] = b0**2 / (n0 * mime)
@@ -3388,26 +3830,223 @@ def pindex_bg_sigma(plot_config, show_plot=True):
         beta_e[irun] = 2 * n0 * pic_info.Te / b0**2
         spect_params = get_spect_params(pic_run)
         pindex[irun] = -spect_params["power_index"]
-        va = math.sqrt(sigma[irun] / (sigma[irun]*(1+bg_runs[irun]**2) + 1))
+        va = math.sqrt(sigma_r / (sigma_r+sigma[irun]*bg_runs[irun]**2 + 1))
         va4[irun] = va / math.sqrt(1 - va**2)
-        # ps[1, irun] = 1 + 2*va / (va*0.5 + 2*va**2)
         gamma_the = pic_info.Te + 1
         vthe = math.sqrt(gamma_the**2 - 1) / gamma_the
         gamma_va = 1.0 / math.sqrt(1 - va**2)
+        factor = gamma_va**2
+        btot = math.sqrt(1 + bg_runs[irun]**2)
+        ctheta = 1.0 / btot
+        lx_de = pic_info.lx_di * math.sqrt(pic_info.mime)
+        # l = lx_de / 4
+        l = math.sqrt(pic_info.mime) * 25
+        acc_rate = (factor * (1 + va + va**2) - 1) / (4 * l)
+        esc_rate = va / l
+        dee_rate = acc_rate / 2
+        nsteps = 10000
+        if "mime1_sigmae1_" in pic_run:
+            dee_rate = acc_rate / 2
+            params= {"acc_rate": 0.001,
+                     "esc_rate": 0.001 * esc_rate / acc_rate,
+                     "dee_rate": 0.001 * dee_rate / acc_rate,
+                     "nsteps": int(lx_de)*4,
+                     "nptl": 1E5}
+            p0,_,_ = solve_sde_pindex(params, pic_run, reconnection=False)
+        else:
+            dee_rate = acc_rate / 100
+            params= {"acc_rate": 0.001,
+                     "esc_rate": 0.001 * esc_rate / acc_rate,
+                     "dee_rate": 0.001 * dee_rate / acc_rate,
+                     "nsteps": int(lx_de)*4,
+                     "nptl": 1E5}
+            p0,_,_ = solve_sde_pindex(params, pic_run, reconnection=True)
+        # pindices.append(p0)
+
+    # plt.scatter(pindex, pindices)
+    # plt.xlim([0, 5])
+    # plt.ylim([0, 5])
+    # plt.show()
+
+
+def pindex_bg_sigma(plot_config, show_plot=True):
+    """Compare power-law indices in model and simulations for all runs
+
+    Args:
+        plot_config: plotting configuration
+    """
+    species = plot_config["species"]
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "Ion"
+    reconnection_run = True
+    turbulence_run = False
+
+    pic_runs = []
+    bg_runs = []
+    binplane = []
+    if reconnection_run:
+        # sigmas = ["01", "04", "16", "64"]
+        # bgs = ["005", "01", "02", "04", "10"]
+        # bgs_float = [0.05, 0.1, 0.2, 0.4, 1.0]
+        # bgs = ["02"]
+        # bgs_float = [0.2]
+        # bgs = ["10"]
+        # bgs_float = [1.0]
+        sigmas = ["001", "004", "016", "064", "256"]
+        bgs = ["00", "05"]
+        bgs_float = [0.0, 0.5]
+        nsigma = len(sigmas)
+        nbg = len(bgs)
+        for sigma in sigmas:
+            for ibg, bg in enumerate(bgs):
+                # pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+                pic_run = "mime1836_sigmaic" + sigma + "_bg" + bg
+                picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+                pic_info = read_data_from_json(picinfo_fname)
+                pic_runs.append(pic_run)
+                bg_runs.append(bgs_float[ibg])
+                binplane.append(pic_info.b0)
+        nruns_1836 = len(pic_runs)
+    else:
+        nsigma = 0
+        nbg = 0
+
+    if turbulence_run:
+        sigmaes = ["100", "40", "10"]
+        db2s = ["05", "1", "4"]
+        bgs_float = [1/math.sqrt(0.5), 1.0, 0.5]
+        nsigmae = len(sigmaes)
+        ndb = len(db2s)
+        for sigmae in sigmaes:
+            for ibg, db2 in enumerate(db2s):
+                pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+                picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+                pic_info = read_data_from_json(picinfo_fname)
+                print(pic_info.ene_bx[0], pic_info.ene_by[0], pic_info.ene_bz[0])
+                pic_runs.append(pic_run)
+                bg_runs.append(bgs_float[ibg])
+                # binplane.append(pic_info.b0 / bgs_float[ibg] / (2 * math.sqrt(2.0)))
+                binplane.append(pic_info.b0 / bgs_float[ibg])
+    else:
+        nsigmae = 0
+        ndb = 0
+
+    if reconnection_run:
+        pic_run = "sigmae400_bg00_800de_triggered"
+        pic_runs.append(pic_run)
+        bg_runs.append(0.0)
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        binplane.append(pic_info.b0)
+    nruns = len(pic_runs)
+
+    runs, rune = 0, nruns
+    sigma = np.zeros(rune - runs)
+    sigma_c = np.zeros(rune - runs)
+    sigmae_c = np.zeros(rune - runs)
+    sigmai_c = np.zeros(rune - runs)
+    sigmae_h = np.zeros(rune - runs)
+    sigmai_h = np.zeros(rune - runs)
+    beta_e = np.zeros(rune - runs)
+    pindex = np.zeros(rune - runs)
+    va4 = np.zeros(rune - runs)  # four Alfven speed
+    ps = np.zeros((2, rune - runs))
+    for irun, pic_run in enumerate(pic_runs[runs:rune]):
+        print("-"*20)
+        print("PIC run name: %s" % pic_run)
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        mime = pic_info.mime
+        n0 = pic_info.n0
+        gamma_e = 4.0/3 if pic_info.Te > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+        # print("Particle initial temperature (Lorentz factor): %f" % temp)
+        # In typical VPIC simulation, me=1, c=1
+        enthalpy_e =  n0 * (1 + pic_info.Te * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + pic_info.Ti * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        b0 = binplane[irun]
+        br = b0
+        bg = bg_runs[irun]
+        sigma[irun] = b0**2 / enthalpy
+        sigma_r = br**2 / enthalpy
+        sigma_c[irun] = b0**2 / (n0 * (1 + mime))
+        sigmae_c[irun] = b0**2 / n0
+        sigmai_c[irun] = b0**2 / (n0 * mime)
+        sigmae_h[irun] = b0**2 / enthalpy_e
+        sigmai_h[irun] = b0**2 / enthalpy_i
+        beta_e[irun] = 2 * n0 * pic_info.Te / b0**2
+        spect_params = get_spect_params(pic_run)
+        pindex[irun] = -spect_params["power_index"]
+        va = math.sqrt(sigma_r / (sigma_r+sigma[irun]*bg**2 + 1))
+        sigma_tot = sigma_r + sigma[irun]*bg**2
+        va0 = math.sqrt(sigma_tot / (sigma_tot + 1))
+        va4[irun] = va / math.sqrt(1 - va**2)
+        gamma_the = pic_info.Te + 1
+        vthe = math.sqrt(gamma_the**2 - 1) / gamma_the
+        gamma_thi = pic_info.Ti / pic_info.mime + 1
+        vthi = math.sqrt(gamma_thi**2 - 1) / gamma_thi
+        btot = math.sqrt(1 + bg**2)
+        de = np.sqrt(gamma_the)
+        di = np.sqrt(pic_info.mime * gamma_thi)
+        rhoe = gamma_the * vthe / (btot * b0)
+        rhoi = gamma_thi * pic_info.mime * vthi / (btot * b0)
+        gamma_va = 1.0 / math.sqrt(1 - va**2)
+        gamma_va0 = 1.0 / math.sqrt(1 - va0**2)
         factor = gamma_va**2
         # factor = gamma_va**2 * va**2 / 3 + 1
         # factor = (gamma_va**2 + gamma_va + 1) / 3
         factor1 = (gamma_va**2 + gamma_va + 1) / 3
         factor2 = (gamma_va+1)**(3/2) * (gamma_va-1)**(1/2) / 3
         factor3 = factor1 - 1
-        btot = math.sqrt(1 + bg_runs[irun]**2)
         ctheta = 1.0 / btot
-        pindex_va = 1 + 8.0 * va / (factor * (1 + 2*va*ctheta + va**2) - 1)
+        lx_de = pic_info.lx_di * math.sqrt(pic_info.mime)
+        if "mime1_sigmae" in pic_run:
+            l = lx_de / 2
+        else:
+            # l = lx_de * va / 3
+            l = lx_de / 9
+            # l = lx_de / 10
+        # acc_rate = (factor * (1 + va + va**2) - 1) / (4 * l)
+        l0 = max(di, rhoi)
+        l1 = l
+        acc_rate = va * math.log(l1/l0) / (l1-l0) / 3 / 3
+        # acc_rate = va * math.log(l1/l0) / (l1-l0) / 3 / gamma_va
+        # acc_rate = (gamma_va**2 * (1 + va + va**2) - 1) * math.log(l1/l0) / (l1-l0) / 6
+        if "mime1_sigmae" in pic_run:
+            lc = l
+            # sigma0 = 1.0 / (1.0 + bg**2)**(1/3)
+            sigma0 = 1.0 / bg**2
+            # if sigma0 > 1:
+            #     sigma0 = 1.0
+            csc_3pi_5 = 1.05146
+            # omega0 = btot * b0 / gamma
+            gamma = pic_info.Te / beta_e[irun] + 1
+            acc_rate = (gamma + 1) * va * math.log(l1/l0) / (l1-l0) / (3 * gamma)
+            omega0 = bg * b0 / gamma
+            vtheh = math.sqrt(1 - 1/gamma**2)
+            kpara = 3 * vtheh**3 * csc_3pi_5 / (20 * lc * omega0**2 * sigma0)
+            kpara *= 1.0 + (72.0 / 7) * (omega0 * lc / vtheh)**(5/3)
+            # print(vtheh, sigma0, omega0**(1/3)*sigma0)
+            # esc_rate = va**2 / kpara
+            esc_rate = kpara / l**2
+        else:
+            # esc_rate = 1.0 / l
+            # esc_rate = 1.0 / l / gamma_va
+            esc_rate = va / l
+        print("Acceleration and escape rates: %e, %e" % (acc_rate, esc_rate))
+        pindex_va = 1.0 + esc_rate / acc_rate
+        # pindex_va = 1 + 8.0 * va / (factor * (1 + 2*va*ctheta + va**2) - 1)
         # pindex_va = 1 + 8.0 * va / (factor1 + 2*factor2*ctheta + factor3 - 1)
         ps[1, irun] = pindex[irun]
         ps[0, irun] = pindex_va
-        print("va, gamma_va, pindex_va: %0.2f, %0.2f, %0.2f" %
-              (va, gamma_va, pindex_va))
+        # ps[0, irun] = 1 + 4.5 * math.sqrt(1 + bg**2) / math.log(l1/l0)
+        # print("va, gamma_va, pindex_va: %0.2f, %0.2f, %0.2f" %
+        #       (va, gamma_va, pindex_va))
 
     fig = plt.figure(figsize=[7, 7])
     rect = [0.11, 0.12, 0.85, 0.85]
@@ -3417,70 +4056,83 @@ def pindex_bg_sigma(plot_config, show_plot=True):
     ax.set_prop_cycle('color', COLORS)
     n1 = nsigma * nbg + nsigmae * ndb
     ltext = r"$\sigma_e=400, m_i/m_e=1$"
-    p3 = ax.scatter(ps[1, n1], ps[0, n1], marker='X', label=ltext, s=100)
-    plots_rec = [p3]
-    for i in range(nsigma):
-        sigma = str(int(sigmas[i]) / 10)
-        ltext = r"$\sigma_i=" + sigma + "$"
-        alphas = np.linspace(0.2, 1, nbg)
-        rgba_colors = np.zeros((nbg,4))
-        rgba_colors[:,0] = COLORS[i+1][0]
-        rgba_colors[:,1] = COLORS[i+1][1]
-        rgba_colors[:,2] = COLORS[i+1][2]
-        # the fourth column needs to be your alphas
-        rgba_colors[:, 3] = alphas
-        rs, re = i*nbg, (i+1)*nbg
-        ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
-                   marker='o', s=100)
-        p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
-                        label=ltext, color=COLORS[i+1],
-                        marker='o', s=100)
-        plots_rec.append(p1)
-    # Turbulence run
-    shift = nsigma * nbg
-    plots_turb = []
-    for i in range(nsigmae):
-        ltext = r"$\sigma_e=" + sigmaes[i] + "$"
-        ndb = len(db2s)
-        alphas = np.linspace(0.2, 1, ndb)
-        rgba_colors = np.zeros((ndb,4))
-        rgba_colors[:,0] = COLORS[i+nsigma+1][0]
-        rgba_colors[:,1] = COLORS[i+nsigma+1][1]
-        rgba_colors[:,2] = COLORS[i+nsigma+1][2]
-        # the fourth column needs to be your alphas
-        rgba_colors[:, 3] = alphas
-        rs, re = i*ndb+shift, (i+1)*ndb+shift
-        ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
-                   marker='d', s=100)
-        p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
-                        label=ltext, color=COLORS[i+nsigma+1],
-                        marker='d', s=100)
-        plots_turb.append(p1)
+    if reconnection_run:
+        plots_rec = []
+        p3 = ax.scatter(ps[1, n1], ps[0, n1], marker='X', label=ltext, s=100)
+        plots_rec = [p3]
+        for i in range(nsigma):
+            sigma = str(int(sigmas[i]) / 10)
+            ltext = r"$\sigma_i=" + sigma + "$"
+            alphas = np.linspace(0.2, 1, nbg)
+            rgba_colors = np.zeros((nbg,4))
+            rgba_colors[:,0] = COLORS[i+1][0]
+            rgba_colors[:,1] = COLORS[i+1][1]
+            rgba_colors[:,2] = COLORS[i+1][2]
+            # the fourth column needs to be your alphas
+            rgba_colors[:, 3] = alphas
+            # if sigmas[i] in ["01", "16"]:
+            #     rs, re = i*nbg+2, (i+1)*nbg
+            #     ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors[2:],
+            #                marker='o', s=100)
+            # else:
+            #     rs, re = i*nbg, (i+1)*nbg
+            #     ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+            #                marker='o', s=100)
+            rs, re = i*nbg, (i+1)*nbg
+            ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+                       marker='o', s=100)
+            p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
+                            label=ltext, color=COLORS[i+1],
+                            marker='o', s=100)
+            plots_rec.append(p1)
+    if turbulence_run:
+        if reconnection_run:
+            shift = nsigma * nbg
+        else:
+            shift = 0
+        plots_turb = []
+        for i in range(nsigmae):
+            ltext = r"$\sigma_e=" + sigmaes[i] + "$"
+            ndb = len(db2s)
+            alphas = np.linspace(0.2, 1, ndb)
+            rgba_colors = np.zeros((ndb,4))
+            rgba_colors[:,0] = COLORS[i+nsigma+1][0]
+            rgba_colors[:,1] = COLORS[i+nsigma+1][1]
+            rgba_colors[:,2] = COLORS[i+nsigma+1][2]
+            # the fourth column needs to be your alphas
+            rgba_colors[:, 3] = alphas
+            rs, re = i*ndb+shift, (i+1)*ndb+shift
+            ax.scatter(ps[1, rs:re], ps[0, rs:re], color=rgba_colors,
+                       marker='d', s=100)
+            p1 = ax.scatter(ps[1, rs:re]+10, ps[0, rs:re]+10,
+                            label=ltext, color=COLORS[i+nsigma+1],
+                            marker='d', s=100)
+            plots_turb.append(p1)
 
-    leg1 = ax.legend(loc=2, handles=plots_rec, prop={'size': 16}, ncol=1,
-                     shadow=False, fancybox=False, frameon=False,
-                     title="Reconnection", title_fontsize=16)
+        # leg1 = ax.legend(loc=2, handles=plots_rec, prop={'size': 16}, ncol=1,
+        #                  shadow=False, fancybox=False, frameon=False,
+        #                  title="Reconnection", title_fontsize=16)
 
-    leg2 = ax.legend(loc=4, handles=plots_turb, prop={'size': 16}, ncol=1,
-                     shadow=False, fancybox=False, frameon=False,
-                     title="Turbulence", title_fontsize=16)
-    ax.add_artist(leg1)
-    brace = CurlyBrace(x=0.28, y=0.665, width=0.05, height=.2, pointing='right',
-                       transform=ax.transAxes, color='k')
-    ax.add_artist(brace)
-    text1 = r"$m_i/m_e=1836$"
-    ax.text(0.34, 0.765, text1, color='k', fontsize=16, rotation=0,
-            bbox=dict(facecolor='none', alpha=1.0,
-                      edgecolor='none', pad=10.0),
-            horizontalalignment='left', verticalalignment='center',
-            transform=ax.transAxes)
+        # leg2 = ax.legend(loc=4, handles=plots_turb, prop={'size': 16}, ncol=1,
+        #                  shadow=False, fancybox=False, frameon=False,
+        #                  title="Turbulence", title_fontsize=16)
+        # # ax.add_artist(leg1)
+        # brace = CurlyBrace(x=0.28, y=0.665, width=0.05, height=.2, pointing='right',
+        #                    transform=ax.transAxes, color='k')
+        # ax.add_artist(brace)
+    # text1 = r"$m_i/m_e=1836$"
+    # ax.text(0.34, 0.765, text1, color='k', fontsize=16, rotation=0,
+    #         bbox=dict(facecolor='none', alpha=1.0,
+    #                   edgecolor='none', pad=10.0),
+    #         horizontalalignment='left', verticalalignment='center',
+    #         transform=ax.transAxes)
 
-    slope, intercept, r_value, p_value, std_err = stats.linregress(ps[1], ps[0])
-    # print(slope, intercept, r_value, p_value, std_err)
+    # slope, intercept, r_value, p_value, std_err = stats.linregress(ps[1], ps[0])
+    # # print(slope, intercept, r_value, p_value, std_err)
 
-    pmodel = np.linspace(1, 5, 10)
-    ax.plot(pmodel, intercept + slope*pmodel, color='k',
-            alpha=0.5, label='fitted line', zorder=0)
+    # pmodel = np.linspace(1, 5, 10)
+    # ax.plot(pmodel, intercept + slope*pmodel, color='k',
+    #         alpha=0.5, label='fitted line', zorder=0)
 
     # text1 = (r"$p_m=" + (r"%0.3f" % slope) + r"p_s" + (r"%0.3f" % intercept) + r"$")
     # ax.text(0.77, 0.87, text1, color='k', fontsize=12, rotation=47.11,
@@ -3503,15 +4155,17 @@ def pindex_bg_sigma(plot_config, show_plot=True):
     ax.set_ylabel(r'Power-law index $p_m$ (model)', fontsize=20)
     ax.tick_params(labelsize=12)
 
-    ax.plot([1, 5.0], [1, 5.0], linewidth=1, linestyle='--', color='k')
-    ax.set_xlim([1, 5.0])
-    ax.set_ylim([1, 5.0])
-    ax.set_xticks(range(1, 6))
-    ax.set_yticks(range(1, 6))
-    # fdir = '../img/power_law_index/spectrum/' + pic_run + '/'
-    # mkdir_p(fdir)
-    # fname = fdir + 'spectrum_' + species + '.pdf'
-    # fig.savefig(fname)
+    # ax.plot([1, 5.0], [1, 5.0], linewidth=1, linestyle='--', color='k')
+    # ax.plot([1, 5.0], [1.5, 5.5], linewidth=1, linestyle='--', color='k')
+    # ax.plot([1, 5.0], [0.5, 4.5], linewidth=1, linestyle='--', color='k')
+    # ax.set_xlim([1, 5.0])
+    # ax.set_ylim([1, 5.0])
+    # ax.set_xticks(range(1, 6))
+    # ax.set_yticks(range(1, 6))
+    fdir = '../img/power_law_index/spectrum/'
+    mkdir_p(fdir)
+    fname = fdir + 'spectra_model.pdf'
+    fig.savefig(fname)
     plt.show()
 
 
@@ -4833,17 +5487,17 @@ def calc_rates_tracer(plot_config, show_plot=True):
                 # cond_energetic = np.logical_and(cond_energetic, cond_energetic_final)
                 acc_high = np.logical_and(cond_energetic, np.logical_not(escaped_all))
                 dene = ptl["Ux"] * ptl["Ex"] + ptl["Uy"] * ptl["Ey"] + ptl["Uz"] * ptl["Ez"]
-                dene /= gamma
+                dene /= gamma * pcharge
                 for ibin in range(nbins):
                     cond_bin = np.logical_and(ene > ebins[ibin], ene <= ebins[ibin+1])
                     cond = np.logical_and(escaped_new, cond_bin)
                     dnptl_esc[tframe, ibin] = np.sum(cond)
                     cond = np.logical_and(escaped_all, cond_bin)
                     nptl_esc[tframe, ibin] = np.sum(cond)
-                    acc_rate_esc[tframe, ibin] = np.sum(dene[cond] / ene[cond]) * pcharge
+                    acc_rate_esc[tframe, ibin] = np.sum(dene[cond] / ene[cond])
                     cond = np.logical_and(acc_high, cond_bin)
                     nptl_acc[tframe, ibin] = np.sum(cond)
-                    acc_rate_sum[tframe, ibin] = np.sum(dene[cond] / ene[cond]) * pcharge
+                    acc_rate_sum[tframe, ibin] = np.sum(dene[cond] / ene[cond])
 
                 # High-energy particles for calculating energy diffusion
                 if tframe % dee_interval == 0:
@@ -4900,6 +5554,118 @@ def calc_rates_tracer(plot_config, show_plot=True):
     twpe.tofile(fname)
 
 
+def test_calc_rates(plot_config, show_plot=True):
+    """
+    Test the method to calculate acceleration and escape rates
+    """
+    acc_rate = 1E-3
+    esc_rate = 1.5E-3
+    dee_rate = 1E-3
+    nsteps = 4000
+    nptl0 = 0
+    ninj = int(1E5 / nsteps)
+    dt = 1.0
+    nptl = nptl0 + nsteps*ninj
+    ptl = np.zeros(nptl)
+    escaped_all = np.zeros(nptl, dtype=bool)
+    esc_cond = np.zeros(nptl, dtype=bool)
+    p0 = 1.0
+    ptl[:nptl0] = p0
+    dene = np.ones(nptl) * acc_rate
+    nbins = 40
+    ebins = np.logspace(-1, 3, nbins+1)
+    ebins_mid = 0.5 * (ebins[:-1] + ebins[1:])
+    nptl_acc = np.zeros([nsteps, nbins])
+    nptl_esc = np.zeros([nsteps, nbins])
+    dnptl_esc = np.zeros([nsteps, nbins])
+    acc_rate_sum = np.zeros([nsteps, nbins])
+    for tframe in range(nsteps):
+        print("Step: %d" % tframe)
+        nptl_old = nptl0 + tframe * ninj
+        esc_cond[:nptl_old] = np.random.choice(a=[False, True], size=nptl_old,
+                                               p=[1-esc_rate, esc_rate])
+        escaped_new = np.logical_and(esc_cond, np.logical_not(escaped_all))
+        escaped_all = np.logical_or(esc_cond, escaped_all)
+        acc_cond = np.logical_not(escaped_all)
+        nptl_new = nptl_old + ninj
+        ptl[nptl_old:nptl_new] = p0
+        dwt = np.random.normal(0, math.sqrt(dt), nptl)
+        ptl[acc_cond] += (acc_rate - 0.5*acc_rate*np.log(ptl[acc_cond])) * ptl[acc_cond] * dt
+        for ibin in range(nbins):
+            cond_bin = np.logical_and(ptl > ebins[ibin], ptl <= ebins[ibin+1])
+            cond = np.logical_and(escaped_new, cond_bin)
+            dnptl_esc[tframe, ibin] = np.sum(cond)
+            cond = np.logical_and(escaped_all, cond_bin)
+            nptl_esc[tframe, ibin] = np.sum(cond)
+            cond = np.logical_and(acc_cond, cond_bin)
+            nptl_acc[tframe, ibin] = np.sum(cond)
+            acc_rate_sum[tframe, ibin] = np.sum(dene[cond] - 0.5*acc_rate*np.log(ptl[cond]) )
+
+    # nptl_esc = gaussian_filter(nptl_esc, sigma=[5, 1])
+    # nptl_acc = gaussian_filter(nptl_acc, sigma=[5, 1])
+    # acc_rate_sum = gaussian_filter(acc_rate_sum, sigma=[5, 1])
+    # dnptl_esc = gaussian_filter(dnptl_esc+1E-10, sigma=[5, 1])
+
+    acc_rate_sum_r = np.mean(acc_rate_sum, axis=0)
+    nptl_acc_r = np.mean(nptl_acc, axis=0)
+    nptl_esc_r = np.mean(nptl_esc, axis=0)
+    dnptl_esc_r = np.mean(dnptl_esc, axis=0)
+    acc_rate_r = div0(acc_rate_sum_r, nptl_acc_r)
+    acc_esc_r = div0(acc_rate_sum_r, nptl_esc_r)
+    esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dt
+
+    nbins = 100
+    bins = np.logspace(-1, 3, nbins+1)
+    bins_mid = 0.5 * (bins[:-1] + bins[1:])
+    hist, _ = np.histogram(ptl, bins=bins)
+    espect = hist/np.diff(bins)
+    es, _ = find_nearest(bins_mid, 2.0)
+    ee, _ = find_nearest(bins_mid, 10.0)
+    popt, _ = curve_fit(func_power, bins_mid[es:ee], espect[es:ee])
+    pindex = popt[0]
+
+    fpower = bins_mid[es:ee]**pindex
+    fpower *= espect[es] * 3 / fpower[0]
+    power_index = "{%0.2f}" % pindex
+    pname = r'$\propto \varepsilon^{' + power_index + '}$'
+
+    fig = plt.figure(figsize=[7, 8])
+    rect = [0.15, 0.55, 0.8, 0.43]
+    vgap = 0.02
+    ax = fig.add_axes(rect)
+    ax.loglog(bins_mid, espect)
+    ax.loglog(bins_mid[es:ee], fpower, label=pname, linestyle='--',
+              color='k')
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
+    ax.tick_params(axis='x', which='major', direction='in', top=True)
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$\varepsilon$', fontsize=16)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontsize=16)
+    ax.tick_params(labelsize=16)
+
+    rect[1] -= rect[3] + vgap
+    ax = fig.add_axes(rect)
+    ax.set_prop_cycle('color', COLORS)
+    ax.semilogx(ebins_mid, acc_rate_r, label=r"$\alpha_\text{acc}$")
+    ax.semilogx(ebins_mid, esc_rate2_r, linewidth=2, label=r"$\alpha_\text{esc}$")
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.set_xlim(ebins[0], ebins[-1])
+    ax.tick_params(bottom=True, top=True, left=True, right=False)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_ylabel('Rates', fontsize=20)
+    ax.tick_params(axis='x', labelbottom=False)
+    ax.tick_params(labelsize=16)
+    plt.show()
+
+
 def reject_outliers(data, m=2):
     return data[abs(data - np.mean(data)) < m * np.std(data)]
 
@@ -4953,6 +5719,11 @@ def plot_rates_tracer(plot_config, show_plot=True):
     spect_params = get_spect_params(pic_run)
     power_index = spect_params["power_index"]
 
+    nptl_esc = gaussian_filter(nptl_esc, sigma=[5, 1])
+    nptl_acc = gaussian_filter(nptl_acc, sigma=[5, 1])
+    acc_rate_sum = gaussian_filter(acc_rate_sum, sigma=[5, 1])
+    dnptl_esc = gaussian_filter(dnptl_esc+1E-10, sigma=[5, 1])
+
     rfactor = get_time_interval(pic_run)
     nframes, _ = acc_rate_sum.shape
     n1 = (nframes // rfactor) * rfactor
@@ -4985,6 +5756,37 @@ def plot_rates_tracer(plot_config, show_plot=True):
         esc_rate2_r = np.mean(esc_rate[:eend], axis=0)
     else:
         esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dtwpe_tracer
+    # plt.plot(np.sum(nptl_acc, axis=1))
+    # # fpower = ebins_mid**power_index
+    # # fpower *= nptl_acc_r[0] / fpower[0]
+    # # plt.loglog(ebins_mid, fpower)
+    # # plt.loglog(ebins_mid, dnptl_esc_r)
+    # plt.show()
+
+    vpic_info = get_vpic_info(pic_run_dir)
+    emin = vpic_info["emin_spect"]
+    emax = vpic_info["emax_spect"]
+    nbins = int(vpic_info["nbins"])
+    dloge = (math.log10(emax) - math.log10(emin)) / (nbins - 1)
+    emin0 = 10**(math.log10(emin) - dloge)
+    ebins_spect = np.logspace(math.log10(emin0), math.log10(emax), nbins+1)
+    ebins_spect_mid = (ebins_spect[:-1] + ebins_spect[1:]) * 0.5
+    debins_spect = np.diff(ebins_spect)
+    tframe = pic_info.ntf - 1
+    print("Time frame: %d" % tframe)
+    tindex = tframe * int(vpic_info["spectrum_interval"])
+    fdir = pic_run_dir + '/spectrum_combined/'
+    sname = "electron" if species == 'e' else "ion"
+    fname = fdir + 'spectrum_' + sname + '_' + str(tindex) + '.dat'
+    ebins_spect_mid_run = ebins_spect_mid / temp
+    debins_spect_run = debins_spect / temp
+    if os.path.isfile(fname):
+        flog = np.fromfile(fname, dtype=np.float32)
+    nptot = pic_info.nx * pic_info.ny * pic_info.nz * pic_info.nppc
+    espect = flog[3:] / debins_spect_run / nptot  # the first 3 are magnetic field
+    pindex_e = -np.gradient(np.log10(espect+1E-15)) / np.gradient(np.log10(ebins_spect_mid))
+    # pindex_e = gaussian_filter(pindex_e, sigma=5)
+
     fig = plt.figure(figsize=[7, 8])
     rect = [0.15, 0.55, 0.8, 0.43]
     vgap = 0.02
@@ -5027,12 +5829,13 @@ def plot_rates_tracer(plot_config, show_plot=True):
     pindex_avg = np.mean(pindex[es:ee])
     ax.semilogx([ebins[0], ebins[-1]], [pindex_avg, pindex_avg],
                 linewidth=1, linestyle='--', color='k')
+    ax.set_ylim([pindex_avg-1, pindex_avg+1])
     ylim = ax.get_ylim()
+    ax.semilogx(ebins_spect_mid_run, pindex_e, linewidth=2)
     ax.plot([emin, emin], ylim, color='k', linewidth=0.5,
             linestyle='--')
     ax.plot([emax, emax], ylim, color='k', linewidth=0.5,
             linestyle='--')
-    ax.set_ylim(ylim)
     pname = "{%0.2f}" % pindex_avg
     ylim = ax.get_ylim()
     ypos = (pindex_avg - ylim[0]) / (ylim[1] - ylim[0])
@@ -5146,6 +5949,344 @@ def plot_rates_tracer(plot_config, show_plot=True):
     #         plt.show()
     #     else:
     #         plt.close()
+
+
+def rates_sigma_bg(plot_config, show_plot=True):
+    """
+    Plot acceleration and escape rates scaling with sigma and bg
+
+    """
+    species = plot_config["species"]
+    if species in ["e", "electron"]:
+        sname = "electron"
+    else:
+        sname = "Ion"
+    reconnection_run = True
+    turbulence_run = False
+
+    pic_runs = []
+    bg_runs = []
+    binplane = []
+    if reconnection_run:
+        sigmas = ["01", "04", "16", "64"]
+        bgs = ["005", "01", "02", "04", "10"]
+        bgs_float = [0.05, 0.1, 0.2, 0.4, 1.0]
+        nsigma = len(sigmas)
+        nbg = len(bgs)
+        for sigma in sigmas:
+            for ibg, bg in enumerate(bgs):
+                pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+                picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+                pic_info = read_data_from_json(picinfo_fname)
+                pic_runs.append(pic_run)
+                bg_runs.append(bgs_float[ibg])
+                binplane.append(pic_info.b0)
+        nruns_1836 = len(pic_runs)
+    else:
+        nsigma = 0
+        nbg = 0
+
+    # if turbulence_run:
+    #     sigmaes = ["100", "40", "10"]
+    #     db2s = ["05", "1", "4"]
+    #     bgs_float = [1/math.sqrt(0.5), 1.0, 0.5]
+    #     nsigmae = len(sigmaes)
+    #     ndb = len(db2s)
+    #     for sigmae in sigmaes:
+    #         for ibg, db2 in enumerate(db2s):
+    #             pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+    #             picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    #             pic_info = read_data_from_json(picinfo_fname)
+    #             print(pic_info.ene_bx[0], pic_info.ene_by[0], pic_info.ene_bz[0])
+    #             pic_runs.append(pic_run)
+    #             bg_runs.append(bgs_float[ibg])
+    #             # binplane.append(pic_info.b0 / bgs_float[ibg] / (2 * math.sqrt(2.0)))
+    #             binplane.append(pic_info.b0 / bgs_float[ibg])
+    # else:
+    #     nsigmae = 0
+    #     ndb = 0
+
+    # if reconnection_run:
+    #     pic_run = "sigmae400_bg00_800de_triggered"
+    #     pic_runs.append(pic_run)
+    #     bg_runs.append(0.0)
+    #     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    #     pic_info = read_data_from_json(picinfo_fname)
+    #     binplane.append(pic_info.b0)
+    nruns = len(pic_runs)
+
+    sigma = np.zeros([nsigma, nbg])
+    sigma_c = np.zeros([nsigma, nbg])
+    sigmae_c = np.zeros([nsigma, nbg])
+    sigmai_c = np.zeros([nsigma, nbg])
+    sigmae_h = np.zeros([nsigma, nbg])
+    sigmai_h = np.zeros([nsigma, nbg])
+    beta_e = np.zeros([nsigma, nbg])
+    pindex = np.zeros([nsigma, nbg])
+    arate = np.zeros([nsigma, nbg])
+    erate = np.zeros([nsigma, nbg])
+    var = np.zeros([nsigma, nbg])
+
+    gamma_va = 1 / np.sqrt(1 - var**2)
+    fig1 = plt.figure(figsize=[12, 12])
+    rect0 = [0.10, 0.7, 0.39, 0.25]
+    hgap, vgap = 0.06, 0.08
+    axs_acc = []
+    for ibg in range(nbg):
+        row = ibg // 2
+        col = ibg % 2
+        rect = np.copy(rect0)
+        rect[0] += col * (rect[2] + vgap)
+        rect[1] -= row * (rect[3] + hgap)
+        ax = fig1.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        axs_acc.append(ax)
+        ax.grid()
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.set_xlabel(r'$(\gamma-1)/T_e$', fontsize=16)
+        if col == 0:
+            ax.set_ylabel('Acceleration Rate', fontsize=16)
+        ax.tick_params(labelsize=16)
+
+    fig2 = plt.figure(figsize=[12, 12])
+    rect0 = [0.10, 0.7, 0.39, 0.25]
+    hgap, vgap = 0.06, 0.08
+    axs_esc = []
+    for ibg in range(nbg):
+        row = ibg // 2
+        col = ibg % 2
+        rect = np.copy(rect0)
+        rect[0] += col * (rect[2] + vgap)
+        rect[1] -= row * (rect[3] + hgap)
+        ax = fig2.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        axs_esc.append(ax)
+        ax.grid()
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.set_xlabel(r'$(\gamma-1)/T_e$', fontsize=16)
+        if col == 0:
+            ax.set_ylabel('Escape Rate', fontsize=16)
+        ax.tick_params(labelsize=16)
+
+    fig3 = plt.figure(figsize=[12, 8])
+    rect0 = [0.10, 0.58, 0.37, 0.39]
+    hgap, vgap = 0.10, 0.08
+    axs_acc2 = []
+    for isigma in range(nsigma):
+        row = isigma // 2
+        col = isigma % 2
+        rect = np.copy(rect0)
+        rect[0] += col * (rect[2] + vgap)
+        rect[1] -= row * (rect[3] + hgap)
+        ax = fig3.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        axs_acc2.append(ax)
+        ax.grid()
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.set_xlabel(r'$(\gamma-1)/T_e$', fontsize=16)
+        if col == 0:
+            ax.set_ylabel('Acceleration Rate', fontsize=16)
+        ax.tick_params(labelsize=16)
+
+    fig4 = plt.figure(figsize=[12, 8])
+    rect0 = [0.10, 0.58, 0.37, 0.39]
+    hgap, vgap = 0.10, 0.08
+    axs_esc2 = []
+    for isigma in range(nsigma):
+        row = isigma // 2
+        col = isigma % 2
+        rect = np.copy(rect0)
+        rect[0] += col * (rect[2] + vgap)
+        rect[1] -= row * (rect[3] + hgap)
+        ax = fig4.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        axs_esc2.append(ax)
+        ax.grid()
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.set_xlabel(r'$(\gamma-1)/T_e$', fontsize=16)
+        if col == 0:
+            ax.set_ylabel('Escape Rate', fontsize=16)
+        ax.tick_params(labelsize=16)
+
+    for irun, pic_run in enumerate(pic_runs):
+        print("-"*20)
+        print("PIC run name: %s" % pic_run)
+        isigma = irun // nbg
+        ibg = irun % nbg
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        mime = pic_info.mime
+        n0 = pic_info.n0
+        gamma_e = 4.0/3 if pic_info.Te > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+        # In typical VPIC simulation, me=1, c=1
+        enthalpy_e =  n0 * (1 + pic_info.Te * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + pic_info.Ti * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        b0 = binplane[irun]
+        br = b0
+        bg = bg_runs[irun]
+        sigma[isigma, ibg] = b0**2 / enthalpy
+        sigma_r = br**2 / enthalpy
+        sigma_c[isigma, ibg] = b0**2 / (n0 * (1 + mime))
+        sigmae_c[isigma, ibg] = b0**2 / n0
+        sigmai_c[isigma, ibg] = b0**2 / (n0 * mime)
+        sigmae_h[isigma, ibg] = b0**2 / enthalpy_e
+        sigmai_h[isigma, ibg] = b0**2 / enthalpy_i
+        beta_e[isigma, ibg] = 2 * n0 * pic_info.Te / b0**2
+        spect_params = get_spect_params(pic_run)
+        pindex[isigma, ibg] = -spect_params["power_index"]
+        va = math.sqrt(sigma_r / (sigma_r+sigma[isigma, ibg]*bg**2 + 1))
+        var[isigma, ibg] = va
+        sigma_tot = sigma_r + sigma[isigma, ibg]*bg**2
+        va0 = math.sqrt(sigma_tot / (sigma_tot + 1))
+
+        fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+        fname = fdir + 'ebins.dat'
+        ebins = np.fromfile(fname)
+        ebins /= temp
+        ebins_mid = 0.5 * (ebins[1:] + ebins[:-1])
+        nbins, = ebins.shape
+        fname = fdir + 'nptl_esc.dat'
+        nptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'dnptl_esc.dat'
+        dnptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'nptl_acc.dat'
+        nptl_acc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'acc_rate_sum.dat'
+        acc_rate_sum = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'acc_rate_esc.dat'
+        acc_rate_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        spect_params = get_spect_params(pic_run)
+        power_index = spect_params["power_index"]
+
+        nptl_esc = gaussian_filter(nptl_esc+1, sigma=[5, 1])
+        nptl_acc = gaussian_filter(nptl_acc+1, sigma=[5, 1])
+        acc_rate_sum = gaussian_filter(acc_rate_sum, sigma=[5, 1])
+        dnptl_esc = gaussian_filter(dnptl_esc+1E-5, sigma=[5, 1])
+
+        rfactor = get_time_interval(pic_run)
+        nframes, _ = acc_rate_sum.shape
+        n1 = (nframes // rfactor) * rfactor
+        nfr = n1 // rfactor
+
+        eend = nframes
+        acc_rate_sum_r = np.mean(acc_rate_sum[:eend], axis=0)
+        acc_rate_esc_r = np.mean(acc_rate_esc[:eend], axis=0)
+        nptl_acc_r = np.mean(nptl_acc[:eend], axis=0)
+        nptl_esc_r = np.mean(nptl_esc[:eend], axis=0)
+        dnptl_esc_r = np.mean(dnptl_esc[:eend], axis=0)
+        acc_rate_r = div0(acc_rate_sum_r, nptl_acc_r)
+        acc_esc_r = div0(acc_rate_sum_r, nptl_esc_r)
+        dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+        if pic_run == "turbulent-sheet3D-mixing-sigma100":
+            esc_rate = div0(dnptl_esc, nptl_acc)
+            fname = fdir + 'twpe.dat'
+            twpe = np.fromfile(fname)
+            for ibin in range(nbins-1):
+                esc_rate[1:, ibin] /= np.diff(twpe)
+            esc_rate2_r = np.mean(esc_rate[:eend], axis=0)
+        else:
+            esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dtwpe_tracer
+
+        ax = axs_acc[ibg]
+        text = r"$\sigma_r=" + ("%0.1f" % sigma[isigma, ibg]) + "$"
+        ax.semilogx(ebins_mid, acc_rate_r, linewidth=2, label=text)
+
+        ax = axs_esc[ibg]
+        text = r"$\sigma_r=" + ("%0.1f" % sigma[isigma, ibg]) + "$"
+        ax.semilogx(ebins_mid, esc_rate2_r, linewidth=2, label=text)
+
+        ax = axs_acc2[isigma]
+        text = r"$B_g=" + str(bgs_float[ibg]) + "$"
+        ax.semilogx(ebins_mid, acc_rate_r, linewidth=2, label=text)
+
+        ax = axs_esc2[isigma]
+        text = r"$B_g=" + str(bgs_float[ibg]) + "$"
+        ax.semilogx(ebins_mid, esc_rate2_r, linewidth=2, label=text)
+
+        arate[isigma, ibg] = np.max(acc_rate_r[:nbins//2])
+        erate[isigma, ibg] = np.mean(esc_rate2_r[:nbins//2])
+
+    for ibg, ax in enumerate(axs_acc):
+        ax.set_ylim([0, 0.0012])
+        ax.legend(loc=3, prop={'size': 16}, ncol=1,
+                  shadow=False, fancybox=False, frameon=True)
+        text = r"$B_g=" + str(bgs_float[ibg]) + "$"
+        ax.text(0.97, 0.97, text, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='right', verticalalignment='top',
+                transform=ax.transAxes)
+    for ibg, ax in enumerate(axs_esc):
+        ax.set_ylim([0, 0.003])
+        ax.legend(loc=2, prop={'size': 16}, ncol=1,
+                  shadow=False, fancybox=False, frameon=True)
+        text = r"$B_g=" + str(bgs_float[ibg]) + "$"
+        ax.text(0.97, 0.97, text, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='right', verticalalignment='top',
+                transform=ax.transAxes)
+    for isigma, ax in enumerate(axs_acc2):
+        ax.set_ylim([0, 0.0012])
+        ax.legend(loc=3, prop={'size': 16}, ncol=1,
+                  shadow=False, fancybox=False, frameon=True)
+        text = r"$\sigma_r=" + ("%0.1f" % sigma[isigma, 0]) + "$"
+        ax.text(0.97, 0.97, text, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='right', verticalalignment='top',
+                transform=ax.transAxes)
+    for isigma, ax in enumerate(axs_esc2):
+        ax.set_ylim([0, 0.003])
+        ax.legend(loc=2, prop={'size': 16}, ncol=1,
+                  shadow=False, fancybox=False, frameon=True)
+        text = r"$\sigma_r=" + ("%0.1f" % sigma[isigma, 0]) + "$"
+        ax.text(0.97, 0.97, text, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='right', verticalalignment='top',
+                transform=ax.transAxes)
+    fdir = "../img/power_law_index/rates_sigma_bg/"
+    mkdir_p(fdir)
+    fig1.savefig(fdir + "arates_sigma.pdf")
+    fig2.savefig(fdir + "erates_sigma.pdf")
+    fig3.savefig(fdir + "arates_bg.pdf")
+    fig4.savefig(fdir + "erates_bg.pdf")
+    plt.show()
+
+#     gamma_va = 1 / np.sqrt(1 - var**2)
+#     fig = plt.figure(figsize=[12, 12])
+#     rect0 = [0.10, 0.7, 0.39, 0.25]
+#     hgap, vgap = 0.06, 0.08
+#     for ibg in range(nbg):
+#         row = ibg // 2
+#         col = ibg % 2
+#         rect = np.copy(rect0)
+#         rect[0] += col * (rect[2] + vgap)
+#         rect[1] -= row * (rect[3] + hgap)
+#         ax = fig.add_axes(rect)
+#         ax.set_prop_cycle('color', COLORS)
+#         ax.plot(sigma[:, ibg], arate[:, ibg],
+#                 linewidth=2, marker='o', label="Acc")
+#         ax.plot(sigma[:, ibg], erate[:, ibg],
+#                 linewidth=2, marker='o', label="Esc")
+#         ax.grid()
+#         ax.tick_params(bottom=True, top=True, left=True, right=False)
+#         ax.tick_params(axis='x', which='minor', direction='in')
+#         ax.tick_params(axis='x', which='major', direction='in')
+#         ax.tick_params(axis='y', which='minor', direction='in')
+#         ax.tick_params(axis='y', which='major', direction='in')
+#         ax.set_xlabel(r'$\sigma_r$', fontsize=20)
+#         if col == 0:
+#             ax.set_ylabel('Rates', fontsize=20)
+#         ax.tick_params(labelsize=16)
+#         ax.legend(loc=1, prop={'size': 16}, ncol=1,
+#                   shadow=False, fancybox=False, frameon=True)
+#     plt.show()
 
 
 def plot_dee_tracer(plot_config, show_plot=True):
@@ -5617,18 +6758,44 @@ def get_uout_max(plot_config):
     dx_de = pic_info.dx_di * smime
     dy_de = pic_info.dy_di * smime
     dz_de = pic_info.dz_di * smime
-    kwargs = {"current_time": tframe,
-              "xl": xmin, "xr": xmax,
-              "zb": zmin, "zt": zmax}
-    fname = pic_run_dir + "data/uex.gda"
-    x, z, uex = read_2d_fields(pic_info, fname, **kwargs)
-    fname = pic_run_dir + "data/uix.gda"
-    x, z, uix = read_2d_fields(pic_info, fname, **kwargs)
-    fname = pic_run_dir + "data/ne.gda"
-    x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
-    fname = pic_run_dir + "data/ni.gda"
-    x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
-    ux = (uex * ne + uix * ni * mime) / (ne + ni * mime)
+    if "bg005" in pic_run:
+        kwargs = {"current_time": tframe,
+                  "xl": xmin, "xr": xmax,
+                  "zb": zmin, "zt": zmax}
+        fname = pic_run_dir + "data/uex.gda"
+        x, z, uex = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_run_dir + "data/uix.gda"
+        x, z, uix = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_run_dir + "data/ne.gda"
+        x, z, ne = read_2d_fields(pic_info, fname, **kwargs)
+        fname = pic_run_dir + "data/ni.gda"
+        x, z, ni = read_2d_fields(pic_info, fname, **kwargs)
+        ux = (uex * ne + uix * ni * mime) / (ne + ni * mime)
+    else:
+        fields_interval = pic_info.fields_interval
+        tindex = fields_interval * tframe
+        xs, xe = 0, pic_info.nx
+        zs, ze = 0, pic_info.nz
+        vels = {}
+        for species in ["e", "i"]:
+            sname = "electron" if species == 'e' else "ion"
+            fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                     "/hydro_" + sname + "_" + str(tindex) + ".h5")
+            hydro = {}
+            with h5py.File(fname, 'r') as fh:
+                group = fh["Timestep_" + str(tindex)]
+                for var in ["rho", "jx", "jy", "jz"]:
+                    dset = group[var]
+                    hydro[var]= dset[xs:xe, 0, zs:ze]
+
+            vels["n" + species] = hydro["rho"]
+            irho = 1.0 / hydro["rho"]
+            vels["v" + species + "x"] = hydro["jx"] * irho
+            vels["v" + species + "y"] = hydro["jy"] * irho
+            vels["v" + species + "z"] = hydro["jz"] * irho
+        ux = (vels["vex"] * vels["ne"] +
+              vels["vix"] * vels["ni"] * mime) / (vels["ne"] + vels["ni"] * mime)
+        ux = ux.T
     nzr, nxr = ux.shape
     gamma = np.sqrt(ux[nzr//2, :]**2 + 1)
     plt.plot(ux[nzr//2, :] / gamma)
@@ -5849,31 +7016,44 @@ def find_nearest(array, value):
 def solve_sde(plot_config, show_plot=True):
     """Solve an stochastic differential equation
     """
-    acc_rate = 0.01
-    esc_rate = 0.015
-    dee_rate = 0.005
-    nsteps = 1000
-    nptls = 100000
+    # acc_rate = 0.001
+    # esc_rate = 0.0007
+    # dee_rate = 0.00025
+    acc_rate = 0.001
+    esc_rate = 0.0078
+    dee_rate = 0.002
+    nsteps = 4000
+    nptl0 = 0
+    ninj = int(1E5 / nsteps)
     dt = 1.0
-    ptl = np.zeros(nptls)
-    ptl[:] = 1.0
+    nptl = nptl0 + nsteps*ninj
+    ptl = np.zeros(nptl)
+    p0 = 1.0
+    ptl[:nptl0] = p0
     for i in range(nsteps):
         print("Step: %d" % i)
-        esc_cond = np.random.choice(a=[False, True], size=nptls,
-                                    p=[1-esc_rate, esc_rate])
-        ptl[esc_cond] = 1.0
-        dwt = np.random.normal(0, math.sqrt(dt), nptls)
+        nptl_old = nptl0 + i * ninj
+        # esc_cond = np.random.choice(a=[False, True], size=nptl_old,
+        #                             p=[1-esc_rate, esc_rate])
+        rd = np.random.random(nptl_old)
+        esc_cond = rd < (esc_rate * (1.0 - np.log(ptl[:nptl_old])/4))
+        ptl[:nptl_old][esc_cond] = -1
+        nptl_new = nptl_old + ninj
+        ptl[nptl_old:nptl_new] = p0
+        dwt = np.random.normal(0, math.sqrt(dt), nptl)
         cond = ptl > 0
-        ptl += acc_rate * ptl * dt
-        ptl += np.sqrt(2*dee_rate*ptl**2) * dwt
+        # ptl[cond] += (acc_rate) * ptl[cond] * dt
+        # ptl[cond] += (2*dee_rate + acc_rate / ptl[cond]) * ptl[cond] * dt
+        ptl[cond] += 2 * dee_rate * (1.0 - np.log(ptl[cond])/4) * ptl[cond] * dt
+        ptl[cond] += np.sqrt(2*dee_rate*ptl[cond]**2) * dwt[cond]
 
     nbins = 100
-    bins = np.logspace(-1, 2, nbins+1)
+    bins = np.logspace(-1, 3, nbins+1)
     bins_mid = 0.5 * (bins[:-1] + bins[1:])
     hist, _ = np.histogram(ptl, bins=bins)
     espect = hist/np.diff(bins)
     es, _ = find_nearest(bins_mid, 2.0)
-    ee, _ = find_nearest(bins_mid, 50.0)
+    ee, _ = find_nearest(bins_mid, 10.0)
     popt, _ = curve_fit(func_power, bins_mid[es:ee], espect[es:ee])
     pindex = popt[0]
 
@@ -5929,6 +7109,86 @@ def solve_sde(plot_config, show_plot=True):
     ax.tick_params(labelsize=16)
 
     plt.show()
+
+
+def solve_sde_pindex(params, run_name, reconnection=True):
+    """Solve an stochastic differential equation to get power-law index
+    """
+    acc_rate = params["acc_rate"]
+    esc_rate = params["esc_rate"]
+    dee_rate = params["dee_rate"]
+    nsteps = params["nsteps"]
+    nptl = params["nptl"]
+    nptl0 = 0
+    ninj = int(nptl / nsteps)
+    dt = 1.0
+    nptl = nptl0 + nsteps*ninj
+    ptl = np.zeros(nptl)
+    p0 = 1.0
+    ptl[:nptl0] = p0
+    for i in range(nsteps):
+        if i % 100 == 0:
+            print("Step: %d" % i)
+        nptl_old = nptl0 + i * ninj
+        if reconnection:
+            esc_cond = np.random.choice(a=[False, True], size=nptl_old,
+                                        p=[1-esc_rate, esc_rate])
+        else:
+            rd = np.random.random(nptl_old)
+            esc_cond = rd < esc_rate * (1 - np.log(ptl[:nptl_old])/4)
+        ptl[:nptl_old][esc_cond] = -1
+        nptl_new = nptl_old + ninj
+        ptl[nptl_old:nptl_new] = p0
+        dwt = np.random.normal(0, math.sqrt(dt), nptl)
+        cond = ptl > 0
+        # ptl[cond] += acc_rate * ptl[cond] * dt
+        # ptl[cond] += (2*dee_rate + acc_rate / ptl[cond]) * ptl[cond] * dt
+        ptl[cond] += acc_rate * (1 - np.log(ptl[cond])/4) * ptl[cond] * dt
+        if not reconnection:
+            ptl[cond] += np.sqrt(2*dee_rate*ptl[cond]**2) * dwt[cond]
+
+    nbins = 100
+    bins = np.logspace(-1, 3, nbins+1)
+    bins_mid = 0.5 * (bins[:-1] + bins[1:])
+    hist, _ = np.histogram(ptl, bins=bins)
+    espect = hist/np.diff(bins)
+    es, _ = find_nearest(bins_mid, 2.0)
+    ee, _ = find_nearest(bins_mid, 20.0)
+    popt, _ = curve_fit(func_power, bins_mid[es:ee], espect[es:ee])
+    pindex = popt[0]
+
+    fpower = bins_mid[es:ee]**pindex
+    fpower *= espect[es] * 3 / fpower[0]
+    power_index = "{%0.2f}" % pindex
+    pname = r'$\propto \varepsilon^{' + power_index + '}$'
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.15, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    ax.loglog(bins_mid, espect)
+    ax.loglog(bins_mid[es:ee], fpower, label=pname, linestyle='--',
+              color='k')
+    ax.legend(loc=1, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.tick_params(bottom=True, top=False, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in', top=True)
+    ax.tick_params(axis='x', which='major', direction='in', top=True)
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlabel(r'$\varepsilon$', fontsize=16)
+    ax.set_ylabel(r'$f(\varepsilon)$', fontsize=16)
+    ax.tick_params(labelsize=16)
+
+    print("Simulated power-law index: %f" % -pindex)
+
+    fdir = "../img/power_law_index/pindex_sde/"
+    mkdir_p(fdir)
+    fname = fdir + "pindex_" + run_name + ".pdf"
+    fig.savefig(fname)
+    # plt.close()
+    plt.show()
+
+    return (-pindex, bins_mid, espect)
 
 
 def power_index_model(plot_config, show_plot=True):
@@ -6051,12 +7311,312 @@ def power_index_model(plot_config, show_plot=True):
                    (math.log(ebins[1]) - math.log(ebins[0])))
         pindex -= (np.gradient(np.log(esc_rate2_r)) /
                    (math.log(ebins[1]) - math.log(ebins[0])))
+        pindex1 = (np.gradient(np.log(acc_rate_r)) /
+                  (math.log(ebins[1]) - math.log(ebins[0])))
+        pindex2 = (np.gradient(np.log(esc_rate2_r)) /
+                  (math.log(ebins[1]) - math.log(ebins[0])))
         label = (r"$1+(\alpha_\text{esc}/\alpha_\text{acc})+" +
                  r"\partial\ln\alpha_\text{acc}/\partial\ln E-" +
                  r"\partial\ln\alpha_\text{esc}/\partial\ln E$")
         ax.semilogx(ebins_mid, pindex, linewidth=2, color='k',
                     # marker='o', markersize=5,
                     label=label)
+        # # ax.semilogx(ebins_mid, pindex1-pindex2, linewidth=2, color='k')
+        # ax.semilogx(ebins_mid, pindex1, linewidth=2, color='k')
+        # ax.semilogx(ebins_mid, pindex2, linewidth=2, color='k')
+        es, _ = find_nearest(ebins_mid, emin)
+        ee, _ = find_nearest(ebins_mid, emax)
+        pindex_avg = np.mean(pindex[es:ee+1])
+        ax.semilogx([ebins[0], ebins[-1]], [pindex_avg, pindex_avg],
+                    linewidth=1, linestyle='--', color='k')
+        pname = "{%0.2f}" % pindex_avg
+        ylim = ax.get_ylim()
+        ypos = (pindex_avg - ylim[0]) / (ylim[1] - ylim[0])
+        ax.text(0.95, ypos, pname, color='k', fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='right', verticalalignment='bottom',
+                transform=ax.transAxes)
+
+        ylim = ax.get_ylim()
+        # ax.plot([emin, emin], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        # ax.plot([emax, emax], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        ax.fill_betweenx(ylim, emin, emax, alpha=0.2, color='grey')
+        ax.set_ylim(ylim)
+
+        ax.set_xlim(ebins[0], ebins[-1])
+        # if irun == 0:
+        #     ax.set_ylim([2, 4])
+        # else:
+        #     ax.set_ylim([1, 3])
+        # ax.legend(loc=2, prop={'size': 16}, ncol=1,
+        #           shadow=False, fancybox=False, frameon=False)
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='out')
+        ax.tick_params(axis='x', which='major', direction='out')
+        ax.tick_params(axis='y', which='minor', direction='out')
+        ax.tick_params(axis='y', which='major', direction='out')
+        ax.tick_params(labelsize=16)
+        ax.set_xlabel(r'$(\gamma-1)/T_e$', fontsize=20)
+        if irun == 0:
+            ax.set_ylabel('Power-law index', fontsize=20)
+
+        text1 = "(b)" if irun == 0 else "(d)"
+        ax.text(0.03, 0.85, text1,
+                color='k', fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+    img_dir = '../img/power_law_index/power_index_tracer/'
+    mkdir_p(img_dir)
+    fname = img_dir + "pindex_model.pdf"
+    fig.savefig(fname)
+    plt.show()
+
+
+def power_index_rates(plot_config, show_plot=True):
+    """
+    Plot power-law index calculated from rates
+
+    """
+    species = plot_config["species"]
+    fig = plt.figure(figsize=[7, 5])
+    rect0 = [0.14, 0.57, 0.38, 0.4]
+    hgap, vgap = 0.07, 0.04
+
+    pic_runs = ["mime1_sigmae100_vthe04_db1_1024de",
+                "sigma64_bg005_4000de_triggered"]
+
+    for irun, pic_run in enumerate(pic_runs):
+        pic_run_dir = plot_config["pic_run_dir"]
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        vpic_info = get_vpic_info(pic_run_dir)
+        dtwpe_tracer = pic_info.dtwpe * pic_info.tracer_interval
+        temp = pic_info.Te if species in ['e', 'electron'] else pic_info.Ti
+        fdir = '../data/power_law_index/rates_tracer/' + pic_run + '/'
+        fname = fdir + 'ebins.dat'
+        ebins = np.fromfile(fname)
+        ebins /= temp
+        ebins_mid = 0.5 * (ebins[1:] + ebins[:-1])
+        nbins, = ebins.shape
+        ebins_new = np.logspace(math.log10(ebins.min()),
+                                math.log10(ebins.max()),
+                                nbins*10)
+        fname = fdir + 'nptl_esc.dat'
+        nptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'dnptl_esc.dat'
+        dnptl_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'nptl_acc.dat'
+        nptl_acc = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'acc_rate_sum.dat'
+        acc_rate_sum = np.fromfile(fname).reshape([-1, nbins-1])
+        fname = fdir + 'acc_rate_esc.dat'
+        acc_rate_esc = np.fromfile(fname).reshape([-1, nbins-1])
+        spect_params = get_spect_params(pic_run)
+        power_index = spect_params["power_index"]
+        emin, emax = spect_params["energy_range"]
+        if irun == 0:
+            emax = 2E3
+        else:
+            emax = 1E2
+        nframes, _ = acc_rate_esc.shape
+
+        mime = pic_info.mime
+        n0 = pic_info.n0
+        gamma_e = 4.0/3 if pic_info.Te > 0.1 else 1.5  # Adiabatic index
+        gamma_i = 5.0/3
+        print("Particle initial temperature (Lorentz factor): %f" % temp)
+        # In typical VPIC simulation, me=1, c=1
+        enthalpy_e =  n0 * (1 + pic_info.Te * gamma_e / (gamma_e - 1))
+        enthalpy_i =  n0 * (mime + pic_info.Ti * gamma_i / (gamma_i - 1))
+        enthalpy = enthalpy_e + enthalpy_i
+        if irun == 0:
+            b0 = pic_info.b0 / (2 * math.sqrt(2.0))
+            bg = 1.0
+        else:
+            b0 = pic_info.b0
+            bg = 0.05
+        # br = b0 * 0.5
+        br = b0 * 1.0
+        sigma = b0**2 / enthalpy
+        sigma_r = br**2 / enthalpy
+        sigma_c = b0**2 / (n0 * (1 + mime))
+        sigmae_c = b0**2 / n0
+        sigmai_c = b0**2 / (n0 * mime)
+        sigmae_h = b0**2 / enthalpy_e
+        sigmai_h = b0**2 / enthalpy_i
+        beta_e = 2 * n0 * pic_info.Te / b0**2
+        spect_params = get_spect_params(pic_run)
+        pindex = -spect_params["power_index"]
+        if irun == 0:
+            # va = math.sqrt(sigma / (sigma + 1))
+            # va = math.sqrt(sigma / (sigma+sigma*bg**2 + 1))
+            va = math.sqrt(sigma_r / (sigma_r+sigma*bg**2 + 1))
+        else:
+            va = math.sqrt(sigma_r / (sigma_r+sigma*bg**2 + 1))
+        gamma_the = pic_info.Te + 1
+        vthe = math.sqrt(gamma_the**2 - 1) / gamma_the
+        gamma_thi = pic_info.Ti / pic_info.mime + 1
+        vthi = math.sqrt(gamma_thi**2 - 1) / gamma_thi
+        gamma_va = 1.0 / math.sqrt(1 - va**2)
+        factor = gamma_va**2
+        btot = math.sqrt(1 + bg**2)
+        ctheta = 1.0 / btot
+        lx_de = pic_info.lx_di * math.sqrt(pic_info.mime)
+        if irun == 0:
+            l = lx_de / 16
+        else:
+            # l = lx_de * 0.45
+            l = lx_de / 7.5
+        nbins, = ebins_mid.shape
+        gamma = ebins_mid * pic_info.Te + 1
+        v = np.sqrt(1 - gamma**-2)
+        omega0 = btot * b0 / gamma
+        rg = v / omega0
+        di = np.sqrt(pic_info.mime * gamma_thi)
+        rhoi = gamma_thi * pic_info.mime / (btot * b0)
+        rmin = min(di, rhoi) * (1 + bg**2)
+        l1 = l * (1 + bg**2) * np.ones(nbins)
+        l0 = np.zeros(l1.shape)
+        l0[rg>rmin] = rg[rg>rmin]
+        l0[rg<rmin] = rmin
+        l0 *= (1 + bg**2)
+
+        lc = l
+        sigma0 = 1.0 / bg**2
+        if sigma0 > 1:
+            sigma0 = 1.0
+        # sigma0 = 1.0 / (1.0 + bg**2)**(1/3)
+        csc_3pi_5 = 1.05146
+        kpara = 3 * v**3 * csc_3pi_5 / (20 * lc * omega0**2 * sigma0)
+        kpara *= 1.0 + (72.0 / 7) * (omega0 * lc / v)**(5/3)
+
+        acc_rate = (factor * (1 + va + va**2) - 1) / (4 * l)
+        if irun == 0:
+            esc_rate = 1 / l
+        else:
+            # esc_rate = va / l
+            # esc_rate = 1.0 / (l * (1 + bg**2))
+            esc_rate = 1.0 / l / gamma_va
+        lmfp = bg**2 * lc
+        dee_rate = gamma_va**2 * va**2 / lmfp / 3
+        # if irun == 0:
+        #     acc_rate_model = 2 * dee_rate * (1.0 - np.log(ebins_mid/emin)/4)
+        #     esc_rate_model = esc_rate * (1.0 - np.log(ebins_mid/emin)/4)
+        # else:
+        #     acc_rate_model = acc_rate * (1.0 - np.log(ebins_mid/emin)/4)
+        #     esc_rate_model = esc_rate * np.ones(ebins_mid.shape)
+        acc_rate_model = ((gamma+1)/(3*gamma)) * va * np.log(l1/l0) / (l1-l0)
+        if irun == 0:
+            esc_rate_model = va**2 / kpara
+        else:
+            acc_rate_model /= gamma_va
+            esc_rate_model = esc_rate * np.ones(ebins_mid.shape)
+
+        # eend = int(nframes * 0.9)
+        eend = nframes
+        acc_rate_sum_r = np.mean(acc_rate_sum[:eend], axis=0)
+        acc_rate_esc_r = np.mean(acc_rate_esc[:eend], axis=0)
+        nptl_acc_r = np.mean(nptl_acc[:eend], axis=0)
+        nptl_esc_r = np.mean(nptl_esc[:eend], axis=0)
+        dnptl_esc_r = np.mean(dnptl_esc[:eend], axis=0)
+        acc_rate_r = div0(acc_rate_sum_r, nptl_acc_r)
+        acc_esc_r = div0(acc_rate_sum_r, nptl_esc_r)
+        esc_rate2_r = div0(dnptl_esc_r, nptl_acc_r) / dtwpe_tracer
+        rect = np.copy(rect0)
+        rect[0] += (rect[2] + hgap) * irun
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', COLORS)
+        # print(np.asarray(COLORS[0])*256)
+        # print(np.asarray(COLORS[1])*256)
+        # print(np.asarray(COLORS[2])*256)
+        ax.semilogx(ebins_mid, acc_rate_r*1E3, linewidth=2,
+                    linestyle='None', marker='o',
+                    label=r"$10^3\alpha_\text{acc}$")
+        ax.semilogx(ebins_mid, esc_rate2_r*1E3, linewidth=2,
+                    linestyle='None', marker='o',
+                    label=r"$10^3\alpha_\text{esc}$")
+        ax.semilogx(ebins_mid, acc_rate_model*1E3, linewidth=1,
+                    color='k', label=r"$10^3\alpha_\text{acc}$")
+        ax.semilogx(ebins_mid, esc_rate_model*1E3, linewidth=1,
+                    color='k', label=r"$10^3\alpha_\text{esc}$")
+        if irun == 0:
+            ax.set_ylim([1.0, 8.0])
+        else:
+            ax.set_ylim([0.2, 1.0])
+        ylim = ax.get_ylim()
+        # ax.plot([emin, emin], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        # ax.plot([emax, emax], ylim, color='k', linewidth=1,
+        #         linestyle='--')
+        ax.fill_betweenx(ylim, emin, emax, alpha=0.2, color='grey')
+        ax.set_ylim(ylim)
+
+        ax.text(0.35, 0.05, r"$\alpha_\text{acc}$",
+                color=COLORS[0], fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+        ax.text(0.35, 0.15, r"$\alpha_\text{esc}$",
+                color=COLORS[1], fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+        ax.set_xlim(ebins[0], ebins[-1])
+        ax.tick_params(bottom=True, top=True, left=True, right=False)
+        ax.tick_params(axis='x', which='minor', direction='out')
+        ax.tick_params(axis='x', which='major', direction='out')
+        ax.tick_params(axis='y', which='minor', direction='out')
+        ax.tick_params(axis='y', which='major', direction='out')
+        if irun == 0:
+            ax.set_ylabel(r'$10^3$Rates$/\omega_{pe}$', fontsize=20)
+        ax.tick_params(axis='x', labelbottom=False)
+        ax.tick_params(labelsize=16)
+
+        text1 = "(a)" if irun == 0 else "(c)"
+        ax.text(0.03, 0.85, text1,
+                color='k', fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0,
+                          edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='bottom',
+                transform=ax.transAxes)
+
+        rect[1] -= rect[3] + vgap
+        ax = fig.add_axes(rect)
+        lx_de = pic_info.lx_di * math.sqrt(pic_info.mime)
+        params= {"acc_rate": acc_rate,
+                 "esc_rate": esc_rate,
+                 "dee_rate": dee_rate,
+                 "nsteps": int(lx_de)*2,
+                 "nptl": 1E6}
+        # p0,_,_ = solve_sde_pindex(params, pic_run, reconnection=False)
+        pindex = 1 + div0(esc_rate2_r, acc_rate_r)
+        label = r"$1+(\alpha_\text{esc}/\alpha)$"
+        # ax.semilogx(ebins_mid, pindex, linewidth=1, label=label,
+        #             color='k', linestyle=':')
+        pindex += (np.gradient(np.log(acc_rate_r)) /
+                   (math.log(ebins[1]) - math.log(ebins[0])))
+        pindex -= (np.gradient(np.log(esc_rate2_r)) /
+                   (math.log(ebins[1]) - math.log(ebins[0])))
+        pindex1 = (np.gradient(np.log(acc_rate_r)) /
+                  (math.log(ebins[1]) - math.log(ebins[0])))
+        pindex2 = (np.gradient(np.log(esc_rate2_r)) /
+                  (math.log(ebins[1]) - math.log(ebins[0])))
+        label = (r"$1+(\alpha_\text{esc}/\alpha_\text{acc})+" +
+                 r"\partial\ln\alpha_\text{acc}/\partial\ln E-" +
+                 r"\partial\ln\alpha_\text{esc}/\partial\ln E$")
+        ax.semilogx(ebins_mid, pindex, linewidth=2, color='k',
+                    # marker='o', markersize=5,
+                    label=label)
+        # # ax.semilogx(ebins_mid, pindex1-pindex2, linewidth=2, color='k')
+        # ax.semilogx(ebins_mid, pindex1, linewidth=2, color='k')
+        # ax.semilogx(ebins_mid, pindex2, linewidth=2, color='k')
         es, _ = find_nearest(ebins_mid, emin)
         ee, _ = find_nearest(ebins_mid, emax)
         pindex_avg = np.mean(pindex[es:ee+1])
@@ -6171,12 +7731,10 @@ def power_law_scaling(plot_config, args):
     COLORS = palettable.tableau.Tableau_10.mpl_colors
     ax.set_prop_cycle('color', COLORS)
     n1 = nsigma * nbg + nsigmae * ndb
-    # ltext = r"3D Reconnection, $m_i/m_e=25, \beta_e=0.02$"
-    # p1 = ax.scatter(ps[0, n1+1], ps[1, n1+1], marker='*', label=ltext, s=100)
-    # ltext = r"2D Turbulence, $m_i/m_e=1, \sigma_e=100$"
-    # p2 = ax.scatter(ps[0, n1], ps[1, n1], marker='D', label=ltext, s=100)
     ltext = r"$\sigma_e=400, m_i/m_e=1$"
     p3 = ax.scatter(ps[1, n1], ps[0, n1], marker='X', label=ltext, s=100)
+    # ltext = r"3D Reconnection, $m_i/m_e=25, \beta_e=0.02$"
+    # p1 = ax.scatter(ps[0, n1+1], ps[1, n1+1], marker='*', label=ltext, s=100)
     plots_rec = [p3]
     for i in range(nsigma):
         sigma = str(int(sigmas[i]) / 10)
@@ -6278,7 +7836,8 @@ def plot_nacc_nesc(plot_config, args):
     """Plot the number of accelerating particles and escaped particles
     """
     pic_runs = []
-    sigmas = ["01", "04", "16", "64"]
+    # sigmas = ["01", "04", "16", "64"]
+    sigmas = ["01"]
     bgs = ["005", "01", "02", "04", "10"]
     nsigma = len(sigmas)
     nbg = len(bgs)
@@ -6286,16 +7845,16 @@ def plot_nacc_nesc(plot_config, args):
         for bg in bgs:
             pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
             pic_runs.append(pic_run)
-    sigmaes = ["100", "40", "10"]
-    db2s = ["05", "1", "4"]
-    nsigmae = len(sigmaes)
-    ndb = len(db2s)
-    for sigmae in sigmaes:
-        for db2 in db2s:
-            pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
-            pic_runs.append(pic_run)
-    pic_runs.append("sigmae400_bg00_800de_triggered")
-    # pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
+    # sigmaes = ["100", "40", "10"]
+    # db2s = ["05", "1", "4"]
+    # nsigmae = len(sigmaes)
+    # ndb = len(db2s)
+    # for sigmae in sigmaes:
+    #     for db2 in db2s:
+    #         pic_run = "mime1_sigmae" + sigmae + "_vthe04_db" + db2 + "_1024de"
+    #         pic_runs.append(pic_run)
+    # pic_runs.append("sigmae400_bg00_800de_triggered")
+    # # pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
     nruns = len(pic_runs)
     ps = np.zeros((2, nruns))
     for irun, pic_run in enumerate(pic_runs):
@@ -6306,9 +7865,11 @@ def plot_nacc_nesc(plot_config, args):
         ebins_mid = 0.5 * (ebins[1:] + ebins[:-1])
         nbins, = ebins.shape
         fname = fdir + 'nptl_esc.dat'
-        nptl_esc = np.sum(np.fromfile(fname).reshape([-1, nbins-1]), axis=1)
+        nesc_band = np.fromfile(fname).reshape([-1, nbins-1])
+        nptl_esc = np.sum(nesc_band, axis=1)
         fname = fdir + 'nptl_acc.dat'
-        nptl_acc = np.sum(np.fromfile(fname).reshape([-1, nbins-1]), axis=1)
+        nacc_band = np.fromfile(fname).reshape([-1, nbins-1])
+        nptl_acc = np.sum(nacc_band, axis=1)
         nptl_tot = nptl_acc + nptl_esc
         fig = plt.figure(figsize=[7, 5])
         rect = [0.11, 0.12, 0.85, 0.85]
@@ -6318,6 +7879,9 @@ def plot_nacc_nesc(plot_config, args):
         ax.set_prop_cycle('color', COLORS)
         ax.plot(nptl_acc / nptl_tot)
         ax.plot(nptl_esc / nptl_tot)
+        # nesc_band = gaussian_filter(nesc_band+1, sigma=[5, 1])
+        # nacc_band = gaussian_filter(nacc_band+1, sigma=[5, 1])
+        # ax.plot(np.diff(nesc_band, axis=0) / nacc_band[:-1, :])
         ax.grid()
 
         ax.tick_params(bottom=True, top=True, left=True, right=False)
@@ -6328,10 +7892,127 @@ def plot_nacc_nesc(plot_config, args):
         ax.tick_params(labelsize=16)
         img_dir = '../img/power_law_index/nacc_nesc/'
         mkdir_p(img_dir)
-        fname = img_dir + "nacc_nesc_" + pic_run + ".pdf"
-        fig.savefig(fname)
+        # fname = img_dir + "nacc_nesc_" + pic_run + ".pdf"
+        # fig.savefig(fname)
+        # plt.close()
+        plt.show()
+
+
+def plot_absj(plot_config, show_plot=True):
+    """Plot current density
+    """
+    sigmas = ["001", "004", "016", "064", "256"]
+    bgs = ["00", "05"]
+    bgs_float = [0.0, 0.5]
+    nsigma = len(sigmas)
+    nbg = len(bgs)
+    axs = []
+    fig = plt.figure(figsize=[20, 8])
+    rect0 = [0.06, 0.76, 0.15, 0.2]
+    hgap, vgap = 0.04, 0.03
+    for isigma in range(nsigma):
+        rect = np.copy(rect0)
+        rect[0] += isigma * (rect[2] + hgap)
+        for ibg in range(nbg):
+            ax = fig.add_axes(rect)
+            axs.append(ax)
+            rect[1] -= rect[3] + vgap
+            ax.set_prop_cycle('color', COLORS)
+            ax.tick_params(bottom=True, top=True, left=True, right=True)
+            ax.tick_params(axis='x', which='minor', direction='in')
+            ax.tick_params(axis='x', which='major', direction='in')
+            ax.tick_params(axis='y', which='minor', direction='in')
+            ax.tick_params(axis='y', which='major', direction='in')
+            if ibg == nbg - 1:
+                ax.set_xlabel(r'$x/d_e$', fontsize=16)
+            else:
+                ax.tick_params(axis='x', labelbottom=False)
+            if isigma == 0:
+                ax.set_ylabel(r'$z/d_e$', fontsize=16)
+            ax.tick_params(labelsize=12)
+    tframe = plot_config["tframe"]
+    for isigma, sigma in enumerate(sigmas):
+        for ibg, bg in enumerate(bgs):
+            pic_run = "mime1836_sigmaic" + sigma + "_bg" + bg
+            picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+            pic_info = read_data_from_json(picinfo_fname)
+            pic_run_dir = pic_info.run_dir
+            fields_interval = pic_info.fields_interval
+            tindex = fields_interval * tframe
+            smime = math.sqrt(pic_info.mime)
+            lx_de = pic_info.lx_di * smime
+            lz_de = pic_info.lz_di * smime
+            xmin, xmax = 0, lx_de
+            zmin, zmax = -0.5 * lz_de, 0.5 * lz_de
+
+            fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                     "/hydro_electron_" + str(tindex) + ".h5")
+            je = {}
+            with h5py.File(fname, 'r') as fh:
+                group = fh["Timestep_" + str(tindex)]
+                for var in ["jx", "jy", "jz"]:
+                    dset = group[var]
+                    je[var] = np.zeros(dset.shape, dtype=dset.dtype)
+                    dset.read_direct(je[var])
+
+            fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                     "/hydro_ion_" + str(tindex) + ".h5")
+            ji = {}
+            with h5py.File(fname, 'r') as fh:
+                group = fh["Timestep_" + str(tindex)]
+                for var in ["jx", "jy", "jz"]:
+                    dset = group[var]
+                    ji[var] = np.zeros(dset.shape, dtype=dset.dtype)
+                    dset.read_direct(ji[var])
+
+            xgrid = np.linspace(xmin, xmax, pic_info.nx)
+            zgrid = np.linspace(zmin, zmax, pic_info.nz)
+
+            absj = np.squeeze(np.sqrt((je["jx"] + ji["jx"])**2 +
+                                      (je["jy"] + ji["jy"])**2 +
+                                      (je["jz"] + ji["jz"])**2))
+            ax = axs[isigma*nbg + ibg]
+            im1 = ax.imshow(absj.T,
+                            extent=[xmin, xmax, zmin, zmax],
+                            norm = LogNorm(vmin=1E-2, vmax=1E1),
+                            cmap=plt.cm.viridis, aspect='auto',
+                            origin='lower', interpolation='bicubic')
+
+            # # Magnetic field lines
+            # kwargs = {"current_time": tframe,
+            #           "xl": 0, "xr": pic_info.lx_di,
+            #           "zb": -0.5*pic_info.lz_di, "zt": 0.5*pic_info.lz_di}
+            # fname = pic_run_dir + "data/Ay.gda"
+            # x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+            # ax.contour(xgrid, zgrid, Ay, colors='k', linewidths=0.5,
+            #            levels=np.linspace(np.min(Ay), np.max(Ay), 20))
+
+            ax.set_xlim([xmin, xmax])
+            ax.set_ylim([zmin, zmax])
+            # rect_cbar = np.copy(rect)
+            # rect_cbar[0] += rect[2] + 0.01
+            # rect_cbar[2] = 0.02
+            # rect_cbar[1] += rect[3] * 0.25
+            # rect_cbar[3] = rect[3] * 0.5
+            # cbar_ax = fig.add_axes(rect_cbar)
+            # cbar = fig.colorbar(im1, cax=cbar_ax, extend='max')
+            # cbar_ax.tick_params(bottom=False, top=False, left=False, right=True)
+            # cbar_ax.tick_params(axis='y', which='major', direction='out')
+            # cbar_ax.tick_params(axis='y', which='minor', direction='in', right=False)
+            # cbar_ax.set_title(r'$|\boldsymbol{J}|$', fontsize=20)
+            # cbar.ax.tick_params(labelsize=12)
+            # twpe = math.ceil(tindex * pic_info.dtwpe / 0.1) * 0.1
+    # text1 = r'$t\omega_{pe}=' + ("{%0.0f}" % twpe) + '$'
+    # fig.suptitle(text1, fontsize=20)
+    # img_dir = '../img/rate_problem/absj/' + pic_run + '/'
+    # mkdir_p(img_dir)
+    # fname = img_dir + "absj_" + str(tframe) + ".jpg"
+    # fig.savefig(fname, dpi=200)
+
+    if show_plot:
+        plt.show()
+    else:
         plt.close()
-        # plt.show()
 
 
 def process_run(plot_config, args, pic_run):
@@ -6339,21 +8020,42 @@ def process_run(plot_config, args, pic_run):
     plot_config["pic_run"] = pic_run
     if args.rates_tracer:
         calc_rates_tracer(plot_config, args.show_plot)
+    elif args.ve_kappa_dist:
+        vexb_kappa_dist(plot_config, args.show_plot)
+    elif args.vel_dist:
+        velocity_dist(plot_config, args.show_plot)
 
 
 def analysis_multi_runs(plot_config, args):
     """Analysis for multiple runs
     """
     pic_runs = []
-    sigmas = ["01", "04", "16", "64"]
-    bgs = ["005", "01", "02", "04", "10"]
-    for sigma in sigmas:
-        for bg in bgs:
-            pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
-            pic_runs.append(pic_run)
-    pic_runs.append("mime1_sigmae100_vthe04_db1_1024de")
-    pic_runs.append("sigmae400_bg00_800de_triggered")
-    pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
+    # sigmas = ["01", "04", "16", "64"]
+    # bgs = ["005", "01", "02", "04", "10"]
+    # for sigma in sigmas:
+    #     for bg in bgs:
+    #         pic_run = "sigma" + sigma + "_bg" + bg + "_4000de_triggered"
+    #         pic_runs.append(pic_run)
+    # pic_runs.append("mime1_sigmae100_vthe04_db1_1024de")
+    # pic_runs.append("sigmae400_bg00_800de_triggered")
+    # pic_runs.append("3D-Lx150-bg0.2-150ppc-2048KNL-tracking")
+    # pic_runs.append("mime1836_sigmaic001_bg05")
+    # pic_runs.append("mime1836_sigmaic004_bg05")
+    # pic_runs.append("mime1836_sigmaic016_bg05")
+    # pic_runs.append("mime1836_sigmaic064_bg05")
+    # pic_runs.append("mime1836_sigmaic256_bg05")
+    pic_runs.append("mime1836_sigmaic001_bg00")
+    pic_runs.append("mime1836_sigmaic004_bg00")
+    pic_runs.append("mime1836_sigmaic001_bg10")
+    pic_runs.append("mime1836_sigmaic004_bg10")
+    pic_runs.append("mime1836_sigmaic016_bg10")
+    pic_runs.append("mime1836_sigmaic064_bg10")
+    pic_runs.append("mime1836_sigmaic256_bg10")
+    pic_runs.append("mime1836_sigmaic001_bg20")
+    pic_runs.append("mime1836_sigmaic004_bg20")
+    pic_runs.append("mime1836_sigmaic016_bg20")
+    pic_runs.append("mime1836_sigmaic064_bg20")
+    pic_runs.append("mime1836_sigmaic256_bg20")
     ncores = multiprocessing.cpu_count()
     # ncores = 18
     Parallel(n_jobs=ncores)(delayed(process_run)(plot_config, args, pic_run)
@@ -6441,6 +8143,8 @@ def get_cmd_args():
                         help='whether to calculate flow acceleration')
     parser.add_argument('--spect_bg', action="store_true", default=False,
                         help='whether to plot spectrum changing with Bg')
+    parser.add_argument('--spect_sigma_bg', action="store_true", default=False,
+                        help='whether to plot spectrum changing with sigma and Bg')
     parser.add_argument('--sigma_type', action="store", default='sigma01', type=str,
                         help='Run with specific sigma parameters')
     parser.add_argument('--bg', action="store", default='005', type=int,
@@ -6459,6 +8163,8 @@ def get_cmd_args():
                         help='whether to calculate rates using tracer')
     parser.add_argument('--plot_rates_tracer', action="store_true", default=False,
                         help='whether to plot rates using tracer')
+    parser.add_argument('--rates_sigma_bg', action="store_true", default=False,
+                        help='whether to plot rates scaling with sigma and bg')
     parser.add_argument('--get_traj', action="store_true", default=False,
                         help='whether to get trajectory from tracer files')
     parser.add_argument('--traj_band', action="store_true", default=False,
@@ -6481,6 +8187,14 @@ def get_cmd_args():
                         help='whether to plot the scaling of the power-law indices')
     parser.add_argument('--nacc_nesc', action="store_true", default=False,
                         help='plot the number of accelerating and escaped particles')
+    parser.add_argument('--ve_kappa_dist', action="store_true", default=False,
+                        help='get the 2D distribution of vexb_kappa and kappa')
+    parser.add_argument('--test_calc_rates', action="store_true", default=False,
+                        help='test the method to calculate rates')
+    parser.add_argument('--vel_dist', action="store_true", default=False,
+                        help='whether to get the distribution of velocity')
+    parser.add_argument('--plot_absj', action="store_true", default=False,
+                        help='whether to plot current density')
     return parser.parse_args()
 
 
@@ -6493,7 +8207,7 @@ def analysis_single_frames(plot_config, args):
             plot_spectrum_multi(plot_config)
         if args.all_runs:
             plot_spectrum_all_runs(plot_config)
-    if args.econv:
+    elif args.econv:
         if args.all_runs:
             energy_conversion_all_runs(plot_config)
     elif args.check_density:
@@ -6531,29 +8245,30 @@ def analysis_single_frames(plot_config, args):
         plot_sigma_power(plot_config, args.show_plot)
     elif args.ana_power:
         analytical_power_index(plot_config, args.show_plot)
-    if args.acc_rate:
+    elif args.acc_rate:
         acceleration_rate(plot_config, show_plot=True)
-    if args.calc_flow_acc:
+    elif args.calc_flow_acc:
         calc_flow_acc(plot_config, show_plot=True)
-    if args.spect_bg:
+    elif args.spect_bg:
         plot_spectrum_bg(plot_config, show_plot=True)
-    if args.acc_rate_std:
+    elif args.spect_sigma_bg:
+        spectrum_sigma_bg(plot_config, show_plot=True)
+    elif args.acc_rate_std:
         acceleration_rate_std(plot_config, show_plot=True)
-    if args.calc_dee:
+    elif args.calc_dee:
         diffusion_coefficient(plot_config, show_plot=True)
-    if args.calc_acc_rate:
+    elif args.calc_acc_rate:
         calc_acc_rate(plot_config, show_plot=True)
     elif args.plot_traj:
         plot_trajectory(plot_config, args.show_plot)
     elif args.plot_traj_j:
         plot_trajectory_j(plot_config, args.show_plot)
     elif args.rates_tracer:
-        if args.multi_runs:
-            analysis_multi_runs(plot_config, args)
-        else:
-            calc_rates_tracer(plot_config, args.show_plot)
+        calc_rates_tracer(plot_config, args.show_plot)
     elif args.plot_rates_tracer:
         plot_rates_tracer(plot_config, args.show_plot)
+    elif args.rates_sigma_bg:
+        rates_sigma_bg(plot_config, args.show_plot)
     elif args.plot_dee_tracer:
         plot_dee_tracer(plot_config, args.show_plot)
     elif args.get_traj:
@@ -6572,11 +8287,19 @@ def analysis_single_frames(plot_config, args):
         solve_sde(plot_config, args.show_plot)
     elif args.pindex_model:
         # power_index_model(plot_config, args.show_plot)
+        # power_index_rates(plot_config, args.show_plot)
         pindex_bg_sigma(plot_config, args.show_plot)
+        # pindex_sde(plot_config, args.show_plot)
     elif args.pindex_scaling:
         power_law_scaling(plot_config, args.show_plot)
     elif args.nacc_nesc:
         plot_nacc_nesc(plot_config, args.show_plot)
+    elif args.ve_kappa_dist:
+        vexb_kappa_dist(plot_config, args.show_plot)
+    elif args.test_calc_rates:
+        test_calc_rates(plot_config, args.show_plot)
+    elif args.plot_absj:
+        plot_absj(plot_config, args.show_plot)
 
 
 def process_input(plot_config, args, tframe):
@@ -6600,6 +8323,8 @@ def analysis_multi_frames(plot_config, args):
                 calc_vexb_kappa(plot_config)
             elif args.plot_vexb_kappa:
                 plot_vexb_kappa(plot_config, show_plot=False)
+            elif args.plot_absj:
+                plot_absj(plot_config, show_plot=False)
     else:
         ncores = multiprocessing.cpu_count()
         ncores = 18
@@ -6621,10 +8346,13 @@ def main():
     plot_config["vkappa_threshold"] = args.vkappa_threshold
     plot_config["sigma_type"] = args.sigma_type
     plot_config["bg"] = args.bg
-    if args.multi_frames:
-        analysis_multi_frames(plot_config, args)
+    if args.multi_runs:
+        analysis_multi_runs(plot_config, args)
     else:
-        analysis_single_frames(plot_config, args)
+        if args.multi_frames:
+            analysis_multi_frames(plot_config, args)
+        else:
+            analysis_single_frames(plot_config, args)
 
 
 if __name__ == "__main__":

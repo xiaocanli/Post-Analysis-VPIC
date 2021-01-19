@@ -3895,9 +3895,14 @@ def plot_rrate_bflux_beta(plot_config, bg=0.0, show_plot=True):
         betas = [0.02, 0.2, 1.0, 20.0]
     else:
         pic_runs = ["mime400_Tb_T0_025",
-                    "mime400_Tb_T0_1",
+                    # "mime400_Tb_T0_1",
+                    "mime400_Tb_T0_1_cfl04_nppc300",
                     "mime400_Tb_T0_10_weak",
                     "mime400_Tb_T0_40_nppc450_old"]
+        # pic_runs = ["mime100_Tb_T0_025_cfl04_nppc100",
+        #             "mime100_Tb_T0_1_cfl07_nppc600",
+        #             "mime100_Tb_T0_10_cfl07_nppc1800",
+        #             "mime100_Tb_T0_40_cfl07_nppc4000"]
         betas = [0.25, 1.0, 10, 40]
     fig1 = plt.figure(figsize=[7, 5])
     rect = [0.11, 0.12, 0.83, 0.83]
@@ -3953,11 +3958,13 @@ def plot_rrate_bflux_beta(plot_config, bg=0.0, show_plot=True):
     if plot_config["open_boundary"]:
         ax.set_xlim([0, 50])
     else:
-        ax.set_xlim([0, 47])
+        ax.set_xlim([0, 45])
+        # ax.set_xlim([0, 100])
     if plot_config["open_boundary"]:
         ax.set_ylim([0, 0.16])
     else:
         ax.set_ylim([0, 0.11])
+        # ax.set_ylim([0, 0.08])
     ax.tick_params(labelsize=12)
     ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=16)
     ax.set_ylabel(r'$E_R$', fontsize=16)
@@ -4010,8 +4017,11 @@ def calc_open_angle(plot_config, show_plot=True):
     iz_bot = np.argmax(zlist_bot)
     xtop = xlist_top[iz_top]
     ztop = zlist_top[iz_top]
-    if pic_run == "mime400_Tb_T0_025":
-        shift = 200
+    if "Tb_T0_025" in pic_run:
+        if "mime400" in pic_run:
+            shift = 200
+        elif "mime100" in pic_run:
+            shift = 300
         theta_top = np.arctan((zlist_top - ztop) / (xlist_top - xtop + 1E-10)) * 180 / math.pi
         theta_max1 = theta_top[iz_top+shift:].max()
         theta_min1 = -theta_top[:iz_top-shift].min()
@@ -4020,8 +4030,13 @@ def calc_open_angle(plot_config, show_plot=True):
         theta_bot = np.arctan((zlist_bot - zbot) / (xlist_bot - xbot + 1E-10)) * 180 / math.pi
         theta_max2 = theta_bot[iz_bot+shift:].max()
         theta_min2 = -theta_bot[:iz_bot-shift].min()
+        theta_min = min(theta_min1, theta_min2)
+        theta_max = min(theta_max1, theta_max2)
     else:
-        shift = 2000
+        if "cfl07" in pic_run:
+            shift = pic_info.nx // 4
+        else:
+            shift = 2000
         f = np.polyfit(xlist_top[iz_top:iz_top+shift], zlist_top[iz_top:iz_top+shift], 1)
         theta_max1 = math.atan(f[0]) * 180 / math.pi
         f = np.polyfit(xlist_top[iz_top-shift:iz_top], zlist_top[iz_top-shift:iz_top], 1)
@@ -4030,15 +4045,10 @@ def calc_open_angle(plot_config, show_plot=True):
         theta_max2 = math.atan(f[0]) * 180 / math.pi
         f = np.polyfit(xlist_bot[iz_bot-shift:iz_bot], zlist_bot[iz_bot-shift:iz_bot], 1)
         theta_min2 = -math.atan(f[0]) * 180 / math.pi
+        theta_min = 0.5*(theta_min1 + theta_min2)
+        theta_max = 0.5*(theta_max1 + theta_max2)
 
-    theta_min = 0.5*(theta_min1 + theta_min2)
-    theta_max = 0.5*(theta_max1 + theta_max2)
-
-    if pic_run == "mime400_Tb_T0_025":
-        angle0 = (theta_max1 + theta_min2) * 0.5
-        # angle0 = np.max([theta_min1, theta_max1, theta_min2, theta_max2])
-    else:
-        angle0 = (theta_min + theta_max) * 0.5
+    angle0 = (theta_min + theta_max) * 0.5
 
     fdir = '../data/rate_problem/open_angle/' + pic_run + '/'
     mkdir_p(fdir)
@@ -4049,10 +4059,14 @@ def calc_open_angle(plot_config, show_plot=True):
 def plot_open_angle(plot_config, bg=0.0, show_plot=True):
     """Plot exhaust open angle
     """
-    pic_runs = ["mime400_Tb_T0_025",
-                "mime400_Tb_T0_1",
-                "mime400_Tb_T0_10_weak",
-                "mime400_Tb_T0_40_nppc450"]
+    # pic_runs = ["mime400_Tb_T0_025",
+    #             "mime400_Tb_T0_1",
+    #             "mime400_Tb_T0_10_weak",
+    #             "mime400_Tb_T0_40_nppc450"]
+    pic_runs = ["mime100_Tb_T0_025_cfl04_nppc100",
+                "mime100_Tb_T0_1_cfl07_nppc600",
+                "mime100_Tb_T0_10_cfl07_nppc1800",
+                "mime100_Tb_T0_40_cfl07_nppc4000"]
     betas = [0.25, 1.0, 10, 40]
     fig = plt.figure(figsize=[7, 5])
     rect = [0.11, 0.12, 0.83, 0.83]
@@ -4089,7 +4103,7 @@ def plot_open_angle(plot_config, bg=0.0, show_plot=True):
     ax.tick_params(axis='x', which='major', direction='in')
     ax.tick_params(axis='y', which='minor', direction='in')
     ax.tick_params(axis='y', which='major', direction='in')
-    ax.set_xlim([0, 47])
+    # ax.set_xlim([0, 47])
     ax.set_ylim([0, 28])
     ax.tick_params(labelsize=12)
     ax.legend(loc=2, prop={'size': 16}, ncol=1,
@@ -4225,7 +4239,10 @@ def open_angle(plot_config, show_plot=True):
         theta_max2 = theta_bot[iz_bot+shift:].max()
         theta_min2 = -theta_bot[:iz_bot-shift].min()
     else:
-        shift = 2000
+        if "cfl07" in pic_run:
+            shift = nx // 4
+        else:
+            shift = 2000
         f = np.polyfit(xlist_top[iz_top:iz_top+shift], zlist_top[iz_top:iz_top+shift], 1)
         theta_max1 = math.atan(f[0]) * 180 / math.pi
         f = np.polyfit(xlist_top[iz_top-shift:iz_top], zlist_top[iz_top-shift:iz_top], 1)
@@ -4242,14 +4259,14 @@ def open_angle(plot_config, show_plot=True):
     else:
         angle0 = (theta_min + theta_max) * 0.5
 
-    # ax.plot(xlist_top[iz_top-shift:iz_top+shift],
-    #         zlist_top[iz_top-shift:iz_top+shift],
-    #         linewidth=2, color=COLORS[0])
-    # ax.plot(xlist_bot[iz_bot-shift:iz_bot+shift],
-    #         zlist_bot[iz_bot-shift:iz_bot+shift],
-    #         linewidth=2, color=COLORS[0])
-    ax.plot(xlist_top, zlist_top, linewidth=2, color=COLORS[0])
-    ax.plot(xlist_bot, zlist_bot, linewidth=2, color=COLORS[0])
+    ax.plot(xlist_top[iz_top-shift:iz_top+shift],
+            zlist_top[iz_top-shift:iz_top+shift],
+            linewidth=2, color=COLORS[0])
+    ax.plot(xlist_bot[iz_bot-shift:iz_bot+shift],
+            zlist_bot[iz_bot-shift:iz_bot+shift],
+            linewidth=2, color=COLORS[0])
+    # ax.plot(xlist_top, zlist_top, linewidth=2, color=COLORS[0])
+    # ax.plot(xlist_bot, zlist_bot, linewidth=2, color=COLORS[0])
 
     length = 500.0
     x1 = x0 + 0.5 * length * math.cos(angle0*math.pi/180)
@@ -4994,6 +5011,7 @@ def calc_bxm(plot_config, show_plot=True):
     picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
     pic_info = read_data_from_json(picinfo_fname)
     pic_run_dir = pic_info.run_dir
+    vpic_info = get_vpic_info(pic_run_dir)
     plot_config["pic_run_dir"] = pic_run_dir
     fields_interval = pic_info.fields_interval
     b0 = pic_info.b0
@@ -5029,9 +5047,12 @@ def calc_bxm(plot_config, show_plot=True):
     bx = bvec_pre["bx"]
     sigma = 3
     ptot = gaussian_filter(ptot, sigma=sigma)
+    ne = gaussian_filter(bvec_pre["ne"], sigma=sigma)
+    ni = gaussian_filter(bvec_pre["ni"], sigma=sigma)
     bx = gaussian_filter(bx, sigma=sigma)
     pcut = ptot[ix_xpoint, :]
     bcut = bx[ix_xpoint, :]
+    ncut = 0.5 * (ne[ix_xpoint, :] + ni[ix_xpoint, :])
 
     # Electron diffusion region
     ng_de = int(1.0 / dx_de)
@@ -5088,22 +5109,38 @@ def calc_bxm(plot_config, show_plot=True):
     # iz_min2 = np.argmin(pcut[nz//2-nl:nz//2]) + nz//2 - nl
     if tframe == 0:
         bxm = pic_info.b0
+        nm = vpic_info["n0"] * vpic_info["nb/n0"]
     else:
         iz1 = iz_min1 - shift
         iz2 = iz_min1 + shift + 1
         if iz2 > nz:
             iz2 = nz
         bxm1 = np.mean(bcut[iz1:iz2])
+        nm1 = np.mean(ncut[iz1:iz2])
         iz1 = iz_min2 - shift
         iz2 = iz_min2 + shift + 1
         if iz1 < 0:
             iz1 = 0
         bxm2 = np.mean(bcut[iz1:iz2])
+        nm2 = np.mean(ncut[iz1:iz2])
         bxm = (bxm1 - bxm2) * 0.5
+        nm = (nm1 + nm2) * 0.5
     fdir = '../data/rate_problem/bxm/' + pic_run + '/'
     mkdir_p(fdir)
     fname = fdir + 'bxm_' + str(tframe) + '.dat'
     fdata = np.asarray([bxm])
+    fdata.tofile(fname)
+
+    fdir = '../data/rate_problem/nm/' + pic_run + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'nm_' + str(tframe) + '.dat'
+    fdata = np.asarray([nm])
+    fdata.tofile(fname)
+
+    fdir = '../data/rate_problem/iz_min_bxm/' + pic_run + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'iz_min_' + str(tframe) + '.dat'
+    fdata = np.asarray([iz_min1, iz_min2])
     fdata.tofile(fname)
 
     # fig = plt.figure(figsize=[7, 5])
@@ -5192,6 +5229,153 @@ def calc_bxm(plot_config, show_plot=True):
     #     plt.show()
     # else:
     #     plt.close("all")
+
+
+def get_bx_rho(plot_config, show_plot=True):
+    """Get Bx and density along the vertical cut through the X-line
+    """
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    pic_run = plot_config["pic_run"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
+    vpic_info = get_vpic_info(pic_run_dir)
+    plot_config["pic_run_dir"] = pic_run_dir
+    fields_interval = pic_info.fields_interval
+    b0 = pic_info.b0
+    tindex = fields_interval * tframe
+    smime = math.sqrt(pic_info.mime)
+    lx_de = pic_info.lx_di * smime
+    lz_de = pic_info.lz_di * smime
+    xmin, xmax = 0, lx_de
+    zmin, zmax = -0.5 * lz_de, 0.5 * lz_de
+    nx, nz = pic_info.nx, pic_info.nz
+    xgrid = np.linspace(xmin, xmax, nx)
+    zgrid = np.linspace(zmin, zmax, nz)
+    dx_de = lx_de / nx
+    dz_de = lz_de / nz
+
+    # Find X-point
+    fdir = '../data/rate_problem/exhaust_boundary/' + pic_run + '/'
+    fname = fdir + 'xz_top_' + str(tframe) + '.dat'
+    xz = np.fromfile(fname).reshape([2, -1])
+    xlist_top = xz[0, :]
+    zlist_top = xz[1, :] + zmin
+    fname = fdir + 'xz_bot_' + str(tframe) + '.dat'
+    xz = np.fromfile(fname).reshape([2, -1])
+    xlist_bot = xz[0, :]
+    zlist_bot = xz[1, :] + zmin
+    x0 = 0.5 * (xlist_bot[np.argmax(zlist_bot)] +
+                xlist_top[np.argmin(zlist_top)])
+    ix_xpoint = int(x0 / dx_de)
+
+    bvec_pre = get_bfield_pressure(plot_config)
+    ptot = (bvec_pre["pepara"] + 2 * bvec_pre["peperp"] +
+            bvec_pre["pipara"] + 2 * bvec_pre["piperp"]) / 3
+    bx = bvec_pre["bx"]
+    sigma = 3
+    ptot = gaussian_filter(ptot, sigma=sigma)
+    ne = gaussian_filter(bvec_pre["ne"], sigma=sigma)
+    ni = gaussian_filter(bvec_pre["ni"], sigma=sigma)
+    bx = gaussian_filter(bx, sigma=sigma)
+    pcut = ptot[ix_xpoint, :]
+    bcut = bx[ix_xpoint, :]
+    ncut = 0.5 * (ne[ix_xpoint, :] + ni[ix_xpoint, :])
+
+    fdir = '../data/rate_problem/bx_rho/' + pic_run + '/'
+    mkdir_p(fdir)
+    fname = fdir + 'bx_rho_' + str(tframe) + '.dat'
+    fdata = np.asarray([bcut, ncut]).T
+    fdata.tofile(fname)
+
+
+def plot_bx_rho(plot_config, show_plot=True):
+    """Plot Bx and density along the vertical cut through the X-line
+    """
+    tframe = plot_config["tframe"]
+    species = plot_config["species"]
+    pic_run = plot_config["pic_run"]
+    picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+    pic_info = read_data_from_json(picinfo_fname)
+    pic_run_dir = pic_info.run_dir
+    vpic_info = get_vpic_info(pic_run_dir)
+    plot_config["pic_run_dir"] = pic_run_dir
+    fields_interval = pic_info.fields_interval
+    b0 = pic_info.b0
+    tindex = fields_interval * tframe
+    smime = math.sqrt(pic_info.mime)
+    lx_de = pic_info.lx_di * smime
+    lz_de = pic_info.lz_di * smime
+    xmin, xmax = 0, lx_de
+    zmin, zmax = -0.5 * lz_de, 0.5 * lz_de
+    nx, nz = pic_info.nx, pic_info.nz
+    xgrid = np.linspace(xmin, xmax, nx)
+    zgrid = np.linspace(zmin, zmax, nz)
+    dx_de = lx_de / nx
+    dz_de = lz_de / nz
+    vpic_info = get_vpic_info(pic_run_dir)
+    n0 = vpic_info["n0"]
+    nb_n0 = vpic_info["nb/n0"]
+    nb = n0 * nb_n0
+
+    pic_runs = ["mime400_Tb_T0_025",
+                # "mime400_Tb_T0_1",
+                "mime400_Tb_T0_1_cfl04_nppc300",
+                "mime400_Tb_T0_10_weak",
+                "mime400_Tb_T0_40_nppc450_old"]
+    betas = [0.25, 1.0, 10, 40]
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        fdir = '../data/rate_problem/bx_rho/' + pic_run + '/'
+        fname = fdir + 'bx_rho_' + str(tframe) + '.dat'
+        fdata = np.fromfile(fname, dtype=np.float32).reshape([-1, 2])
+        bnorm = np.abs(fdata[:, 0])/b0
+        nnorm = np.abs(fdata[:, 1])/nb
+        fdir1 = '../data/rate_problem/iz_min_bxm/' + pic_run + '/'
+        fname = fdir1 + 'iz_min_' + str(tframe) + '.dat'
+        iz_min = np.fromfile(fname, dtype=np.int)
+        b1 = np.concatenate((bnorm[:iz_min[1]], bnorm[iz_min[0]:]), axis=None)
+        n1 = np.concatenate((nnorm[:iz_min[1]], nnorm[iz_min[0]:]), axis=None)
+        ax.scatter(b1, n1, s=2, alpha=0.2, rasterized=True,
+                   label=r"$\beta=" + str(betas[irun]) + "$")
+        # k = -0.3 * math.log10(betas[irun]) + 0.5
+        # b = betas[irun]**(1/4)
+        # k = -0.5 * (b**2 - 1) / (b**2 + 1) + 0.5
+        k = 1 / (math.sqrt(betas[irun]) + 1)
+        b2 = np.linspace(b1.min(), 1, 10)
+        nfit = 1.0 - k * (1.0 - b2)
+        ax.plot(b2, nfit, linewidth=2, color=COLORS[irun])
+
+    # ax.legend(loc=2, prop={'size': 16}, ncol=1,
+    #           shadow=False, fancybox=True, frameon=True)
+    for irun in range(4):
+        label = r"$\beta_{i0}=" + str(betas[irun]/2) + "$"
+        ypos = 0.93 - 0.07*irun
+        ax.text(0.03, ypos, label, color=COLORS[irun], fontsize=16,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=ax.transAxes)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=12)
+    ax.set_xlabel(r'$\bar{B}_{x}$', fontsize=16)
+    ax.set_ylabel(r'$\bar{n}$', fontsize=16)
+    # ax.grid()
+
+    img_dir = '../img/rate_problem/pub/'
+    mkdir_p(img_dir)
+    fname = img_dir + "nrho_bx_" + str(tframe) + ".pdf"
+    fig.savefig(fname)
+
+    plt.show()
 
 
 def calc_bxm_fix(plot_config, show_plot=True):
@@ -5495,16 +5679,17 @@ def plot_bxm_beta(plot_config, show_plot=True):
     """
     """
     pic_runs = ["mime400_Tb_T0_025",
-                "mime400_Tb_T0_1",
+                # "mime400_Tb_T0_1",
+                "mime400_Tb_T0_1_cfl04_nppc300",
                 "mime400_Tb_T0_10_weak",
-                "mime400_Tb_T0_40_nppc450"]
+                "mime400_Tb_T0_40_nppc450_old"]
     betas = [0.25, 1.0, 10, 40]
     fig = plt.figure(figsize=[7, 5])
     rect = [0.12, 0.15, 0.8, 0.8]
     ax = fig.add_axes(rect)
     COLORS = palettable.tableau.Tableau_10.mpl_colors
     ax.set_prop_cycle('color', COLORS)
-    fixz = True
+    fixz = False
     for irun, pic_run in enumerate(pic_runs):
         picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
         pic_info = read_data_from_json(picinfo_fname)
@@ -5538,6 +5723,7 @@ def plot_bxm_beta(plot_config, show_plot=True):
               shadow=False, fancybox=False, frameon=False)
     ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=16)
     ax.set_ylabel(r'$B_{xm}/B_0$', fontsize=16)
+    ax.grid()
 
     img_dir = '../img/rate_problem/bxm/'
     mkdir_p(img_dir)
@@ -5546,6 +5732,124 @@ def plot_bxm_beta(plot_config, show_plot=True):
     else:
         fname = img_dir + "bxm_beta.pdf"
     fig.savefig(fname)
+
+    plt.show()
+
+
+def plot_nm_beta(plot_config, show_plot=True):
+    """
+    """
+    pic_runs = ["mime400_Tb_T0_025",
+                # "mime400_Tb_T0_1",
+                "mime400_Tb_T0_1_cfl04_nppc300",
+                "mime400_Tb_T0_10_weak",
+                "mime400_Tb_T0_40_nppc450_old"]
+    betas = [0.25, 1.0, 10, 40]
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        fdir = '../data/rate_problem/nm/' + pic_run + '/'
+        nframes = len(os.listdir(fdir))
+        nm = np.zeros(nframes)
+        vpic_info = get_vpic_info(pic_run_dir)
+        fields_interval = vpic_info["fields_interval"]
+        n0 = vpic_info["n0"]
+        nb_n0 = vpic_info["nb/n0"]
+        nb = n0 * nb_n0
+        tfields_wci = np.arange(nframes) * pic_info.dtwci * fields_interval
+        tmin, tmax = tfields_wci.min(), tfields_wci.max()
+        for tframe in range(nframes):
+            fname = fdir + 'nm_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            nm[tframe] = fdata[0]
+        ax.plot(tfields_wci, nm/nb, linewidth=2,
+                label=r"$\beta=" + str(betas[irun]) + "$")
+
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlim([tmin, tmax])
+    ax.tick_params(labelsize=12)
+    ax.legend(loc=3, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=False)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=16)
+    ax.set_ylabel(r'$n_{m}/n_b$', fontsize=16)
+    ax.grid()
+
+    img_dir = '../img/rate_problem/nm/'
+    mkdir_p(img_dir)
+    fname = img_dir + "nm_beta.pdf"
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def plot_bxm_nm(plot_config, show_plot=True):
+    """
+    """
+    pic_runs = ["mime400_Tb_T0_025",
+                # "mime400_Tb_T0_1",
+                "mime400_Tb_T0_1_cfl04_nppc300",
+                "mime400_Tb_T0_10_weak",
+                "mime400_Tb_T0_40_nppc450_old"]
+    betas = [0.25, 1.0, 10, 40]
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    ax = fig.add_axes(rect)
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        fdir = '../data/rate_problem/nm/' + pic_run + '/'
+        nframes = len(os.listdir(fdir))
+        nm = np.zeros(nframes)
+        bxm = np.zeros(nframes)
+        vpic_info = get_vpic_info(pic_run_dir)
+        fields_interval = vpic_info["fields_interval"]
+        n0 = vpic_info["n0"]
+        b0 = vpic_info["b0"]
+        nb_n0 = vpic_info["nb/n0"]
+        nb = n0 * nb_n0
+        tfields_wci = np.arange(nframes) * pic_info.dtwci * fields_interval
+        tmin, tmax = tfields_wci.min(), tfields_wci.max()
+        for tframe in range(nframes):
+            fname = fdir + 'nm_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            nm[tframe] = fdata[0]
+        fdir = '../data/rate_problem/bxm/' + pic_run + '/'
+        for tframe in range(nframes):
+            fname = fdir + 'bxm_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            bxm[tframe] = fdata[0]
+        ax.scatter(bxm/b0, nm/nb, linewidth=2,
+                   label=r"$\beta=" + str(betas[irun]) + "$")
+
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.tick_params(labelsize=12)
+    ax.legend(loc=4, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=False, frameon=True)
+    ax.set_xlabel(r'$B_{xm}/B_0$', fontsize=16)
+    ax.set_ylabel(r'$n_{m}/n_b$', fontsize=16)
+    ax.grid()
+
+    # img_dir = '../img/rate_problem/nm/'
+    # mkdir_p(img_dir)
+    # fname = img_dir + "nm_beta.pdf"
+    # fig.savefig(fname)
 
     plt.show()
 
@@ -7479,6 +7783,294 @@ def plot_absj_vout(plot_config, show_plot=True):
         plt.close()
 
 
+def plot_absj_vout_mime100(plot_config, show_plot=True):
+    """Plot current density and outflow velocity
+    """
+    tframe = plot_config["tframe"]
+    pic_runs = ["mime100_Tb_T0_025_cfl04_nppc100",
+                "mime100_Tb_T0_10_cfl07_nppc1800"]
+    fig = plt.figure(figsize=[7, 8])
+    rect0 = [0.12, 0.74, 0.75, 0.2]
+    hgap, vgap = 0.02, 0.02
+    axs = []
+    cbar_axs = []
+    nvar = 4
+    for i in range(nvar):
+        rect = np.copy(rect0)
+        rect[1] = rect0[1] - (rect0[3] + vgap) * i
+        ax = fig.add_axes(rect)
+        axs.append(ax)
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.set_ylabel(r'$z/d_i$', fontsize=16)
+        if i == nvar - 1:
+            ax.set_xlabel(r'$x/d_i$', fontsize=16)
+        else:
+            ax.tick_params(axis='x', labelbottom=False)
+        ax.tick_params(labelsize=12)
+
+        if i % 2 == 0:
+            rect_cbar = np.copy(rect)
+            rect_cbar[0] += rect[2] + 0.05
+            rect_cbar[2] = 0.015
+            rect_cbar[1] -= rect[3]*0.5 + vgap
+            rect_cbar[3] = rect[3] + vgap
+            cbar_ax = fig.add_axes(rect_cbar)
+            cbar_axs.append(cbar_ax)
+
+    for irun, pic_run in enumerate(pic_runs):
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        fields_interval = pic_info.fields_interval
+        tindex = fields_interval * tframe
+        mime = pic_info.mime
+        smime = math.sqrt(mime)
+        lx_de = pic_info.lx_di * smime
+        lz_de = pic_info.lz_di * smime
+        dx_de = lx_de / pic_info.nx
+        dz_de = lz_de / pic_info.nz
+        nx = pic_info.nx
+        nz = pic_info.nz
+        xs = nx//2 - nx//4
+        xe = nx//2 + nx//4
+        zs = nz//2 - nz//16
+        ze = nz//2 + nz//16
+        nxs = xe - xs
+        nzs = ze - zs
+        xmin = xs * dz_de
+        xmax = xe * dz_de
+        zmin_pic = -lz_de * 0.5
+        zmin = zs * dz_de + zmin_pic
+        zmax = ze * dz_de + zmin_pic
+
+        fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                 "/hydro_electron_" + str(tindex) + ".h5")
+        je = {}
+        with h5py.File(fname, 'r') as fh:
+            group = fh["Timestep_" + str(tindex)]
+            for var in ["jx", "jy", "jz"]:
+                dset = group[var]
+                je[var]= dset[xs:xe, 0, zs:ze]
+
+        fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                 "/hydro_ion_" + str(tindex) + ".h5")
+        ji = {}
+        with h5py.File(fname, 'r') as fh:
+            group = fh["Timestep_" + str(tindex)]
+            for var in ["jx", "jy", "jz"]:
+                dset = group[var]
+                ji[var]= dset[xs:xe, 0, zs:ze]
+        absj = np.squeeze(np.sqrt((je["jx"] + ji["jx"])**2 +
+                                  (je["jy"] + ji["jy"])**2 +
+                                  (je["jz"] + ji["jz"])**2))
+
+        # Magnetic field lines
+        xmin_di = xmin / smime
+        xmax_di = xmax / smime
+        zmin_di = zmin / smime
+        zmax_di = zmax / smime
+        kwargs = {"current_time": tframe,
+                  "xl": xmin_di, "xr": xmax_di,
+                  "zb": zmin_di, "zt": zmax_di}
+        fname = pic_run_dir + "data/Ay.gda"
+        x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
+        xde = x * smime
+        zde = z * smime
+        axs[irun].contour(x, z, Ay, colors='w', linewidths=0.5,
+                          levels=np.linspace(np.min(Ay), np.max(Ay), 8))
+
+        im1 = axs[irun].imshow(absj.T,
+                               extent=[xmin_di, xmax_di, zmin_di, zmax_di],
+                               vmin=0, vmax=0.08,
+                               cmap=plt.cm.viridis, aspect='auto',
+                               origin='lower', interpolation='bicubic')
+
+        fdir = '../data/rate_problem/exhaust_boundary/' + pic_run + '/'
+        fname = fdir + 'xz_top_' + str(tframe) + '.dat'
+        xz = np.fromfile(fname).reshape([2, -1])
+        xlist_top = xz[0, :]
+        zlist_top = xz[1, :] + zmin_pic
+        fname = fdir + 'xz_bot_' + str(tframe) + '.dat'
+        xz = np.fromfile(fname).reshape([2, -1])
+        xlist_bot = xz[0, :]
+        zlist_bot = xz[1, :] + zmin_pic
+        x0 = 0.5 * (xlist_bot[np.argmax(zlist_bot)] +
+                    xlist_top[np.argmin(zlist_top)])
+        ix_xpoint = int(x0 / dx_de)
+        z0 = zlist_top[np.argmin(zlist_top)]
+        iz_top = np.argmin(zlist_top)
+        iz_bot = np.argmax(zlist_bot)
+        xtop = xlist_top[iz_top]
+        ztop = zlist_top[iz_top]
+
+        if pic_run == "mime100_Tb_T0_025_cfl04_nppc100":
+            shift = 300
+            theta_top = np.arctan((zlist_top - ztop) / (xlist_top - xtop + 1E-10)) * 180 / math.pi
+            theta_max1 = theta_top[iz_top+shift:].max()
+            theta_min1 = -theta_top[:iz_top-shift].min()
+            xbot = xlist_bot[iz_bot]
+            zbot = zlist_bot[iz_bot]
+            theta_bot = np.arctan((zlist_bot - zbot) / (xlist_bot - xbot + 1E-10)) * 180 / math.pi
+            theta_max2 = theta_bot[iz_bot+shift:].max()
+            theta_min2 = -theta_bot[:iz_bot-shift].min()
+            theta_min = min(theta_min1, theta_min2)
+            theta_max = min(theta_max1, theta_max2)
+        else:
+            shift = pic_info.nx // 4
+            f = np.polyfit(xlist_top[iz_top:iz_top+shift], zlist_top[iz_top:iz_top+shift], 1)
+            theta_max1 = math.atan(f[0]) * 180 / math.pi
+            f = np.polyfit(xlist_top[iz_top-shift:iz_top], zlist_top[iz_top-shift:iz_top], 1)
+            theta_min1 = -math.atan(f[0]) * 180 / math.pi
+            f = np.polyfit(xlist_bot[iz_bot:iz_bot+shift], zlist_bot[iz_bot:iz_bot+shift], 1)
+            theta_max2 = math.atan(f[0]) * 180 / math.pi
+            f = np.polyfit(xlist_bot[iz_bot-shift:iz_bot], zlist_bot[iz_bot-shift:iz_bot], 1)
+            theta_min2 = -math.atan(f[0]) * 180 / math.pi
+            theta_min = 0.5*(theta_min1 + theta_min2)
+            theta_max = 0.5*(theta_max1 + theta_max2)
+
+        angle0 = (theta_min + theta_max) * 0.5
+
+        axs[irun].plot(xlist_top/smime, zlist_top/smime, linewidth=1, color=COLORS[0])
+        axs[irun].plot(xlist_bot/smime, zlist_bot/smime, linewidth=1, color=COLORS[0])
+
+        length = 200.0
+        x1 = x0 + 0.5 * length * math.cos(angle0*math.pi/180)
+        x2 = x0 - 0.5 * length * math.cos(angle0*math.pi/180)
+        z1 = z0 + 0.5 * length * math.sin(angle0*math.pi/180)
+        z2 = z0 - 0.5 * length * math.sin(angle0*math.pi/180)
+        x1 /= smime
+        x2 /= smime
+        z1 /= smime
+        z2 /= smime
+        axs[irun].plot([x1, x2], [z1, z2], color='k', linestyle='--', linewidth=1)
+        axs[irun].plot([x1, x2], [-z1, -z2], color='k', linestyle='--', linewidth=1)
+        # axs[irun].plot([x1, x2], [0, 0], color='k', linestyle='--', linewidth=1)
+        angs = np.linspace(-angle0, angle0, 50) * math.pi / 180
+        l0 = 75
+        xarc = l0 * np.cos(angs) + x0
+        yarc = l0 * np.sin(angs) + z0
+        xarc /= smime
+        yarc /= smime
+        axs[irun].plot(xarc, yarc, linewidth=1, color='k')
+        text1 = r"$" + ("{%0.1f}" % (2*angle0)) +  "^\circ$"
+        if pic_run == "mime100_Tb_T0_025_cfl04_nppc100":
+            xpos = 0.77
+        else:
+            xpos = 0.7
+        axs[irun].text(xpos, 0.5, text1, color='k', fontsize=16,
+                       bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                       horizontalalignment='right', verticalalignment='center',
+                       transform=axs[irun].transAxes)
+
+        if irun == 0:
+            cbar = fig.colorbar(im1, cax=cbar_axs[0], extend='max')
+            cbar_axs[0].tick_params(bottom=False, top=False, left=False, right=True)
+            cbar_axs[0].tick_params(axis='y', which='major', direction='out')
+            cbar_axs[0].tick_params(axis='y', which='minor', direction='in', right=False)
+            cbar_axs[0].set_title(r'$|\boldsymbol{j}|/j_0$', fontsize=16)
+            cbar.ax.tick_params(labelsize=12)
+
+        # Outflow velocity
+        rho_vel = {}
+        for species in ["e", "i"]:
+            sname = "electron" if species == 'e' else "ion"
+            fname = (pic_run_dir + "hydro_hdf5/T." + str(tindex) +
+                     "/hydro_" + sname + "_" + str(tindex) + ".h5")
+            hydro = {}
+            with h5py.File(fname, 'r') as fh:
+                group = fh["Timestep_" + str(tindex)]
+                for var in ["rho", "jx"]:
+                    dset = group[var]
+                    hydro[var]= dset[xs:xe, 0, zs:ze]
+
+            irho = 1.0 / hydro["rho"]
+            vx = hydro["jx"] * irho
+            var = "v" + species
+            rho_vel[var+"x"] = np.squeeze(vx)
+            rho_vel["n"+species] = np.squeeze(np.abs(hydro["rho"]))
+
+        irho = 1.0 / (rho_vel["ne"] + rho_vel["ni"] * mime)
+        vsx = (rho_vel["ne"] * rho_vel["vex"] +
+               rho_vel["ni"] * rho_vel["vix"] * mime) * irho
+
+        dtwpe = pic_info.dtwpe
+        dtwce = pic_info.dtwce
+        vpic_info = get_vpic_info(pic_run_dir)
+        nb_n0 = vpic_info["nb/n0"]
+        va = dtwce * math.sqrt(1.0 / mime) / dtwpe / math.sqrt(nb_n0)
+
+        im1 = axs[irun+2].imshow(vsx.T/va, cmap=plt.cm.seismic,
+                                 extent=[xmin_di, xmax_di, zmin_di, zmax_di],
+                                 vmin=-0.5, vmax=0.5, aspect='auto',
+                                 origin='lower', interpolation='bicubic')
+        axs[irun+2].contour(x, z, Ay, colors='k', linewidths=0.5,
+                            levels=np.linspace(np.min(Ay), np.max(Ay), 8))
+
+        if irun == 0:
+            cbar = fig.colorbar(im1, cax=cbar_axs[1], extend='both')
+            cbar_axs[1].tick_params(bottom=False, top=False, left=False, right=True)
+            cbar_axs[1].tick_params(axis='y', which='major', direction='out')
+            cbar_axs[1].tick_params(axis='y', which='minor', direction='in', right=False)
+            cbar_axs[1].set_title(r'$V_x/v_{A0}$', fontsize=16)
+            cbar.ax.tick_params(labelsize=12)
+
+    for ax in axs:
+        ax.set_xlim([xmin_di, xmax_di])
+        ax.set_ylim([zmin_di, zmax_di])
+    axs[0].text(0.02, 0.85, r"$\beta=0.25$", color='k', fontsize=16,
+                bbox=dict(facecolor='w', alpha=0.7, edgecolor='k', pad=3.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=axs[0].transAxes)
+    axs[1].text(0.02, 0.85, r"$\beta=10$", color='k', fontsize=16,
+                bbox=dict(facecolor='w', alpha=0.7, edgecolor='k', pad=3.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=axs[1].transAxes)
+    axs[2].text(0.02, 0.85, r"$\beta=0.25$", color='k', fontsize=16,
+                bbox=dict(facecolor='w', alpha=0.7, edgecolor='k', pad=3.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=axs[2].transAxes)
+    axs[3].text(0.02, 0.85, r"$\beta=10$", color='k', fontsize=16,
+                bbox=dict(facecolor='w', alpha=0.7, edgecolor='k', pad=3.0),
+                horizontalalignment='left', verticalalignment='center',
+                transform=axs[3].transAxes)
+
+    axs[0].text(-0.11, 0.85, "(a)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[0].transAxes)
+    axs[1].text(-0.11, 0.85, "(b)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[1].transAxes)
+    axs[2].text(-0.11, 0.85, "(c)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[2].transAxes)
+    axs[3].text(-0.11, 0.85, "(d)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[3].transAxes)
+
+
+    twpe = math.ceil(tindex * pic_info.dtwpe / 0.1) * 0.1
+    twci = twpe / pic_info.wpe_wce / pic_info.mime
+    text1 = r'$t\Omega_{ci}=' + ("{%0.0f}" % twci) + '$'
+    fig.suptitle(text1, fontsize=16)
+    img_dir = '../img/rate_problem/pub/'
+    mkdir_p(img_dir)
+    fname = img_dir + "absj_vout_" + str(tframe) + ".pdf"
+    fig.savefig(fname, dpi=300)
+
+    if show_plot:
+        plt.show()
+    else:
+        plt.close()
+
+
 def calc_peak_vout(plot_config, show_plot=True):
     """Calculate exhaust open angle
     """
@@ -7789,7 +8381,8 @@ def simulation_evolution2(plot_config, bg=0.0, show_plot=True):
     """Plot rate, opening angle, peak velocity, Bxm
     """
     pic_runs = ["mime400_Tb_T0_025",
-                "mime400_Tb_T0_1",
+                # "mime400_Tb_T0_1",
+                "mime400_Tb_T0_1_cfl04_nppc300",
                 "mime400_Tb_T0_10_weak",
                 "mime400_Tb_T0_40_nppc450_old"]
     open_angles = [33, 30, 25, 24]
@@ -7853,7 +8446,7 @@ def simulation_evolution2(plot_config, bg=0.0, show_plot=True):
             fdata = np.fromfile(fname)
             open_angle[tframe] = fdata[0]
         p1, = ax.plot(tfields_wci, open_angle*2, linewidth=1,
-                      label=r"$\beta=" + str(betas[irun]) + "$")
+                      label=r"$\beta_{0}=" + str(betas[irun]) + "$")
         # ax.plot([tfields_wci[0], tfields_wci[-1]],
         #         [open_angles[irun], open_angles[irun]], color=p1.get_color(),
         #         linewidth=1, linestyle='--')
@@ -8018,6 +8611,244 @@ def simulation_evolution2(plot_config, bg=0.0, show_plot=True):
     img_dir = '../img/rate_problem/pub/'
     mkdir_p(img_dir)
     fname = img_dir + "simulation" + bg_str + "_2.pdf"
+    fig.savefig(fname)
+
+    plt.show()
+
+
+def simulation_evolution3(plot_config, bg=0.0, show_plot=True):
+    """Plot rate, opening angle, peak velocity, Bxm
+    """
+    pic_runs = ["mime100_Tb_T0_025_cfl04_nppc100",
+                "mime100_Tb_T0_1_cfl07_nppc600",
+                "mime100_Tb_T0_10_cfl07_nppc1800",
+                "mime100_Tb_T0_40_cfl07_nppc4000"]
+    open_angles = [33, 30, 25, 24]
+    betas = [0.25, 1, 10, 40]
+    nruns = len(pic_runs)
+    if bg > 0.99:  # one or a few integer times of B0
+        bg_str = "_bg" + str(int(bg))
+    elif bg > 0.01:  # between 0 to B0
+        bg_str = "_bg" + str(int(bg*10)).zfill(2)
+    else:
+        bg_str = ""
+    fig = plt.figure(figsize=[7, 5])
+    rect0 = [0.11, 0.53, 0.37, 0.4]
+    hgap, vgap = 0.12, 0.03
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+
+    # model results
+    beta0 = betas[0]
+    input_dir = "../data/rate_problem/rate_model/cgl/"
+    fname = input_dir + "dz_dx_" + str(beta0) + ".dat"
+    dz_dxs = np.fromfile(fname)
+    open_angle = np.arctan(dz_dxs) * 180 * 2 / math.pi
+    open_index = []
+    for angle in open_angles:
+        index, _ = find_nearest(open_angle, angle)
+        open_index.append(index)
+    rate_model = np.zeros(nruns)
+    vout_model = np.zeros(nruns)
+    bxm_model = np.zeros(nruns)
+    for irun, beta0 in enumerate(betas):
+        fname = input_dir + "bxm_" + str(beta0) + ".dat"
+        bxm = np.fromfile(fname)
+        fname = input_dir + "vout_" + str(beta0) + ".dat"
+        vout = np.fromfile(fname)
+        fname = input_dir + "nout_" + str(beta0) + ".dat"
+        nout = np.fromfile(fname)
+        nin = np.ones(bxm.shape)  # incompressible
+        vin = vout * nout * dz_dxs / nin
+        rate = vin * bxm
+        rate_model[irun] = rate[open_index[irun]]
+        vout_model[irun] = vout[open_index[irun]]
+        bxm_model[irun] = bxm[open_index[irun]]
+
+    # opening angle
+    ax = fig.add_axes(rect0)
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        pic_run += bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        b0 = pic_info.b0
+        fdir = '../data/rate_problem/open_angle/' + pic_run + '/'
+        nframes = len(os.listdir(fdir))
+        open_angle = np.zeros(nframes)
+        vpic_info = get_vpic_info(pic_run_dir)
+        fields_interval = vpic_info["fields_interval"]
+        tfields_wci = np.arange(nframes) * pic_info.dtwci * fields_interval
+        for tframe in range(nframes):
+            fname = fdir + "open_angle_" + str(tframe) + ".dat"
+            fdata = np.fromfile(fname)
+            open_angle[tframe] = fdata[0]
+        p1, = ax.plot(tfields_wci, open_angle*2, linewidth=1,
+                      label=r"$\beta=" + str(betas[irun]) + "$")
+        # ax.plot([tfields_wci[0], tfields_wci[-1]],
+        #         [open_angles[irun], open_angles[irun]], color=p1.get_color(),
+        #         linewidth=1, linestyle='--')
+
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlim([0, 120])
+    ax.set_ylim([0, 40])
+    ax.tick_params(labelsize=12)
+    ax.tick_params(axis='x', labelbottom=False)
+    ax.set_ylabel(r'Opening Angle ($^\circ$)', fontsize=16)
+    ax.text(0.04, 0.9, "(a)", color="k", fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+    xpos = 1.0 + 0.5 * hgap / rect0[2]
+    ax.legend(loc=9, bbox_to_anchor=(xpos, 1.2),
+              prop={'size': 12}, ncol=4,
+              shadow=False, fancybox=False, frameon=False)
+
+    # Bxm
+    rect = np.copy(rect0)
+    rect[0] += rect[2] + hgap
+    ax = fig.add_axes(rect)
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        pic_run += bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        b0 = pic_info.b0
+        fdir = '../data/rate_problem/bxm/' + pic_run + '/'
+        nframes = len(os.listdir(fdir)) // 2
+        bxm = np.zeros(nframes)
+        vpic_info = get_vpic_info(pic_run_dir)
+        fields_interval = vpic_info["fields_interval"]
+        tfields_wci = np.arange(nframes) * pic_info.dtwci * fields_interval
+        for tframe in range(nframes):
+            fname = fdir + 'bxm_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            bxm[tframe] = fdata[0]
+        p1, = ax.plot(tfields_wci, bxm/b0, linewidth=1,
+                      label=r"$\beta=" + str(betas[irun]) + "$")
+        # ax.plot([tfields_wci[0], tfields_wci[-1]],
+        #         [bxm_model[irun], bxm_model[irun]], color=p1.get_color(),
+        #         linewidth=1, linestyle='--')
+    ax.tick_params(axis='x', labelbottom=False)
+    ax.text(0.96, 0.9, "(b)", color="k", fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='center',
+            transform=ax.transAxes)
+
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlim([0, 120])
+    ax.tick_params(labelsize=12)
+    ax.set_ylabel(r'$B_{xm}/B_0$', fontsize=16)
+
+    # peak outflow velocity near the X-point
+    rect = np.copy(rect0)
+    rect[1] -= rect[3] + vgap
+    ax = fig.add_axes(rect)
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        pic_run += bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        b0 = pic_info.b0
+        fdir = '../data/rate_problem/vout_peak/' + pic_run + '/'
+        nframes = len(os.listdir(fdir))
+        vout_peak = np.zeros(nframes)
+        vpic_info = get_vpic_info(pic_run_dir)
+        fields_interval = vpic_info["fields_interval"]
+        tfields_wci = np.arange(nframes) * pic_info.dtwci * fields_interval
+        for tframe in range(nframes):
+            fname = fdir + "vout_peak_" + str(tframe) + ".dat"
+            fdata = np.fromfile(fname)
+            vout_peak[tframe] = fdata[0]
+        p1, = ax.plot(tfields_wci, vout_peak, linewidth=1,
+                      label=r"$\beta=" + str(betas[irun]) + "$")
+        # ax.plot([tfields_wci[0], tfields_wci[-1]],
+        #         [vout_model[irun], vout_model[irun]], color=p1.get_color(),
+        #         linewidth=1, linestyle='--')
+
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlim([0, 120])
+    ax.tick_params(labelsize=12)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=16)
+    ax.set_ylabel(r'$|V_x|_\text{peak}/v_{A0}$', fontsize=16)
+    ax.text(0.04, 0.9, "(c)", color="k", fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='left', verticalalignment='center',
+            transform=ax.transAxes)
+
+    # reconnection rate
+    rect[0] += rect[2] + hgap
+    ax = fig.add_axes(rect)
+    ax.set_prop_cycle('color', COLORS)
+    for irun, pic_run in enumerate(pic_runs):
+        pic_run += bg_str
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        vpic_info = get_vpic_info(pic_run_dir)
+        nb_n0 = vpic_info["nb/n0"]
+        dtwpe = pic_info.dtwpe
+        dtwce = pic_info.dtwce
+        va = dtwce * math.sqrt(1.0 / pic_info.mime) / dtwpe / math.sqrt(nb_n0)
+        wpe_wce = dtwpe / dtwce
+        b0 = pic_info.b0
+        fields_interval = pic_info.fields_interval
+        dtf = pic_info.dtwpe * fields_interval
+        ntf = pic_info.ntf
+        tfields = np.arange(ntf) * dtf
+        tfields_wci = np.arange(ntf) * pic_info.dtwci * fields_interval
+        bflux = np.zeros(ntf)
+        for tframe in range(ntf):
+            fdir = '../data/rate_problem/rrate_bflux/' + pic_run + '/'
+            fname = fdir + 'rrate_bflux_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            bflux[tframe] = fdata[0]
+
+        edrive, tdrive = get_edrive_params(pic_run_dir)
+        vin = edrive * (1.0 - np.exp(-tfields/tdrive)) / wpe_wce / b0
+
+        rrate_bflux = -np.gradient(bflux) / dtf
+        rrate_bflux /= va * b0
+        if "open" in pic_run or "test" in pic_run:
+            rrate_bflux += vin
+        print("Maximum rate: %f" % rrate_bflux.max())
+        p1, = ax.plot(tfields_wci, rrate_bflux, linewidth=1,
+                      label=r"$\beta=" + str(betas[irun]) + "$")
+        # ax.plot([tfields_wci[0], tfields_wci[-1]],
+        #         [rate_model[irun], rate_model[irun]], color=p1.get_color(),
+        #         linewidth=1, linestyle='--')
+
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(axis='x', which='minor', direction='in')
+    ax.tick_params(axis='x', which='major', direction='in')
+    ax.tick_params(axis='y', which='minor', direction='in')
+    ax.tick_params(axis='y', which='major', direction='in')
+    ax.set_xlim([0, 120])
+    ax.tick_params(labelsize=12)
+    ax.set_xlabel(r'$t\Omega_{ci}$', fontsize=16)
+    ax.set_ylabel(r'$E_R$', fontsize=16)
+    ax.text(0.96, 0.9, "(d)", color="k", fontsize=20,
+            bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+            horizontalalignment='right', verticalalignment='center',
+            transform=ax.transAxes)
+
+    img_dir = '../img/rate_problem/pub/'
+    mkdir_p(img_dir)
+    fname = img_dir + "simulation" + bg_str + "_3.pdf"
     fig.savefig(fname)
 
     plt.show()
@@ -8551,6 +9382,182 @@ def rate_model_fermi_incomp(beta0, le_closure=False):
     # cond = np.logical_and(tmp > 0, c < 0)
     # vout = np.zeros(nbins)
     # vout[cond] = (-b[cond] + np.sqrt(tmp[cond])) / (2 * a[cond])
+    for ibin, dz_dx in enumerate(dz_dxs):
+        v1 = 1.0
+        f = 1.0
+        nloops = 0
+        find_root = True
+        while abs(f) > epsilon:  # Newton's method
+            betav = math.sqrt(2/beta0) * v1
+            # f1 = v1**2/2 + 0.5 * bxm[ibin]**2 * (dz_dx**2 - firehose[ibin]*0.6)
+            f1 = 0.5 * v1**2 * (1 + erf(betav))
+            f1 += 0.5 * bxm[ibin]**2 * (dz_dx**2 - firehose[ibin])
+            ebetav = math.exp(-betav**2)
+            # f2 = (v1**2 + (v1**2 + 3*beta0/4) * erf(betav) +
+            #       v1 * sbeta_h * ebetav) / 3
+            f2 = (v1**2 + (v1**2 + beta0/4) * erf(betav) +
+                  v1 * sbeta_h * ebetav)
+            f = f1 + f2
+            tmp = 2 / math.sqrt(math.pi)
+            isbeta = math.sqrt(2/beta0)
+            df1 = v1 * (1 + erf(betav)) + 0.5 * v1**2 * tmp * ebetav * isbeta
+            # df2 = (2*v1 + 2*v1*erf(betav) +
+            #        (v1**2 + 3*beta0/4) * tmp * ebetav * isbeta +
+            #        sbeta_h * ebetav * (1 - 4*v1**2/beta0)) / 3
+            df2 = (2*v1 + 2*v1*erf(betav) +
+                   (v1**2 + beta0/4) * tmp * ebetav * isbeta +
+                   sbeta_h * ebetav * (1 - 4*v1**2/beta0))
+            df = df1 + df2
+            v1 -= f / df
+            nloops += 1
+            if nloops > 1000 or v1 < 0:
+                find_root = False
+                break
+        if find_root:
+            vout[ibin] = v1
+            betav = math.sqrt(2/beta0) * v1
+            nout[ibin] = 1 + erf(betav)
+
+    # Save the data
+    if le_closure:
+        fdir = "../data/rate_problem/rate_model/le/"
+    else:
+        fdir = "../data/rate_problem/rate_model/cgl/"
+    mkdir_p(fdir)
+    fname = fdir + "dz_dx_" + str(beta0) + ".dat"
+    dz_dxs.tofile(fname)
+    fname = fdir + "bxm_" + str(beta0) + ".dat"
+    bxm.tofile(fname)
+    fname = fdir + "nout_" + str(beta0) + ".dat"
+    nout.tofile(fname)
+    fname = fdir + "vout_" + str(beta0) + ".dat"
+    vout.tofile(fname)
+    fname = fdir + "firehose_" + str(beta0) + ".dat"
+    firehose.tofile(fname)
+
+    # Plot quantities with different normalization
+    nin = np.zeros(nbins)
+    nin = 1.0
+    vin = vout * nout * dz_dxs / nin
+    rate = vin * bxm
+
+    # Alfven speed using B and n upstream of the in diffusion region
+    vam = bxm / np.sqrt(nin)
+    vin_m = div0(vin, vam)
+    vout_m = div0(vout, vam)
+    rate_m = vin_m
+    open_angle = np.arctan(dz_dxs) * 180 / math.pi
+
+    if le_closure:
+        fdir = "../img/rate_problem/rate_model/le/"
+    else:
+        fdir = "../img/rate_problem/rate_model/cgl/"
+    mkdir_p(fdir)
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    hgap, vgap = 0.06, 0.06
+    ax = fig.add_axes(rect)
+    p1, = ax.plot(open_angle, rate, label=r'$v_\text{in}B_{xm}/v_{A0}B_0$')
+    ax.plot(open_angle, rate_m, linestyle='--', color=p1.get_color(),
+            label=r'$v_\text{in}/v_{Am}$')
+    ax.legend(loc=2, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=True, frameon=True)
+    ax.set_xlim([0, 45])
+    ax.set_xlabel(r'Opening Angle', fontsize=16)
+    ax.set_ylabel(r'$E_R$', fontsize=16)
+    ax.grid(True)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(labelsize=12)
+    beta_str = str(beta0).replace(".", "_")
+    fname = fdir + 'rate_' + beta_str + '.pdf'
+    fig.savefig(fname)
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    hgap, vgap = 0.06, 0.06
+    ax = fig.add_axes(rect)
+    p1, = ax.plot(open_angle, vin, label=r'$v_\text{in}/v_{A0}$')
+    ax.plot(open_angle, vin_m, linestyle='--', color=p1.get_color(),
+            label=r'$v_\text{in}/v_{Am}$')
+    p2, = ax.plot(open_angle, vout, label=r'$v_\text{out}/v_{A0}$')
+    ax.plot(open_angle, vout_m, linestyle='--', color=p2.get_color(),
+            label=r'$v_\text{out}/v_{Am}$')
+    ax.legend(loc=6, prop={'size': 16}, ncol=1,
+              shadow=False, fancybox=True, frameon=True)
+    ax.set_xlim([0, 45])
+    ax.set_xlabel(r'Opening Angle', fontsize=16)
+    ax.grid(True)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(labelsize=12)
+    beta_str = str(beta0).replace(".", "_")
+    fname = fdir + 'vin_out_' + beta_str + '.pdf'
+    fig.savefig(fname)
+
+    fig = plt.figure(figsize=[7, 5])
+    rect = [0.12, 0.15, 0.8, 0.8]
+    hgap, vgap = 0.06, 0.06
+    ax = fig.add_axes(rect)
+    p1, = ax.plot(open_angle, nout/nin,
+                  label=r'$n_\text{out}/n_\text{in}$')
+    ax.set_xlim([0, 45])
+    ax.set_xlabel(r'Opening Angle', fontsize=16)
+    ax.set_xlabel(r'$n_\text{out}/n_\text{in}$', fontsize=16)
+    ax.grid(True)
+    ax.tick_params(bottom=True, top=True, left=True, right=True)
+    ax.tick_params(labelsize=12)
+    beta_str = str(beta0).replace(".", "_")
+    fname = fdir + 'nout_in_' + beta_str + '.pdf'
+    fig.savefig(fname)
+
+    plt.close("all")
+    # plt.show()
+
+
+def rate_model_fermi_incomp2(beta0, le_closure=False):
+    """Reconnection rate model with Fermi heating and incompressibility
+
+    Args:
+        beta0: plasma beta in the inflow region
+        le_closure: whether to use Le-Egedal closure
+    """
+    print("Plasma beta: %f" % beta0)
+    nbins = 10000
+    dz_dxs = np.linspace(0, 1, nbins)
+    bxm = np.zeros(nbins)
+    nout = np.zeros(nbins)
+    vout = np.zeros(nbins)
+    firehose = np.zeros(nbins)
+    epsilon = 1E-12
+    sbeta = math.sqrt(2*beta0/math.pi)
+    betai0 = beta0 / 2
+    sbetai2 = math.sqrt(2 * betai0)
+    sbeta_h = sbeta * 0.5
+    for ibin, dz_dx in enumerate(dz_dxs):
+        if le_closure:
+            b1 = 1.0
+            f = 1.0
+            while abs(f) > epsilon:  # Newton's method
+                pass
+            bxm[ibin] = b1
+        else:
+            b1 = 1.0
+            f = 1.0
+            while abs(f) > epsilon:  # Newton's method
+                bh = (1 + b1) / 2
+                k = 1.0 / (sbetai2 + 1)
+                beta_n = (beta0 + betai0*(sbetai2+b1)) * k
+                f1 = 1 - b1**2 + beta_n * (1 - b1)
+                epsilon1 = 1 + 0.5 * betai0 * (1/bh - 1/bh**2) * (1 - k * (1 - bh))
+                f2 = epsilon1 * dz_dx**2 * (1 + b1)**2
+                f = f1 - f2
+                df1 = -2 * b1 - beta_n + betai0 * k * (1 - b1)
+                df2 = 2 * (1 + b1) + betai0 * (1 + k * (b1 - 1))
+                df = df1 - df2
+                b1 -= f / df
+            bxm[ibin] = b1
+            bh = (1 + b1) / 2
+    firehose = 1 + 0.5 * betai0 * (1/bxm - 1/bxm**2) * (1 - k * (1 - bxm))
     for ibin, dz_dx in enumerate(dz_dxs):
         v1 = 1.0
         f = 1.0
@@ -9553,6 +10560,284 @@ def plot_rate_model_pub3(le_closure=False):
     plt.show()
 
 
+def plot_rate_model_pub4(le_closure=False):
+    """Plot results calculated from reconnection rate model for paper
+
+    Args:
+        le_closure: whether to use Le-Egedal closure
+    """
+    if le_closure:
+        input_dir = "../data/rate_problem/rate_model/le/"
+    else:
+        input_dir = "../data/rate_problem/rate_model/cgl/"
+    betas = [1E-3, 0.25, 1, 10, 40, 100]
+
+    fig = plt.figure(figsize=[7, 6])
+    rect0 = [0.11, 0.55, 0.37, 0.35]
+    hgap, vgap = 0.12, 0.11
+
+    axs = []
+    nvar = 4
+
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    colors2 = np.copy(COLORS)
+    colors2[0] = COLORS[4]
+    colors2[1:5] = COLORS[:4]
+    colors2[5] = COLORS[7]
+    print(np.asarray(COLORS[0])*256)
+    for i in range(nvar):
+        rect = np.copy(rect0)
+        row = i // 2
+        col = i % 2
+        rect[0] = rect0[0] + col * (rect[2] + hgap)
+        rect[1] = rect0[1] - row * (rect[3] + vgap)
+        ax = fig.add_axes(rect)
+        ax.set_prop_cycle('color', colors2)
+        ax.set_xlim([0, 90])
+        if i == nvar - 1:
+            ax.set_xlabel(r'$\beta$', fontsize=16)
+        else:
+            ax.set_xlabel('Opening Angle ($^\circ$)', fontsize=16)
+        ax.grid(True)
+        ax.tick_params(bottom=True, top=True, left=True, right=True)
+        ax.tick_params(axis='x', which='minor', direction='in')
+        ax.tick_params(axis='x', which='major', direction='in')
+        ax.tick_params(axis='y', which='minor', direction='in')
+        ax.tick_params(axis='y', which='major', direction='in')
+        ax.tick_params(labelsize=12)
+        axs.append(ax)
+    for beta0 in betas:
+        fname = input_dir + "dz_dx_" + str(beta0) + ".dat"
+        dz_dxs = np.fromfile(fname)
+        fname = input_dir + "bxm_" + str(beta0) + ".dat"
+        bxm = np.fromfile(fname)
+        fname = input_dir + "vout_" + str(beta0) + ".dat"
+        vout = np.fromfile(fname)
+        fname = input_dir + "nout_" + str(beta0) + ".dat"
+        nout = np.fromfile(fname)
+        nin = np.ones(bxm.shape)  # incompressible
+        # nout = np.ones(bxm.shape)  # incompressible
+
+        vin = vout * nout * dz_dxs / nin
+        rate = vin * bxm
+        # rate = bxm * dz_dxs * vout
+
+        # Alfven speed using B and n upstream of the in diffusion region
+        vam = bxm / np.sqrt(nin)
+        vin_m = vin / vam
+        vout_m = vout / vam
+        rate_m = vin_m
+
+        open_angle = np.arctan(dz_dxs) * 180 * 2 / math.pi
+        label1 = r"$\beta_0=" + str(beta0) + "$"
+        axs[0].plot(open_angle, bxm, label=label1, linewidth=1)
+        axs[1].plot(open_angle, vout, label=label1, linewidth=1)
+        axs[2].plot(open_angle, rate, label=label1, linewidth=1)
+
+    pic_runs = ["mime100_Tb_T0_025_cfl04_nppc100",
+                "mime100_Tb_T0_1_cfl07_nppc600",
+                "mime100_Tb_T0_10_cfl07_nppc1800",
+                "mime100_Tb_T0_40_cfl07_nppc4000"]
+    bxm_mean = []
+    vout_mean = []
+    rate_mean = []
+    angle_mean = []
+    bxm_err_min = []
+    bxm_err_max = []
+    bxm_err_max = []
+    vout_err_min = []
+    vout_err_max = []
+    rate_err_min = []
+    rate_err_max = []
+    angle_err_min = []
+    angle_err_max = []
+    for irun, pic_run in enumerate(pic_runs):
+        picinfo_fname = '../data/pic_info/pic_info_' + pic_run + '.json'
+        pic_info = read_data_from_json(picinfo_fname)
+        pic_run_dir = pic_info.run_dir
+        vpic_info = get_vpic_info(pic_run_dir)
+        nb_n0 = vpic_info["nb/n0"]
+        dtwpe = pic_info.dtwpe
+        dtwce = pic_info.dtwce
+        va = dtwce * math.sqrt(1.0 / pic_info.mime) / dtwpe / math.sqrt(nb_n0)
+        wpe_wce = dtwpe / dtwce
+        b0 = pic_info.b0
+        fields_interval = pic_info.fields_interval
+        dtf = pic_info.dtwpe * fields_interval
+        ntf = pic_info.ntf
+        tfields = np.arange(ntf) * dtf
+        tfields_wci = np.arange(ntf) * pic_info.dtwci * fields_interval
+        bflux = np.zeros(ntf)
+        for tframe in range(ntf):
+            fdir = '../data/rate_problem/rrate_bflux/' + pic_run + '/'
+            fname = fdir + 'rrate_bflux_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            bflux[tframe] = fdata[0]
+        fdir = '../data/rate_problem/open_angle/' + pic_run + '/'
+        fdir_bxm = '../data/rate_problem/bxm/' + pic_run + '/'
+        fdir_vout = '../data/rate_problem/vout_peak/' + pic_run + '/'
+        nframes = len(os.listdir(fdir))
+        open_angle = np.zeros(nframes)
+        bxm = np.zeros(nframes)
+        vout_peak = np.zeros(nframes)
+        for tframe in range(nframes):
+            fname = fdir + "open_angle_" + str(tframe) + ".dat"
+            fdata = np.fromfile(fname)
+            open_angle[tframe] = fdata[0]
+            fname = fdir_bxm + 'bxm_' + str(tframe) + '.dat'
+            fdata = np.fromfile(fname)
+            bxm[tframe] = fdata[0]
+            fname = fdir_vout + "vout_peak_" + str(tframe) + ".dat"
+            fdata = np.fromfile(fname)
+            vout_peak[tframe] = fdata[0]
+
+        rrate_bflux = -np.gradient(bflux) / dtf
+        rrate_bflux /= va * b0
+        tpeak = np.argmax(rrate_bflux)
+        tmax = nframes
+        # Angle
+        dmean = np.mean(open_angle[tpeak:tmax]*2)
+        angle_mean.append(dmean)
+        angle_err_min.append(dmean - np.min(open_angle[tpeak:tmax]*2))
+        angle_err_max.append(np.max(open_angle[tpeak:tmax]*2) - dmean)
+        # Bxm
+        dmean = np.mean(bxm[tpeak:tmax])
+        bxm_mean.append(dmean / b0)
+        bxm_err_min.append(dmean/b0 - np.min(bxm[tpeak:tmax]) / b0)
+        bxm_err_max.append(np.max(bxm[tpeak:tmax]) / b0 - dmean/b0)
+        # Vout
+        dmean = np.mean(vout_peak[tpeak:tmax])
+        vout_mean.append(dmean)
+        vout_err_min.append(dmean - np.min(vout_peak[tpeak:tmax]))
+        vout_err_max.append(np.max(vout_peak[tpeak:tmax]) - dmean)
+        # Rate
+        dmean = np.mean(rrate_bflux[tpeak:tmax])
+        rate_mean.append(dmean)
+        rate_err_min.append(dmean - np.min(rrate_bflux[tpeak:tmax]))
+        rate_err_max.append(np.max(rrate_bflux[tpeak:tmax]) - dmean)
+    for irun, pic_run in enumerate(pic_runs):
+        axs[0].errorbar([angle_mean[irun]], [bxm_mean[irun]],
+                        [[bxm_err_min[irun]], [bxm_err_max[irun]]],
+                        [[angle_err_min[irun]], [angle_err_max[irun]]],
+                        color=COLORS[irun], lw=1, capsize=2, capthick=1,
+                        marker='o')
+        axs[1].errorbar([angle_mean[irun]], [vout_mean[irun]],
+                        [[vout_err_min[irun]], [vout_err_max[irun]]],
+                        [[angle_err_min[irun]], [angle_err_max[irun]]],
+                        color=COLORS[irun], lw=1, capsize=2, capthick=1,
+                        marker='o')
+        axs[2].errorbar([angle_mean[irun]], [rate_mean[irun]],
+                        [[rate_err_min[irun]], [rate_err_max[irun]]],
+                        [[angle_err_min[irun]], [angle_err_max[irun]]],
+                        color=COLORS[irun], lw=1, capsize=2, capthick=1,
+                        marker='o')
+
+    xpos = 1.0 + 0.5 * hgap / rect0[2]
+    axs[0].legend(loc=9, bbox_to_anchor=(xpos, 1.3),
+                  prop={'size': 12}, ncol=3,
+                  shadow=False, fancybox=False, frameon=False)
+
+    axs[0].set_ylabel(r'$B_{xm}/B_{x0}$', fontsize=16)
+    axs[1].set_ylabel(r'$v_\text{out}/v_{A0}$', fontsize=16)
+    axs[2].set_ylabel(r'$E_R$', fontsize=16)
+
+    # Peak rate
+    # for i in [4, 6, 8, 10]:
+    for i in [10]:
+        firehose_norm = 0.1 * i
+        print("firehose_norm: %f" % firehose_norm)
+        fdir = input_dir + "firehose_norm_" + str(int(firehose_norm*10)) + "/"
+        fname = fdir + "betas.dat"
+        betas = np.fromfile(fname)
+        fname = fdir + "rate_peak_beta.dat"
+        rate = np.fromfile(fname)
+        if i == 6:
+            axs[3].semilogx(betas/2, rate, color='k', linewidth=1,
+                            label=r"Peak $E_R$ (model)")
+        else:
+            # ax.semilogx(betas, rate, color='k', alpha=0.5, linestyle='--')
+            axs[3].semilogx(betas/2, rate, color='k', linewidth=1,
+                            label=r"Peak $E_R$ (model)")
+    # rate_scaling = 0.08 / betas**0.25
+    rate_scaling = 0.1 / (betas/2)**0.5
+    axs[3].semilogx(betas/2, rate_scaling, color='k', linewidth=1,
+                    linestyle="--", label=r"$0.1/\sqrt{\beta_{i0}}$")
+    ax.legend(loc=1, prop={'size': 12}, ncol=1,
+              shadow=False, fancybox=True, frameon=True)
+
+    beta_s = [0.25, 1, 10, 40]
+    # rate_s = [0.11, 0.08, 0.05, 0.04]
+    rate_s = [0.11, 0.08, 0.045, 0.038]
+
+    COLORS = palettable.tableau.Tableau_10.mpl_colors
+    # axs[3].scatter(beta_s, rate_s, color=COLORS[:4], s=50)
+    norms = [0.02, 0.05, 1.5, 1.5]
+    # for i, beta in enumerate(beta_s):
+    #     txt = r"$\beta=" + str(beta) + "$"
+    #     if i == 2:
+    #         ypos = rate_s[i] + 0.005
+    #     else:
+    #         ypos = rate_s[i]
+    #     axs[3].annotate(txt, (beta*norms[i], ypos),
+    #                     color=COLORS[i], fontsize=12)
+    for irun, pic_run in enumerate(pic_runs):
+        axs[3].errorbar([beta_s[irun]/2], [rate_mean[irun]],
+                        [[rate_err_min[irun]], [rate_err_max[irun]]],
+                        color=COLORS[irun], lw=1, capsize=2, capthick=1,
+                        marker='o')
+    # axs[3].text(0.35, 0.97, r"Peak $E_R$ (model)", color="k", fontsize=16,
+    #             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #             horizontalalignment='left', verticalalignment='top',
+    #             transform=axs[3].transAxes)
+    # axs[3].text(0.02, 0.93, r"$\epsilon_2=\epsilon(B_{xm})$", color="k", fontsize=16,
+    #             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #             horizontalalignment='left', verticalalignment='top',
+    #             transform=axs[3].transAxes)
+    # axs[3].text(0.02, 0.82, r"$\epsilon_2=0.8\epsilon(B_{xm})$", color="k", fontsize=16,
+    #             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #             horizontalalignment='left', verticalalignment='top',
+    #             transform=axs[3].transAxes)
+    # axs[3].text(0.02, 0.69, r"$\epsilon_2=0.6\epsilon(B_{xm})$", color="k", fontsize=16,
+    #             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #             horizontalalignment='left', verticalalignment='top',
+    #             transform=axs[3].transAxes)
+    # axs[3].text(0.02, 0.53, r"$\epsilon_2=0.4\epsilon(B_{xm})$", color="k", fontsize=16,
+    #             bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+    #             horizontalalignment='left', verticalalignment='top',
+    #             transform=axs[3].transAxes)
+    axs[3].set_xlabel(r'$\beta_{i0}$', fontsize=16)
+    axs[3].set_ylabel(r'$E_R$', fontsize=16)
+    axs[3].set_xlim([1E-3, 1E3])
+    axs[3].set_ylim([-0.01, 0.18])
+    axs[3].tick_params(bottom=True, top=True, left=True, right=True)
+    axs[3].tick_params(labelsize=12)
+
+    xpos, ypos = -0.2, 0.9
+    axs[0].text(xpos, ypos, "(a)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[0].transAxes)
+    axs[1].text(xpos, ypos, "(b)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[1].transAxes)
+    axs[2].text(xpos, ypos, "(c)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[2].transAxes)
+    axs[3].text(xpos, ypos, "(d)", color="k", fontsize=20,
+                bbox=dict(facecolor='none', alpha=1.0, edgecolor='none', pad=10.0),
+                horizontalalignment='center', verticalalignment='center',
+                transform=axs[3].transAxes)
+
+    img_dir = '../img/rate_problem/pub/'
+    mkdir_p(img_dir)
+    fname = img_dir + "model4.pdf"
+    fig.savefig(fname)
+
+    plt.show()
+
+
 def outflow_heating_fermi(plot_config, show_plot=True):
     """Heating in outflow due to Fermi mechanism
     """
@@ -10373,9 +11658,44 @@ def average_pressure_pub3(plot_config, show_plot=True):
                    bvec_pre["peperp"] - bvec_pre["piperp"]) / b2
     pxx_model = np.ones(b2.shape) * p0
     pyy_model = p0 * absB / b0
-    pzz_model = p0 * absB / b0
-    firehose_model = 1 + 0.5 * beta0 * (1/bx - 1/bx**2)
+    b = absB / b0
+    # firehose_model = 1 + 0.5 * beta0 * (1/bx - 1/bx**2)
     # firehose_model = 1 + 0.25 * beta0 * (b0/absB - b0**2/b2)
+    # bf = np.copy(bx)
+    bf = np.copy(b)
+    rho = np.ones(bf.shape)
+    # rho = 0.5 * (bvec_pre["ne"] + bvec_pre["ni"])
+    # rho = bf
+    # rho = (bf - 0.65) + 0.8
+    # rho[rho>1.0] = 1.0
+    # rho = 0.5 * (bf - 0.8) + 0.9
+    rho = 1.0 - (1.0 - bf) / 2
+    fdir = '../data/rate_problem/bxm/' + pic_run + '/'
+    fname = fdir + 'bxm_' + str(tframe) + '.dat'
+    fdata = np.fromfile(fname)
+    bxm = fdata[0]
+    # rho = 0.5 * (1 + bf)
+    alpha = rho**3 / bf**2
+    # peperp_model = rho/(1+alpha) + rho*bf*alpha/((1+alpha))
+    # peperp_model = rho * bf
+    peperp_model = np.copy(rho)
+    piperp_model = rho * bf
+    pperp_model = peperp_model + piperp_model
+    pepara_model = np.ones(bf.shape)
+    pipara_model = np.ones(bf.shape)
+    # pepara_model = 2*rho/(2+alpha) + (math.pi*rho**3/(6*bf**2)) * (2*alpha/(2*alpha+1))
+    # pepara_model = rho**3 / bf**2
+    pepara_model = np.copy(rho)
+    # pipara_model = rho**3 / bf**2
+    pipara_model = np.copy(rho)
+    ppara_model = pepara_model + pipara_model
+    # pzz_model_e = p0 * (b**2 + b) / (1 + b**2)
+    # pzz_model_i = p0 * absB / b0
+    pzz_model_e = pe0 * peperp_model
+    pzz_model_i = pi0 * piperp_model
+    pxx_model_e = pe0 * pepara_model
+    pxx_model_i = pi0 * pipara_model
+    firehose_model = 1 + 0.25 * beta0 * (pperp_model - ppara_model) / bf**2
 
     # Outflow velocity
     rho_vel = {}
@@ -10480,6 +11800,21 @@ def average_pressure_pub3(plot_config, show_plot=True):
     pzz_zcut = pezz[ix_xp, :] + pizz[ix_xp, :]
     epsilon_zcut = epsilon[ix_xp, :]
 
+    # shift = int(nx // lx_de)
+    # pexx_zcut = np.mean(pexx[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # peyy_zcut = np.mean(peyy[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # pezz_zcut = np.mean(pezz[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # pixx_zcut = np.mean(pixx[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # piyy_zcut = np.mean(piyy[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # pizz_zcut = np.mean(pizz[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # pxx_zcut = np.mean(pexx[ix_xp-shift:ix_xp+shift, :] +
+    #                    pixx[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # pyy_zcut = np.mean(peyy[ix_xp-shift:ix_xp+shift, :] +
+    #                    piyy[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # pzz_zcut = np.mean(pezz[ix_xp-shift:ix_xp+shift, :] +
+    #                    pizz[ix_xp-shift:ix_xp+shift, :], axis=0)
+    # epsilon_zcut = np.mean(epsilon[ix_xp-shift:ix_xp+shift, :], axis=0)
+
     fig = plt.figure(figsize=[7, 9])
     hgap, vgap = 0.05, 0.02
     rect0 = [0.12, 0.64, 0.4, 0.31]
@@ -10541,13 +11876,19 @@ def average_pressure_pub3(plot_config, show_plot=True):
     x, z, Ay = read_2d_fields(pic_info, fname, **kwargs)
     xde = x * smime
     zde = z * smime
-    if pic_run == "mime400_Tb_T0_025":
+    if "Tb_T0_025" in pic_run:
         dmin, dmax = 1, 8
-    elif pic_run == "mime400_nb_n0_1" or pic_run == "mime400_Tb_T0_1":
+    elif pic_run == "mime400_nb_n0_1" or "mime400_Tb_T0_1" in pic_run:
         dmin, dmax = 1, 3
     elif "mime400_Tb_T0_10" in pic_run:
         dmin, dmax = 1, 1.2
     elif "mime400_Tb_T0_40" in pic_run:
+        dmin, dmax = 1, 1.05
+    elif pic_run == "mime100_Tb_T0_1_cfl07_nppc600":
+        dmin, dmax = 1, 3
+    elif pic_run == "mime100_Tb_T0_10_cfl07_nppc1800":
+        dmin, dmax = 1, 1.2
+    elif pic_run == "mime100_Tb_T0_40_cfl07_nppc4000":
         dmin, dmax = 1, 1.05
     cmap = mpl.cm.inferno_r
     bounds = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
@@ -10640,12 +11981,23 @@ def average_pressure_pub3(plot_config, show_plot=True):
     # axs[iax+2].set_prop_cycle('color', COLORS)
     axs[iax+1].plot(pizz_zcut/pi0, zgrid_di, label=r'$P_{izz}/P_{i0}$')
     axs[iax+1].plot(pezz_zcut/pe0, zgrid_di, label=r'$P_{ezz}/P_{e0}$')
-    axs[iax+1].plot(pzz_model[ix_xp, :]/p0, zgrid_di, label=r"$P_\perp/P_0$ (model)")
+    # p1, = axs[iax+1].plot(pzz_model_i[ix_xp, :]/p0, zgrid_di,
+    #                       label=r"$P_{i\perp}/P_{i0}$ (model)")
+    # p2, = axs[iax+1].plot(pzz_model_e[ix_xp, :]/p0, zgrid_di, linestyle="--",
+    #                       color=p1.get_color(), label=r"$P_{e\perp}/P_{e0}$ (model)")
+    # p3, = axs[iax+1].plot(pxx_model_i[ix_xp, :]/p0, zgrid_di,
+    #                       label=r"$P_{i\parallel}/P_{i0}$ (model)")
+    # p4, = axs[iax+1].plot(pxx_model_e[ix_xp, :]/p0, zgrid_di, linestyle="--",
+    #                       color=p3.get_color(), label=r"$P_{e\parallel}/P_{e0}$ (model)")
+    p1, = axs[iax+1].plot(pzz_model_i[ix_xp, :]/p0, zgrid_di,
+                          label=r"$P_{i\perp}/P_{i0}$ (CGL)")
+    p2, = axs[iax+1].plot(pzz_model_e[ix_xp, :]/p0, zgrid_di, linestyle="--",
+                          color=p1.get_color(), label=r"$P_{e\perp}/P_{e0}$ (Boltzmann)")
     axs[iax+1].plot([1, 1], [zgrid_di[0], zgrid_di[-1]],
                     linewidth=1, linestyle='--',color='k')
     axs[iax+1].set_xlim(axs[iax].get_xlim())
     axs[iax+1].legend(loc=8, bbox_to_anchor=(0.5, -0.8),
-                      prop={'size': 16}, ncol=1,
+                      prop={'size': 12}, ncol=1,
                       shadow=False, fancybox=False, frameon=True)
 
     xlim = axs[iax+1].get_xlim()
@@ -11167,6 +12519,10 @@ def get_cmd_args():
                         help="whether plotting Bxm")
     parser.add_argument('--plot_bxm_beta', action="store_true", default=False,
                         help="whether plotting Bxm for runs with different beta")
+    parser.add_argument('--plot_nm_beta', action="store_true", default=False,
+                        help="whether plotting nm for runs with different beta")
+    parser.add_argument('--plot_bxm_nm', action="store_true", default=False,
+                        help="whether plotting bxm and nm for runs with different beta")
     parser.add_argument('--open_boundary', action="store_true", default=False,
                         help="whether runs are with open boundary")
     parser.add_argument('--plot_p_xcut', action="store_true", default=False,
@@ -11245,6 +12601,10 @@ def get_cmd_args():
                         help='Compare Bx in the inflow region')
     parser.add_argument('--bx_edr', action="store_true", default=False,
                         help='Plot Bx upstream of the electron diffusion region')
+    parser.add_argument('--bx_rho', action="store_true", default=False,
+                        help='Get Bx and rho along the vertical cut')
+    parser.add_argument('--plot_bx_rho', action="store_true", default=False,
+                        help='Plot Bx and rho along the vertical cut')
     return parser.parse_args()
 
 
@@ -11306,6 +12666,14 @@ def analysis_single_frames(plot_config, args):
         plot_bxm(plot_config, args.show_plot)
     elif args.plot_bxm_beta:
         plot_bxm_beta(plot_config, args.show_plot)
+    elif args.plot_nm_beta:
+        plot_nm_beta(plot_config, args.show_plot)
+    elif args.plot_bxm_nm:
+        plot_bxm_nm(plot_config, args.show_plot)
+    elif args.bx_rho:
+        get_bx_rho(plot_config, args.show_plot)
+    elif args.plot_bx_rho:
+        plot_bx_rho(plot_config, args.show_plot)
     elif args.plot_p_xcut:
         plot_pres_xcut_beta(plot_config, args.show_plot)
     elif args.plot_pn_xcut:
@@ -11350,11 +12718,13 @@ def analysis_single_frames(plot_config, args):
         plot_open_angle(plot_config, args.bg, args.show_plot)
     elif args.absj_vout:
         plot_absj_vout(plot_config, args.show_plot)
+        # plot_absj_vout_mime100(plot_config, args.show_plot)
     elif args.calc_peak_vout:
         calc_peak_vout(plot_config, args.show_plot)
     elif args.evolution:
         # simulation_evolution(plot_config, args.bg, args.show_plot)
         simulation_evolution2(plot_config, args.bg, args.show_plot)
+        # simulation_evolution3(plot_config, args.bg, args.show_plot)
     if args.rates_low_beta:
         calc_rates_low_beta(0.22, 89)  # Liu et al. 2017 PRL
         calc_rates_low_beta(0.6, 0.25/8, nonrec=True)
@@ -11377,7 +12747,8 @@ def analysis_single_frames(plot_config, args):
             # rate_model(beta, le_closure=True)
             # rate_model_fermi(beta)
             # rate_model_fermi(beta, le_closure=True)
-            rate_model_fermi_incomp(beta)
+            # rate_model_fermi_incomp(beta)
+            rate_model_fermi_incomp2(beta)
             # calc_bxm_analytical(beta)
     elif args.plot_rate_model:
         plot_rate_model(le_closure=False)
@@ -11386,6 +12757,7 @@ def analysis_single_frames(plot_config, args):
         # plot_rate_model_pub(le_closure=False)
         # plot_rate_model_pub2(le_closure=False)
         plot_rate_model_pub3(le_closure=False)
+        # plot_rate_model_pub4(le_closure=False)
     elif args.peak_rate:
         peak_rate_beta(le_closure=False)
     elif args.plot_peak_rate:
@@ -11419,6 +12791,8 @@ def process_input(plot_config, args, tframe):
         calc_open_angle(plot_config, show_plot=False)
     elif args.calc_peak_vout:
         calc_peak_vout(plot_config, show_plot=False)
+    elif args.bx_rho:
+        get_bx_rho(plot_config, show_plot=False)
 
 
 def analysis_multi_frames(plot_config, args):
@@ -11495,6 +12869,8 @@ def analysis_multi_frames(plot_config, args):
                 pxyz_zcut(plot_config, show_plot=False)
             elif args.bx_inflow:
                 plot_bx_inflow(plot_config, show_plot=False)
+            elif args.pres_avg_pub:
+                average_pressure_pub3(plot_config, show_plot=False)
     else:
         ncores = multiprocessing.cpu_count()
         ncores = 4

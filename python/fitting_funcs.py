@@ -4,13 +4,27 @@ Fitting functions that are commonly used in data analysis.
 import math
 
 import numpy as np
+from scipy.special import kv
 
 
 def func_maxwellian(x, a, b):
     """
-    Function for fitting with exponential expression.
+    Function for fitting with Maxwellian distribution
     """
     return a * np.sqrt(x) * np.exp(-b * x)
+
+
+def func_rel_maxwellian(gamma, theta, f0):
+    """
+    Function for fitting with relativistic Maxwellian distribution
+
+    Args:
+        gamma: Lorentz factor the particle
+        theta: thermal temperature / m_ec^2
+        f0: normalization
+    """
+    beta = np.sqrt(1 - 1.0 / gamma**2)
+    return f0 * (gamma**2 * beta/(theta*kv(2.0, 1/theta))) * np.exp(-gamma/theta)
 
 
 def func_line(x, a, b):

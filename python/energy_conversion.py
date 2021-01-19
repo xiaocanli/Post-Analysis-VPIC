@@ -28,7 +28,7 @@ from shell_functions import mkdir_p
 
 rc('font', **{'family': 'serif', 'serif': ['Computer Modern']})
 mpl.rc('text', usetex=True)
-mpl.rcParams['text.latex.preamble'] = [r"\usepackage{amsmath}"]
+mpl.rcParams['text.latex.preamble'] = r"\usepackage{amsmath}"
 
 colors = palettable.colorbrewer.qualitative.Set1_9.mpl_colors
 

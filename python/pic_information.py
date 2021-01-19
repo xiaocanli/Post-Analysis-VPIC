@@ -21,6 +21,24 @@ from runs_name_path import *
 from serialize_json import data_to_json, json_to_data
 
 
+def get_vpic_info(pic_run_dir):
+    """Get information of the VPIC simulation
+    """
+    with open(pic_run_dir + '/info') as f:
+        content = f.readlines()
+    f.close()
+    vpic_info = {}
+    for line in content[1:]:
+        if "=" in line:
+            line_splits = line.split("=")
+        elif ":" in line:
+            line_splits = line.split(":")
+
+        tail = line_splits[1].split("\n")
+        vpic_info[line_splits[0].strip()] = float(tail[0])
+    return vpic_info
+
+
 def get_pic_info(base_directory, run_name):
     """Get particle-in-cell simulation information.
 
@@ -310,6 +328,10 @@ def get_output_intervals(dtwpe, dtwce, dtwpi, dtwci, base_directory, deck_file):
                                          dtwpi, dtwci)
             trace_interval = 0
 
+        if interval == 0:
+            vpic_info = get_vpic_info(base_directory)
+            interval = int(vpic_info["fields_interval"])
+
         fields_interval = interval
 
         while not 'int eparticle_interval' in content[current_line]:
@@ -339,7 +361,10 @@ def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
     """
     line_splits = line.split("(")
     word_splits = line_splits[1].split("/")
-    interval = float(word_splits[0])
+    try:
+        interval = float(word_splits[0])
+    except ValueError:
+        interval = 0.0
     word2_splits = line_splits[2].split("*")
     dt = 0.0
     if word2_splits[0] == "wpe":
@@ -350,6 +375,8 @@ def get_time_interval(line, dtwpe, dtwce, dtwpi, dtwci):
         dt = dtwpi
     elif word2_splits[0] == "wci":
         dt = dtwci
+    else:
+        dt = 1.0
 
     interval = int(interval / dt)
     return interval
