@@ -12,8 +12,8 @@
 #SBATCH --mail-user=phyxiaolee@gmail.com
 #SBATCH -L SCRATCH,project
 
-#DW persistentdw name=reconnection
-#DW stage_out source=$DW_PERSISTENT_STRIPED_reconnection/input/data destination=/global/cscratch1/sd/xiaocan/3D-Lx150-bg0.2-150ppc-2048KNL/data type=directory
+#DW persistentdw name=reconnection2
+##DW stage_out source=$DW_PERSISTENT_STRIPED_reconnection2/input/data destination=/global/cscratch1/sd/xiaocan/3D-sigmae100-Lx125-bg0.0-100ppc-1024KNL/data type=directory
 
 ##### These are shell commands
 date
@@ -22,16 +22,16 @@ module swap craype-mic-knl craype-haswell  # Make sure that we are not using KNL
 module load dws
 module list
 
-export RUNDIR_SCRATCH=/global/cscratch1/sd/xiaocan/3D-Lx150-bg0.2-150ppc-2048KNL
-mkdir -p $RUNDIR_SCRATCH/data
-lfs setstripe -S 16777216 -c 32 $RUNDIR_SCRATCH/data
+# export RUNDIR_SCRATCH=/global/cscratch1/sd/xiaocan/3D-sigmae100-Lx125-bg0.0-100ppc-1024KNL
+# mkdir -p $RUNDIR_SCRATCH/data
+# lfs setstripe -S 16777216 -c 32 $RUNDIR_SCRATCH/data
 
-cp -r $RUNDIR_SCRATCH/input $DW_PERSISTENT_STRIPED_reconnection/
+# cp -r $RUNDIR_SCRATCH/input $DW_PERSISTENT_STRIPED_reconnection/
 
-cd $DW_PERSISTENT_STRIPED_reconnection/input
+cd $DW_PERSISTENT_STRIPED_reconnection2/input
 
 # time srun -n 2048 -N 64 -c 2 --cpu_bind=cores ./translate.exec -rp /global/cscratch1/sd/xiaocan/3D-Lx150-bg0.2-150ppc-2048KNL/ -fd -sd -nf 32
-time srun -n 2048 -N 64 -c 2 --cpu_bind=cores ./translate.exec -rp $DW_PERSISTENT_STRIPED_reconnection/input/ -fd -sd -nf 32
+time srun -n 2048 -N 64 -c 2 --cpu_bind=cores ./translate.exec -rp $DW_PERSISTENT_STRIPED_reconnection2/input/ -fd -sd -nf 32 -cs -ps -ns
 # wait
 
 date

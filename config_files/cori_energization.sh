@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 #SBATCH -q premium
-#SBATCH -N 16
-#SBATCH -t 4:00:00
+#SBATCH -N 64
+#SBATCH -t 8:00:00
 #SBATCH -C haswell
 #SBATCH -o energization%j.out
 #SBATCH -e energization%j.err
@@ -14,7 +14,7 @@
 
 ##### These are shell commands
 date
-# module swap craype-haswell craype-mic-knl
+module swap craype-mic-knl craype-haswell # make sure that we are using Haswell libraries
 # module load lustre-default
 module load dws
 module load cray-hdf5-parallel

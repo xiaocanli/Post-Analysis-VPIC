@@ -7,6 +7,7 @@ spectrum/
 vdistributions/
 src/distribution/
 src/others/
+.ipynb_checkpoints/
 python/*.pyc
 energies_pic.dat
 fileContents.txt
