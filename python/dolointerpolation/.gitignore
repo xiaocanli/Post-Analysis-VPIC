@@ -1,5 +1,0 @@
-multilinear_cython.c
-build/
-python/
-*.so
-*.pyc
