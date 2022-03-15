@@ -63,7 +63,7 @@ program combine_spectrum_hdf5
         integer, intent(in) :: tframe
         integer(hsize_t), dimension(1), intent(in) :: dcount, doffset
         character(len=256) :: fname
-        character(len=32) :: groupname, dataset_name
+        character(len=64) :: groupname, dataset_name
         character(len=8) :: tframe_char
         integer(hid_t) :: file_id, group_id, plist_id
         integer(hid_t) :: filespace, memspace, dataset_id
