@@ -320,7 +320,7 @@ def read_2d_hdf5_fields(vname, tindex, **kwargs):
         plane_index = "y"
 
     # ion to electron mass ratio
-    if "plane_index" in kwargs:
+    if "mi_me" in kwargs:
         mi_me = kwargs.get("mi_me")
     else:
         mi_me = 1.0

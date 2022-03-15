@@ -26,6 +26,8 @@ target_link_libraries(parameters read_config)
 add_library(mpi_setup mpi_setup.f90 global.f90 translate_config.f90)
 target_link_libraries(mpi_setup get_info)
 
+add_library(file_header STATIC file_header.f90)
+
 add_library(particle_info particle_info.f90 global.f90)
 target_link_libraries(particle_info get_info)
 
@@ -79,8 +81,6 @@ target_link_libraries(jdote compression_shear pre_post_hydro)
 add_library(fluid_energization_module STATIC fluid_energization_module.f90 neighbors.f90)
 target_link_libraries(fluid_energization_module pre_post_hydro)
 
-add_library(file_header STATIC file_header.f90)
-
 add_library(translate_module translate_config.f90 emfields.f90
     particle_fields.f90 mpi_io_translate.f90 global.f90 get_info_translate.f90
     topology_translate.f90)
@@ -94,7 +94,7 @@ target_link_libraries(particle_module get_info file_header interp_emf
     magnetic_field particle_info)
 
 add_library(particle_file particle_file.f90)
-target_link_libraries(particle_file file_header)
+target_link_libraries(particle_file file_header path_info get_info)
 
 add_library(particle_spectrum particle_frames.f90 particle_spectrum.f90)
 target_link_libraries(particle_spectrum file_header magnetic_field
