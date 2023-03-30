@@ -23,6 +23,7 @@ program reorganize_spectrum_hdf5
     real(fp), allocatable, dimension(:, :, :, :) :: pspect_reorganize
     character(len=256) :: rootpath
     real(dp) :: start, finish
+    logical :: single_file
 
     call MPI_INIT(ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD, myid, ierr)
@@ -233,10 +234,14 @@ program reorganize_spectrum_hdf5
 
         write(tframe_char, "(I0)") tframe
         fname = trim(adjustl(rootpath))//"/spectrum/T."//trim(tframe_char)
-        if (species == 'e') then
-            fname = trim(fname)//"/spectrum_electron_"
-        else if (species == 'H' .or. species == 'h' .or. species == 'i') then
-            fname = trim(fname)//"/spectrum_ion_"
+        if (single_file) then
+            fname = trim(fname)//"/spectrum_"
+        else
+            if (species == 'e') then
+                fname = trim(fname)//"/spectrum_electron_"
+            else if (species == 'H' .or. species == 'h' .or. species == 'i') then
+                fname = trim(fname)//"/spectrum_ion_"
+            endif
         endif
         fname = trim(fname)//trim(tframe_char)//".h5part"
         groupname = "/"
@@ -256,7 +261,16 @@ program reorganize_spectrum_hdf5
         call h5pclose_f(plist_id, error)
         call h5gopen_f(file_id, groupname, group_id, error)
 
-        call h5dopen_f(group_id, "spectrum", dataset_id, error)
+        if (single_file) then
+            if (species == 'e') then
+                groupname = "spectrum_electron"
+                call h5dopen_f(group_id, "spectrum_electron", dataset_id, error)
+            else if (species == 'H' .or. species == 'h' .or. species == 'i') then
+                call h5dopen_f(group_id, "spectrum_ion", dataset_id, error)
+            endif
+        else
+            call h5dopen_f(group_id, "spectrum", dataset_id, error)
+        endif
         call h5dget_type_f(dataset_id, datatype_id, error)
 
         ! Create property list for collective dataset write
@@ -337,6 +351,10 @@ program reorganize_spectrum_hdf5
             help='Number of data points for each energy spectrum', &
             required=.false., act='store', def='1003', error=error)
         if (error/=0) stop
+        call cli%add(switch='--single_file', switch_ab='-sf', &
+            help='Whether spectra are saved in the same file', &
+            required=.false., act='store_true', def='.false.', error=error)
+        if (error/=0) stop
         call cli%get(switch='-rp', val=rootpath, error=error)
         if (error/=0) stop
         call cli%get(switch='-ts', val=tstart, error=error)
@@ -359,6 +377,8 @@ program reorganize_spectrum_hdf5
         if (error/=0) stop
         call cli%get(switch='-nd', val=ndata, error=error)
         if (error/=0) stop
+        call cli%get(switch='-sf', val=single_file, error=error)
+        if (error/=0) stop
 
         if (myid == 0) then
             print '(A,A)', ' The simulation rootpath: ', trim(adjustl(rootpath))
@@ -369,6 +389,9 @@ program reorganize_spectrum_hdf5
             print '(A,I0,A,I0,A,I0)', ' Number of zones along each direction: ', &
                 nzonex, ", ", nzoney, ", ", nzonez
             print '(A,I0)', ' Number of data points ine each spectrum: ', ndata
+            if (single_file) then
+                print '(A)', ' Spectra are saved in the same file'
+            endif
         endif
     end subroutine get_cmd_args
 
