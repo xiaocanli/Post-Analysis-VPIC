@@ -43,8 +43,9 @@ program spectrum_reconnection_layer
         call MPI_FINALIZE(ierr)
     endif
 
-    if (mod(pic_topox, topox) /= 0 .or. mod(pic_topoy, topoy) /= 0 .or. &
-        mod(pic_topoz, topoz) /= 0) then
+    if (mod(pic_topox*nzonex, topox) /= 0 .or. &
+        mod(pic_topoy*nzoney, topoy) /= 0 .or. &
+        mod(pic_topoz*nzonez, topoz) /= 0) then
         if (myid == master) then
             print*, "Inconsistent MPI topology with PIC MPI topology"
         endif
@@ -166,7 +167,7 @@ program spectrum_reconnection_layer
         do iy = 1, ny_local
             do ix = 1, nx_local
                 ! Bottom half domain
-                do iz = 1, nz_local/2
+                do iz = 2, nz_local/2 !< The bottom boundary might have problem
                     frac = sum(pspect_e(3+energy_index:, ix, iy, iz)) / &
                         sum(pspect_e(4:, ix, iy, iz))
                     if (frac > density_threshold) then
@@ -179,7 +180,7 @@ program spectrum_reconnection_layer
                     zbounds(ix, iy, 1) = iz
                 endif
 
-                do iz = 1, nz_local/2
+                do iz = 2, nz_local/2
                     frac = sum(pspect_i(3+energy_index:, ix, iy, iz)) / &
                         sum(pspect_i(4:, ix, iy, iz))
                     if (frac > density_threshold) then
@@ -196,7 +197,7 @@ program spectrum_reconnection_layer
                 endif
 
                 ! Top half domain
-                do iz = nz_local, nz_local/2, -1
+                do iz = nz_local-1, nz_local/2, -1 !< The top boundary might have problem
                     frac = sum(pspect_e(3+energy_index:, ix, iy, iz)) / &
                         sum(pspect_e(4:, ix, iy, iz))
                     if (frac > density_threshold) then
@@ -209,7 +210,7 @@ program spectrum_reconnection_layer
                     zbounds(ix, iy, 2) = iz
                 endif
 
-                do iz = nz_local, nz_local/2, -1
+                do iz = nz_local-1, nz_local/2, -1
                     frac = sum(pspect_i(3+energy_index:, ix, iy, iz)) / &
                         sum(pspect_i(4:, ix, iy, iz))
                     if (frac > density_threshold) then
